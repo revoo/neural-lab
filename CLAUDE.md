@@ -4,6 +4,8 @@ An interactive website teaching AI from first principles to software engineers a
 
 ## Read before doing any work
 
+Start with **`HANDOFF.md`** — the step-by-step onboarding procedure, lesson checklist and end-of-session routine. In short:
+
 1. `docs/VISION.md` — the owner's brief: audience, philosophy, full 18-milestone curriculum, and **the owner's clarifications** (concept first; maths first-class but unintimidating; puzzle labs).
 2. `docs/STYLE_GUIDE.md` — voice, lesson structure, how to present maths, lab design rules, engineering conventions.
 3. `docs/ROADMAP.md` — what's done, next steps, decisions, limitations. **Update it at the end of every session.**

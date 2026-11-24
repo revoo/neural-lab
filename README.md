@@ -4,6 +4,8 @@ An interactive place to understand AI from first principles — Feynman-style ex
 
 Every visualisation computes real numbers: real gradients, real softmax, real networks trained live in the browser.
 
+New contributor or agent? Start with **[`HANDOFF.md`](HANDOFF.md)**.
+
 ## Running it
 
 ```bash
