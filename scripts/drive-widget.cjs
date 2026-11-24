@@ -1,6 +1,6 @@
-// Drive one widget through a sequence of actions and screenshot it along the way, in light and dark mode.
+// Drive one widget through a sequence of actions and screenshot it along the way, in each colour theme (light, dark, matrix).
 // Usage (dev server running):
-//   node scripts/drive-widget.cjs <lessonId> <widgetIndex> '<actions JSON>' [--width=1300] [--themes=light,dark]
+//   node scripts/drive-widget.cjs <lessonId> <widgetIndex> '<actions JSON>' [--width=1300] [--themes=light,dark,matrix]
 // Actions (array, run in order inside the widget's <figure>):
 //   {"click": "button:has-text('Next')", "times": 3}   click a Playwright selector (scoped to the widget)
 //   {"clickAt": [x, y], "on": "svg >> nth=0"}            click at element-relative coordinates
@@ -23,7 +23,7 @@ const flags = Object.fromEntries(
 const [lesson, idx, json] = args;
 const actions = JSON.parse(json || '[]');
 const width = Number(flags.width || 1300);
-const themes = (flags.themes || 'light,dark').split(',');
+const themes = (flags.themes || 'light,dark,matrix').split(',');
 const base = flags.base || 'http://localhost:5173';
 const outDir = path.join(__dirname, '../scratch/shots');
 fs.mkdirSync(outDir, { recursive: true });

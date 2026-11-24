@@ -59,6 +59,7 @@ Maths is part of the main reading path — it's how the learner will eventually 
 - Prefer **live explanations** (`.live-note`) that react to the current state ("the tanh has saturated, so…").
 - Use **Predict** before revealing a surprising result.
 - Colour semantics are global: blue/orange for the two classes and for positive/negative weights, green for results, magenta for gradients, purple for the model/accent.
+- **Always colour through the CSS variables** (`var(--c-a)`, `var(--accent)`, `var(--text)`…), never hard-coded hex, so widgets work in all three themes: light, dark and **matrix**. In matrix the accent (model / `\cp`) is phosphor green, so results (`--c-c`) become lime and classes become cyan-blue and amber; the meanings don't change.
 
 ## 5. Labs and puzzles (the Zachtronics principle)
 
@@ -87,5 +88,12 @@ Where a concept can be *built*, make it a lab:
 - Register lessons in `src/curriculum.ts`. Add glossary terms in `src/glossary.ts`.
 - Test any non-trivial maths (`*.test.ts`, Vitest). Gradient code is always checked numerically.
 - Draw networks with `src/components/NetDiagram.tsx` (weights `W[l][j][i]`, thumbnails, selection, badges).
-- Verify every number you quote with a script: `node --experimental-strip-types --import ./scripts/ts-hooks.mjs scratch/x.ts` runs TypeScript that imports lesson/lib modules. Check widgets with `scripts/shoot-widgets.cjs` and `scripts/drive-widget.cjs` in light and dark mode and at phone width.
+- Verify every number you quote with a script: `node --experimental-strip-types --import ./scripts/ts-hooks.mjs scratch/x.ts` runs TypeScript that imports lesson/lib modules. Check widgets with `scripts/shoot-widgets.cjs` and `scripts/drive-widget.cjs` in all three themes (light, dark, matrix — the scripts' default) and at phone width.
+
+### The matrix theme (session 3)
+
+- Glow (`text-shadow`) is for headings, accents and chrome only — never body text. Prose stays a soft mint sans-serif; chrome, headings and widgets are monospace.
+- The reading column is opaque; the digital rain lives in the margins. Don't make content panels translucent.
+- Motion is decorative and must stop under `prefers-reduced-motion`; the learner can pause the rain.
+- Decorative text (the boot sequence) must not make factual claims — no invented numbers.
 - In MDX, avoid raw `{`, `}` and `<` in prose. JSX attribute strings don't process escapes, so `tex="\frac{a}{b}"` works as written.

@@ -22,12 +22,13 @@ npm test                          # expect all tests to pass
 npm run build                     # typecheck + production build
 npm run dev                       # leave running, then in another terminal:
 node scripts/check-pages.cjs      # expect ✓ for every page at 1300px and 390px
+node scripts/check-pages.cjs --theme=matrix   # same, in the matrix theme
 ```
 
 Visual checks (dev server running; output goes to `scratch/shots/`, which is git-ignored):
 
 ```bash
-node scripts/shoot-widgets.cjs <lessonId>            # every widget on a lesson, light + dark
+node scripts/shoot-widgets.cjs <lessonId>            # every widget on a lesson, light + dark + matrix (--themes=dark to narrow)
 node scripts/drive-widget.cjs <lessonId> <widgetIndex> '[{"click":"button:has-text(\"Next\")","times":2},{"click":"[data-node=\"1-0\"]"},{"shot":"after"}]'
 ```
 
@@ -55,7 +56,7 @@ Take the first item under **"Next steps"** in `docs/ROADMAP.md` unless the owner
 - [ ] Every number quoted in prose or code comments has been checked by running it.
 - [ ] Quiz: mostly conceptual questions; wrong-answer feedback explains the misconception; numeric questions are parameterised.
 - [ ] `npm test`, `npm run build` and `node scripts/check-pages.cjs` all pass.
-- [ ] You looked at the widgets in a real browser (Playwright screenshots are fine) in light **and** dark mode, and at phone width.
+- [ ] You looked at the widgets in a real browser (Playwright screenshots are fine) in light, dark **and** matrix themes, and at phone width.
 
 ### After every finished lesson (owner's instruction)
 
@@ -72,6 +73,8 @@ Assume the session can disconnect at any moment and someone else will continue f
 3. Commit with clear messages and push.
 
 ## Gotchas that have already bitten someone
+
+- **Three themes.** `data-theme` is `light`, `dark` or `matrix` (`src/theme.ts`). OS-dark media queries use `:root:not([data-theme])` so they only apply when no theme was chosen — don't write `:not([data-theme='light'])`, it leaks dark styles into matrix. Colour widgets through CSS variables only.
 
 - **MDX:** no raw `{`, `}` or `<` in prose. JSX attribute strings don't process escapes, so `tex="\frac{a}{b}"` works as written; in JS strings (e.g. `quiz.ts`), backslashes must be doubled.
 - **Colour macros:** use `\ca \cb \cc \cg \cp \cv`. Never name a macro `\cr` — TeX reserves it as "end of row", and matrices silently collapse.

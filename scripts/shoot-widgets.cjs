@@ -1,5 +1,5 @@
-// Screenshots every widget on one lesson page, in light and dark mode, for visual checks.
-// Usage (dev server running): node scripts/shoot-widgets.cjs <lessonId> [outDir] [--width=1300]
+// Screenshots every widget on one lesson page, in each colour theme, for visual checks.
+// Usage (dev server running): node scripts/shoot-widgets.cjs <lessonId> [outDir] [--width=1300] [--themes=light,dark,matrix]
 // Writes <outDir>/<lessonId>-<theme>-<n>.png (default outDir: scratch/shots, which is git-ignored).
 const { chromium } = require('playwright');
 const fs = require('fs');
@@ -16,6 +16,7 @@ const lesson = args[0];
 const outDir = args[1] || path.join(__dirname, '../scratch/shots');
 const width = Number(flags.width || 1300);
 const base = flags.base || 'http://localhost:5173';
+const themes = (flags.themes || 'light,dark,matrix').split(',');
 if (!lesson) {
   console.error('usage: node scripts/shoot-widgets.cjs <lessonId> [outDir]');
   process.exit(1);
@@ -24,7 +25,7 @@ fs.mkdirSync(outDir, { recursive: true });
 
 (async () => {
   const browser = await chromium.launch();
-  for (const theme of ['light', 'dark']) {
+  for (const theme of themes) {
     const page = await browser.newPage({ viewport: { width, height: 1000 } });
     await page.addInitScript((t) => localStorage.setItem('nl-theme', t), theme);
     const errors = [];

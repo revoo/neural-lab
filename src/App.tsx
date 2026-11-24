@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { MDXProvider } from '@mdx-js/react';
 import { useRoute } from './router';
 import { Sidebar } from './pages/Sidebar';
@@ -8,29 +8,20 @@ import { GlossaryPage } from './pages/GlossaryPage';
 import { ReviewPage } from './pages/ReviewPage';
 import { findLesson } from './curriculum';
 import { mdxComponents } from './mdxComponents';
-
-function useTheme() {
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    const t = document.documentElement.dataset.theme;
-    if (t === 'light' || t === 'dark') return t;
-    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  });
-  const toggle = () => {
-    const next = theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = next;
-    try {
-      localStorage.setItem('nl-theme', next);
-    } catch {
-      /* ignore */
-    }
-    setTheme(next);
-  };
-  return { theme, toggle };
-}
+import { prefersReducedMotion, useRain, useTheme, type Theme } from './theme';
+import { DigitalRain } from './components/DigitalRain';
+import { BootSequence, ThemeSwitch } from './components/ThemeSwitch';
 
 export function App() {
   const route = useRoute();
-  const { theme, toggle } = useTheme();
+  const { theme, setTheme } = useTheme();
+  const { rain, setRain } = useRain();
+  const [booting, setBooting] = useState(false);
+  const endBoot = useCallback(() => setBooting(false), []);
+  const changeTheme = (t: Theme) => {
+    if (t === 'matrix' && theme !== 'matrix' && !prefersReducedMotion()) setBooting(true);
+    setTheme(t);
+  };
   const [navOpen, setNavOpen] = useState(false);
 
   useEffect(() => {
@@ -54,6 +45,8 @@ export function App() {
 
   return (
     <MDXProvider components={mdxComponents}>
+      {theme === 'matrix' && <DigitalRain animate={rain} />}
+      {booting && <BootSequence onDone={endBoot} />}
       <div className="app">
         <Sidebar route={route} open={navOpen} />
         {navOpen && <div className="scrim" onClick={() => setNavOpen(false)} />}
@@ -62,9 +55,19 @@ export function App() {
             <button className="icon-btn menu-btn" onClick={() => setNavOpen(true)} aria-label="Open navigation">☰</button>
             <div className="crumbs">{crumbs}</div>
             <a className="icon-btn" href="#/glossary">Glossary</a>
-            <button className="icon-btn" onClick={toggle} aria-label="Toggle colour theme">
-              {theme === 'dark' ? '☀ Light' : '☾ Dark'}
-            </button>
+            {theme === 'matrix' && (
+              <button
+                className="icon-btn rain-btn"
+                onClick={() => setRain(!rain)}
+                aria-pressed={rain}
+                aria-label="Digital rain"
+                title={rain ? 'Pause the digital rain' : 'Resume the digital rain'}
+              >
+                <span aria-hidden="true">{rain ? '❚❚' : '▶'}</span>
+                <span className="rain-label">Rain</span>
+              </button>
+            )}
+            <ThemeSwitch theme={theme} onChange={changeTheme} />
           </header>
           {route.page === 'home' && <Home />}
           {route.page === 'lesson' && (lesson ? <LessonPage key={lesson.id} lesson={lesson} /> : <NotFound />)}

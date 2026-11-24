@@ -25,7 +25,7 @@ Session 2 worked through Module 3 → Module 4 → Module 6 in order, committing
 
 ## Platform features (done)
 
-- Curriculum navigation with per-lesson completion, progress dashboard, light/dark themes.
+- Curriculum navigation with per-lesson completion, progress dashboard, three themes: light, dark and **matrix** (session 3: green-phosphor terminal; `src/theme.ts`, `src/components/DigitalRain.tsx`, `src/components/ThemeSwitch.tsx`, matrix block at the end of `global.css`; digital rain of the course's own symbols in the margins only, pause button, boot sequence on switch, reduced-motion aware).
 - Lesson components: `Widget`, `Eq` (word equation + colour-coded symbols + legend), `Predict`, `Quiz` (multiple choice with misconception feedback, parameterised numeric, ordering), `Deeper`, `MathExhibit`, callouts, glossary `Term` tooltips.
 - Spaced-repetition review (Leitner boxes) across all lesson quizzes; parameterised questions generate fresh numbers.
 - Searchable glossary.

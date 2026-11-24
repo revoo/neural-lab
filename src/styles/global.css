@@ -68,7 +68,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
+  :root:not([data-theme]) {
     --bg: #121316;
     --bg-elev: #1a1c20;
     --bg-sunken: #0d0e10;
@@ -234,10 +234,10 @@ code, kbd, pre { font-family: var(--font-mono); }
 :root[data-theme='dark'] .hljs-title, :root[data-theme='dark'] .hljs-title.function_ { color: #82aaff; }
 :root[data-theme='dark'] .hljs-attr, :root[data-theme='dark'] .hljs-variable { color: #ff8fc0; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) .hljs-keyword, :root:not([data-theme='light']) .hljs-built_in { color: #c7a2ff; }
-  :root:not([data-theme='light']) .hljs-string { color: #7fd9a0; }
-  :root:not([data-theme='light']) .hljs-number { color: #ffb070; }
-  :root:not([data-theme='light']) .hljs-title { color: #82aaff; }
+  :root:not([data-theme]) .hljs-keyword, :root:not([data-theme]) .hljs-built_in { color: #c7a2ff; }
+  :root:not([data-theme]) .hljs-string { color: #7fd9a0; }
+  :root:not([data-theme]) .hljs-number { color: #ffb070; }
+  :root:not([data-theme]) .hljs-title { color: #82aaff; }
 }
 
 /* ---------- Teaching components ---------- */
@@ -464,7 +464,7 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 0; }
 .exhibit-body > * { max-width: none; }
 .exhibit-body .quiz { margin-top: 1.2em; }
 :root[data-theme='dark'] .exhibit-mark, :root[data-theme='dark'] .exhibit-label { color: #e0b75a; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .exhibit-mark, :root:not([data-theme='light']) .exhibit-label { color: #e0b75a; } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) .exhibit-mark, :root:not([data-theme]) .exhibit-label { color: #e0b75a; } }
 
 /* Accessible equation block: words above, symbols below, legend underneath */
 .eq { margin: 1.6em auto; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-elev); padding: 6px 18px 10px; }
@@ -477,3 +477,199 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 0; }
 .eq-legend li { margin: 0; }
 .eq-legend p { margin: 0; }
 .eq-caption { font-family: var(--font-ui); font-size: 13.5px; color: var(--text-muted); padding-top: 6px; }
+
+/* ---------- Theme switch (top bar) ---------- */
+.theme-switch { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-sunken); padding: 2px; gap: 2px; }
+.theme-switch button {
+  display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; cursor: pointer;
+  padding: 4px 8px; border-radius: 4px; font-size: 12.5px; color: var(--text-muted);
+}
+.theme-switch button:hover { color: var(--text); }
+.theme-switch button.on { background: var(--bg-elev); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.12); }
+.theme-switch .matrix-icon { display: block; }
+@media (max-width: 640px) {
+  .theme-switch .theme-label { display: none; }
+  .theme-switch button { padding: 4px 7px; }
+  .topbar { gap: 8px; }
+  .topbar .icon-btn { padding: 6px 8px; }
+}
+
+/* ======================================================================
+   MATRIX THEME
+   Green phosphor terminal. Rules of the road:
+   - Body text is a soft mint, never neon, and never glows: glow is for headings, accents and chrome.
+   - The reading column is opaque; the digital rain (components/DigitalRain.tsx) lives in the margins.
+   - Data colours keep their meaning: class A cyan-blue, class B amber, results lime, gradients
+     magenta, and the accent (the model / \cp) is the theme's phosphor green.
+   - Motion is gentle and stops under prefers-reduced-motion.
+   ====================================================================== */
+:root[data-theme='matrix'] {
+  --font-ui: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-prose: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --bg: #030805;
+  --bg-elev: #06110a;
+  --bg-sunken: #020603;
+  --bg-hover: #0b2214;
+  --border: #12331f;
+  --border-strong: #1e5633;
+  --text: #cdeedb;
+  --text-muted: #8cc5a2;
+  --text-faint: #5d9273;
+  --accent: #2bff88;
+  --accent-soft: #0a2616;
+  --accent-text: #4dff9a;
+
+  --c-a: #4fb8ff;
+  --c-b: #ffad33;
+  --c-c: #c4f04a;
+  --c-grad: #ff66d9;
+  --c-warn: #ff9a3d;
+  --c-bad: #ff5c6c;
+  --c-good: #c4f04a;
+  --c-pos: #4fb8ff;
+  --c-neg: #ffad33;
+  --c-grid: #0e2918;
+  --c-axis: #2f6b47;
+
+  --glow: 0 0 6px rgba(43, 255, 136, 0.55), 0 0 18px rgba(43, 255, 136, 0.18);
+  --glow-soft: 0 0 8px rgba(43, 255, 136, 0.28);
+  --shadow: 0 0 0 1px rgba(43, 255, 136, 0.05), 0 6px 24px rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+
+:root[data-theme='matrix'] body { background: var(--bg); }
+:root[data-theme='matrix'] ::selection { background: #2bff88; color: #021208; }
+:root[data-theme='matrix'] * { scrollbar-color: #1e5633 transparent; }
+
+/* The rain sits behind everything; the app floats above it. */
+.digital-rain { position: fixed; inset: 0; z-index: 0; pointer-events: none; display: block; }
+:root[data-theme='matrix'] .app { position: relative; z-index: 1; }
+
+/* Opaque reading column with soft edges: rain in the gutters, never behind the words. */
+:root[data-theme='matrix'] .page {
+  background: linear-gradient(
+    90deg,
+    rgba(3, 8, 5, 0.35) max(0px, calc(50% - 520px)),
+    rgba(3, 8, 5, 0.97) max(0px, calc(50% - 410px)),
+    rgba(3, 8, 5, 0.97) min(100%, calc(50% + 410px)),
+    rgba(3, 8, 5, 0.35) min(100%, calc(50% + 520px))
+  );
+  min-height: calc(100vh - 50px);
+}
+:root[data-theme='matrix'] .sidebar { background: rgba(5, 14, 9, 0.9); border-right-color: #12331f; }
+:root[data-theme='matrix'] .topbar { background: rgba(3, 8, 5, 0.86); border-bottom-color: #12331f; }
+
+/* Faint scanlines over the chrome only (not the prose). */
+:root[data-theme='matrix'] .topbar::after,
+:root[data-theme='matrix'] .widget-head::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(43, 255, 136, 0.035) 0 1px, transparent 1px 3px);
+}
+:root[data-theme='matrix'] .widget-head { position: relative; }
+
+/* Type: mono chrome and headings, sans prose for long reading. */
+:root[data-theme='matrix'] .prose { font-size: 17.5px; line-height: 1.72; }
+:root[data-theme='matrix'] .prose h2,
+:root[data-theme='matrix'] .prose h3,
+:root[data-theme='matrix'] .lesson-header h1,
+:root[data-theme='matrix'] .hero h1,
+:root[data-theme='matrix'] .page > h1 {
+  color: var(--accent-text); text-shadow: var(--glow); letter-spacing: -0.01em; font-weight: 650;
+}
+:root[data-theme='matrix'] .prose h2::before { content: '## '; color: var(--text-faint); text-shadow: none; }
+:root[data-theme='matrix'] .prose h3::before { content: '### '; color: var(--text-faint); text-shadow: none; }
+:root[data-theme='matrix'] .lesson-header h1::after,
+:root[data-theme='matrix'] .hero h1::after {
+  content: '█'; display: inline-block; margin-left: 0.18em; font-size: 0.8em; color: var(--accent);
+  animation: nl-blink 1.15s steps(1) infinite;
+}
+@keyframes nl-blink { 50% { opacity: 0; } }
+:root[data-theme='matrix'] .lesson-kicker::before { content: '// '; opacity: 0.7; }
+:root[data-theme='matrix'] .lesson-kicker,
+:root[data-theme='matrix'] .brand { text-shadow: var(--glow-soft); }
+:root[data-theme='matrix'] .brand { color: var(--accent-text); font-family: var(--font-ui); letter-spacing: 0.02em; }
+:root[data-theme='matrix'] .lesson-header .summary, :root[data-theme='matrix'] .hero p { font-size: 18.5px; }
+:root[data-theme='matrix'] .prose strong { color: #e6fff0; }
+:root[data-theme='matrix'] a { text-decoration: none; }
+:root[data-theme='matrix'] .prose a:hover, :root[data-theme='matrix'] .nav-link:hover { text-shadow: var(--glow-soft); }
+:root[data-theme='matrix'] .prose code:not(pre code) { color: var(--accent-text); background: #04140b; border-color: #12331f; }
+:root[data-theme='matrix'] .prose pre, :root[data-theme='matrix'] pre.code {
+  background: #010503; border-color: #12331f; box-shadow: inset 0 0 24px rgba(43, 255, 136, 0.04);
+}
+
+/* Navigation */
+:root[data-theme='matrix'] .nav-link.active,
+:root[data-theme='matrix'] .nav-lessons a.active {
+  background: #0a2616; color: var(--accent-text); box-shadow: inset 2px 0 0 var(--accent); text-shadow: var(--glow-soft);
+}
+:root[data-theme='matrix'] .dot.done { box-shadow: 0 0 6px rgba(196, 240, 74, 0.6); }
+:root[data-theme='matrix'] .progress-bar > div { box-shadow: 0 0 8px rgba(196, 240, 74, 0.55); }
+
+/* Panels: thin phosphor edge, faint outer glow. */
+:root[data-theme='matrix'] .widget {
+  border-color: #17432a;
+  box-shadow: 0 0 0 1px rgba(43, 255, 136, 0.04), 0 0 28px rgba(43, 255, 136, 0.05), 0 8px 28px rgba(0, 0, 0, 0.55);
+}
+:root[data-theme='matrix'] .widget-head { background: linear-gradient(180deg, #082014, #06110a); }
+:root[data-theme='matrix'] .widget-title { color: var(--accent-text); letter-spacing: 0.02em; }
+:root[data-theme='matrix'] .widget-title::before { content: '> '; opacity: 0.6; }
+:root[data-theme='matrix'] .widget-head .w-icon { box-shadow: 0 0 8px var(--accent); }
+:root[data-theme='matrix'] .eq,
+:root[data-theme='matrix'] .predict,
+:root[data-theme='matrix'] .quiz-q,
+:root[data-theme='matrix'] .callout,
+:root[data-theme='matrix'] .deeper { box-shadow: 0 0 18px rgba(43, 255, 136, 0.035); }
+:root[data-theme='matrix'] .callout-title::before { content: '[ '; }
+:root[data-theme='matrix'] .callout-title::after { content: ' ]'; }
+:root[data-theme='matrix'] .live-note { background: #071d10; border-left: 2px solid var(--accent); border-radius: 4px; }
+:root[data-theme='matrix'] .live-note strong { text-shadow: var(--glow-soft); }
+:root[data-theme='matrix'] .readout { background: #010503; color: #bff5d3; }
+
+/* Controls */
+:root[data-theme='matrix'] .btn { border-color: #1e5633; background: #06150c; }
+:root[data-theme='matrix'] .btn:hover:not(:disabled) { border-color: var(--accent); box-shadow: var(--glow-soft); }
+:root[data-theme='matrix'] .btn.primary { background: #19d96f; border-color: #2bff88; color: #021208; font-weight: 700; }
+:root[data-theme='matrix'] .btn.primary:hover:not(:disabled) { box-shadow: var(--glow); filter: none; background: #2bff88; }
+:root[data-theme='matrix'] .seg button.on,
+:root[data-theme='matrix'] .theme-switch button.on { background: #0b2a17; color: var(--accent-text); box-shadow: inset 0 0 0 1px #1e5633; }
+:root[data-theme='matrix'] .option.correct .marker,
+:root[data-theme='matrix'] .option.wrong .marker { color: #021208; }
+:root[data-theme='matrix'] .term { border-bottom-color: var(--accent); }
+:root[data-theme='matrix'] .search:focus, :root[data-theme='matrix'] .numeric-input input:focus { outline: none; border-color: var(--accent); box-shadow: var(--glow-soft); }
+:root[data-theme='matrix'] .matrix-icon { color: #2bff88; }
+
+/* Syntax highlighting: a green terminal palette with amber literals. */
+:root[data-theme='matrix'] .hljs-keyword, :root[data-theme='matrix'] .hljs-built_in, :root[data-theme='matrix'] .hljs-literal { color: #4dff9a; }
+:root[data-theme='matrix'] .hljs-string { color: #c4f04a; }
+:root[data-theme='matrix'] .hljs-number { color: #ffad33; }
+:root[data-theme='matrix'] .hljs-title, :root[data-theme='matrix'] .hljs-title.function_ { color: #7fe3ff; }
+:root[data-theme='matrix'] .hljs-attr, :root[data-theme='matrix'] .hljs-variable { color: #ff8fd9; }
+:root[data-theme='matrix'] .hljs-comment { color: #4f8a66; }
+:root[data-theme='matrix'] .exhibit-mark, :root[data-theme='matrix'] .exhibit-label { color: #e0b75a; }
+
+/* Boot sequence shown when switching into the theme */
+.boot {
+  position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
+  background: rgba(1, 5, 3, 0.88); cursor: pointer; animation: nl-boot-in 0.15s ease-out;
+}
+.boot-term {
+  margin: 0 16px; padding: 18px 22px; max-width: 560px; width: 100%; white-space: pre-wrap;
+  font-family: var(--font-mono); font-size: 14px; line-height: 1.7; color: #4dff9a;
+  border: 1px solid #1e5633; border-radius: 8px; background: #010503;
+  text-shadow: 0 0 6px rgba(43, 255, 136, 0.5); box-shadow: 0 0 40px rgba(43, 255, 136, 0.12);
+}
+.boot-cursor { animation: nl-blink 0.8s steps(1) infinite; }
+@keyframes nl-boot-in { from { opacity: 0; } }
+
+@media (max-width: 900px) {
+  :root[data-theme='matrix'] .sidebar { background: #050e09; }
+}
+@media (max-width: 640px) {
+  .rain-label { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme='matrix'] .lesson-header h1::after,
+  :root[data-theme='matrix'] .hero h1::after,
+  .boot-cursor { animation: none; }
+}

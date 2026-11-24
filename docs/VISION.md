@@ -37,6 +37,8 @@ An experienced software engineer and lifelong learner — *not* a university stu
 
 5. **Work so that anyone can pick up at any moment** (session 2). After each finished lesson: commit, push, and update `docs/ROADMAP.md` ("Current state" and "Next steps") and `HANDOFF.md` if the procedure changed. Assume the session may disconnect after any lesson and another agent will continue from the repository alone — leave plans, decisions and gotchas written down, not in your head.
 
+6. **A third theme, "Matrix" (session 3).** Alongside light and dark: green-phosphor terminal, digital rain, glowing green accents, mainframe-hacker energy — geeky and very theme-specific, but never hard to read. → Implemented as `data-theme='matrix'` (tokens and rules at the end of `src/styles/global.css`), `src/components/DigitalRain.tsx` (rain made of the course's own symbols and terms, in the margins only), a short boot sequence on switching, a rain pause button, and reduced-motion support. Every new widget must look right in all three themes.
+
 ## Lesson methodology
 
 Ideally each major lesson: (1) explain the problem, (2) build an intuitive mental model, (3) interactive visualisation, (4) let the learner manipulate variables, (5) explain the maths, (6) show code, (7) test understanding, (8) a challenging experiment exposing an edge case or limitation, (9) summarise transferable principles, (10) connect to real-world AI.
