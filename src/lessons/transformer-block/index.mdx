@@ -1,0 +1,135 @@
+import { BlockStepper, DepthExperiment, GptCounter } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: blending isn't thinking
+
+You now have attention, with many heads and a sense of order. It's a remarkable mechanism, but look at what it actually does: each token's output is a **weighted average** of other tokens' value vectors. It moves information between tokens. It doesn't, by itself, do much *with* that information: averaging can't compute "if this and that, then something else". You learned in <LessonLink to="activation-functions">the activation functions lesson</LessonLink> what that kind of computation needs: neurons with a bend in them.
+
+And one layer won't be enough. You saw in the attention lesson that "it" can't use "wide" to pick its referent in a single step: it needs one layer to gather context and a later layer to act on it. Real models stack dozens of layers. But you also saw, in <LessonLink to="backpropagation">the backpropagation lesson</LessonLink>, what happens to a learning signal passed back through many layers: it fades, or it explodes.
+
+The **transformer block** is the answer to both problems at once. It's the unit that gets stacked: GPT-2 small has 12 of them, GPT-3 has 96. Each block has just four ingredients, and you've met three of them.
+
+## The idea: communicate, then compute, on a shared whiteboard
+
+<Analogy title="Think of a team working on a shared document">
+
+A team edits one document per topic, one topic per person. In each round, two things happen. First a **meeting**: everyone reads everyone else's documents and copies across whatever is relevant to their own. Then **desk work**: everyone works alone on their own document, thinking about what they now have.
+
+Crucially, nobody ever rewrites a document from scratch. Each round, people **add notes in the margin** of what's already there. After a dozen rounds, each document holds the original text plus layer upon layer of annotations.
+
+</Analogy>
+
+In the block, each token is a document, held as one vector:
+
+- the meeting is **attention**: tokens read from each other;
+- the desk work is a **feed-forward network**: the small MLP from Module 3, applied to each token's vector separately, the same network for every token;
+- adding notes rather than rewriting is the **residual connection**: each sublayer's output is *added* to the vector it read from;
+- and before each of the two steps, a **layer norm** tidies the vector up so that the step sees numbers of a predictable size.
+
+The vector that flows through the stack, being annotated block after block, is often called the **residual stream**.
+
+<BlockStepper />
+
+## Writing it down
+
+The whole block is two lines. Write $x$ for one token's vector entering the block:
+
+<Eq
+  words="\begin{aligned} \text{after the meeting} &= \text{vector} + \text{attention}(\text{tidied vector}) \\ \text{output} &= \text{after the meeting} + \text{feed-forward}(\text{tidied version of that}) \end{aligned}"
+  tex="\begin{aligned} \cp{h} &= \ca{x} + \cb{\text{Attention}}\big(\cv{\text{LN}}(\ca{x})\big) \\ \cp{y} &= \cp{h} + \cc{\text{FFN}}\big(\cv{\text{LN}}(\cp{h})\big) \end{aligned}"
+>
+
+- $\ca{x}$ — one token's vector entering the block: the **residual stream**
+- $\cv{\text{LN}}$ — **layer norm**: shift the vector's numbers to average 0 and scale them to spread 1 (then multiply and shift by two learned vectors)
+- $\cb{\text{Attention}}$ — multi-head attention over all the tokens, with positions and the causal mask: the **meeting**
+- $\cc{\text{FFN}}$ — the **feed-forward network**: a two-layer MLP, width $d \to 4d \to d$, applied to each token separately: the **desk work**
+- $\cp{h}$, $\cp{y}$ — the stream after each addition; $\cp{y}$ goes on to the next block
+- the two $+$ signs — the **residual connections**: sublayers add to the stream, never replace it
+
+</Eq>
+
+Layer norm is the one new ingredient, and it's simple: for each token's vector separately, subtract the vector's own mean and divide by its own spread. Whatever size the vector arrived at, the sublayer sees numbers of the same scale every time.
+
+## Why residual connections matter
+
+The "add, don't replace" rule looks like a small detail. It's the reason deep transformers can be trained at all. Here's an experiment: stacks of random layers, of increasing depth, with and without residual connections. For each, we nudge the input and measure how much the output moves — the size of the learning signal that backpropagation would carry back to the first layer.
+
+<DepthExperiment />
+
+The results tell a slightly more interesting story than the usual slogan, so here it is honestly:
+
+- **Plain stacking fades.** Each layer multiplies the signal by a slope that's typically below 1, and by 48 layers only about 6% of the depth-1 signal is left (0.037 against 0.64): the fading signal from the backpropagation lesson.
+- **Residual stacking can't fade.** Because each layer *adds* to its input, there's always a direct path from output back to input through the additions, and the signal never drops below where it started. But it can **grow**: in our random stack it reaches about 28 by depth 48.
+- **Layer norm reins that growth in** (about 6 at depth 48), because each sublayer sees a normalised input however large the stream has become.
+
+Real models add one more trick: GPT-2, for example, starts the weights of every residual branch smaller, in proportion to the depth, so that each block initially adds only a little to the stream. Together, these let gradient descent train stacks of a hundred blocks.
+
+## The causal mask: no peeking
+
+A language model is trained to predict the next token: given "the cat sat on the", predict "mat". Training does this at **every position at once**: from "the", predict "cat"; from "the cat", predict "sat"; and so on, one prediction per position, all in one pass.
+
+But attention lets every token see every other token. Position 1 is supposed to predict the token at position 2 — and it could simply *look at it*. Training would reach a perfect score by copying, exactly like the leaky test set in <LessonLink to="diagnosis-lab">the model clinic</LessonLink>, and the model would be useless at generating text, where the future really is unknown.
+
+The **causal mask** forbids it: before the softmax, every score from a token to a *later* token is set to $-\infty$, so its weight becomes exactly zero. Each token can attend only to itself and to earlier tokens. Toggle it in the block above and watch the upper half of the attention table disappear.
+
+## Counting a whole model
+
+A GPT, then, is: a table of token embeddings, position information, a stack of identical blocks, a final layer norm, and an output layer that turns the last vector into a score for every token in the vocabulary (GPT-2 reuses the embedding table for that, which saves 38 million parameters).
+
+<GptCounter />
+
+Two things worth noticing. First, inside each block the feed-forward network holds **twice** the parameters of attention: $8d^2$ against $4d^2$, because of the $4\times$ wide hidden layer. Most of a large language model's parameters are in its feed-forward networks. Second, in small models the embedding table is a big slice — 31% of GPT-2 small — while in large models the stack of blocks dwarfs it.
+
+## In code
+
+A complete pre-norm block in PyTorch:
+
+```python
+import torch
+import torch.nn as nn
+
+class Block(nn.Module):
+    def __init__(self, d, heads):
+        super().__init__()
+        self.ln1, self.ln2 = nn.LayerNorm(d), nn.LayerNorm(d)
+        self.attn = nn.MultiheadAttention(d, heads, batch_first=True)
+        self.ffn = nn.Sequential(nn.Linear(d, 4 * d), nn.GELU(), nn.Linear(4 * d, d))
+
+    def forward(self, x):                                  # x: (batch, tokens, d)
+        n = x.shape[1]
+        mask = torch.triu(torch.ones(n, n, dtype=torch.bool), diagonal=1)   # True = forbidden
+        a = self.ln1(x)
+        x = x + self.attn(a, a, a, attn_mask=mask)[0]      # communicate (residual add)
+        x = x + self.ffn(self.ln2(x))                      # compute (residual add)
+        return x
+
+model = nn.Sequential(*[Block(768, 12) for _ in range(12)])   # GPT-2 small's stack
+```
+
+Add an embedding table at the front and a final layer norm plus an output layer at the back, and that's a GPT. Everything else in a real implementation is about speed and scale.
+
+<Misconception>
+
+"A transformer is mostly attention." Attention is the famous part and the part that makes transformers transformers, but by parameter count it's the minority: in every standard block, the feed-forward network is twice as large. Researchers studying where factual knowledge lives ("the Eiffel Tower is in Paris") keep finding it largely in the feed-forward layers, which behave rather like enormous key–value memories. Attention routes information; the feed-forward layers do much of the remembering and computing.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- A **transformer block** is: layer norm → attention → **add**; layer norm → feed-forward network → **add**. Blocks are stacked, dozens deep.
+- **Attention moves information between tokens; the feed-forward network processes it within each token.** Communicate, then compute.
+- **Residual connections** add each sublayer's output to the stream instead of replacing it. The learning signal then can't fade with depth; **layer norm** keeps it from growing out of hand.
+- The **causal mask** stops each token attending to later tokens, so next-token training can't cheat by copying the answer.
+- Each block has about $12d^2$ parameters: $4d^2$ attention, $8d^2$ feed-forward. GPT-2 small: 12 blocks of width 768, 124,439,808 parameters in all.
+
+</Takeaways>
+
+<InTheWild>
+
+The original transformer of 2017 put the layer norm *after* each residual addition ("post-norm"); GPT-2 moved it before each sublayer ("pre-norm"), as here, because deep post-norm stacks were hard to train without careful warm-up. Modern models have changed the details again — Llama uses a simpler normalisation called RMSNorm and a gated feed-forward network called SwiGLU — but the skeleton is unchanged: normalise, attend, add; normalise, feed forward, add. GPT-3's largest version stacks 96 such blocks of width 12,288; the residual stream it passes along is a vector of 12,288 numbers per token, annotated 192 times on its way through.
+
+</InTheWild>
+
+You've now built every part of a transformer. What remains is the beginning and the end: how text becomes tokens in the first place, and how a stack of blocks turns into a model that writes.
