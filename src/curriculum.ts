@@ -61,8 +61,8 @@ export const MODULES: ModuleMeta[] = [
     lessons: [
       { id: 'forward-propagation', title: 'Layers and the Forward Pass', summary: 'How neurons are organised into layers, and how an input flows through them — one matrix multiplication at a time.', minutes: 25, load: () => import('./lessons/forward-propagation/index.mdx') },
       { id: 'network-playground', title: 'The Network Playground', summary: 'Train a network, then take it apart: what each neuron responds to, what breaks without it, and how much of it you really need.', minutes: 30, load: () => import('./lessons/network-playground/index.mdx') },
+      { id: 'depth-and-width', title: 'Depth, Width and Parameter Counts', summary: 'What a network costs, and why stacking layers can buy exponentially more than widening them.', minutes: 25, load: () => import('./lessons/depth-and-width/index.mdx') },
     ],
-    planned: ['Depth, width and parameter counts'],
   },
   {
     id: 'optimization',

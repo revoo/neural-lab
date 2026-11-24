@@ -1,0 +1,178 @@
+import { ParamCalculator, FoldingDemo, RandomDeepWide } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: you have a budget
+
+Every neuron costs something: parameters to store, multiplications to run, memory to hold its output. So designing a network is a budgeting problem. Given a certain number of parameters to spend, you have two basic choices:
+
+- go **wide**: fewer layers, more neurons in each;
+- go **deep**: more layers, fewer neurons in each.
+
+Back in <LessonLink to="activation-functions">the activation functions lesson</LessonLink>, the hinge builder showed that a *single* wide layer of ReLU neurons can trace almost any curve, given enough of them. That's the universal approximation theorem. So in principle, one layer is all you ever need.
+
+And yet every successful modern network is deep: dozens or hundreds of layers. If one wide layer can do anything, why stack them? That's the question for this lesson, and the answer turns out to be one of the most beautiful ideas in the subject.
+
+First, though, let's get precise about what we're spending.
+
+## What a network costs
+
+From the playground, you know the rule: a layer that reads $m$ values into $n$ neurons has $m \times n$ weights plus $n$ biases. Let's put it to work on some real shapes.
+
+<ParamCalculator />
+
+A few things jump out:
+
+- **The big layers are where the parameters live.** In the digit classifier, the first layer — 784 pixels into 128 neurons — holds over 90% of the parameters. Wide inputs are expensive.
+- **Width costs more than depth.** For four equal layers of 512, doubling every hidden layer's width takes the total from 1,050,624 to 3,149,312 — three times as much — while doubling the number of hidden layers takes it to 1,838,592, under twice as much. The reason is the multiplication in $m \times n$: double both the inputs and the neurons of a layer and its weights quadruple. Double the number of layers and you merely get more of the same-sized layers.
+- **Memory follows directly.** Each parameter is usually stored as a 32-bit or 16-bit number: 4 or 2 bytes. A 7-billion-parameter language model is about 14 GB in 16-bit — before you've stored a single activation.
+
+So depth is the *cheaper* way to grow a network. But is it a *better* way? To find out, we need a way to measure what a network can do.
+
+## Measuring what a network can express
+
+Here's a clean way to measure it. Give the network a single input, $x$, and look at the function it computes. With ReLU activations, every neuron is either off (flat) or on (straight), so the whole network is built from straight pieces joined at kinks. A network that can make **more pieces** can bend itself into more complicated shapes. So let's count pieces.
+
+**Width first.** You already know this one from the hinge builder: each ReLU neuron in a single hidden layer contributes one hinge, so one kink. With $n$ neurons, you get at most $n$ kinks — at most $n + 1$ pieces.
+
+<Eq
+  words="\text{pieces from one wide layer} \le \text{number of neurons} + 1"
+  tex="\text{pieces} \le \ca{n} + 1"
+>
+
+- $\ca{n}$ — the number of ReLU **neurons** in the single hidden layer
+- each neuron adds **one kink**, so the pieces grow in step with the neurons — and so do the parameters (3 per neuron here: an input weight, a bias and an output weight)
+
+</Eq>
+
+Linear growth: twice the neurons, twice the pieces. Now let's see what depth does.
+
+## Depth: folding paper
+
+<Analogy title="Think of folding a strip of paper">
+
+Take a strip of paper and fold it in half. Fold it in half again, and again. After three folds there are eight layers of paper stacked up. Now make **one** straight cut across the stack — and unfold. That single cut has made cuts in eight places along the strip.
+
+The cut didn't get any more complicated. It simply landed on a stack that the folds had prepared, so it acted on every layer at once.
+
+</Analogy>
+
+A layer of a network can fold its input. Two ReLU neurons are enough to do it: arrange them so that, as the input goes from 0 to ½, the output rises from 0 to 1, and as the input continues from ½ to 1, the output comes back down to 0. The interval has been folded in half, so both halves now lie on top of each other.
+
+Here's the trick. Feed that output into a second, identical folding layer. The second layer doesn't know or care that its input came from a fold: it folds whatever it gets. But it receives the *same* values twice — once from each half of the original interval — so **its fold is applied to both halves at once**. Two pieces become four. A third layer makes eight.
+
+<Predict
+  question="Each folding layer has just **2** neurons. A network with **4** folding layers has 8 neurons and 25 parameters. How many straight pieces does its output have?"
+  options={['9 — one more than the number of neurons, like a wide layer', '16', '25', '8']}
+  answer={1}
+>
+
+Every layer doubles the count: 2, 4, 8, 16. Try it, and push it to ten layers.
+
+</Predict>
+
+<FoldingDemo />
+
+Ten fold layers: 20 neurons, 61 parameters, **1,024 pieces**. To make the same function with one wide layer you'd need at least 1,023 neurons and over 3,000 parameters. Twenty folds would give over a million pieces for 121 parameters; the wide equivalent would need more than three million parameters.
+
+<Eq
+  words="\text{pieces from folding layers} = 2 \times 2 \times \cdots \times 2 \;\; (\text{once per layer})"
+  tex="\text{pieces} = 2^{\cb{L}}, \qquad \text{parameters} = 6\cb{L} + 1"
+>
+
+- $\cb{L}$ — the number of **folding layers** (the depth)
+- $2^{\cb{L}}$ — the pieces **double** with every layer: *exponential* growth, compared with the *linear* growth of width
+- $6\cb{L} + 1$ — each folding layer costs 6 parameters (2 neurons, each with 2 incoming weights and a bias), plus 1 for the output bias — the first layer reads a single input, so it's 2 cheaper, and the output neuron adds 3
+
+</Eq>
+
+This is the core reason depth is powerful. **A later layer's work is reused across every region the earlier layers have created.** A wide layer builds every bend separately and pays for each one. A deep network can build a bend once and have it copied into every fold beneath it.
+
+### The honest small print
+
+Before you conclude that deeper is always better, three caveats — and the widget already showed you the first.
+
+**The exponential count is fragile.** Turn on the jiggle. The folding construction relies on weights that are exactly right, so that each fold lands precisely on the last. Nudge every weight by about ±0.1 and the 256 pieces of an 8-layer stack fall apart — in my runs, to somewhere between 40 and 120. The *capacity* is exponential; actually using it requires precision.
+
+**Typical networks don't use it.** The folding network was designed by hand. What does a deep network look like with ordinary random weights, the kind every training run starts from?
+
+<RandomDeepWide />
+
+On average, the random deep network has *fewer* pieces than a single wide layer with the same number of neurons — roughly one bend per neuron, at most. Researchers have found the same in much larger networks: what depth adds is the *possibility* of exponentially complex functions, not a guarantee. Training only builds that kind of structure when the data rewards it.
+
+**Deep networks are harder to train.** The learning signal has to travel back through every layer, and in a deep stack it can fade away or blow up. You'll meet this problem properly in the backpropagation lesson; the tricks that tame it (ReLU, careful initialisation, normalisation, residual connections) are much of the reason networks with hundreds of layers became practical.
+
+## So why is everything deep?
+
+Because the world is built the way the folding network is built: **out of reusable parts**.
+
+An image of a face is made of eyes, a nose, a mouth; each of those is made of curves and edges; the same edges appear in every object in every image. A sentence is made of phrases made of words made of fragments. A network that computes "edge detectors" in one layer can *reuse* them in the next layer for eyes, wheels and letters alike, rather than relearning edges separately for every object. That's the same move as the fold: build something once, and let everything downstream use it.
+
+When data has that kind of hierarchical, compositional structure — and almost all interesting data does — depth lets a network describe it with far fewer parameters than width alone. That's what training discovers when it works well, and it's why the two-islands network of the forward-pass lesson went *lines, then shapes, then combinations of shapes*.
+
+In practice, the most successful models grow depth and width together. GPT-2 small has 12 layers with a width of 768; GPT-3 has 96 layers with a width of 12,288. Neither direction is pushed to an extreme, because each has its own way of failing: too narrow, and a layer squeezes out information that nothing later can recover; too deep, and training struggles.
+
+## In code
+
+Here's the folding network in NumPy, with its pieces counted by sampling (the kinks land exactly on sample points here, so the count is exact):
+
+```python
+import numpy as np
+
+relu = lambda v: np.maximum(v, 0)
+
+def fold(u):                     # one layer of 2 ReLU neurons: folds [0, 1] in half
+    return 2 * relu(u) - 4 * relu(u - 0.5)
+
+def deep(x, layers):
+    for _ in range(layers):
+        x = fold(x)
+    return x
+
+def count_pieces(f, n=1_000_001):
+    x = np.linspace(0, 1, n)
+    slopes = np.round(np.diff(f(x)) / np.diff(x), 6)
+    return 1 + np.count_nonzero(np.diff(slopes))   # one piece per change of slope
+
+for L in range(1, 6):
+    print(L, "layers:", count_pieces(lambda x: deep(x, L)), "pieces,", 6 * L + 1, "params")
+# 1 layers: 2 pieces, 7 params  …  5 layers: 32 pieces, 31 params
+```
+
+And counting parameters in PyTorch, for any model at all:
+
+```python
+import torch.nn as nn
+
+wide = nn.Sequential(nn.Linear(100, 2000), nn.ReLU(), nn.Linear(2000, 10))
+deep = nn.Sequential(nn.Linear(100, 200), nn.ReLU(),
+                     *[m for _ in range(5) for m in (nn.Linear(200, 200), nn.ReLU())],
+                     nn.Linear(200, 10))
+count = lambda m: sum(p.numel() for p in m.parameters())
+count(wide), count(deep)         # (222010, 223210): same budget, very different shapes
+```
+
+<Misconception>
+
+"More parameters means a more capable model." Parameter count is a budget, not a measure of ability. The folding network makes over a thousand pieces with 61 parameters, while a wide layer needs more than three thousand parameters to do the same — and a badly shaped network can waste most of its parameters entirely (remember the dead neurons and redundant layers in the playground). How the parameters are *arranged* matters as much as how many there are. That's why architecture research exists at all.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- A layer reading $m$ values into $n$ neurons costs $m \times n + n$ parameters. Doubling **width** roughly quadruples the cost of layers between hidden layers; doubling **depth** roughly doubles it.
+- With one input, a ReLU network computes a chain of straight pieces. One wide layer of $n$ neurons makes at most $n + 1$ pieces: **linear** in the cost.
+- Depth can **fold** the input, so later layers act on every fold at once: $L$ folding layers make $2^L$ pieces. That's **exponential**, because later layers reuse what earlier layers built.
+- The exponential capacity is real but **fragile** and **not automatic**: random networks don't have it, and deep networks are harder to train.
+- Depth pays off because real data is **compositional**: parts built from reusable parts.
+
+</Takeaways>
+
+<InTheWild>
+
+The folding argument is a simplified version of real research results. Work by Montúfar and colleagues in 2014 showed that deep ReLU networks can carve their input space into exponentially more regions than shallow networks with the same number of neurons, and later work by Hanin and Rolnick found that, in practice, trained and randomly initialised networks typically have far fewer — closer to one region boundary per neuron. Both are true at once, just as in the widgets: depth buys potential, and the data decides how much of it gets used.
+
+</InTheWild>
+
+That completes the architecture of a basic network. Next comes the question we've been putting off: how does a network *find* good weights? It starts with deciding what "good" means — the loss — and walking downhill.
