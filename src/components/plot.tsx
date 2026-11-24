@@ -260,3 +260,9 @@ export function Label({ at, children, color = 'var(--text)', dx = 0, dy = 0, anc
     </text>
   );
 }
+
+/** Line segment between two points in data coordinates. */
+export function Seg({ from, to, color = 'var(--text-faint)', width = 1.5, dash, opacity = 1, cap = 'round' }: { from: [number, number]; to: [number, number]; color?: string; width?: number; dash?: string; opacity?: number; cap?: 'round' | 'butt' }) {
+  const { x, y } = usePlot();
+  return <line x1={x(from[0])} y1={y(from[1])} x2={x(to[0])} y2={y(to[1])} stroke={color} strokeWidth={width} strokeDasharray={dash} opacity={opacity} strokeLinecap={cap} />;
+}

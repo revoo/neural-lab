@@ -1,1 +1,185 @@
-This lesson is being written.
+import { DotTable } from './DotTable'
+import { DotExplorer } from './DotExplorer'
+import { questions } from './quiz'
+
+## The problem: one number from two lists
+
+In the last lesson we turned emails into vectors. That's step one. Step two is to *do* something with them — and very often, what we want is a single number.
+
+How spammy is this email? How relevant is this document to my search? How much should this word pay attention to that word? Each question takes two vectors in and needs one score out.
+
+The operation that does this — the **dot product** — is almost embarrassingly simple. It is also, without much exaggeration, the most important operation in deep learning. Every artificial neuron computes one. Every attention head in every transformer computes millions of them. Every "find similar documents" feature runs on them.
+
+So let's get to know it properly.
+
+## You already know how to do this
+
+<Analogy title="Think of a shopping receipt">
+
+You buy 2 apples at £0.50, 1 loaf of bread at £2.20 and 3 cartons of milk at £1.20. What's the total?
+
+You multiply each quantity by its price and add everything up: $2 \times 0.50 + 1 \times 2.20 + 3 \times 1.20 = 6.80$.
+
+Congratulations: you've just computed a dot product. The quantities form one vector, `[2, 1, 3]`. The prices form another, `[0.50, 2.20, 1.20]`. The dot product pairs up matching entries, multiplies each pair, and sums the results.
+
+</Analogy>
+
+That's the whole definition. Here it is as a live receipt, with the loop exposed so you can watch it run.
+
+<DotTable />
+
+In maths notation, the dot product of two vectors $\mathbf{a}$ and $\mathbf{b}$, each with $n$ entries, is
+
+$$
+\mathbf{a} \cdot \mathbf{b} = \sum_{i=1}^{n} a_i\, b_i = a_1 b_1 + a_2 b_2 + \cdots + a_n b_n
+$$
+
+You've seen the $\Sigma$ before: it's the `for` loop in the code panel. The expression after it, $a_i b_i$, is the line inside the loop.
+
+### From receipts to judgements
+
+Now change what the second vector means. Instead of *prices*, make it *how much you care about each feature*.
+
+Say you're writing a crude spam detector by hand. Emails are `[links, exclamation marks, times your name appears]`. You decide each link is mildly suspicious (+1), each exclamation mark more so (+2), and an email that addresses you by name is probably legitimate (−3). Your opinion is a vector of **<Term id="weight">weights</Term>**: `[1, 2, -3]`.
+
+An email with 4 links, 5 exclamation marks and no mention of your name scores
+
+$$
+[4, 5, 0] \cdot [1, 2, -3] = 4 + 10 + 0 = 14
+$$
+
+— fairly spammy. A message with 1 link, 1 exclamation mark and your name twice scores $1 + 2 - 6 = -3$: probably fine.
+
+The calculation is identical to the receipt. All that changed is the story. This is exactly what the first half of an artificial neuron does, as you'll see in <LessonLink to="neuron">a few lessons</LessonLink>. Positive weights say "this feature is evidence *for*". Negative weights say "evidence *against*". The dot product tallies up the evidence.
+
+## The geometric secret
+
+So far, the dot product is bookkeeping. But remember that vectors live a double life: they're also arrows. What does multiply-and-add mean for arrows?
+
+Here's the surprising answer: **the dot product measures how much two arrows point in the same direction.**
+
+Play with it before reading on. Drag the two vectors around and watch the sign and size of the dot product.
+
+<DotExplorer />
+
+Here is what you should have found:
+
+- When the arrows point roughly the **same way**, the dot product is **positive**.
+- When they're **perpendicular**, it's **exactly zero**, no matter how long they are.
+- When they point in **opposing directions**, it's **negative**.
+- For fixed lengths, it's **largest when they point in exactly the same direction**.
+
+Look at the shading. The dashed line through the origin divides the plane into a blue half and an orange half. Every possible $\mathbf{b}$ in the blue half has a positive dot product with $\mathbf{a}$; every one in the orange half is negative. So the dot product with a fixed vector **splits space in two with a straight line**. File that away: it is exactly how a single neuron makes a decision.
+
+### Why would multiply-and-add measure direction?
+
+It feels like a coincidence that receipt arithmetic should know anything about angles. It isn't. Look at each product $a_i b_i$ on its own:
+
+- If $a_i$ and $b_i$ have the **same sign** — both vectors lean the same way along that axis — the product is positive and pushes the total up.
+- If they have **opposite signs**, the product is negative and drags the total down.
+- If either is near zero, that axis contributes almost nothing.
+
+So the dot product is a vote, held separately along every axis, on whether the two vectors agree. Large entries get a bigger vote. When the vectors point the same way, every axis agrees and the votes pile up. When they're perpendicular, the agreeing and disagreeing votes cancel exactly.
+
+### The second formula
+
+That intuition has a precise form. It turns out that
+
+$$
+\mathbf{a} \cdot \mathbf{b} = \|\mathbf{a}\|\, \|\mathbf{b}\| \cos\theta
+$$
+
+where $\theta$ (theta) is the angle between the two arrows. Both formulas always give the same number — the explorer computes them separately, and you can check that they agree.
+
+If trigonometry is rusty, here's all you need to know about $\cos\theta$: it's a function that turns an angle into a measure of alignment. It's **1** when $\theta = 0°$ (same direction), **0** at 90° (perpendicular), and **−1** at 180° (opposite), sliding smoothly in between.
+
+So this formula splits the dot product into two separate ingredients: *how long are the vectors?* ($\|\mathbf{a}\|\|\mathbf{b}\|$) and *how aligned are they?* ($\cos\theta$).
+
+<Analogy title="Think of a shadow">
+
+Shine a torch straight down onto the line that $\mathbf{a}$ lies on. The shadow that $\mathbf{b}$ casts on that line has length $\|\mathbf{b}\|\cos\theta$ — the green bar in the explorer. If $\mathbf{b}$ leans backwards, its shadow falls behind the origin and counts as negative.
+
+The dot product is that shadow's length, multiplied by the length of $\mathbf{a}$. In words: *how far does $\mathbf{b}$ go in $\mathbf{a}$'s direction, scaled by how long $\mathbf{a}$ is?*
+
+</Analogy>
+
+<Deeper title="Why do the two formulas agree?" tag="Maths">
+
+Here's an argument that avoids heavy trigonometry. Two facts do all the work.
+
+**Fact 1: rotating both vectors together doesn't change the dot product.** The angle between them is unchanged, and so are their lengths; less obviously, the sum $a_1 b_1 + a_2 b_2$ is unchanged too (you can verify this in the explorer by rotating both arrows by the same amount — the number stays put). The dot product only cares about the *relationship* between the vectors, not how they're oriented on the page.
+
+**Fact 2: so rotate until $\mathbf{a}$ lies flat along the x-axis.** Now $\mathbf{a} = [\|\mathbf{a}\|, 0]$. Its second entry is zero, so the dot product becomes just $\|\mathbf{a}\| \times b_1$. And $b_1$ — the horizontal component of $\mathbf{b}$ — is exactly the shadow $\mathbf{b}$ casts on the x-axis: $\|\mathbf{b}\|\cos\theta$.
+
+Put them together: $\mathbf{a}\cdot\mathbf{b} = \|\mathbf{a}\|\,\|\mathbf{b}\|\cos\theta$. The same argument works in any number of dimensions.
+
+</Deeper>
+
+## Cosine similarity: direction only
+
+The second formula reveals a catch. The dot product mixes up two different things: alignment and length. Sometimes you only care about one of them.
+
+<Predict
+  question="A search engine represents your query as $[1, 1]$. Document A is $[10, 1]$ and document B is $[2, 2]$. Which document has the **higher dot product** with the query?"
+  options={['Document A', 'Document B', 'They tie']}
+  answer={0}
+>
+
+Document A wins, $11$ to $4$ — but look at the directions. B points in *exactly* the same direction as the query: it's the same balance of topics, just a different overall size. A is overwhelmingly about the first topic, and wins only because it's big. If "big" just means "a longer document that repeats words more often", that's a bad reason to rank it first.
+
+</Predict>
+
+The fix is to divide out the lengths, leaving only the alignment:
+
+$$
+\text{cosine similarity}(\mathbf{a}, \mathbf{b}) = \frac{\mathbf{a}\cdot\mathbf{b}}{\|\mathbf{a}\|\,\|\mathbf{b}\|} = \cos\theta
+$$
+
+It always lands between −1 and 1. For the search example, B now scores a perfect 1.0, and A scores about 0.77. Turn on the **unit vectors** view in the explorer to see this: shrinking both arrows to length 1 throws away their size and keeps only their direction.
+
+Which one should you use? Neither is "correct". Use the raw dot product when magnitude carries meaning — a neuron's weights *should* respond more strongly to stronger evidence. Use cosine similarity when it doesn't — two documents about the same thing should match regardless of length. Many modern embedding models sidestep the question by normalising every vector to length 1 up front, at which point the dot product and cosine similarity become the same number.
+
+## In code
+
+```python
+import numpy as np
+
+a = np.array([3.0, 1.0])
+b = np.array([1.5, 3.0])
+
+np.dot(a, b)    # 7.5
+a @ b           # 7.5   — the @ operator means "matrix/dot product" in NumPy and PyTorch
+(a * b).sum()   # 7.5   — the definition, spelled out: element-wise multiply, then sum
+
+def cosine_similarity(a, b):
+    return (a @ b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
+cosine_similarity(a, b)  # 0.707...  → an angle of 45°
+```
+
+Notice `a * b` versus `a @ b`. The `*` operator multiplies element by element and gives you back a vector; `@` goes the extra step and sums. Mixing them up is a classic bug, and the error message (if you're lucky enough to get one) is usually about shapes.
+
+<Misconception>
+
+"A dot product of zero means the vectors have nothing to do with each other." That's true in one precise sense — neither has any component along the other's direction — but don't over-read it. The vectors $[1, 0]$ and $[0, 1]$ have a dot product of zero, yet one is just the other rotated by 90°. Zero dot product means *no linear alignment*, not *no relationship of any kind*. This distinction matters later, when people interpret similarity scores between embeddings as if they were measures of meaning.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- The dot product multiplies matching entries and adds them up — a shopping receipt, or a tally of weighted evidence.
+- Geometrically, it measures **alignment**: positive when vectors agree, zero when perpendicular, negative when they oppose.
+- $\mathbf{a}\cdot\mathbf{b} = \|\mathbf{a}\|\|\mathbf{b}\|\cos\theta$: it blends length and direction. **Cosine similarity** divides out the lengths to keep only direction.
+- Fixing one vector and asking "is the dot product positive?" splits space in half with a straight line. That's a decision rule — and it's the core of the artificial neuron.
+
+</Takeaways>
+
+<InTheWild>
+
+The dot product is everywhere once you know to look. Each **neuron** in a neural network computes the dot product of its inputs with its weights. Inside a **transformer**, attention decides how much one token should listen to another by taking the dot product of a "query" vector with a "key" vector — billions of times per response. **Semantic search** and retrieval-augmented generation (RAG) rank documents by the cosine similarity of their embedding vectors to the query's. And **recommendation systems** famously score how much you'll like a film as the dot product of a "you" vector with a "film" vector. GPUs are, in large part, machines built to do this one operation extremely fast.
+
+</InTheWild>
+
+So far we've combined two vectors into a single number. Next, we'll do something more ambitious: use a grid of numbers — a *matrix* — to transform *every* vector in space at once.

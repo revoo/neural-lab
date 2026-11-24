@@ -1,1 +1,146 @@
-This lesson is being written.
+import { GridTransformer } from './GridTransformer'
+import { questions } from './quiz'
+
+## The problem: vectors in, vectors out
+
+The dot product takes two vectors and produces a single number. That's great for scoring, but a neural network needs something more ambitious.
+
+Picture the first layer of an image classifier. In goes a vector of 784 pixel values. Out comes a vector of, say, 128 numbers, each one describing some pattern in the image. The layer is a machine that turns **one vector into another vector** — often of a different size.
+
+We need a mathematical machine for that. The simplest useful one is a **<Term id="matrix">matrix</Term>**: a rectangular grid of numbers. This lesson is about how to *read* a matrix — not as a table of data, but as a description of motion.
+
+## First reading: a panel of judges
+
+You already know half of the story. In the last lesson, one vector of weights scored an email with a dot product. What if you want *several* scores at once — say, how spammy, how urgent and how personal?
+
+Hire a panel of judges. Each judge has their own weight vector, and each produces their own dot product. Stack the judges' weight vectors as the rows of a grid, and you have a matrix:
+
+$$
+\underbrace{\begin{bmatrix} 1 & 2 & -3 \\ 0 & 1 & 4 \\ -1 & 0 & 2 \end{bmatrix}}_{\text{three judges}}
+\underbrace{\begin{bmatrix} 4 \\ 5 \\ 0 \end{bmatrix}}_{\text{email}}
+=
+\begin{bmatrix} 1\cdot4 + 2\cdot5 + (-3)\cdot0 \\ 0\cdot4 + 1\cdot5 + 4\cdot0 \\ (-1)\cdot4 + 0\cdot5 + 2\cdot0 \end{bmatrix}
+=
+\begin{bmatrix} 14 \\ 5 \\ -4 \end{bmatrix}
+$$
+
+Each output entry is one row dotted with the input. That's it: **multiplying a matrix by a vector is a batch of dot products**, one per row. If you can compute dot products, you can compute this.
+
+This "rows view" is how a neural network layer is usually *computed*. But it doesn't tell you much about what the matrix *does*. For that, we need the second reading.
+
+## Second reading: a machine that moves space
+
+Shrink things down to two dimensions so we can watch. A 2×2 matrix takes any 2D point and moves it to a new 2D point. Apply it to *every* point on the plane at once and you get a transformation of the entire space: stretching, rotating, shearing, flipping.
+
+If you've ever written `transform: matrix(...)` in CSS, or rotated a sprite in a game engine, you've used exactly this idea.
+
+<Analogy title="Think of a recipe card for moving space">
+
+Suppose someone hands you an instruction: "here's how to move every point on the page." It might seem like you'd need an infinite list — one entry per point. You don't. You only need two facts:
+
+1. Where does the arrow $[1, 0]$ end up?
+2. Where does the arrow $[0, 1]$ end up?
+
+Every other point is built out of those two. The point $[3, 2]$ means "three steps of $[1, 0]$ plus two steps of $[0, 1]$". After the transformation, it's still three steps of wherever $[1, 0]$ went, plus two steps of wherever $[0, 1]$ went.
+
+A 2×2 matrix is that recipe card. **Its first column is where $[1, 0]$ lands. Its second column is where $[0, 1]$ lands.** Four numbers describe the motion of the entire infinite plane.
+
+</Analogy>
+
+Those two special arrows have names: the **<Term id="basis-vectors">basis vectors</Term>** $\hat{\imath}$ ("i-hat", pointing right) and $\hat{\jmath}$ ("j-hat", pointing up). Try it: grab the tips of $\hat{\imath}$ and $\hat{\jmath}$ below and drag them around. You're editing the matrix's columns directly, and the whole grid follows.
+
+<GridTransformer />
+
+Some things to try, and what to notice:
+
+- **Press "Rotate 30°"** and look at the matrix. The columns are the rotated $\hat{\imath}$ and $\hat{\jmath}$, and the numbers are whatever cosines and sines that rotation needs. You don't have to memorise the rotation formula — you can *derive* it by asking where the two basis vectors go.
+- **Watch the blue vector $M\mathbf{v}$.** The dashed path shows it being built as "$v_x$ steps of the new $\hat{\imath}$, then $v_y$ steps of the new $\hat{\jmath}$". That's the columns view of matrix-vector multiplication, drawn literally.
+- **Whatever you do, grid lines stay straight, parallel, and evenly spaced, and the origin never moves.** That's the defining property of a **<Term id="linear-transformation">linear transformation</Term>**, and it's why matrices are so predictable.
+- **Try "Squash flat".** The whole plane collapses onto a single line. Points that were different now land on top of each other. That information is gone for good — no matrix can un-squash it.
+
+## The maths, now that you've seen it
+
+Here's the general 2×2 case. Write the matrix as
+
+$$
+M = \begin{bmatrix} a & b \\ c & d \end{bmatrix}
+$$
+
+Then for an input $\mathbf{v} = [x, y]$:
+
+$$
+M\mathbf{v} =
+\underbrace{\begin{bmatrix} ax + by \\ cx + dy \end{bmatrix}}_{\text{rows view: two dot products}}
+=
+\underbrace{x\begin{bmatrix} a \\ c \end{bmatrix} + y\begin{bmatrix} b \\ d \end{bmatrix}}_{\text{columns view: a blend of the columns}}
+$$
+
+These are the same arithmetic, grouped differently. The rows view says *each output is a weighted sum of the inputs*. The columns view says *the output is a weighted blend of the columns, using the input as the weights*. Engineers tend to compute with the first and reason with the second.
+
+A convention you'll meet constantly: an $m \times n$ matrix has $m$ rows and $n$ columns. It takes vectors with $n$ entries (one per column) and produces vectors with $m$ entries (one per row). So a layer turning 784 pixels into 128 features is a $128 \times 784$ matrix. Rows first, then columns — like `matrix[row][col]` in code.
+
+### The determinant: how much does area change?
+
+Watch the shaded square in the explorer. It starts as the 1×1 square sitting on $\hat{\imath}$ and $\hat{\jmath}$, and gets carried along by the transformation. Its new area is the **<Term id="determinant">determinant</Term>** of the matrix:
+
+$$
+\det M = ad - bc
+$$
+
+Because a linear transformation treats every part of space the same way, *every* shape's area gets multiplied by this same number. A determinant of 2 doubles all areas; 0.5 halves them. A negative determinant means space has been flipped over, like turning a page face-down (the square turns orange). And a determinant of **0** means space has been squashed into a lower dimension — the alarm bell for lost information.
+
+<Deeper title="Why can't a matrix move the origin?" tag="Edge case">
+
+Multiply any matrix by the zero vector and every dot product is zero, so $M\mathbf{0} = \mathbf{0}$. The origin is pinned in place no matter what.
+
+That means a plain matrix can never "shift everything one unit to the right". A shift is not a linear transformation. Neural networks fix this by adding a separate vector after the multiplication — the **bias** — so each layer computes $M\mathbf{v} + \mathbf{b}$. That combination (a linear map followed by a shift) is called an *affine* transformation. You'll meet the bias properly in <LessonLink to="neuron">the neuron lesson</LessonLink>.
+
+Graphics programmers solve the same problem differently: they add an extra dimension and use 3×3 matrices for 2D (or 4×4 for 3D), a trick called homogeneous coordinates. That's why CSS's `matrix()` takes six numbers rather than four.
+
+</Deeper>
+
+## In code
+
+```python
+import numpy as np
+
+M = np.array([[1.0, 1.0],     # a 2×2 shear
+              [0.0, 1.0]])
+v = np.array([1.5, 1.0])
+
+M @ v                 # array([2.5, 1. ])   matrix times vector
+M[:, 0]               # array([1., 0.])     first column: where î lands
+M[:, 1]               # array([1., 1.])     second column: where ĵ lands
+np.linalg.det(M)      # 1.0                 shear preserves area
+
+# The same thing as a batch of dot products, one per row:
+np.array([row @ v for row in M])      # array([2.5, 1. ])
+```
+
+In PyTorch, a layer like `torch.nn.Linear(784, 128)` stores exactly such a matrix — 128 rows, 784 columns — plus a bias vector. Calling the layer computes `W @ x + b`.
+
+<Misconception>
+
+"A neural network layer is a big lookup table." It's natural to imagine each weight as a little fact the network memorised. A better picture is the one from the explorer: a layer's matrix **reshapes the whole space** of inputs at once — stretching some directions, compressing others, mixing features together. Learning means gradually adjusting that reshaping so that, by the last layer, the things you want to distinguish have been pulled apart.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- A matrix times a vector is **a batch of dot products** — one per row. That's how it's computed.
+- Equivalently, it's **a blend of the matrix's columns**, weighted by the input's entries. That's how to understand it.
+- A matrix describes a **linear transformation** of space: lines stay straight and evenly spaced, and the origin stays fixed. Its columns record where the basis vectors land.
+- The **determinant** tells you how areas scale. Zero means space is squashed flat and information is lost.
+- An $m \times n$ matrix turns $n$-dimensional vectors into $m$-dimensional ones.
+
+</Takeaways>
+
+<InTheWild>
+
+Almost all of the parameters in a modern neural network live in matrices. A single transformer layer in an 8-billion-parameter language model contains several weight matrices of shape roughly 4,096 × 4,096 and 4,096 × 14,336 — tens of millions of numbers each, describing how to reshape a 4,096-dimensional space. When people talk about a model's "weights", they mostly mean these matrices. And when GPU makers advertise performance, they're mostly advertising how fast their chips can multiply them.
+
+</InTheWild>
+
+So far, one matrix acts on one vector. In practice, we push *many* vectors through *many* matrices, one after another. That's where matrix multiplication — and the shape rules that keep it straight — come in.
