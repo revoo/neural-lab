@@ -1,6 +1,6 @@
 # Roadmap & Progress
 
-_Last updated: session 3 (in progress)._
+_Last updated: end of session 3._
 
 ## Current state (read this first if you're picking up mid-session)
 
@@ -15,7 +15,8 @@ Session 3 (owner's order): first a **Matrix theme**, then resume "Next steps" wi
 - **Done:** Module 12 · *Multi-Head Attention* (`multi-head-attention`): one head vs two on the hand-built sentence — one softmax is a single 100% budget (combined head: referent 91%, predicates 6%; best balance only ~46% each), two heads give 98% and 99% in separate output blocks; head-cost calculator showing parameters 4d² and attention arithmetic are independent of h (GPT-2 small: 2,362,368 per layer). NumPy snippet verified against a per-head loop. No lab in this lesson (the attention lesson's puzzles cover steering a head).
 - **Done:** Module 12 · *Positions: Teaching Attention About Order* (`positions`): a real layer shows "dog bites man" and "man bites dog" give the same per-word outputs (to 15 decimal places; rest is float rounding — test pins < 1e-14), positions-as-clocks widget for sinusoidal vectors (agreement depends only on offset), a RoPE dial (rotate q and k; score depends only on offset), and a lab "build a previous-word head" with three levels whose results are exhaustive over whole-degree speeds: 8 words/one hand 91 of 180 work; 64 words/one hand impossible (best 15%); two hands 2,689 of 16,290 work (best 79% at 5°+80°) — the reason real models use many speeds. NumPy snippets verified.
 - **Done:** Module 12 · *The Transformer Block* (`transformer-block`): a 3-token, 4-dim pre-norm block stepped stage by stage (random untrained weights, stated) with causal-mask toggle; a depth experiment on random stacks (plain gradient fades to ~6% by depth 48; residual never falls below 1 but grows to ~28; residual+LN ~6 — reported honestly, plus GPT-2's scaled residual init); causal mask explained as anti-leakage; a GPT parameter counter reproducing GPT-2 small/medium/large/XL exactly. The PyTorch block snippet was run (CPU torch installed in the container) — 12 blocks = 85,054,464 params, causal property verified.
-- **Next up:** Module 12 · *Tokenization*, then Module 13 (LLMs) — see "Next steps".
+- **In progress (not registered in the curriculum yet):** Module 12 · *Tokenization*. `src/lessons/tokenization/bpe.ts` is a working BPE engine (train / encodeWord / encodeText, end-of-word marker "_") on a small original corpus in the file. Findings so far: 107 words, 50 distinct, 22 starting symbols, 66 merges before every pair is unique; "strawberry" → st|r|a|w|berr|y (good for the letter-counting point). **Lab design decided:** "tokens × log₂(vocab)" alone falls monotonically (no sweet spot), so use a *minimum description length* cost = corpus as token ids + merge table (2·log₂V bits per merge); its exhaustive optimum is **28 merges, ≈1,806 bits** (vs 2,368 at 0 merges, 1,996 at 66). Still to do: widgets (step-through merges, tokenise-your-own-word, MDL chart with the optimum), index.mdx, quiz, tests pinning these numbers, curriculum entry, glossary term.
+- **Next up:** finish Tokenization, then Module 13 (LLMs) — see "Next steps".
 
 ## Status at a glance
 
