@@ -1,0 +1,153 @@
+import { TrainingLab } from './TrainingLab'
+import { questions } from './quiz'
+
+## Every piece, in your hands
+
+Look back at what you've built up, one lesson at a time:
+
+| piece | what it does | where you met it |
+| --- | --- | --- |
+| neurons and layers | turn inputs into a prediction, one matrix multiplication per layer | <LessonLink to="forward-propagation">the forward pass</LessonLink> |
+| activations | bend space, so layers can build on each other | <LessonLink to="activation-functions">activation functions</LessonLink> |
+| depth and width | decide how much the network can express, and at what cost | <LessonLink to="depth-and-width">depth and width</LessonLink> |
+| cross-entropy | measures how wrong each prediction is | <LessonLink to="loss-functions">loss functions</LessonLink> |
+| mini-batches | estimate the loss's slope cheaply | <LessonLink to="sgd-minibatch">SGD</LessonLink> |
+| optimizers | turn those slopes into good steps | <LessonLink to="optimizers">momentum and Adam</LessonLink> |
+| backpropagation | computes every weight's slope at once | <LessonLink to="backpropagation">backpropagation</LessonLink> |
+
+Until now, each lesson isolated one piece and held the others still. Real training doesn't work that way: everything interacts. The step size that works for one architecture wrecks another; the right inputs can make a hard problem trivial; a network can look perfect on its training data and be useless on anything new.
+
+The only way to build a feel for those interactions is to play with them. So here is a laboratory with every piece on the bench at once. It's inspired by the TensorFlow Playground, and like it, nothing is faked: the network is trained live in your browser, exactly as described in the earlier lessons.
+
+## The laboratory
+
+<TrainingLab />
+
+A quick orientation:
+
+- **Data** (left): pick a dataset, its noise and size. Points are split at random into **training** points (filled), which the network learns from, and **<Term id="test-set">test</Term>** points (hollow), which it never sees during training. "Draw your own" lets you click points onto the plot.
+- **Inputs:** which numbers the network receives about each point. Normally just its coordinates, x and y, but you can also hand it ready-made combinations like x² or x·y. Each input's little map shows what it looks like across the plane.
+- **Network** (middle): add layers and neurons. Each neuron shows a live map of its own output, so you can watch the hidden layers build their features as training runs.
+- **Output** (right): the background is the network's current prediction everywhere; the numbers are its loss and accuracy on the training and test points.
+- **Settings** (below): activation, optimizer, step size, batch size, weight decay (L2) and the random start.
+
+## Experiment 1: what one neuron can't see
+
+Open **Load an experiment… → A single neuron on the circle**. No hidden layer: just one neuron looking at x and y.
+
+<Predict
+  question="A single neuron, inputs x and y, on the circle (blue inside, orange around it). After training, roughly what test accuracy will it reach?"
+  options={['Close to 100% — the circle is a simple shape', 'Around 75% — it gets most points right', 'Around 50% — no better than guessing']}
+  answer={2}
+>
+
+Around 50%. One neuron draws one straight line, and *every* straight line through the circle data has blue and orange on both sides in roughly equal numbers. The best it can do is a coin flip. Train it and watch the background: it barely forms any opinion at all.
+
+</Predict>
+
+Now load **A single neuron with x² and y²**. Same single neuron, 3 parameters, but different inputs. Press Train: it reaches 99% on the test points within about a hundred steps.
+
+What changed? The neuron still draws a straight line — but now in a space whose axes are x² and y². In that space, "inside the circle" means x² + y² is small, which *is* a straight-line cut. Choosing the right inputs turned an impossible problem into an easy one.
+
+This is **<Term id="feature-engineering">feature engineering</Term>**, and before deep learning it was most of the work: experts hand-crafted the inputs that made problems easy for simple models. What hidden layers do — as you saw in the forward-pass lesson — is *learn* such features from raw inputs automatically. Put x and y back as the only inputs and add a hidden layer of a few neurons: the hidden neurons' maps show the features it invents in place of x² and y².
+
+## Experiment 2: settings interact
+
+Load **Spiral from raw inputs**: three hidden layers of 8 ReLU neurons, Adam, step size 0.01. Two interlocking spirals are one of the hardest shapes you can give a small network from raw coordinates. Train it: in our runs it passes 90% test accuracy after about 600 steps and settles at 97%.
+
+Now change one thing: set the step size to **0.03**. Same network, same data, same random start. It stalls at around 78% and never recovers.
+
+Nothing about the network's *ability* changed: it can represent the spiral perfectly well, as the first run proved. What changed is whether gradient descent can *find* the weights that do it. Use **Save this run for comparison** before changing the setting, and the two loss curves will sit side by side on the chart.
+
+## Experiment 3: when a big step size doesn't explode
+
+Load **Step size too big**: the moons, two layers of 6 tanh neurons, momentum with a step size of 1. You might expect the loss to blow up to infinity, as in the gradient descent lesson. It doesn't. Instead, test accuracy sits near 50% and nothing improves, however long you train.
+
+Look at the hidden neurons' maps: they've gone hard-edged, almost pure black and white. The first few huge steps pushed the weights to large values (up to about 40, in our run), so the tanh neurons are **saturated**: they output almost exactly −1 or +1 everywhere, on the flat parts of the curve, where the slope is nearly zero. In our run, 97% of the hidden outputs were saturated (at a step size of 0.03, only 8% are, and the same network reaches 100%). Backpropagation multiplies by those near-zero slopes, so almost no learning signal gets through: the network is frozen.
+
+Divergence is loud; this kind of failure is quiet. Both come from the same cause.
+
+## Experiment 4: right on the training data, wrong on everything else
+
+Load **Few noisy points, big network**: 100 very noisy points on the circle, only 30% of them used for training, and four hidden layers of 8 ReLU neurons. Train it and watch the two loss curves.
+
+The training loss falls; training accuracy climbs above 90%. Meanwhile the **test** loss *rises* — in our run, from 1.4 at step 100 to almost 5 by step 2,000 — and test accuracy hovers in the mid-50s. Look at the background: the network has drawn little islands around individual noisy training points. It has **memorised** the training data, noise and all, instead of learning the circle.
+
+This gap between training and test performance is called **<Term id="overfitting">overfitting</Term>**, and it's why the test set exists: a model is only as good as its performance on data it hasn't seen. It's the subject of the next module.
+
+## Challenges
+
+The buttons along the top of the lab hold three challenges. Each fixes the data and some rules, and asks you to reach a target accuracy on the **test** points.
+
+- **A circle with no hidden layer:** you have one neuron; choose its inputs wisely.
+- **XOR from raw coordinates:** only x and y as inputs; any architecture.
+- **The spiral:** 90% test accuracy, with anything you like.
+
+Getting there at all is the goal. Then, optionally, do it with **as few parameters as possible**. Once you've succeeded, the lab shows the fewest parameters *we* found — by training every configuration in a defined search space (three random starts each) in order of size, and stopping at the first that reached the target. That's an honest best-found, not a proof: the search covered a limited space of architectures and only three random starts. Beating it is entirely possible, and if you do, you've found something the search missed.
+
+<Deeper title="After the XOR challenge: representable isn't the same as learnable" tag="Spoiler">
+
+In the logic lab, you built XOR with a hidden layer of just **two** neurons. So two hidden neurons — 9 parameters — are enough to *represent* XOR. Yet the smallest network our search found that *trained* to 95% has three hidden neurons and 13 parameters: from random starts 1, 2 and 3, two-neuron networks never got there within 4,000 steps.
+
+There's no contradiction. With only two hidden neurons there's no slack: both must end up in exactly the right roles, and gradient descent often settles into an arrangement where one neuron is doing the wrong job and every small change makes things worse. A third neuron gives the search room to manoeuvre. This is one of the most important practical facts in deep learning: networks are usually made much bigger than strictly necessary, not because the problem needs the capacity, but because bigger networks are *easier to train*. If you find a random start that trains two neurons to 95%, you'll have beaten the search.
+
+</Deeper>
+
+## In code
+
+Everything the lab does fits in a short PyTorch script. Here's the equivalent of its default setup:
+
+```python
+import torch
+import torch.nn as nn
+
+X_train, y_train, X_test, y_test = make_circle_data()      # (n, 2) inputs, (n, 1) labels
+
+model = nn.Sequential(
+    nn.Linear(2, 4), nn.Tanh(),
+    nn.Linear(4, 4), nn.Tanh(),
+    nn.Linear(4, 1),                       # a raw score; the loss applies the sigmoid
+)
+loss_fn = nn.BCEWithLogitsLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=0.03, weight_decay=0.0)
+
+for step in range(2000):
+    idx = torch.randint(len(X_train), (10,))                # a mini-batch of 10
+    loss = loss_fn(model(X_train[idx]), y_train[idx])
+    optimizer.zero_grad()
+    loss.backward()                                         # backpropagation
+    optimizer.step()                                        # Adam
+
+    if step % 100 == 0:
+        with torch.no_grad():                               # evaluate on unseen data
+            test_acc = ((model(X_test) > 0) == y_test.bool()).float().mean()
+        print(step, loss.item(), test_acc.item())
+```
+
+Every line maps to a control in the lab: the `Sequential` is the network column, `lr` is the step size, the `10` is the batch size, `weight_decay` is L2, and the evaluation block is the test-accuracy readout.
+
+<Misconception>
+
+"If training accuracy is high, the model works." Training accuracy only tells you how well the model fits the examples it was shown — which a big enough network can always do, noise included, as experiment 4 showed. What you care about is performance on data the model has never seen, which is why every serious experiment holds back a test set and never trains on it. When training and test accuracy disagree, believe the test.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- Training is the interaction of every piece at once: **data, inputs, architecture, loss, optimizer, step size, batch size and random start**. Change one and the best value of the others can move.
+- The **right inputs** can make a hard problem trivial; **hidden layers** learn such features automatically.
+- A network being able to **represent** a solution doesn't mean training will **find** it. Bigger networks are often used because they're easier to train.
+- Bad settings don't always explode. A step size that's too big can also **saturate** neurons and freeze training silently.
+- Always judge a model on **test data** it never trained on. A gap between training and test performance is **overfitting**.
+
+</Takeaways>
+
+<InTheWild>
+
+The TensorFlow Playground, built by Daniel Smilkov and Shan Carter in 2016, gave a generation of learners their first hands-on feel for these interactions, and this lab borrows its spirit. Professional practice is the same activity at a much larger scale: researchers run "sweeps" of hundreds of training runs over step sizes, batch sizes and architectures, compare their loss curves side by side, and keep a held-out test set they look at as rarely as possible — so that their choices don't quietly overfit to it as well.
+
+</InTheWild>
+
+The last experiment opened a question we've been able to ignore until now: a network that's perfect on its training data can still be useless. Why does that happen, how do you detect it, and what can you do about it? That's the next module.

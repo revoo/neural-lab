@@ -87,7 +87,15 @@ export const MODULES: ModuleMeta[] = [
     ],
     planned: ['Vanishing and exploding gradients, in depth', 'A neural network from scratch', 'How autodiff libraries scale to tensors'],
   },
-  { id: 'training', number: 6, title: 'Neural Network Training Lab', blurb: 'A full browser-based training sandbox with live decision boundaries.', lessons: [], planned: ['The training laboratory', 'Datasets: circles, spirals, XOR', 'Comparing experiments side by side'] },
+  {
+    id: 'training',
+    number: 6,
+    title: 'Neural Network Training Lab',
+    blurb: 'A full browser-based training sandbox with live decision boundaries.',
+    lessons: [
+      { id: 'training-lab', title: 'The Training Laboratory', summary: 'Every piece on the bench at once: data, features, architecture and settings — train live, compare runs, and take on the challenges.', minutes: 40, load: () => import('./lessons/training-lab/index.mdx') },
+    ],
+  },
   { id: 'generalization', number: 7, title: 'Generalization & Failure Modes', blurb: 'Why a model that aces its training data can still be useless.', lessons: [], planned: ['Overfitting and underfitting', 'Regularization, dropout, early stopping', 'Diagnosing broken models'] },
   { id: 'classical', number: 8, title: 'Classical Machine Learning', blurb: 'Trees, nearest neighbours, SVMs, clustering — and when they beat neural networks.', lessons: [], planned: ['Linear and logistic regression', 'k-nearest neighbours', 'Decision trees and forests', 'k-means and PCA'] },
   { id: 'vision', number: 9, title: 'Computer Vision', blurb: 'From pixels to convolutions to object detectors.', lessons: [], planned: ['Images as tensors', 'Convolution and kernels', 'CNNs and feature maps', 'Object detection'] },

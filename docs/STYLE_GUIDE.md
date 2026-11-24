@@ -72,10 +72,20 @@ Where a concept can be *built*, make it a lab:
 - Don't be cryptic: rules and controls must be obvious. Hints explain reasoning, not answers.
 - Persist the learner's work locally.
 
+### Fairness and honesty in experiments (added session 2)
+
+- **Compare fairly.** When a widget races methods against each other, give each its own best hyperparameters (found by a grid search, stated in the caption) and average random effects over fixed seeds. Otherwise the race measures your tuning, not the method.
+- **Report what you actually found.** If a well-known technique (e.g. learning-rate warmup) makes no difference in our small problems, say so and explain where it does matter — never stage a demo to make it look useful.
+- **References for puzzles:** exhaustive optimum where feasible; otherwise "best found by searching <stated space>", from a committed script whose result is re-verified by a test.
+- **Pin quoted behaviour with tests.** If the prose says "this preset stalls near 50%", a test should check it.
+- **Let the learner stop at the finish line.** Races stop each runner when it reaches the target, so overshooting after arrival doesn't muddy the comparison.
+
 ## 6. Engineering conventions
 
 - Each lesson is a self-contained folder: `src/lessons/<id>/index.mdx`, its widgets, `quiz.ts`, and any lesson-specific maths with tests.
 - Shared code only where there's genuine reuse: `src/lib` (maths), `src/components` (teaching components, plotting).
 - Register lessons in `src/curriculum.ts`. Add glossary terms in `src/glossary.ts`.
 - Test any non-trivial maths (`*.test.ts`, Vitest). Gradient code is always checked numerically.
+- Draw networks with `src/components/NetDiagram.tsx` (weights `W[l][j][i]`, thumbnails, selection, badges).
+- Verify every number you quote with a script: `node --experimental-strip-types --import ./scripts/ts-hooks.mjs scratch/x.ts` runs TypeScript that imports lesson/lib modules. Check widgets with `scripts/shoot-widgets.cjs` and `scripts/drive-widget.cjs` in light and dark mode and at phone width.
 - In MDX, avoid raw `{`, `}` and `<` in prose. JSX attribute strings don't process escapes, so `tex="\frac{a}{b}"` works as written.

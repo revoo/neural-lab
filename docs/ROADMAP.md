@@ -1,14 +1,15 @@
 # Roadmap & Progress
 
-_Last updated: session 2 (in progress — see "Current state" below)._
+_Last updated: end of session 2._
 
 ## Current state (read this first if you're picking up mid-session)
 
-Session 2 is working through Module 3 → Module 4 → Module 6 in order, committing and pushing after every finished lesson. The last completed lesson is recorded here; anything not listed as done has not been started (or only exists as uncommitted scratch).
+Session 2 worked through Module 3 → Module 4 → Module 6 in order, committing and pushing after every finished lesson. Keep this block current: the last completed lesson is recorded here, and anything not listed as done has not been started (or only exists as uncommitted scratch).
 
 - **Done this session:** Module 3 complete — *Layers and the Forward Pass* (`forward-propagation`), *The Network Playground* (`network-playground`), *Depth, Width and Parameter Counts* (`depth-and-width`).
 - **Also done:** Module 4 complete — *Loss functions* (`loss-functions`), *SGD and mini-batches* (`sgd-minibatch`), *Momentum, RMSProp and Adam* (`optimizers`), *Learning-rate schedules* (`lr-schedules`).
-- **In progress:** Module 6 · *The Training Laboratory* (`training-lab`). Done so far (committed, tested, not yet registered in `curriculum.ts`): `src/lessons/training-lab/lab.ts` (datasets, features, seeded `Trainer`, `trainUntil`), `challenges.ts` (three challenges + `BEST_FOUND` references), `search.ts` / `search.run.ts` (the reference search, ~40 s). Still to do: the `TrainingLab.tsx` widget, `index.mdx`, `quiz.ts`, glossary, registration. Plan under "Next steps".
+- **Also done:** Module 6 · *The Training Laboratory* (`training-lab`).
+- **Next up:** Module 7 · Generalisation & failure modes (plan under "Next steps").
 
 ## Status at a glance
 
@@ -19,7 +20,8 @@ Session 2 is working through Module 3 → Module 4 → Module 6 in order, commit
 | 3 | Network Architecture | **3 lessons done (module complete)**: layers and the forward pass (step-through of a hand-built 2→6→2→1 "two islands" network; per-neuron response thumbnails with a break-a-neuron experiment); the network playground (build/train/inspect any small MLP: per-neuron maps, contribution bars, ablation importance, every tensor at a probe point, parameter breakdown, pruning challenge with an exhaustively computed optimum); depth vs width (parameter calculator with ×2 width/depth buttons; exact linear-piece counting for 1D ReLU nets — folding layers give 2^L pieces vs n+1 for one wide layer, with honest fragility and random-network experiments) |
 | 4 | Loss & Optimization | **5 lessons done (module complete)**: gradient descent (fog walker + descent-golf puzzle with computed par); loss functions (tug of war: springs vs ropes → mean vs median; exact L2 vs L1 line fits with a draggable glitch; "stuck when wrong": squared error through a sigmoid vs cross-entropy, steps-to-escape); SGD and mini-batches (polling the gradient: 30 batch estimates around the true gradient with measured vs predicted 1/√B spread; a race on a fixed budget of examples processed, log-scale excess loss); momentum/RMSProp/Adam (race on valley/plateau/banana with each optimizer at its grid-searched best step size, finish-line stops, play/step/reset; optimizer golf on the banana with par from a 2,340-run search); learning-rate schedules (fast-or-precise jitter clouds; four schedules each at its searched best peak, averaged over 20 seeds; schedule-designer puzzle with five draggable knots, goal = beat every constant step size, optional = beat the best cosine, with a brute-force knot search as reference) |
 | 5 | Backpropagation | **1 lesson done**: step-through graph explorer with a learner-computed gradient, cost comparison, fading-signal (vanishing/exploding) demo |
-| 6–18 | Training lab → AI systems | planned (titles listed in `src/curriculum.ts`) |
+| 6 | Training Lab | **1 lesson done**: the training laboratory (TF-Playground-style: 6 datasets incl. draw-your-own, 7 input features, up to 4×8 hidden layers, activation/optimizer/step size/batch/L2/seed, live boundary + neuron maps, train/test loss curves, pause/step/reset, saved runs for comparison, 5 test-pinned presets, 3 challenges with fewest-parameter references from a committed search) |
+| 7–18 | Generalisation → AI systems | planned (titles listed in `src/curriculum.ts`) |
 
 ## Platform features (done)
 
@@ -40,6 +42,8 @@ Session 2 is working through Module 3 → Module 4 → Module 6 in order, commit
 - **Lessons are isolated folders**, lazy-loaded. Cross-lesson imports are avoided (small datasets are duplicated rather than shared) so lessons can evolve independently.
 - **Plain arrays, no ML framework.** Networks are small; transparent code that matches what lessons teach matters more than speed.
 - **Progress in localStorage** (`nl-progress-v1`; lab state in `nl-logic-lab-v1`).
+- **Fair races and honest references (session 2).** Whenever methods are compared (optimizers, schedules, batch sizes), each competitor gets its own best setting found by a grid search, and results that depend on randomness are averaged over fixed seeds. Puzzle "par" values are computed: exhaustively where feasible (pruning, golf), otherwise by a committed search over a stated space, shown to learners as "best found by searching …", never as a proven optimum.
+- **Lesson presets and quoted behaviours are pinned by tests** (e.g. `training-lab/presets.test.ts`), so a future change to shared code can't silently make the prose wrong.
 - **Maths presentation:** key equations in the main flow via `Eq` (word version + colour-coded symbols + plain-English legend); `MathExhibit` only for deeper derivations. See `docs/STYLE_GUIDE.md`.
 
 ## Known limitations
@@ -53,11 +57,13 @@ Session 2 is working through Module 3 → Module 4 → Module 6 in order, commit
 
 ## Next steps (in order)
 
-1. Module 6 training lab (`training-lab`, TensorFlow-Playground-style): datasets (circles, XOR, clusters, spirals, moons, click-to-draw), optional input features (x², xy, sin…), architecture, activation, optimizer, LR, batch size, L2, noise, train/test split, seed; live boundary + train/test loss curves; pause/step/reset. Objectives on top (e.g. "≥95% test accuracy on spirals with the fewest weights"), with the best-known value computed by an offline search script that is committed alongside, and described honestly as "best found by searching …".
-2. Then generalisation, transformers (flagship), LLMs, inference/hardware calculators.
+1. **Module 7 · Generalisation & failure modes.** The training lab already shows overfitting (preset "Few noisy points, big network"; test loss 1.4 → ~5 while train accuracy > 90%). Build on it: (a) over/underfitting and the train/test gap, with a capacity-vs-data sweep; (b) regularisation — L2 (already in the lab's Trainer), early stopping, dropout (needs adding to `lib/mlp.ts` with a gradient check); (c) a "diagnose the broken model" lab: hand the learner misconfigured runs (leaky test set, wrong step size, dead ReLUs, unshuffled data) and ask them to find the cause. Reuse `src/lessons/training-lab/lab.ts` ideas by duplicating, not importing.
+2. Consider a Module 5 "network from scratch" lesson (planned there) — the lab's `Trainer` is a good code-to-visual mapping target.
+3. Then, transformers (flagship), LLMs, inference/hardware calculators.
 
 ## Labs built so far
 
+- **Training-lab challenges** (Module 6): a circle with no hidden layer (fewest found: 3 params, inputs x², y²), XOR from raw coordinates (13 params; 2 hidden neurons never trained to 95% from starts 1–3 — the lesson uses this to teach representable ≠ learnable), the spiral at 90% (13 params). References come from `src/lessons/training-lab/search.ts` (run `search.run.ts`, ~40 s), tried smallest-first, re-verified in `lab.test.ts`, and labelled in the UI as best-found within a stated space.
 - **Design a schedule** (Module 4, lr-schedules): drag five knots of a log-scale step-size schedule; goal: finish within 0.15 of the best loss (averaged over 20 seeded runs), which no constant step size can; optional: beat the best cosine (0.085); a brute-force search over 400+ knot schedules (0.056) is offered as a reference, explicitly labelled as not a proof of optimality.
 - **Optimizer golf** (Module 4, optimizers): reach the bottom of Rosenbrock's banana in the fewest steps by choosing optimizer, step size and β values; par computed by searching every optimizer × 65 step sizes × β grid.
 - **Prune it** (Module 3, network playground): switch off as many hidden neurons of a trained network as possible while keeping ≥95% accuracy; the true minimum is computed by trying every on/off combination smallest-first (enabled up to 14 hidden neurons).
