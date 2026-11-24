@@ -73,8 +73,9 @@ export const MODULES: ModuleMeta[] = [
       { id: 'gradient-descent', title: 'Gradient Descent: Walking Downhill in the Fog', summary: 'The algorithm behind nearly all of modern AI training, and why the step size can make or break it.', minutes: 25, load: () => import('./lessons/gradient-descent/index.mdx') },
       { id: 'loss-functions', title: 'Loss Functions: What Does “Wrong” Mean?', summary: 'Squared error, absolute error and cross-entropy — what each one really asks the model for, and why the choice matters.', minutes: 25, load: () => import('./lessons/loss-functions/index.mdx') },
       { id: 'sgd-minibatch', title: 'Stochastic Gradient Descent and Mini-Batches', summary: 'Why a noisy gradient from a handful of examples beats an exact one from millions.', minutes: 25, load: () => import('./lessons/sgd-minibatch/index.mdx') },
+      { id: 'optimizers', title: 'Momentum, RMSProp and Adam', summary: 'Two simple fixes for gradient descent’s weaknesses, and the optimizer that combines them — racing on the same landscapes.', minutes: 30, load: () => import('./lessons/optimizers/index.mdx') },
     ],
-    planned: ['Momentum, RMSProp and Adam', 'Learning-rate schedules'],
+    planned: ['Learning-rate schedules'],
   },
   {
     id: 'backprop',

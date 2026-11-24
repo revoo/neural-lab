@@ -1,0 +1,200 @@
+import { OptimizerRace, OptimizerGolf } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: one step size, two jobs
+
+Plain gradient descent has one knob: the step size. And in <LessonLink to="gradient-descent">descent golf</LessonLink> you felt what's wrong with that. In a long, narrow valley, the steep walls demand a small step (or the walker bounces out), while the gentle floor demands a big one (or the walker crawls forever). One number can't serve both.
+
+Real loss landscapes are like that everywhere, and in millions of dimensions at once. Some weights sit in steep directions, others in nearly flat ones. Some regions of the landscape are cliffs, others are vast plains where the slope is almost zero. Plain gradient descent treats all of them with the same step size, and pays for it.
+
+The optimizers in this lesson are two simple ideas, and one combination of them:
+
+- **Momentum** remembers which way it has been going, so consistent pushes add up and back-and-forth pushes cancel.
+- **RMSProp** gives every weight its own step size, scaled by how big that weight's slopes have recently been.
+- **Adam** does both.
+
+Each is a few lines of code on top of gradient descent. Together, they train almost every large model in existence.
+
+## Momentum: a heavy ball
+
+<Analogy title="Think of a heavy ball rolling downhill">
+
+Plain gradient descent is a walker with no inertia: at every step it looks at the slope under its feet and moves exactly that way, forgetting everything it did before.
+
+Replace the walker with a heavy ball. The ball has velocity. Each moment, the slope gives it a small push, but it mostly keeps going the way it was already going. In a narrow valley, the pushes across the valley alternate — left wall, right wall, left wall — so they mostly cancel out. The pushes along the valley floor all point the same way, so they accumulate, and the ball picks up speed exactly where the walker crawled.
+
+</Analogy>
+
+In code, "velocity" is just a running total of recent gradients, with older ones gradually forgotten:
+
+<Eq
+  words="\text{velocity} = \text{a fraction of the old velocity} + \text{today's slope}; \quad \text{weight} \mathrel{-}= \text{step size} \times \text{velocity}"
+  tex="\cb{\mathbf{v}} \leftarrow \cp{\beta}\,\cb{\mathbf{v}} + \cg{\nabla L}, \qquad \mathbf{w} \leftarrow \mathbf{w} - \eta\,\cb{\mathbf{v}}"
+>
+
+- $\cb{\mathbf{v}}$ — the **velocity**: a running sum of recent slopes, starting at zero
+- $\cp{\beta}$ — **how much velocity is kept** each step, usually 0.9. It's the ball's heaviness: 0 is plain gradient descent, close to 1 is a ball that barely notices the slope
+- $\cg{\nabla L}$ — **today's slope** (the gradient, or its mini-batch estimate)
+- $\eta$ — the **step size**
+
+</Eq>
+
+Why does this speed things up? If the slope keeps pointing the same way, the velocity grows until the fraction it loses each step is replaced by the new slope: $v = \beta v + g$ settles at $v = \frac{g}{1-\beta}$. With $\beta = 0.9$, that's **ten times** the slope. Along a consistent direction, momentum is like gradient descent with a ten-times bigger step — while directions that keep flipping sign get no such boost.
+
+## RMSProp: a step size for every weight
+
+Momentum fixes the zig-zag. It doesn't fix the other problem: weights whose slopes are simply very different in size. On a plain where every slope is a few thousandths, a step size suitable for the steep parts makes almost no progress.
+
+<Analogy title="Think of automatic volume control">
+
+You're mixing a podcast with two microphones. One guest leans right into theirs; the other speaks from across the room. If you turn up one master volume until the quiet guest is audible, the loud one deafens everyone. The fix is a separate volume control per microphone, adjusted automatically: listen to how loud each channel has been lately, and divide by that.
+
+</Analogy>
+
+**RMSProp** does this for every weight. It keeps a running average of each weight's *squared* slope — a measure of how "loud" that weight's gradient has been lately — and divides each step by its square root. Weights with consistently big slopes get their steps scaled down; weights with consistently tiny slopes get theirs scaled up.
+
+<Eq
+  words="\text{loudness} = \text{running average of slope}^2; \quad \text{weight} \mathrel{-}= \text{step size} \times \frac{\text{slope}}{\sqrt{\text{loudness}}}"
+  tex="\cc{s} \leftarrow \cp{\beta_2}\,\cc{s} + (1 - \cp{\beta_2})\,\cg{g}^2, \qquad w \leftarrow w - \eta\,\frac{\cg{g}}{\sqrt{\cc{s}} + \epsilon}"
+>
+
+- $\cg{g}$ — this weight's **slope** right now (each weight is handled separately)
+- $\cc{s}$ — this weight's **loudness**: a running average of its squared slope
+- $\cp{\beta_2}$ — **how long that memory is**: 0.9 averages over roughly the last 10 steps, 0.999 over roughly the last 1,000
+- $\epsilon$ — a **tiny number** (like $10^{-8}$) so we never divide by zero
+- the result: each step's size is roughly $\eta$ **whatever the slope's size** — the step size becomes a distance, not a multiplier
+
+</Eq>
+
+The name is a mouthful of what it does: divide by the **R**oot of the **M**ean of the **S**quared gradients, and **Prop**agate. It came from a slide in Geoffrey Hinton's online course in 2012 and was never formally published, which tells you something about how practical this field can be.
+
+## Adam: both at once
+
+**Adam** (from "adaptive moment estimation") is momentum and RMSProp combined. It keeps a running average of each weight's slopes (the momentum part) *and* of its squared slopes (the loudness part), and steps by the first divided by the square root of the second.
+
+<Eq
+  words="\text{weight} \mathrel{-}= \text{step size} \times \frac{\text{running average of slope}}{\sqrt{\text{running average of slope}^2}}"
+  tex="\cb{m} \leftarrow \cp{\beta_1}\cb{m} + (1-\cp{\beta_1})\cg{g}, \quad \cc{s} \leftarrow \cp{\beta_2}\cc{s} + (1-\cp{\beta_2})\cg{g}^2, \quad w \leftarrow w - \eta\,\frac{\hat{\cb{m}}}{\sqrt{\hat{\cc{s}}} + \epsilon}"
+>
+
+- $\cb{m}$ — the **average slope** (momentum's velocity, kept as an average rather than a sum)
+- $\cc{s}$ — the **average squared slope** (RMSProp's loudness)
+- $\cp{\beta_1}, \cp{\beta_2}$ — **how long each memory is**; the standard defaults are 0.9 and 0.999
+- $\hat{\cb{m}}, \hat{\cc{s}}$ — the two averages after a small **start-up correction** (see below)
+- the standard step size is $\eta = 0.001$, though it is very commonly tuned
+
+</Eq>
+
+<Deeper title="The start-up correction (bias correction)" tag="Detail">
+
+Both running averages start at zero. After the first step, $m = (1 - \beta_1)\,g = 0.1\,g$: only a tenth of the true slope, purely because the average has had no time to warm up. The squared average is even worse: $(1 - 0.999)\,g^2 = 0.001\,g^2$.
+
+Adam fixes this by dividing each average by $1 - \beta^t$, where $t$ is the step number. At $t = 1$ that's dividing $0.1\,g$ by $0.1$, giving back exactly $g$. As $t$ grows, $\beta^t$ shrinks towards zero and the correction fades away. It's only a few characters in the code, and without it Adam's first steps would be badly mis-sized.
+
+</Deeper>
+
+## The race
+
+Now let's race all four on three landscapes. One subtlety first: the step size means different things to different optimizers. For plain gradient descent and momentum, it multiplies the slope; for RMSProp and Adam, it's closer to a distance. So giving all four the same number would be meaningless. Instead, each runner gets **its own best step size for each landscape**, found by trying dozens of values and keeping the winner.
+
+<Predict
+  question="Adam combines momentum with RMSProp's per-weight scaling. On the **narrow valley** — tilted at an angle — each at its best step size, how does Adam compare with momentum alone?"
+  options={['Adam wins clearly: two tricks beat one', 'They tie — and Adam needs an absurdly large step size to manage it', 'Adam never reaches the bottom']}
+  answer={1}
+>
+
+Both arrive in 25 steps, with RMSProp at 29 and plain gradient descent at 52. But momentum gets there with a step size of 0.42, while Adam needs 7.5 — thousands of times its usual default of 0.001. The per-weight scaling isn't helping here: it rescales $x$ and $y$ separately, and this valley's steep and gentle directions are diagonal, so per-weight scaling can't line up with them. Momentum doesn't care about the angle. Now race the other landscapes.
+
+</Predict>
+
+<OptimizerRace />
+
+Don't be alarmed by how wild some paths look. The *best* step size is almost always an aggressive one, right at the edge of where things would fly apart, so the winning runs bounce hard before they settle. That's true of real training too.
+
+Three landscapes, and the results don't crown a single champion:
+
+- **Narrow valley:** momentum and Adam tie, but momentum does it with an ordinary step size. Its velocity cancels the zig-zag, exactly as the heavy ball suggested.
+- **Plateau:** RMSProp and Adam arrive in 9 steps; plain gradient descent needs 49. Out on the plain, every slope is tiny, so plain descent shuffles; the adaptive methods divide by that tininess and stride across.
+- **Banana:** Adam wins, in 39 steps, with momentum close behind at 49. Plain gradient descent needs 240 and RMSProp alone does no better: the curving floor needs both the persistence of momentum and the per-weight scaling.
+
+That pattern is the honest summary of optimizer research: each trick fixes a particular shape of trouble. Adam has become the default not because it wins every race, but because it's rarely terrible on any of them — and real loss landscapes contain every kind of trouble at once.
+
+## Optimizer golf
+
+The banana is a notoriously awkward shape: the valley is easy to find and hard to follow. Your turn.
+
+<OptimizerGolf />
+
+If you played for a while, you probably found that:
+
+- **Plain gradient descent can get there, but only just.** Its step size is capped by the valley's steep walls, and then it creeps along the floor for hundreds of steps.
+- **Momentum helps a lot,** but heavier isn't always better. In my search, it does best with $\beta_1$ around 0.9 to 0.95 (about 48 steps at its best step size); at 0.98 the ball overshoots the bend and sloshes around, and it needs 79.
+- **The best settings are not the defaults.** Par is set by a configuration nobody would guess — which is exactly why practitioners tune their optimizers, and why defaults like $\beta_2 = 0.999$ are a starting point rather than a law.
+
+## The price of memory
+
+There's a cost hidden in all of this. Plain gradient descent needs nothing but the weights and their gradients. Momentum keeps one extra number per weight (the velocity); Adam keeps **two** (the average slope and the average squared slope).
+
+For small models, nobody cares. For large ones, it dominates. A common recipe for training large models in mixed precision stores, for every parameter, a 16-bit copy of the weight and of its gradient, a 32-bit master copy of the weight, and Adam's two 32-bit averages: 2 + 2 + 4 + 4 + 4 = 16 bytes. A 7-billion-parameter model therefore needs about 112 GB just for that, before storing any activations — far more than the 14 GB the weights alone would take. Much of the engineering of large-scale training is about splitting those optimizer states across many GPUs.
+
+## In code
+
+Here's Adam, from scratch, for a list of weight arrays:
+
+```python
+import numpy as np
+
+class Adam:
+    def __init__(self, lr=1e-3, beta1=0.9, beta2=0.999, eps=1e-8):
+        self.lr, self.b1, self.b2, self.eps = lr, beta1, beta2, eps
+        self.m = self.s = None
+        self.t = 0
+
+    def step(self, weights, grads):
+        if self.m is None:
+            self.m = [np.zeros_like(w) for w in weights]   # average slope
+            self.s = [np.zeros_like(w) for w in weights]   # average squared slope
+        self.t += 1
+        for w, g, m, s in zip(weights, grads, self.m, self.s):
+            m[:] = self.b1 * m + (1 - self.b1) * g
+            s[:] = self.b2 * s + (1 - self.b2) * g * g
+            m_hat = m / (1 - self.b1 ** self.t)              # start-up correction
+            s_hat = s / (1 - self.b2 ** self.t)
+            w -= self.lr * m_hat / (np.sqrt(s_hat) + self.eps)
+```
+
+In PyTorch, switching optimizer is one line — which is why it's worth knowing what each one does:
+
+```python
+torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
+torch.optim.RMSprop(model.parameters(), lr=1e-3)
+torch.optim.Adam(model.parameters(), lr=1e-3)                    # betas=(0.9, 0.999)
+torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=0.1)
+```
+
+The last one, **AdamW**, is Adam with *weight decay* — a gentle pull of every weight towards zero, which helps models generalise — applied separately from the adaptive scaling. (In plain Adam, mixing the decay into the gradient means the per-weight scaling distorts it.) AdamW is the standard choice for training transformers.
+
+<Misconception>
+
+"Adaptive optimizers like Adam make the step size irrelevant." They make it *less* sensitive to the scale of the gradients, which is genuinely useful. But the step size is still the most important setting in training: switch on "choose the step sizes myself" in the race and give Adam a step size of 0.001 on the valley, and after 300 steps it has barely moved; give it 30 and its first strides carry it far off the map before it finds its way back. Adam turns the step size from "a multiple of the slope" into "roughly how far to move" — you still have to choose how far.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- **Momentum** keeps a velocity: $v \leftarrow \beta v + g$. Consistent slopes add up (up to $\frac{1}{1-\beta}$ times, 10× for $\beta = 0.9$); alternating ones cancel. It fixes zig-zagging in narrow valleys.
+- **RMSProp** divides each weight's step by the root of its recent squared slopes, so every weight moves by roughly the step size, whatever its slope's size. It fixes plateaus and badly scaled weights — but only along the weights' own directions.
+- **Adam** combines both, plus a start-up correction. It's rarely the best on any one landscape and rarely bad on any, which is why it (as **AdamW**) is the default for large models.
+- Every trick costs memory: Adam stores two extra numbers per weight.
+
+</Takeaways>
+
+<InTheWild>
+
+Almost every large language model is trained with AdamW, typically with $\beta_1 = 0.9$, $\beta_2$ around 0.95 (a shorter memory than the 0.999 default, which tends to be more stable at scale) and a peak step size of a few times $10^{-4}$. Convolutional image models are still often trained with plain SGD plus momentum 0.9, which some practitioners find generalises slightly better there. And optimizer research hasn't stopped: newer methods such as Lion and Muon have been reported to train some large models with less memory or in fewer steps — though, as the race showed, a new optimizer's advantage often depends on the shape of the problem.
+
+</InTheWild>
+
+Every optimizer here still has a step size, and every one of them, sooner or later, faces the noise you saw at the end of the SGD lesson: near the bottom, a fixed step size keeps jittering. Next: changing the step size *during* training.
