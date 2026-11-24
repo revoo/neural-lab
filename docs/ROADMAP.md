@@ -8,7 +8,7 @@ Session 2 is working through Module 3 → Module 4 → Module 6 in order, commit
 
 - **Done this session:** Module 3 complete — *Layers and the Forward Pass* (`forward-propagation`), *The Network Playground* (`network-playground`), *Depth, Width and Parameter Counts* (`depth-and-width`).
 - **Also done:** Module 4 complete — *Loss functions* (`loss-functions`), *SGD and mini-batches* (`sgd-minibatch`), *Momentum, RMSProp and Adam* (`optimizers`), *Learning-rate schedules* (`lr-schedules`).
-- **Next up:** Module 6 · *The Training Laboratory* (`training-lab`). Plan under "Next steps".
+- **In progress:** Module 6 · *The Training Laboratory* (`training-lab`). Done so far (committed, tested, not yet registered in `curriculum.ts`): `src/lessons/training-lab/lab.ts` (datasets, features, seeded `Trainer`, `trainUntil`), `challenges.ts` (three challenges + `BEST_FOUND` references), `search.ts` / `search.run.ts` (the reference search, ~40 s). Still to do: the `TrainingLab.tsx` widget, `index.mdx`, `quiz.ts`, glossary, registration. Plan under "Next steps".
 
 ## Status at a glance
 
