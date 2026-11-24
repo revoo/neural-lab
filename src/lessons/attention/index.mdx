@@ -1,0 +1,167 @@
+import { SoftLookup, SentenceAttention, ScaleStudy, AttentionPuzzles } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: words don't mean much on their own
+
+Read this sentence:
+
+> The animal didn't cross the street because **it** was too tired.
+
+What does "it" mean? The animal, obviously. Now change one word:
+
+> The animal didn't cross the street because **it** was too wide.
+
+Now "it" is the street. Same word, same position, completely different meaning — decided by a word four places further on.
+
+That's the problem with everything you've built so far. A network that turns each word into a vector *on its own* gives "it" the same vector in both sentences. Meaning lives in context: "bank" by a river and "bank" with a mortgage, "it" as an animal and "it" as a street. To understand language, each word needs to be able to **look at the other words and pull in what it needs from them** — and *which* words it needs depends on what the words are.
+
+The mechanism that does this is called **<Term id="attention">attention</Term>**. It's the core of the transformer, the architecture behind every modern large language model. And as you'll see, it's built from three things you already know: dot products, softmax and weighted sums.
+
+## The idea: a soft dictionary lookup
+
+<Analogy title="Think of a dictionary that answers vague questions">
+
+A Python dictionary is a lookup: you give it a key, it finds the entry with *exactly* that key, and hands back the value. `d["cat"]` returns one thing or raises an error.
+
+Now imagine a dictionary that accepts vague questions. You ask for "something furry", and instead of demanding an exact match it scores how well *every* key matches your question, turns the scores into shares that add up to 100%, and hands you back a blend of all the values in those shares: mostly "cat", a little "dog", hardly any "teapot".
+
+</Analogy>
+
+That fuzzy dictionary is attention, and each piece has a name:
+
+- the **query**: what the current word is looking for;
+- the **keys**: what each word offers to be found by;
+- the **values**: what each word actually hands over when it's attended to.
+
+How well does a key match a query? You already know the answer from <LessonLink to="dot-product">the dot product lesson</LessonLink>: the dot product measures agreement. How do you turn scores into shares? <LessonLink to="probability">Softmax</LessonLink>. And the blend is a weighted sum. Try it.
+
+<SoftLookup />
+
+A few things to notice as you drag:
+
+- The query doesn't have to match a key exactly. It just has to agree with some keys more than others.
+- **The output is always a blend.** Even a strong preference leaves a little of everything else in.
+- **Length matters, not just direction.** A longer query makes the scores bigger and the softmax more decisive; a short one spreads the attention evenly. It's the temperature knob from the softmax lesson, in disguise.
+
+## Where queries, keys and values come from
+
+In a transformer, every word plays all three roles at once. Each word starts as a vector — its **embedding** — and three learned matrices turn that one vector into three:
+
+$$
+\mathbf{q} = W_Q\,\mathbf{x}, \qquad \mathbf{k} = W_K\,\mathbf{x}, \qquad \mathbf{v} = W_V\,\mathbf{x}.
+$$
+
+Each is the "machine that transforms space" from <LessonLink to="matrices">the matrices lesson</LessonLink>: $W_Q$ re-describes a word in terms of *what it's looking for*, $W_K$ in terms of *what it can be found by*, and $W_V$ in terms of *what it has to offer*. Then every word's query is compared with every word's key, including its own.
+
+In a trained model these matrices are learned, and the features they work with are hundreds of numbers nobody chose. To make the mechanism readable, here is a toy with five hand-picked features per word and two-dimensional queries and keys, set by hand: a pronoun's query asks for "a noun, preferably animate"; a verb's asks for "a noun"; key dimension 1 says "I'm a noun", dimension 2 "I'm animate".
+
+<SentenceAttention />
+
+When you switched "tired" to "wide", the toy didn't change its mind — and couldn't. That's worth understanding, because it's the reason transformers have many layers. In one attention step, a word's query is built only from *its own* vector. "it" has no way to know about "wide" before it decides where to look. But after one layer of attention, each word's vector has been enriched with information from the others, so in the *next* layer, "it"'s query is built from a vector that already contains a hint of "wide". Stack enough layers and words can resolve meaning in stages.
+
+## Writing it down
+
+Now put every word's query, key and value into matrices, one row per word, exactly like the batches in <LessonLink to="network-from-scratch">the network-from-scratch lesson</LessonLink>. Every query against every key is then one matrix multiplication, $QK^{\mathsf T}$: row $i$, column $j$ is "how much word $i$ wants word $j$". Softmax along each row turns scores into attention weights, and multiplying by $V$ blends the values.
+
+<Eq
+  words="\text{new meaning of each word} = \text{softmax}\!\left(\frac{\text{what each word looks for} \cdot \text{what each word offers}}{\sqrt{\text{length of those vectors}}}\right) \times \text{what each word hands over}"
+  tex="\cp{\text{Attention}}(\ca{Q}, \cb{K}, \cc{V}) = \text{softmax}\!\left(\frac{\ca{Q}\,\cb{K}^{\mathsf T}}{\sqrt{\cv{d}}}\right)\cc{V}"
+>
+
+- $\ca{Q}$ — the **queries**, one row per word: what each word is looking for
+- $\cb{K}$ — the **keys**, one row per word: what each word can be found by
+- $\cc{V}$ — the **values**, one row per word: what each word hands over when attended to
+- $\cv{d}$ — the **length** of each query and key vector (the number of components)
+- softmax — applied to each row separately, so each word's attention adds up to 100%
+- $\cp{\text{Attention}}$ — the output: one new vector per word, a blend of the values
+
+</Eq>
+
+Read it as a sentence: *each word's new meaning is a blend of every word's value, weighted by how well its query matches their keys.* Or, connecting it to everything before: **attention is another weighted sum, with the weights computed from the input itself.** In a dense layer the weights are fixed numbers, learned once; in attention they're recomputed for every sentence.
+
+### Why divide by √d?
+
+Everything in that equation has a reason except, at first sight, the $\sqrt{d}$.
+
+<Predict
+  question="Queries and keys in real models have 64 or 128 components. If you skip the division by √d, what happens to softmax as d grows?"
+  options={[
+    'Nothing: softmax only cares about differences between scores',
+    'It saturates: one key takes nearly all the attention, almost regardless of meaning',
+    'It flattens: every key gets about the same share',
+  ]}
+  answer={1}
+>
+
+It saturates. A dot product of two vectors with $d$ random components adds up $d$ random products, so its typical size grows like $\sqrt{d}$: about 1.3 for $d = 2$, but 11 for $d = 128$. Softmax of numbers that far apart is almost a hard maximum: one key gets nearly everything, and the slopes that training relies on vanish, just like the saturated sigmoids in the loss-functions lesson.
+
+Dividing by $\sqrt{d}$ cancels that growth exactly: the scores stay about the same size however long the vectors are. In our measurements, the largest weight with raw scores climbs from 38% at $d = 2$ to 95% at $d = 512$; with scaling, it stays around 31% throughout.
+
+</Predict>
+
+<ScaleStudy />
+
+## Lab: attention puzzles
+
+You've seen what attention does. Now steer it. In each puzzle you control one query; the keys are fixed. The scores, the $\sqrt{d}$ and the softmax are exactly those in the equation above.
+
+<AttentionPuzzles />
+
+<Deeper title="After the puzzles: what they were about" tag="Spoiler">
+
+**Spotlight** is a direction problem: point the query roughly along the key you want. About a quarter of all grid queries (31 of 121) work.
+
+**Close neighbours** is a length problem. "dog" [3, 1] and "wolf" [3, 2] differ only in their second component, where wolf is bigger. So the query has to be *negative* there, to favour dog over wolf, while staying strongly positive in the first component to beat "cup" and "run" — and then it needs a lot of length, to turn dog's small advantage into a big share. Only one query on the whole grid, [5, −3], gets "dog" past 80%, and only just (80.7%). This is the same reason real models need long query and key vectors: fine distinctions need room.
+
+**Fair split** asks for a query that's *equally* aligned with two keys: anywhere along the line [1, 0] gives "salt" and "pepper" exactly 50% each, because their keys are mirror images across it. Five grid queries work; the smallest is [1, 0].
+
+**The hidden key** is impossible, and the reason is the most useful idea in the lab. A key that's an average of other keys can never beat all of them, because a dot product is linear: its score is always the average of theirs. Geometrically, a key inside the region spanned by the others is never the "most extreme" in any direction. In 2D that's a real limitation. In the hundreds of dimensions of a real model, it almost never bites.
+
+</Deeper>
+
+## In code
+
+The whole of attention is a few lines of NumPy:
+
+```python
+import numpy as np
+
+def softmax(z):
+    e = np.exp(z - z.max(axis=-1, keepdims=True))   # subtract the max for numerical safety
+    return e / e.sum(axis=-1, keepdims=True)
+
+def attention(X, W_q, W_k, W_v):
+    Q, K, V = X @ W_q, X @ W_k, X @ W_v             # (n, d) each: one row per word
+    scores = Q @ K.T / np.sqrt(K.shape[-1])          # (n, n): every word against every word
+    weights = softmax(scores)                        # each row adds up to 1
+    return weights @ V                               # (n, d): a blend of values for every word
+```
+
+(Note the NumPy convention again: rows are words, so it's `X @ W_q` rather than $W_Q\mathbf{x}$.) PyTorch has it built in as `torch.nn.functional.scaled_dot_product_attention(Q, K, V)`, which computes the same thing with heavily optimised GPU kernels. The `(n, n)` score matrix is also attention's famous cost: double the length of the text and there are four times as many pairs of words to compare.
+
+<Misconception>
+
+"The attention weights show what the model is thinking about." They're tempting to read that way, and sometimes they line up with intuition, as "it" → "animal" did here. But a real transformer has many attention heads in many layers, each value is itself a mixture from earlier layers, and the weights alone don't tell you how much the result actually *affects* the output. Researchers have shown that quite different attention patterns can lead to the same predictions. Treat attention maps as a hint, not an explanation.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- A word's meaning depends on its context. **Attention** lets every word pull in information from every other word.
+- It's a **soft dictionary lookup**: score each **key** against a **query** with a dot product, turn the scores into shares with **softmax**, and blend the **values** in those shares.
+- Queries, keys and values are made from each word's vector by three learned matrices, $W_Q$, $W_K$, $W_V$.
+- $\text{Attention}(Q,K,V) = \text{softmax}(QK^{\mathsf T}/\sqrt{d})\,V$: a weighted sum whose weights are computed from the input itself.
+- Dividing by $\sqrt{d}$ keeps scores the same size as vectors get longer, so softmax doesn't saturate.
+- One attention step can't use context to decide *where* to look; stacking layers can.
+
+</Takeaways>
+
+<InTheWild>
+
+Attention was first used in 2014, by Dzmitry Bahdanau, Kyunghyun Cho and Yoshua Bengio, to help translation networks look back at the right words of the source sentence. In 2017, Ashish Vaswani and colleagues at Google published "Attention Is All You Need", which threw away everything else and built a translation model from attention and simple feed-forward layers alone: the **transformer**. Its scaled dot-product attention is exactly the equation in this lesson, $\sqrt{d}$ included, with $d = 64$. Every GPT, Claude, Gemini and Llama model descends from it, and the $(n \times n)$ score matrix is why "context length" is such an expensive number: techniques like FlashAttention exist almost entirely to compute that matrix without ever storing it in full.
+
+</InTheWild>
+
+One attention step lets each word look at the others through one pair of eyes. Next: why transformers use many sets of eyes at once — multi-head attention.

@@ -112,7 +112,16 @@ export const MODULES: ModuleMeta[] = [
   { id: 'vision', number: 9, title: 'Computer Vision', blurb: 'From pixels to convolutions to object detectors.', lessons: [], planned: ['Images as tensors', 'Convolution and kernels', 'CNNs and feature maps', 'Object detection'] },
   { id: 'embeddings', number: 10, title: 'Embeddings & Representations', blurb: 'Meaning as geometry: learned spaces where similar things sit close together.', lessons: [], planned: ['One-hot vs dense vectors', 'Word embeddings', 'Similarity search', 'Autoencoders'] },
   { id: 'sequences', number: 11, title: 'Sequence Models', blurb: 'RNNs, LSTMs, and the bottleneck that motivated attention.', lessons: [], planned: ['Recurrent networks', 'LSTMs and GRUs', 'Encoder–decoder and early attention'] },
-  { id: 'transformers', number: 12, title: 'Transformers & Attention', blurb: 'The architecture behind modern language models, taken apart one tensor at a time.', lessons: [], planned: ['Tokenization', 'Attention from scratch', 'Multi-head attention', 'Positional information', 'The transformer block'] },
+  {
+    id: 'transformers',
+    number: 12,
+    title: 'Transformers & Attention',
+    blurb: 'The architecture behind modern language models, taken apart one tensor at a time.',
+    lessons: [
+      { id: 'attention', title: 'Attention from Scratch', summary: 'How a word pulls meaning from its context: a soft dictionary lookup built from dot products, softmax and a weighted sum — and puzzles where you steer it.', minutes: 35, load: () => import('./lessons/attention/index.mdx') },
+    ],
+    planned: ['Tokenization', 'Multi-head attention', 'Positional information', 'The transformer block'],
+  },
   { id: 'llms', number: 13, title: 'Large Language Models', blurb: 'From next-token prediction to assistants: sampling, scaling, and their failure modes.', lessons: [], planned: ['Next-token prediction', 'Sampling: temperature, top-k, top-p', 'Scaling laws'] },
   { id: 'finetuning', number: 14, title: 'Training & Fine-Tuning', blurb: 'Pretraining, fine-tuning, LoRA, RLHF and the rest of the post-training toolkit.', lessons: [], planned: ['Transfer learning', 'LoRA', 'RLHF and DPO'] },
   { id: 'inference', number: 15, title: 'Inference & Hardware', blurb: 'What actually happens on the GPU, and why memory bandwidth rules everything.', lessons: [], planned: ['Floating point formats', 'Quantization', 'KV caching', 'Memory-bound decoding'] },
