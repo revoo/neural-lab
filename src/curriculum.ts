@@ -96,7 +96,16 @@ export const MODULES: ModuleMeta[] = [
       { id: 'training-lab', title: 'The Training Laboratory', summary: 'Every piece on the bench at once: data, features, architecture and settings — train live, compare runs, and take on the challenges.', minutes: 40, load: () => import('./lessons/training-lab/index.mdx') },
     ],
   },
-  { id: 'generalization', number: 7, title: 'Generalization & Failure Modes', blurb: 'Why a model that aces its training data can still be useless.', lessons: [], planned: ['Overfitting and underfitting', 'Regularization, dropout, early stopping', 'Diagnosing broken models'] },
+  {
+    id: 'generalization',
+    number: 7,
+    title: 'Generalization & Failure Modes',
+    blurb: 'Why a model that aces its training data can still be useless.',
+    lessons: [
+      { id: 'overfitting', title: 'Overfitting and Underfitting', summary: 'Why a perfect score on the training data can mean nothing, the two ways to be wrong, and how data and training time move the line between them.', minutes: 30, load: () => import('./lessons/overfitting/index.mdx') },
+    ],
+    planned: ['Regularisation: early stopping, weight decay and dropout', 'Lab: diagnosing broken models'],
+  },
   { id: 'classical', number: 8, title: 'Classical Machine Learning', blurb: 'Trees, nearest neighbours, SVMs, clustering — and when they beat neural networks.', lessons: [], planned: ['Linear and logistic regression', 'k-nearest neighbours', 'Decision trees and forests', 'k-means and PCA'] },
   { id: 'vision', number: 9, title: 'Computer Vision', blurb: 'From pixels to convolutions to object detectors.', lessons: [], planned: ['Images as tensors', 'Convolution and kernels', 'CNNs and feature maps', 'Object detection'] },
   { id: 'embeddings', number: 10, title: 'Embeddings & Representations', blurb: 'Meaning as geometry: learned spaces where similar things sit close together.', lessons: [], planned: ['One-hot vs dense vectors', 'Word embeddings', 'Similarity search', 'Autoencoders'] },

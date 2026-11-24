@@ -1,15 +1,14 @@
 # Roadmap & Progress
 
-_Last updated: end of session 2._
+_Last updated: session 3 (in progress)._
 
 ## Current state (read this first if you're picking up mid-session)
 
-Session 2 worked through Module 3 → Module 4 → Module 6 in order, committing and pushing after every finished lesson. Keep this block current: the last completed lesson is recorded here, and anything not listed as done has not been started (or only exists as uncommitted scratch).
+Session 3 (owner's order): first a **Matrix theme**, then resume "Next steps" with Module 7. Commit and push after every finished lesson; keep this block current. Anything not listed as done has not been started (or only exists as uncommitted scratch).
 
-- **Done this session:** Module 3 complete — *Layers and the Forward Pass* (`forward-propagation`), *The Network Playground* (`network-playground`), *Depth, Width and Parameter Counts* (`depth-and-width`).
-- **Also done:** Module 4 complete — *Loss functions* (`loss-functions`), *SGD and mini-batches* (`sgd-minibatch`), *Momentum, RMSProp and Adam* (`optimizers`), *Learning-rate schedules* (`lr-schedules`).
-- **Also done:** Module 6 · *The Training Laboratory* (`training-lab`).
-- **Next up:** Module 7 · Generalisation & failure modes (plan under "Next steps").
+- **Done this session:** Matrix theme (third theme: light / dark / matrix — see "Platform features").
+- **Done:** Module 7 · *Overfitting and Underfitting* (`overfitting`): capacity dial (exact polynomial least squares, degree 0–11, 12–100 points, train/test vs degree on a log chart), twenty parallel universes (bias² + variance + noise measured over 200 training sets, adds up exactly to the measured error), a 1→32→32→1 network overfitting over time (best test 0.13 at ~step 300, then rises; but far gentler than the degree-11 polynomial), and an optional double-descent widget (min-norm fits past degree 11). All quoted numbers pinned in `src/lessons/overfitting/fit.test.ts`.
+- **Next up:** Module 7 · *Regularisation* (plan under "Next steps"), then the diagnosis lab.
 
 ## Status at a glance
 
@@ -21,7 +20,8 @@ Session 2 worked through Module 3 → Module 4 → Module 6 in order, committing
 | 4 | Loss & Optimization | **5 lessons done (module complete)**: gradient descent (fog walker + descent-golf puzzle with computed par); loss functions (tug of war: springs vs ropes → mean vs median; exact L2 vs L1 line fits with a draggable glitch; "stuck when wrong": squared error through a sigmoid vs cross-entropy, steps-to-escape); SGD and mini-batches (polling the gradient: 30 batch estimates around the true gradient with measured vs predicted 1/√B spread; a race on a fixed budget of examples processed, log-scale excess loss); momentum/RMSProp/Adam (race on valley/plateau/banana with each optimizer at its grid-searched best step size, finish-line stops, play/step/reset; optimizer golf on the banana with par from a 2,340-run search); learning-rate schedules (fast-or-precise jitter clouds; four schedules each at its searched best peak, averaged over 20 seeds; schedule-designer puzzle with five draggable knots, goal = beat every constant step size, optional = beat the best cosine, with a brute-force knot search as reference) |
 | 5 | Backpropagation | **1 lesson done**: step-through graph explorer with a learner-computed gradient, cost comparison, fading-signal (vanishing/exploding) demo |
 | 6 | Training Lab | **1 lesson done**: the training laboratory (TF-Playground-style: 6 datasets incl. draw-your-own, 7 input features, up to 4×8 hidden layers, activation/optimizer/step size/batch/L2/seed, live boundary + neuron maps, train/test loss curves, pause/step/reset, saved runs for comparison, 5 test-pinned presets, 3 challenges with fewest-parameter references from a committed search) |
-| 7–18 | Generalisation → AI systems | planned (titles listed in `src/curriculum.ts`) |
+| 7 | Generalisation & Failure Modes | **1 lesson done**: overfitting and underfitting (capacity dial, bias–variance universes, network overfitting over time, double descent). Next: regularisation, then the diagnosis lab |
+| 8–18 | Classical ML → AI systems | planned (titles listed in `src/curriculum.ts`) |
 
 ## Platform features (done)
 
@@ -48,6 +48,7 @@ Session 2 worked through Module 3 → Module 4 → Module 6 in order, committing
 
 ## Known limitations
 
+- Widget captions name colours as they appear in the light/dark themes ("the purple line"); in the matrix theme the accent is green. Acceptable for now; a future pass could say "the accent-coloured line" or show a colour swatch.
 - Learning-rate warmup is explained but not demonstrated: we tested it (spirals, 2→16→16→1 ReLU, Adam, peaks 0.01–0.1, 8 seeds) and it made no difference, so the lesson says so honestly rather than faking a demo. A convincing warmup demo would need a larger model; revisit if a worker/WebGL training backend is added.
 - Module 3 lessons come *before* gradient descent and backprop in the curriculum order, so the playground's Train button is a preview (as the XOR trainer in the activation lesson already was); the prose says so implicitly by not explaining training. Pruning-optimum search is exhaustive and only enabled up to 14 hidden neurons.
 - Heatmaps re-render on the main thread; fine for small networks, will need a worker or WebGL for the full training lab.
@@ -57,9 +58,15 @@ Session 2 worked through Module 3 → Module 4 → Module 6 in order, committing
 
 ## Next steps (in order)
 
-1. **Module 7 · Generalisation & failure modes.** The training lab already shows overfitting (preset "Few noisy points, big network"; test loss 1.4 → ~5 while train accuracy > 90%). Build on it: (a) over/underfitting and the train/test gap, with a capacity-vs-data sweep; (b) regularisation — L2 (already in the lab's Trainer), early stopping, dropout (needs adding to `lib/mlp.ts` with a gradient check); (c) a "diagnose the broken model" lab: hand the learner misconfigured runs (leaky test set, wrong step size, dead ReLUs, unshuffled data) and ask them to find the cause. Reuse `src/lessons/training-lab/lab.ts` ideas by duplicating, not importing.
-2. Consider a Module 5 "network from scratch" lesson (planned there) — the lab's `Trainer` is a good code-to-visual mapping target.
-3. Then, transformers (flagship), LLMs, inference/hardware calculators.
+1. **Module 7 · Regularisation: early stopping, weight decay and dropout** (`regularization`). Plan:
+   - Reuse the overfitting lesson's 12-point curve problem for continuity (truth `sin(2.6x) + 0.4x`, noise 0.3, stratified x) — **duplicate** the few lines of data code, don't import across lessons. Add a **validation** split (e.g. 12 train + 12 validation points), since every cure needs a way to choose its strength without touching the test set.
+   - *Early stopping:* train the 1→32→32→1 net, watch validation error, stop when it hasn't improved for `patience` steps; widget with a patience slider, marking where it stops and the test error there. Eq: none needed beyond "keep the weights from the best validation step".
+   - *Weight decay (L2):* concept first ("a spring pulling every weight back to zero; the data has to pay to stretch it"), then `<Eq>` for loss + λ/2·Σw² and the update w ← w − η(∇L + λw) = (1 − ηλ)w − η∇L ("decay"). Widget: ridge regression on the degree-11 polynomial (closed form, instant) with a log λ slider, showing the wild curve calming; then the same knob on the network (`MLP.backprop` already takes `l2`).
+   - *Dropout:* **add to `src/lib/mlp.ts`** — an optional per-hidden-layer drop probability; training forward pass samples a mask from a seeded RNG and scales survivors by 1/(1−p) ("inverted dropout"), backprop multiplies deltas by the same mask, prediction uses no mask. Test with a **numerical gradient check with a fixed mask**, plus "expected activation is unchanged" and "p = 0 is identical to no dropout". Analogy: a team where anyone might be off sick, so nobody can rely on one colleague.
+   - *Fair comparison widget:* none vs early stopping vs L2 vs dropout, each at its **own best setting** chosen on validation error by a committed grid search (patience / λ / p), test error averaged over fixed seeds and datasets. Report honestly, including if dropout doesn't help on a 1D toy (it may not; say where it does matter).
+2. **Module 7 · Lab: diagnosing broken models** (`diagnosis-lab`). Hand the learner misconfigured training runs and ask for the cause, chosen from a menu of causes, with evidence they can inspect (loss curves, neuron maps, weight/gradient sizes, data view). Candidate faults, each reproduced for real with a seeded run and pinned by a test: step size too big (divergence or saturation), step size too small, dead ReLUs (bad init / big negative bias), unshuffled data (classes in order, small batches), leaky test set (duplicates of training points in the test set → test accuracy too good to be true), labels shuffled (nothing to learn: train acc rises only by memorising, test at chance), missing feature scaling (one input ×100), too little capacity, overfitting (tiny data). Objective: diagnose each case; optional goal: then fix it (change one setting to reach a target). Duplicate the training-lab engine pieces you need rather than importing.
+3. Consider a Module 5 "network from scratch" lesson (planned there) — the lab's `Trainer` is a good code-to-visual mapping target.
+4. Then, transformers (flagship), LLMs, inference/hardware calculators.
 
 ## Labs built so far
 

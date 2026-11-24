@@ -1,0 +1,220 @@
+import { CapacityDial, ParallelUniverses, NetOverTime, BeyondInterpolation } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: a perfect score that means nothing
+
+At the end of the training lab, a network did something unsettling. On its training data it was nearly perfect, above 90% accuracy. On points it hadn't seen it was barely better than a coin flip, and it got *worse* the longer it trained. Nothing had crashed and nothing had diverged. By every measure training can see, it was succeeding.
+
+That's the central awkwardness of machine learning. Training can only look at the examples you give it, but you never actually care about those examples: you already know their answers. You care about the *next* email, the *next* X-ray, the *next* sentence. The whole enterprise rests on a hope that doing well on the examples you have means doing well on the ones you don't. That hope has a name, **<Term id="generalization">generalisation</Term>**, and this lesson is about when it holds and when it fails.
+
+<Analogy title="Think of two students preparing for an exam">
+
+Two students prepare for a maths exam using last year's paper.
+
+- The first **memorises the answers**: question 3 is 42, question 7 is "x = −2", and so on — including the two answers the teacher got wrong by mistake. On last year's paper this student scores 100%.
+- The second **learns the methods**, and occasionally slips on an awkward question. On last year's paper: 85%.
+
+On the real exam, with new questions, the first student is lost. Their 100% measured their memory, not their understanding, and it even included the teacher's mistakes. The second student scores about 85% again.
+
+</Analogy>
+
+Hold on to the mapping, because each piece has a real counterpart. Last year's paper is the **training data**. The real exam is new data, which we imitate with a **<Term id="test-set">test set</Term>** held back from training. The teacher's mistakes are **noise**: quirks of these particular examples that won't recur. And a big enough model, like a good enough memory, can learn the noise along with the pattern.
+
+## The capacity dial
+
+To see this cleanly, take the simplest model whose flexibility you can turn with a single knob: a **polynomial**. Degree 0 is a flat line, degree 1 a straight line, degree 2 a parabola, and each extra degree adds one more coefficient and one more possible bend. Fitting one is exact and instant — no gradient descent needed — so we can watch nothing but the effect of flexibility.
+
+The data: 12 points measured from a hidden smooth curve, each with some random noise added, the way real measurements always come.
+
+<Predict
+  question="Start at degree 1 and turn the dial up towards 11. What happens to the **training** error, and to the **test** error?"
+  options={[
+    'Both keep falling: a more flexible curve fits better everywhere',
+    'Training error keeps falling; test error falls at first, then rises',
+    'Both fall at first, then both rise',
+  ]}
+  answer={1}
+>
+
+Training error can only go down: a degree-5 polynomial can always do at least as well as a degree-4 one, because it could simply set its extra coefficient to zero. At degree 11 it has 12 coefficients for 12 points, and passes through every one of them exactly: training error zero.
+
+Test error tells a different story. In the widget's default sample it falls from 1.07 at degree 0 to 0.13 at degree 3 — and then climbs, reaching 70 at degree 11. A curve that passes through every training point is the worst model on the dial.
+
+</Predict>
+
+<CapacityDial />
+
+You've just seen the three regimes that every model in machine learning passes through:
+
+- **<Term id="underfitting">Underfitting</Term>** (degree 0–2). The model is too stiff to follow the pattern, so it misses it even on the training data, and does no better on new data. The fix is more flexibility.
+- **About right** (degree 3–5 here). The curve follows the pattern and shrugs off the scatter. Training error sits a little below test error.
+- **<Term id="overfitting">Overfitting</Term>** (degree 7 and up). The curve bends to pass near every training point — so it follows the noise. Training error keeps falling; test error rises, sometimes catastrophically, especially between and beyond the training points where nothing holds the curve down.
+
+The knob you turned has a name: **<Term id="capacity">capacity</Term>**, how flexible a family of models is — roughly, how many different patterns it could fit. More coefficients, more neurons and more layers all mean more capacity.
+
+## Writing it down
+
+The quantity to watch is the difference between the two errors.
+
+<Eq
+  words="\text{generalisation gap} = \text{error on new data} - \text{error on the training data}"
+  tex="\cv{\text{gap}} = \cb{E_{\text{test}}} - \ca{E_{\text{train}}}"
+>
+
+- $\ca{E_{\text{train}}}$ — the **training error**: average loss on the examples the model was fitted to
+- $\cb{E_{\text{test}}}$ — the **test error**: average loss on fresh examples it never saw, standing in for all future data
+- $\cv{\text{gap}}$ — how much the training error **flatters** the model
+
+</Eq>
+
+Why is the gap almost always positive? Because the training error is a grade the model gave itself. The coefficients were *chosen* to make the training error small, so of course it looks good on those particular points; some of what it learned is their particular noise, which buys nothing on new points. A small gap means the model learned mostly pattern. A large one means it learned a lot of noise.
+
+## Why it happens: two ways to be wrong
+
+Here's a thought experiment that makes the failure modes visible. You only ever get one training set. But imagine you could rerun the world: same hidden curve, same amount of noise, new random measurements. Each rerun gives a slightly different training set, and so a slightly different fit. How do the fits from different universes compare?
+
+<ParallelUniverses />
+
+At **degree 1**, the universes agree with each other almost perfectly — the thin lines are bunched together — but every one of them misses the curve in the same way. Their *average* is wrong. That consistent error is **bias**: a straight line just can't bend, whichever points it gets. Over 200 universes, bias² is 0.095 and the variance is only 0.016.
+
+At **degree 9**, it's the other way round. The *average* of the fits is close to the truth, but each individual fit is yanked around by its own universe's noise, and they disagree wildly: the variance is 5.8. That's **variance**: sensitivity to the accidents of one particular sample. And since you only ever live in one universe, a model with high variance is a gamble.
+
+At **degree 3**, both are small: bias² 0.001, variance 0.031. And there's something remarkable in the readout: in every case, the pieces add up exactly to the error the model makes on fresh data.
+
+<Eq
+  words="\text{expected error on new data} = (\text{systematic error})^2 + \text{sensitivity to the sample} + \text{noise}"
+  tex="\cb{\mathbb{E}\big[\text{error}\big]} = \cg{\text{bias}^2} + \cp{\text{variance}} + \cv{\sigma^2}"
+>
+
+- $\cb{\mathbb{E}[\text{error}]}$ — the **expected** squared error on a new point, averaged over every training set you might have been dealt ($\mathbb{E}$ means "the average over all the possibilities")
+- $\cg{\text{bias}^2}$ — how far the **average** fit is from the truth, squared: the error you'd make even with infinitely many universes to average over
+- $\cp{\text{variance}}$ — how much individual fits **scatter** around their average: the price of depending on one particular sample
+- $\cv{\sigma^2}$ — the **noise** in the measurements themselves (here $0.3^2 = 0.09$). No model can beat it: it's the "noise floor" on the charts
+
+</Eq>
+
+This is the **<Term id="bias-variance">bias–variance trade-off</Term>**. Adding capacity lowers bias, since the model can bend to the truth, and raises variance, since it can also bend to the noise. Underfitting is the bias-dominated end of the dial; overfitting is the variance-dominated end. The best model balances them.
+
+<Deeper title="Why do the pieces add up exactly?" tag="Maths">
+
+At a single input $x$, write the truth as $f$, a fit from one universe as $\hat f$, and the average fit over all universes as $\bar f$. A fresh observation is $y = f + \varepsilon$, where the noise $\varepsilon$ has average 0 and variance $\sigma^2$. The error is
+
+$$
+(\hat f - y)^2 = \big((\hat f - \bar f) + (\bar f - f) - \varepsilon\big)^2.
+$$
+
+Expand the square and average over universes and noise. The three cross terms all vanish: $\hat f - \bar f$ averages to zero by the definition of $\bar f$, and the fresh noise $\varepsilon$ is independent of everything and averages to zero too. What's left is
+
+$$
+\mathbb{E}(\hat f - \bar f)^2 + (\bar f - f)^2 + \sigma^2 = \text{variance} + \text{bias}^2 + \text{noise}.
+$$
+
+The widget does this at 101 points across the range and averages. Note that the clean split is special to **squared error**; for other losses, such as cross-entropy, the intuition carries over but the arithmetic doesn't decompose so neatly.
+
+</Deeper>
+
+## More data moves the sweet spot
+
+So, is degree 11 simply a bad model? Go back to the capacity dial, set **100 training points**, and sweep the degree again.
+
+<Predict
+  question="With 100 training points instead of 12, what happens to the degree-11 polynomial's test error?"
+  options={['It still explodes', 'It becomes about as good as the best degree', 'It becomes much better than every other degree']}
+  answer={1}
+>
+
+It becomes about as good as the best. Averaged over 100 different training sets, degree 11's test error falls from about 1,500 with 12 points to 0.099 with 100 points — barely worse than degree 3's 0.093, and close to the noise floor of 0.09.
+
+With 100 points crowding the range, there's nowhere for the curve to wiggle without missing lots of them. The data pins the model down. Variance shrinks as data grows; bias doesn't care how much data you have.
+
+</Predict>
+
+So overfitting isn't a property of a model on its own. It's a mismatch between the model's **capacity** and the amount of **information** in the data. The same degree-11 polynomial is reckless with 12 points and perfectly sensible with 100. That's why "get more data" is the most reliable cure for overfitting there is, and why it does nothing at all for underfitting.
+
+## Neural networks overfit too — in time
+
+Polynomials make the idea crisp, but you came here for neural networks. Here are the same 12 points fitted by a network with two hidden layers of 32 neurons: 1,153 parameters, almost a hundred for each data point. By the logic of the capacity dial, it ought to be a disaster.
+
+<NetOverTime />
+
+Two things are worth noticing, and the second is a genuine surprise.
+
+**Overfitting happens over time.** A network doesn't jump to its final fit; it travels there, one gradient step at a time. In our run (random start #1), the test error falls to its best, about 0.13 — the same as the best polynomial — at around step 300. After that, training error keeps falling to essentially zero by step 2,000, while test error climbs back above 0.2. The early network underfits, the middle one fits well, the late one overfits. **The number of training steps is itself a capacity knob.** That observation is the seed of the first cure in the next lesson.
+
+**But it overfits gracefully.** The network ends with zero training error, exactly like the degree-11 polynomial. Yet its test error is around 0.2, not 70. It passes through every point, but between them its curve stays fairly calm instead of swinging wildly. Gradient descent, starting from small random weights, tends to find *smooth* functions first and only reluctantly adds wiggles. That isn't something we asked for; it's a side effect of how training works, and it's a big part of why huge networks generalise far better than counting parameters would suggest. It's a tendency, not a guarantee: the training lab's overfitting experiment showed a network that did memorise noise badly.
+
+<Deeper title="Past the point of perfect fit: double descent" tag="Going further">
+
+The textbook U-shaped test curve isn't the whole story, and you can see why with the polynomials themselves.
+
+Above degree 11 there are more coefficients than data points, so there isn't one perfect fit but infinitely many. If we pick the perfect fit with the *smallest coefficients* — a natural, gentle preference — the test error does something strange.
+
+<BeyondInterpolation />
+
+Averaged over 60 training sets, the error peaks right at degree 11, the one place where exactly one polynomial fits all the points and it has no choice but to contort itself (around 2,500). Past that, it *falls* again: 0.58 at degree 15, 0.27 at degree 20, 0.17 at degree 60. Once there's slack, the "smallest coefficients" preference picks calmer curves out of the many perfect fits.
+
+This is called **double descent**, described for modern models by Mikhail Belkin and colleagues in 2019, and it's been observed in large neural networks too. Two honest caveats. In our small problem, even degree 60 (0.17) never beats the best small model, degree 3 (0.12). And the second descent depends entirely on the *preference* used to choose among perfect fits: pick a different one and it vanishes. A built-in preference for simpler fits is a form of **regularisation**, the subject of the next lesson.
+
+</Deeper>
+
+## One more trap: grading your own homework
+
+There's a subtle problem with what you did in the capacity dial. You chose the degree by looking at the **test** error. But then the test set has influenced the model, so its error is no longer a fair estimate of performance on new data. With 12 choices and 2,000 test points the damage is tiny. With thousands of choices — architectures, step sizes, features, random starts — and a small test set, you can accidentally find a setting that's lucky on that particular test set.
+
+The standard fix is a three-way split:
+
+| set | used for | analogy |
+| --- | --- | --- |
+| **training** | fitting the parameters | doing the practice questions |
+| **<Term id="validation-set">validation</Term>** | choosing settings: degree, size, step size, when to stop | mock exams, as many as you like |
+| **test** | one final, honest measurement at the very end | the real exam, sat once |
+
+If you peek at the test set while making decisions, it quietly becomes a second validation set and you no longer have an honest exam.
+
+## In code
+
+```python
+import numpy as np
+
+rng = np.random.default_rng(0)
+x = np.sort(rng.uniform(-1, 1, 12))
+y = np.sin(2.6 * x) + 0.4 * x + rng.normal(0, 0.3, 12)      # pattern + noise
+
+x_new = rng.uniform(-1, 1, 2000)                              # data the model never sees
+y_new = np.sin(2.6 * x_new) + 0.4 * x_new + rng.normal(0, 0.3, 2000)
+
+for degree in range(12):
+    p = np.polynomial.Legendre.fit(x, y, degree)              # exact least-squares fit
+    train = np.mean((p(x) - y) ** 2)
+    test = np.mean((p(x_new) - y_new) ** 2)
+    print(f"degree {degree:2d}  train {train:.3f}  test {test:.3f}  gap {test - train:.3f}")
+```
+
+In practice the "dial" is rarely a polynomial degree. It's the network's size, the number of training steps or the amount of regularisation, and you choose it by plotting training and validation error side by side, exactly like the charts above. Libraries call these plots **learning curves**; tools like TensorBoard or Weights & Biases draw them live as you train.
+
+<Misconception>
+
+"Overfitting means the model is too big." Size is only half of it. The same degree-11 polynomial overfits wildly on 12 points and is fine on 100, and the 1,153-parameter network overfits far less than its size suggests. Overfitting is a mismatch between **capacity and data**, and for networks it also depends on **how long** you train. That's why modern language models with hundreds of billions of parameters can generalise well: they're trained on trillions of words, often seeing each one only once or twice.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- What matters is performance on **new data**. Training error is a grade the model gave itself; the **generalisation gap** is how much it flatters.
+- **Underfitting:** too little capacity, wrong everywhere (high **bias**). **Overfitting:** fits the noise, so training error is low and test error high (high **variance**).
+- Expected error = **bias² + variance + noise**. Capacity trades bias for variance; the noise floor can't be beaten.
+- Overfitting is a mismatch between **capacity and data**. More data shrinks variance and moves the sweet spot towards bigger models.
+- Neural networks overfit **over time** as training goes on, but gradient descent's preference for smooth functions makes them overfit far less than their parameter count suggests.
+- Choose settings on a **validation** set; keep the **test** set for one final, honest measurement.
+
+</Takeaways>
+
+<InTheWild>
+
+Kaggle competitions have a famous ritual called the **leaderboard shake-up**. During a competition, teams see their score on a public slice of the test data, and many tune their models against it hundreds of times. When the final ranking is computed on the hidden private slice, teams that overfitted to the public leaderboard often tumble dozens of places, while teams that trusted their own validation sets climb. It's the three-way split, learned the hard way. At the other end of the scale, large language models are trained on so much text that most of it is seen only once, which keeps overfitting in the classic sense at bay. They can still memorise passages that appear many times in their training data, though, which is one reason training sets are carefully de-duplicated.
+
+</InTheWild>
+
+You can now *see* overfitting. Next: what to do about it, with three tools — stopping early, penalising large weights, and randomly switching neurons off during training.

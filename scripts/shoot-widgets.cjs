@@ -33,7 +33,11 @@ fs.mkdirSync(outDir, { recursive: true });
     page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
     await page.goto(`${base}/#/learn/${lesson}`, { waitUntil: 'networkidle' });
     await page.evaluate((t) => (document.documentElement.dataset.theme = t), theme);
+    await page.waitForSelector('figure.widget', { timeout: 10000 }).catch(() => {});
     await page.waitForTimeout(400);
+    // open collapsed <Deeper>/<MathExhibit> blocks so widgets inside them can be shot too
+    await page.evaluate(() => document.querySelectorAll('details').forEach((d) => (d.open = true)));
+    await page.waitForTimeout(300);
     const widgets = await page.$$('figure.widget');
     for (let i = 0; i < widgets.length; i++) {
       await widgets[i].scrollIntoViewIfNeeded();
