@@ -25,6 +25,7 @@ export function NetDiagram({
   fill,
   ariaLabel = 'Network diagram',
   maxAbsW,
+  badges,
 }: {
   sizes: number[];
   W: number[][][];
@@ -48,10 +49,12 @@ export function NetDiagram({
   fill?: (v: number, col: number) => string;
   ariaLabel?: string;
   maxAbsW?: number;
+  /** badges[col][j]: short text drawn just above the node (e.g. an importance score). */
+  badges?: (( string | undefined)[] | undefined)[];
 }) {
   const uid = useId().replace(/:/g, '');
   const padX = node / 2 + (inputLabels ? 46 : 8);
-  const padY = node / 2 + 6;
+  const padY = node / 2 + (badges ? 16 : 6);
   const cols = sizes.length;
   const cx = (c: number) => (cols === 1 ? width / 2 : padX + (c * (width - 2 * padX + (inputLabels ? 38 : 0))) / (cols - 1));
   const maxN = Math.max(...sizes);
@@ -131,6 +134,11 @@ export function NetDiagram({
               {showValues && v !== undefined && (
                 <text x={cx(c)} y={y + node + 12} textAnchor="middle" fontSize={11} fontFamily="var(--font-mono)" fill="var(--text-muted)">
                   {Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(2)}
+                </text>
+              )}
+              {badges?.[c]?.[j] && (
+                <text x={cx(c)} y={y - 4} textAnchor="middle" fontSize={10.5} fontWeight={700} fontFamily="var(--font-mono)" fill="var(--c-grad)">
+                  {badges[c]![j]}
                 </text>
               )}
               {c === 0 && inputLabels?.[j] && (

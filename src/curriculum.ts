@@ -60,8 +60,9 @@ export const MODULES: ModuleMeta[] = [
     blurb: 'Wiring neurons into layers, and layers into networks you can inspect neuron by neuron.',
     lessons: [
       { id: 'forward-propagation', title: 'Layers and the Forward Pass', summary: 'How neurons are organised into layers, and how an input flows through them — one matrix multiplication at a time.', minutes: 25, load: () => import('./lessons/forward-propagation/index.mdx') },
+      { id: 'network-playground', title: 'The Network Playground', summary: 'Train a network, then take it apart: what each neuron responds to, what breaks without it, and how much of it you really need.', minutes: 30, load: () => import('./lessons/network-playground/index.mdx') },
     ],
-    planned: ['The network playground', 'Depth, width and parameter counts'],
+    planned: ['Depth, width and parameter counts'],
   },
   {
     id: 'optimization',

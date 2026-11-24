@@ -6,8 +6,8 @@ _Last updated: session 2 (in progress — see "Current state" below)._
 
 Session 2 is working through Module 3 → Module 4 → Module 6 in order, committing and pushing after every finished lesson. The last completed lesson is recorded here; anything not listed as done has not been started (or only exists as uncommitted scratch).
 
-- **Done this session:** Module 3 · *Layers and the Forward Pass* (`forward-propagation`).
-- **Next up:** Module 3 · *The Network Playground* (`network-playground`), then *Depth, Width and Parameter Counts*. Plan for each is under "Next steps".
+- **Done this session:** Module 3 · *Layers and the Forward Pass* (`forward-propagation`); Module 3 · *The Network Playground* (`network-playground`).
+- **Next up:** Module 3 · *Depth, Width and Parameter Counts* (`depth-and-width`). Plan under "Next steps".
 
 ## Status at a glance
 
@@ -15,7 +15,7 @@ Session 2 is working through Module 3 → Module 4 → Module 6 in order, commit
 | --- | --- | --- |
 | 1 | Mathematical Foundations | **9 lessons done**: vectors, dot product, matrices, matrix multiplication & tensors, derivatives, gradients, chain rule, probability & softmax, logarithms/entropy/cross-entropy |
 | 2 | The Artificial Neuron | **3 lessons done**: the neuron, activation functions (with live XOR training), Lab: Wiring Logic by Hand |
-| 3 | Network Architecture | **1 lesson done**: layers and the forward pass (step-through of a hand-built 2→6→2→1 "two islands" network; per-neuron response thumbnails with a break-a-neuron experiment) |
+| 3 | Network Architecture | **2 lessons done**: layers and the forward pass (step-through of a hand-built 2→6→2→1 "two islands" network; per-neuron response thumbnails with a break-a-neuron experiment); the network playground (build/train/inspect any small MLP: per-neuron maps, contribution bars, ablation importance, every tensor at a probe point, parameter breakdown, pruning challenge with an exhaustively computed optimum) |
 | 4 | Loss & Optimization | **1 lesson done**: gradient descent (fog walker + descent-golf puzzle with computed par) |
 | 5 | Backpropagation | **1 lesson done**: step-through graph explorer with a learner-computed gradient, cost comparison, fading-signal (vanishing/exploding) demo |
 | 6–18 | Training lab → AI systems | planned (titles listed in `src/curriculum.ts`) |
@@ -29,6 +29,7 @@ Session 2 is working through Module 3 → Module 4 → Module 6 in order, commit
 - Shared maths library with tests: linear algebra, numerical calculus, softmax/entropy, activations + derivatives, scalar autodiff (`Value`), MLP with hand-written backprop (gradient-checked), SGD/momentum/RMSProp/Adam/AdamW.
 - SVG plotting primitives (`Plot`, `Handle`, `Arrow`, `FnPath`, `Heatmap` with contours, `Clip`, …), plus `fieldImage` (render f(x, y) to a data-URL thumbnail).
 - `NetDiagram` (`src/components/NetDiagram.tsx`): any feed-forward network as columns of nodes and signed, weighted edges; optional per-node values or thumbnails, click-to-select neurons/edges (`data-node="col-j"`, `data-edge="l-j-i"` attributes for scripted tests), dead/hatched nodes. Used by the forward-pass lesson and intended for the playground and training lab.
+- `scripts/ts-hooks.mjs`: lets `node --experimental-strip-types --import ./scripts/ts-hooks.mjs scratch/x.ts` import project modules (extensionless imports) — use it to verify numbers quoted in prose.
 - Dev scripts: `scripts/check-pages.cjs` (every page, console errors + phone overflow), `scripts/shoot-widgets.cjs <lesson>` (screenshot every widget in light + dark), `scripts/drive-widget.cjs <lesson> <widgetIndex> '<actions JSON>'` (click/drag/screenshot a widget step by step). Screenshots land in `scratch/` (git-ignored).
 
 ## Architectural decisions
@@ -50,7 +51,6 @@ Session 2 is working through Module 3 → Module 4 → Module 6 in order, commit
 ## Next steps (in order)
 
 1. Module 3 remainder:
-   - **The Network Playground** (`network-playground`): 2D input → binary output on a small dataset (circles/XOR/moons). Add/remove layers (0–4) and neurons (1–6); activation choice; random init with seed + a Train button (Adam) so there's a trained network to inspect; click a neuron → its response heatmap, incoming weights, z and a at a draggable probe point, and its *contribution* measured by ablation (output and accuracy with it switched off); click an edge → weight slider, weight × source activation at the probe, accuracy if the weight were 0; every layer's tensor at the probe shown; live parameter count with per-layer breakdown. Reuse `NetDiagram`.
    - **Depth, Width and Parameter Counts** (`depth-and-width`): parameter-count formula + calculator for real layers; the "folding" demo — a 1D ReLU net where each extra *wide* neuron adds one kink but each extra *layer* of two tent-map neurons doubles the number of linear pieces (count the pieces exactly from the function); predict-before-reveal on doubling width vs depth; trade-off (deep is harder to train → link to backprop's fading signal).
 2. Module 4 remainder (each its own lesson, in this order):
    - **Loss functions** (`loss-functions`): MSE vs MAE — the best constant under MSE is the mean, under MAE the median, so drag an outlier and watch MSE's fit get dragged; cross-entropy vs MSE for classification — CE punishes confident wrong answers without bound, and with a sigmoid output MSE's gradient vanishes exactly when the model is confidently wrong.
@@ -62,6 +62,7 @@ Session 2 is working through Module 3 → Module 4 → Module 6 in order, commit
 
 ## Labs built so far
 
+- **Prune it** (Module 3, network playground): switch off as many hidden neurons of a trained network as possible while keeping ≥95% accuracy; the true minimum is computed by trying every on/off combination smallest-first (enabled up to 14 hidden neurons).
 - **Logic workbench** (Module 2): hand-wire step neurons into AND/OR/NAND/XOR/XNOR; optional "parts cost" goal with brute-force-verified optimum.
 - **Descent golf** (Module 4): reach the valley floor in the fewest steps; par computed live by searching step sizes (and momentum).
 

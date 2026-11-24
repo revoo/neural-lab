@@ -1,0 +1,176 @@
+import { Playground } from './Playground'
+import { questions } from './quiz'
+
+## The problem: a machine nobody designed
+
+In the last lesson, every neuron had a job you could name — "south coast of the west island" — because I chose every weight by hand. Real networks aren't built that way. Their weights are found by a training algorithm, and nobody, including the people who trained them, is told what each neuron ended up doing.
+
+That's uncomfortable for an engineer. If you can't say what the parts of a system do, how do you debug it, trust it, or make it smaller?
+
+You've been here before, though. Think about inheriting a large, undocumented codebase, or an old circuit board with no schematic. You don't give up; you **probe** it. You ask two questions of each part:
+
+1. **What does this part respond to?** Feed it different inputs and watch what it does. (Put a multimeter on the wire; add a log line to the function.)
+2. **What breaks if I take it out?** Remove it and see what stops working. (Pull the component; comment out the call.)
+
+Both questions work on neural networks too, and they're the bread and butter of a field called **interpretability**. In this lesson you'll use them on networks that trained themselves a few seconds earlier, in your browser.
+
+## The playground
+
+Here's a complete, working network that you can build, train and take apart. Start with the defaults — the **circle** dataset (blue points inside, orange around them) and **one hidden layer of 3 tanh neurons** — and press **Train**.
+
+<Playground />
+
+## Question 1: what does each neuron respond to?
+
+Once it's trained, look at the little maps inside the hidden neurons. Each one shows that neuron's output for every point in the square, the same way the island network did. You'll see that **each first-layer neuron is a soft straight edge**: bright on one side, dark on the other. That's no surprise — it's a single neuron, and a single neuron draws one line.
+
+Three lines, and the output neuron has to make a circle out of them. Look at its map (and the background): it has carved out a rounded **triangle** around the blue points, by combining the three edges. With three straight cuts, that's the best shape available — and it's enough to get every point right. Nobody told the network to build a triangle; it was the arrangement that fit the data.
+
+Now click the **output** neuron and look at the inspector. The bars show how its tally is built at the probe point: one bar per incoming connection, each one *weight × incoming value*, plus the bias. Drag the probe around. The bars change — sometimes dramatically. A connection doesn't make a fixed contribution: **what a connection contributes depends on the input**, because it's the weight multiplied by whatever is flowing along it right now.
+
+### Writing it down
+
+That observation is just the neuron's equation, read term by term:
+
+<Eq
+  words="\text{a neuron's tally} = \underbrace{\text{contribution of input 1} + \text{contribution of input 2} + \cdots}_{\text{each one: weight} \,\times\, \text{what's flowing in}} + \text{bias}"
+  tex="z_j = \sum_i \underbrace{\ca{w_{ji}}\,\cb{a_i}}_{\text{contribution}} + \cc{b_j}"
+>
+
+- $z_j$ — the **tally** of neuron $j$ (before its activation)
+- $\ca{w_{ji}}$ — the **weight** on the connection from neuron $i$ into neuron $j$ (the first index is "to", the second "from" — the same row/column order as the weight matrix)
+- $\cb{a_i}$ — **what's flowing in** from neuron $i$: its output for the current input
+- $\cc{b_j}$ — neuron $j$'s **bias**
+- $\sum_i$ — **add up** over every incoming connection
+
+</Eq>
+
+So "what does this connection do?" has a precise answer for any particular input: it adds $w_{ji}\,a_i$ to the tally. A large weight with nothing flowing through it contributes nothing.
+
+## Question 2: what breaks if I take it out?
+
+The second question is called **<Term id="ablation">ablation</Term>**: switch a neuron off (force its output to zero) and measure the damage. Click a hidden neuron and press **Switch this neuron off**; the inspector tells you the accuracy with and without it. Or tick **Show importance** to label every hidden neuron with the accuracy it costs to lose it.
+
+<Eq
+  words="\text{importance of a neuron} = \text{accuracy with it} - \text{accuracy without it}"
+  tex="\text{importance}(j) = \text{acc}(\text{network}) - \text{acc}(\text{network with } \cb{a_j} = 0)"
+/>
+
+<Predict
+  question="Your 3-neuron circle network is at 100%. You switch off **one** of the three hidden neurons. Roughly what happens?"
+  options={['Almost nothing — the other two take over', 'Accuracy drops noticeably — every one of the three matters', 'Accuracy falls to 50%, pure guessing']}
+  answer={1}
+>
+
+With only three straight edges available to fence in a circle, there's no spare capacity: lose one edge and the fence has a gap. In my runs, each neuron costs somewhere between about 15 and 30 percentage points of accuracy — every one essential, but none catastrophic on its own, because the two remaining edges still get a good share of the points right.
+
+Now give the layer **6 neurons** and train again. Turn on **Show importance**. Typically, some neurons are still critical, but others cost almost nothing to remove. The network had more capacity than the problem needed, and it didn't spread the work evenly.
+
+</Predict>
+
+### The trap: parts that cover for each other
+
+Ablating one neuron at a time is useful, but it can badly mislead you. Try this:
+
+<Predict
+  question="Use **two hidden layers of 7 tanh neurons** on the circle (random start #1) and train. Show importance: in my runs, **every** neuron in the second layer costs **0%** when switched off on its own. What happens if you switch off all seven at once?"
+  options={['Still about 100% — the second layer is useless', 'A small drop, the sum of seven zeros', 'Accuracy collapses to 50%: the output has nothing left to read']}
+  answer={2}
+>
+
+The output neuron reads *only* from the second layer. Switch the whole layer off and every input gets the same answer, so the network is right exactly half the time — on this dataset, that's chance.
+
+So each of those seven neurons was individually dispensable, yet together they were essential. The information was spread across them redundantly: lose any one and the others still carry what's needed. Engineers know this pattern from distributed systems — no single replica is critical, yet you can't remove all of them. It's why "this neuron has zero importance" never quite means "this neuron does nothing", and why interpretability researchers measure the effect of removing *groups* of components, not just one at a time.
+
+</Predict>
+
+### Dead neurons
+
+Switch the activation to **ReLU**, use **one layer of 8**, set the random start to **#3** (the arrows next to the start number), and train. It still reaches 100%. But look at the neuron maps: four of the eight are completely dark. They output zero for every point in the dataset.
+
+These are **<Term id="dead-neuron">dead neurons</Term>**. A ReLU outputs zero whenever its tally is negative, and these four ended up with a negative tally everywhere the data lives. A neuron that's always zero has zero slope too, so training can never revive it — it's dead for good, quietly occupying parameters. (Their importance is exactly 0%, for a much more boring reason than redundancy.) This is a real issue in practice, and one reason variants like leaky ReLU, which keep a small slope for negative tallies, exist.
+
+## The challenge: prune it
+
+Here's a question every deployed model eventually faces: **how much of this network does it actually need?** Smaller networks are cheaper to run, and often you can delete a surprising fraction of a trained model without losing accuracy.
+
+The challenge box under the playground turns this into a puzzle. With a trained network at 95% or better, switch off as many hidden neurons as you can **while keeping accuracy at 95% or above** — no retraining allowed. When you've found a solution, you can ask for the true minimum, which the widget computes by checking every combination of neurons on and off, smallest first. That's only feasible because these networks are tiny: 14 neurons already means 16,384 combinations, and a real model's would be astronomically many — which is why real pruning methods rely on heuristics instead.
+
+A few things you'll likely discover:
+
+- Removing neurons that look unimportant one at a time usually works for a while — until it suddenly doesn't, because you've removed the last neuron covering some job.
+- The minimum depends on the dataset. The circle needs at least three neurons on (three lines are the fewest that can fence in a region), while the two clusters, which one straight line can separate, can get by with a single neuron.
+- Two networks trained from different random starts, with identical architecture and accuracy, can have different minimums. They found different internal arrangements.
+
+## Counting what you're paying for
+
+The parameter panel shows the cost of every architecture you try, layer by layer. A layer reading $m$ values into $n$ neurons has $m \times n$ weights and $n$ biases:
+
+<Eq
+  words="\text{parameters} = \text{add up, over every layer, } (\text{inputs} \times \text{neurons} + \text{neurons})"
+  tex="\text{params} = \sum_{l} \big(\cb{n_{l-1}} \times \ca{n_l} + \ca{n_l}\big)"
+>
+
+- $\ca{n_l}$ — the number of **neurons in layer $l$**
+- $\cb{n_{l-1}}$ — the number of **values it reads**: the size of the previous layer (for the first layer, the 2 input coordinates)
+- $\cb{n_{l-1}} \times \ca{n_l}$ — one **weight** per (input, neuron) pair; $+\,\ca{n_l}$ — one **bias** per neuron
+
+</Eq>
+
+Notice what adding a single neuron costs: one weight from every neuron in the layer before, one weight to every neuron in the layer after, and a bias. In the middle of a network of wide layers, that's a lot more than in a thin one. Try adding a second hidden layer, then a third, and watch how the total grows. Whether those parameters are better spent on *more layers* or *wider layers* is a deep question, and it's the subject of the next lesson.
+
+## In code
+
+Real frameworks make both kinds of probing straightforward. In PyTorch, a **forward hook** lets you record what any layer outputs (question 1), and ablation is just zeroing part of a layer's output (question 2):
+
+```python
+import torch
+
+recorded = {}
+def record(name):
+    def hook(module, inputs, output):
+        recorded[name] = output.detach()      # what this layer produced
+    return hook
+
+model[1].register_forward_hook(record("hidden"))   # after the first activation
+model(x_batch)
+recorded["hidden"].shape          # (batch, neurons): every neuron's response to every input
+
+# Ablation: switch off neuron 2 of that layer by zeroing its output.
+def ablate(module, inputs, output):
+    output = output.clone()
+    output[:, 2] = 0
+    return output                  # returning a value replaces the layer's output
+handle = model[1].register_forward_hook(ablate)
+accuracy_without = evaluate(model)
+handle.remove()
+
+# Counting parameters
+sum(p.numel() for p in model.parameters())
+```
+
+<Misconception>
+
+"A connection with a big weight is an important connection." Not necessarily. A connection contributes *weight × what flows through it*, so a large weight leaving a neuron that's almost always zero (or dead) contributes almost nothing. And even a large contribution may not matter if a later layer ignores the neuron it feeds. That's why the playground offers two different measurements — the contribution at a particular input, and the accuracy lost when a part is removed — and why neither one alone tells the whole story. Interpretability is mostly the craft of asking several such questions and seeing where the answers agree.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- Trained networks aren't designed neuron by neuron, but you can **probe** them like any unfamiliar system: what does each part respond to, and what breaks without it?
+- A connection's **contribution** to a neuron is weight × incoming value, so it changes with the input. A neuron's tally is the sum of its contributions plus its bias.
+- **Ablation** — switching a part off and measuring the damage — estimates importance. But redundant parts can each look unimportant while being essential together.
+- ReLU neurons can **die**: if their tally is negative for every input, they output zero forever and can't be revived by training.
+- **Parameters** per layer = inputs × neurons + neurons. Networks often have more than they need; pruning finds out how many.
+
+</Takeaways>
+
+<InTheWild>
+
+Ablation is a standard tool far beyond toy networks. Papers routinely include "ablation studies" that remove one component of an architecture at a time to show which parts earn their keep, and interpretability researchers switch off individual neurons and attention heads inside language models to find the circuits responsible for specific behaviours. Pruning is used in production too: methods such as SparseGPT have shown that very large language models can have around half of their weights set to zero, without retraining, while losing little accuracy.
+
+</InTheWild>
+
+Every architecture you tried had a choice baked in: more neurons per layer, or more layers? Next, we'll see why that choice matters far more than the parameter count suggests.
