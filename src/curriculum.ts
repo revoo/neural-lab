@@ -137,7 +137,16 @@ export const MODULES: ModuleMeta[] = [
     ],
   },
   { id: 'finetuning', number: 14, title: 'Training & Fine-Tuning', blurb: 'Pretraining, fine-tuning, LoRA, RLHF and the rest of the post-training toolkit.', lessons: [], planned: ['Transfer learning', 'LoRA', 'RLHF and DPO'] },
-  { id: 'inference', number: 15, title: 'Inference & Hardware', blurb: 'What actually happens on the GPU, and why memory bandwidth rules everything.', lessons: [], planned: ['Floating point formats', 'Quantization', 'KV caching', 'Memory-bound decoding'] },
+  {
+    id: 'inference',
+    number: 15,
+    title: 'Inference & Hardware',
+    blurb: 'What actually happens on the GPU, and why memory bandwidth rules everything.',
+    lessons: [
+      { id: 'quantization', title: 'Floating-Point Formats & Quantisation', summary: 'Flip the bits of FP16, BF16 and FP8, watch one outlier crush per-tensor INT4, and solve a mixed-precision quantisation budget lab.', minutes: 30, load: () => import('./lessons/quantization/index.mdx') },
+    ],
+    planned: ['KV caching & memory-bound decoding'],
+  },
   { id: 'rl', number: 16, title: 'Reinforcement Learning', blurb: 'Agents that learn from consequences — and exploit badly specified rewards.', lessons: [], planned: ['States, actions, rewards', 'Q-learning', 'Policy gradients', 'Reward hacking'] },
   { id: 'generative', number: 17, title: 'Generative Models & Diffusion', blurb: 'VAEs, GANs and diffusion: how machines learn to create.', lessons: [], planned: ['Autoencoders and VAEs', 'Diffusion: adding and removing noise', 'Guidance and conditioning'] },
   { id: 'systems', number: 18, title: 'AI Systems Engineering', blurb: 'RAG, tools, agents and evaluation: models inside real software.', lessons: [], planned: ['Retrieval-augmented generation', 'Tool calling and agents', 'Evaluation'] },
