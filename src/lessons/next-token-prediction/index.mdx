@@ -1,0 +1,171 @@
+import { AutoregressiveLoop, LiveTrainingPpl, PerplexityIntuition, ShannonLab } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: how does a stack of blocks write?
+
+By the end of Module 12 you had the entire transformer sitting on the bench: a tokeniser that chops text into integer IDs, an embedding table that turns each ID into a vector, rotary positions, multi-head attention with a causal mask, residual connections, layer norm, and feed-forward layers.
+
+Now feed in a prompt — say, `"The capital of France is"` — and watch what comes out the far end. Not a finished paragraph. Not an answer. Just one vector per input token, and at the final position, one linear layer turning that vector into a list of raw scores (logits), one for every token in the vocabulary. Pass those scores through softmax and you have a single probability distribution: **the model's guess for the very next token.**
+
+How does guessing *one* next token turn into an assistant that writes essays, debugs Python and explains quantum mechanics?
+
+<Analogy title="Think of a master improviser playing a one-word-at-a-time game">
+
+Suppose you play a game where you can only ever add **one word** to a sentence in progress. Given `"The animal didn't cross the street because it was too"`, you don't know the whole story yet, so you assign probabilities: maybe 35% `"tired"`, 18% `"wide"`, 10% `"dark"`, and tiny slices to thousands of other words.
+
+You pick one word, write it onto the page, read the whole slightly longer page back, and do it again. There is no separate "outline generator" or "essay writer". Writing a whole page is just playing the one-word game hundreds of times in a row.
+
+</Analogy>
+
+That loop — predict a distribution for the next token, pick one, append it to the prompt, feed the longer prompt back in — is called **<Term id="autoregressive">autoregressive generation</Term>**, and a neural network trained to produce those distributions is a **<Term id="language-model">language model</Term>**.
+
+Try stepping through the loop yourself on a real neural language model we trained right inside this page (1,611 parameters, 61-word vocabulary, 2-word context window).
+
+<AutoregressiveLoop />
+
+Notice two things immediately:
+
+- **There is no separate "generator".** The exact same forward pass that scores a prompt also writes the reply — just called once per generated token. That is also why LLM responses stream out word by word: token 50 cannot be computed until token 49 has been chosen and fed back in.
+- **Predicting well forces understanding.** It is tempting to dismiss next-token prediction as "glorified autocomplete". Try finishing `"The animal didn't cross the street because it was too ___"` or `"def fib(n): return 1 if n <= 1 else ___"` or `"In 1969, the first astronauts landed on the ___"`. To put high probability on the right next token across trillions of web pages, books and code repositories, a model *has* to internalise syntax, facts, logic and code structure. You cannot compress text well without understanding what generated it.
+
+## How do we score a language model? Perplexity
+
+We already know the training loss from <LessonLink to="information">the logarithms and cross-entropy lesson</LessonLink>: at every token $t$, look at the probability $p(x_t \mid x_{<t})$ the model assigned to the token that *actually* came next, take its surprise $-\ln p$, and average across the text.
+
+Average cross-entropy is great for gradient descent, but `"loss = 1.50 nats"` is hard to feel in your bones. Is 1.50 good? How much better is 1.20 than 1.50?
+
+Exponentiate it.
+
+<Eq
+  words="\text{effective number of equally likely choices} = e^{\,\text{average surprise per token}}"
+  tex="\cp{\text{PPL}} = e^{\ca{H}} = \exp\!\left(-\frac{1}{\cb{N}}\sum_{t=1}^{\cb{N}} \ln \cc{p}(x_t \mid x_{<t})\right)"
+>
+
+- $\cc{p}(x_t \mid x_{<t})$ — the **probability** the model gave the true token $x_t$, given all earlier tokens $x_{<t}$
+- $\ca{H}$ — the **average cross-entropy loss** in nats: mean surprise $-\ln p$ per token
+- $\cb{N}$ — the **number of tokens** scored
+- $\cp{\text{PPL}}$ — **<Term id="perplexity">perplexity</Term>**: the size of the fair die that would leave you just as surprised on average
+
+</Eq>
+
+Why is $e^H$ so intuitive? Check the simplest cases:
+
+- **Fair coin** ($p = 1/2$ every step): $H = \ln 2 \approx 0.693$, so $\text{PPL} = e^{\ln 2} = \mathbf{2}$.
+- **Fair 6-sided die** ($p = 1/6$ every step): $H = \ln 6 \approx 1.792$, so $\text{PPL} = \mathbf{6}$.
+- **Uniform guessing over our 61-word vocabulary** ($p = 1/61$): $\text{PPL} = \mathbf{61}$.
+- **Perfect oracle** ($p = 1$ every step): $H = 0$, so $\text{PPL} = \mathbf{1}$.
+
+Perplexity turns an abstract logarithm back into an **effective branching factor**: "out of $V$ possible tokens, how many equally likely choices does the model effectively narrow each step down to?"
+
+<Predict
+  question="Suppose a model nails four words in a row (80%, 90%, 85%, 90% on the true words), giving perplexity 1.14. Now replace the fifth word’s 95% with one overconfident blunder: 1% on the true word. What happens to the 5-word sentence’s perplexity?"
+  options={[
+    'Barely budges — four out of five words were almost perfect (around 1.4)',
+    'More than doubles (to around 2.8)',
+    'Jumps to 100 because of the 1% word',
+  ]}
+  answer={1}
+>
+
+It **more than doubles**, from **1.14** to **2.83**. The four great words cost only $0.22 + 0.11 + 0.16 + 0.11 = 0.60$ nats combined; the single 1% blunder costs $-\ln(0.01) = 4.61$ nats all by itself! Averaging over five tokens gives $H = 1.04$ nats and $e^{1.04} = 2.83$.
+
+</Predict>
+
+Play with that exact blunder penalty yourself.
+
+<PerplexityIntuition />
+
+That asymmetric punishment is why cross-entropy trains well-calibrated models: putting 0% on a plausible word is fatal, so a model quickly learns to spread probability honestly wherever genuine ambiguity exists.
+
+## Watching a real language model learn
+
+Our mini-corpus has 30 short training sentences (268 tokens, 61 distinct words including `<start>`), 3 validation sentences (for tuning baselines fairly), and 4 held-out test sentences (37 tokens) containing brand-new word combinations never seen during training — like `"the fox watched"` and `"the dog hid"`.
+
+Before training the neural network, let's build three fair baselines on the exact same held-out test sentences (each n-gram baseline's Laplace smoothing $\alpha$ was chosen on the validation split, never peeking at test):
+
+| Model | What it uses | Held-out test perplexity |
+| --- | --- | --- |
+| **Uniform** | Nothing ($1/61$ each) | **61.0** |
+| **Unigram** | Word frequencies only ($\alpha = 0.01$) | **32.8** |
+| **Bigram** | Last 1 word lookup table ($\alpha = 0.01$) | **5.57** |
+| **Tiny neural LM** | Last 2 words → embeddings (6D) → 16 tanh → softmax (1,611 params) | **4.50** (avg **4.74** over 6 seeds) |
+
+Press **Play training** and watch perplexity fall from random guessing (~62) all the way past the bigram baseline, while the model's generated text turns from pure word salad into coherent sentences.
+
+<LiveTrainingPpl />
+
+Two honest observations from running the real numbers — not just the textbook slogan:
+
+1. **Why neural embeddings beat lookup tables on unseen pairs.** Look at the unseen test phrase `"the fox watched"`. In training, `fox` only ever `ran` and `slept`, while `cat` and `dog` `watched`, `drank` and `chased`. A bigram count table treats every word ID as an isolated bucket, so `fox → watched` gets a tiny smoothing floor of **0.28%** — driving the bigram's perplexity on `"the fox watched the small mouse in the yard ."` all the way up to **13.3**. Our neural model maps `fox`, `cat` and `dog` to nearby vectors in its 6-dimensional embedding space, assigns **2.16%** to `watched` (~8× higher!) and lands at perplexity **5.53**. Across all six random seeds we tested (`1, 2, 3, 4, 5, 7`), the neural model beat the validation-tuned bigram every single time (**4.45–5.15**, average **4.74** vs **5.57**).
+2. **Where the lookup table still wins.** Look honestly at test sentence #4 (`"a bright moon shone over the quiet house ."`): every single adjacent word pair in that sentence happened to appear in training. There, the simple bigram lookup table gets **2.84** and actually *beats* our tiny 120-epoch neural net (**4.48**). Neural language models win because real language is overwhelmingly made of novel combinations that no lookup table can ever store — Yoshua Bengio's classic 2003 insight that kicked off neural language modelling.
+
+## Lab: Shannon's betting game
+
+In 1951, Claude Shannon estimated the entropy of English by sitting a human down with a hidden passage and asking them to guess the next symbol one at a time. Now it's your turn — against our real trained neural model on the four held-out test sentences.
+
+At each position, distribute your 100% probability budget across the five candidate words (shown alphabetically, never peeking at the true answer) plus the **other 55 words** bucket. Then lock your bet and reveal the true next word. Your goal: finish with lower perplexity than the Unigram baseline — and optionally, beat our trained neural LM.
+
+<ShannonLab />
+
+<Deeper title="After the lab: why human context beats a 2-word window — unless you get arrogant" tag="Debrief">
+
+Notice two lessons you feel immediately when playing Shannon's game:
+
+- **Context shrinks the branching factor dramatically.** After `"the cat drank the cold"`, you know the next word is a drink (`milk` or `water`) even though the 2-word window only sees `"the cold"` (which could equally precede `rain` or `wind`!). That is why real transformers expand the context window from 2 words to hundreds of thousands of tokens.
+- **Calibration beats bravado.** Because the five candidate buttons never peek at the true word, the true word occasionally sits in the `"other 55 words"` bucket (for instance `watched` in sentence #1, or `hid` in sentence #3). Starving that bucket down to 1% can hand you a 10-nat surprise that erases five great guesses. Every well-trained language model learns the same humility.
+
+</Deeper>
+
+## In code
+
+Computing perplexity and running the autoregressive generation loop take a dozen lines of plain Python:
+
+```python
+import math
+import random
+
+def perplexity(probs_of_true_tokens):
+    """Effective number of equally likely choices: exp(average cross-entropy)."""
+    avg_loss = -sum(math.log(max(p, 1e-12)) for p in probs_of_true_tokens) / len(probs_of_true_tokens)
+    return math.exp(avg_loss)
+
+print("fair 6-sided die: ", round(perplexity([1 / 6] * 5), 2))                    # 6.0
+print("confident & right:", round(perplexity([0.8, 0.9, 0.85, 0.9, 0.95]), 2))  # 1.14
+print("one 1% blunder:   ", round(perplexity([0.8, 0.9, 0.85, 0.9, 0.01]), 2))  # 2.83
+
+def generate(prompt_ids, next_token_probs, steps, rng):
+    ids = list(prompt_ids)
+    for _ in range(steps):
+        probs = next_token_probs(ids)                   # forward pass -> distribution over V tokens
+        nxt = rng.choices(range(len(probs)), weights=probs, k=1)[0]
+        ids.append(nxt)                                 # feed it back as part of the prompt
+    return ids
+```
+
+In a real transformer, `next_token_probs(ids)` runs the whole stack of blocks and takes softmax at the final position — and uses a **KV cache** (covered in Module 15) so it doesn't recompute keys and values for earlier tokens on every iteration of that `for` loop.
+
+<Misconception>
+
+"Lower perplexity always means a smarter, more helpful assistant." Perplexity only measures how well a model predicts the distribution of *its evaluation text*. A model with great perplexity on Wikipedia can still refuse to follow instructions, hallucinate citations, or repeat itself in a loop when generating. Pretraining minimises perplexity; turning a base predictor into a useful assistant requires post-training (instruction tuning and preference alignment, Module 14) and careful **sampling** — the subject of the next lesson. Also beware comparing perplexity numbers across different tokenisers: splitting words into smaller tokens makes each individual token easier to predict, lowering per-token perplexity without making the model any better at predicting whole text!
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- A transformer generates text **autoregressively**: predict a probability distribution over all $V$ tokens for the next position, pick one token, append it to the prompt, and repeat.
+- **Perplexity** ($\text{PPL} = e^H$) turns average cross-entropy loss back into an intuitive **effective branching factor** — the size of the fair die that would leave you equally surprised.
+- Because cross-entropy uses $-\ln p$, a single overconfident blunder (e.g. $p = 1\%$) penalises perplexity far more than hedging does.
+- **Neural language models** beat count-based lookup tables on unseen word combinations because learned embeddings share statistical strength across similar words (`cat`, `dog`, `fox`).
+- Perplexity is only comparable across models that share the **same tokeniser**, and great perplexity on prose is the start of an assistant, not the finish line.
+
+</Takeaways>
+
+<InTheWild>
+
+In 2003, Yoshua Bengio and colleagues published *A Neural Probabilistic Language Model* — essentially the exact embedding-plus-MLP architecture you just trained in this lesson — showing that learned word embeddings broke the "curse of dimensionality" that crippled n-gram tables. Sixteen years later, GPT-2 scaled that same next-token objective onto 1.5 billion transformer parameters and pushed WikiText-2 perplexity down to ~18 (out of 50,257 subword tokens). Modern frontier models push English perplexity into single digits, yet the core training loop is still unchanged: predict the next token, compute $-\ln p(\text{true})$, backpropagate, repeat trillions of times.
+
+</InTheWild>
+
+You now know how a language model produces a probability distribution over the next token — and how perplexity scores it. Next: once you have that distribution, how should you *pick* the next token? Temperature, top-$k$, top-$p$ and beam search.

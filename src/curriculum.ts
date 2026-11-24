@@ -125,7 +125,16 @@ export const MODULES: ModuleMeta[] = [
       { id: 'tokenization', title: 'Tokenization & Byte-Pair Encoding', summary: 'How raw text becomes integer IDs: why characters are too long, words are too many, how BPE discovers subwords — and why models struggle to count the “r”s in strawberry.', minutes: 30, load: () => import('./lessons/tokenization/index.mdx') },
     ],
   },
-  { id: 'llms', number: 13, title: 'Large Language Models', blurb: 'From next-token prediction to assistants: sampling, scaling, and their failure modes.', lessons: [], planned: ['Next-token prediction', 'Sampling: temperature, top-k, top-p', 'Scaling laws'] },
+  {
+    id: 'llms',
+    number: 13,
+    title: 'Large Language Models',
+    blurb: 'From next-token prediction to assistants: sampling, scaling, and their failure modes.',
+    lessons: [
+      { id: 'next-token-prediction', title: 'Next-Token Prediction & Perplexity', summary: 'How a transformer writes one token at a time, what perplexity really means, why neural embeddings beat lookup tables — and Shannon’s betting game.', minutes: 30, load: () => import('./lessons/next-token-prediction/index.mdx') },
+    ],
+    planned: ['Sampling: temperature, top-k, top-p', 'Scaling laws'],
+  },
   { id: 'finetuning', number: 14, title: 'Training & Fine-Tuning', blurb: 'Pretraining, fine-tuning, LoRA, RLHF and the rest of the post-training toolkit.', lessons: [], planned: ['Transfer learning', 'LoRA', 'RLHF and DPO'] },
   { id: 'inference', number: 15, title: 'Inference & Hardware', blurb: 'What actually happens on the GPU, and why memory bandwidth rules everything.', lessons: [], planned: ['Floating point formats', 'Quantization', 'KV caching', 'Memory-bound decoding'] },
   { id: 'rl', number: 16, title: 'Reinforcement Learning', blurb: 'Agents that learn from consequences — and exploit badly specified rewards.', lessons: [], planned: ['States, actions, rewards', 'Q-learning', 'Policy gradients', 'Reward hacking'] },
