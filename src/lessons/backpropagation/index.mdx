@@ -1,1 +1,163 @@
-This lesson is being written.
+import { BackpropStepper } from './BackpropStepper'
+import { BackpropCost, FadingSignal } from './Companions'
+import { questions } from './quiz'
+
+## The problem: billions of slopes, every step
+
+Gradient descent has a simple rule: nudge every weight against its slope. But it quietly assumes you *have* the slopes — how the loss responds to every single weight, freshly computed at every step.
+
+The obvious way to measure one is to do the experiment: nudge the weight a little, run the whole model again, and see how much the loss changed. That works. It's how this website checks its own maths. But do it for every weight and the cost explodes.
+
+<BackpropCost />
+
+For a modest model with a million weights, nudging each one costs days per training step. For a modern language model with tens of billions of weights, it's thousands of years — per step. **Backpropagation** gets every one of those slopes, exactly, for the price of running the model about three times. It's the reason deep learning is possible at all.
+
+The surprising thing is how simple the idea is.
+
+## Mental model: tracing a complaint back through the kitchen
+
+<Analogy title="Think of a restaurant kitchen">
+
+A dish passes through several stations: prep, sauce, grill, plating. A customer sends it back — too salty, by some measurable amount. The head chef wants to know: *how much would each station's choices have changed that saltiness?*
+
+Nobody in the kitchen understands the whole dish. But they don't need to. The chef starts at the end: "The plating station's output was this salty. How sensitive is the final dish to what plating does?" Plating knows its own job, so it can answer. Then plating turns to the grill and passes the question back: "the dish is this sensitive to *my* input — so how sensitive is *my* input to *your* choices?" The grill knows its own job, multiplies, and passes it back again.
+
+Each station needs only two things: **the sensitivity handed to it from the station after it**, and **knowledge of its own little step**. The question travels backwards through the kitchen, one station at a time, until every station knows how much its choices mattered.
+
+</Analogy>
+
+That's backpropagation. Each "station" is one simple operation in the network — a multiplication, an addition, an activation. Each knows only its **local** slope: how much its output moves when its input moves (you met these in the <LessonLink to="chain-rule">chain-rule lesson</LessonLink>). The **gradient** handed backwards to it says how much the loss moves when its output moves. Multiply the two, and you know how much the loss moves when its *input* moves. Pass that further back. Repeat until you reach the weights.
+
+One caution about the analogy: backpropagation computes *sensitivity*, not *blame*. A station with a large gradient isn't "at fault" — it's simply where a small change would make a big difference.
+
+## Watch it happen
+
+Below is a single neuron with two inputs, a bias, a tanh activation and a squared-error loss — drawn as a **<Term id="computational-graph">computational graph</Term>**, where every box is one simple operation. Step through it. First the **forward pass** fills in the values. Then the **backward pass** fills in the gradients, from the loss back to the weights. Partway through, it'll be your turn.
+
+<BackpropStepper />
+
+As you step through, notice:
+
+- **The backward pass reuses work.** By the time it reaches the weights, the expensive part — how the loss responds to the tally $z$ — has already been computed once, and both $w_1$ and $w_2$ (and the bias) reuse it. In a big network, a whole layer's worth of weights all reuse the same gradient arriving from above.
+- **Each step only looks at its neighbours.** No box ever needs to know what the whole network computes. That's what makes the method work for any architecture you can draw as a graph.
+- **The backward pass needs the forward values.** tanh's local slope needs its output $a$; a multiplication's local slope is the *other input*. So everything computed going forwards has to be remembered until the backward pass has used it.
+- **When a value is used twice, its gradients add.** The loss is $d \times d$, so the error $d$ reaches the loss along two paths, and its gradient is the sum of both — exactly the "add across paths" rule from the chain-rule lesson.
+- **The update actually helps.** One forward pass, one backward pass and one small step, and the loss goes down. Press "Use the new weights" a few times: that loop *is* training.
+
+## Writing it down
+
+The entire algorithm is one rule, applied to every box in reverse order:
+
+<Eq
+  words="\text{how the loss responds to this box} = \text{add up, over every box it feeds into, } \big(\text{how the loss responds to that box} \times \text{that box's local ratio}\big)"
+  tex="\cg{\frac{\partial L}{\partial u}} = \sum_{v \,\in\, \text{children of } u} \cg{\frac{\partial L}{\partial v}} \cdot \frac{\partial v}{\partial u}"
+>
+
+- $u$ — the **box** whose gradient we want (say, a weight)
+- $v$ — each box that **uses $u$ as an input**, one step further towards the loss
+- $\cg{\partial L / \partial v}$ — the **gradient handed back** from $v$ (already known, because we go in reverse order)
+- $\partial v / \partial u$ — the **local ratio**: how much $v$ moves when $u$ is nudged. For $v = u \times w$ it's $w$; for $v = u + w$ it's 1; for $v = \tanh(u)$ it's $1 - v^2$
+- $\sum$ — **add across paths**, for boxes used more than once
+
+</Eq>
+
+Start from $\frac{\partial L}{\partial L} = 1$ at the end, apply the rule to each box in reverse order, and every gradient falls out. That's backpropagation, completely.
+
+<Deeper title="Why backwards? (and what 'forward mode' would be)" tag="Deeper">
+
+You could also run the chain rule *forwards*: pick one weight, push "how much does each box respond to this weight?" forward through the graph. That's called **forward-mode differentiation**, and it's perfectly valid — but it answers the question for *one input at a time*. To get a million weights' slopes, you'd need a million forward sweeps.
+
+Going backwards answers the question for *one output at a time* — and training has exactly one output that matters: the loss. So a single backward sweep gives the slope for every weight at once. This is why it's sometimes called **reverse-mode automatic differentiation**. The general principle: if you have many inputs and few outputs, go backwards; if you have few inputs and many outputs, go forwards.
+
+</Deeper>
+
+## In code: an autograd engine in 30 lines
+
+Here's a complete, working automatic-differentiation engine in Python. The engine running the widget above is the same design, written in TypeScript. Each `Value` remembers which values it was computed from and the local ratio to each; `backward()` sorts the graph and applies the rule above in reverse.
+
+```python
+import math
+
+class Value:
+    def __init__(self, data, parents=()):
+        self.data = data
+        self.grad = 0.0
+        self.parents = parents          # list of (parent Value, local ratio)
+
+    def __add__(self, other):
+        return Value(self.data + other.data, [(self, 1.0), (other, 1.0)])
+
+    def __mul__(self, other):
+        return Value(self.data * other.data, [(self, other.data), (other, self.data)])
+
+    def tanh(self):
+        t = math.tanh(self.data)
+        return Value(t, [(self, 1 - t * t)])
+
+    def backward(self):
+        order, seen = [], set()
+        def visit(v):                   # topological sort: inputs before outputs
+            if v not in seen:
+                seen.add(v)
+                for p, _ in v.parents:
+                    visit(p)
+                order.append(v)
+        visit(self)
+        self.grad = 1.0                 # dL/dL = 1
+        for v in reversed(order):       # walk backwards
+            for parent, local in v.parents:
+                parent.grad += v.grad * local   # += : add across paths
+
+x1, w1, x2, w2, b = Value(2.0), Value(-0.5), Value(1.0), Value(0.8), Value(0.4)
+a = (x1 * w1 + x2 * w2 + b).tanh()
+a.backward()
+print(w1.grad, w2.grad, b.grad)
+```
+
+Look at the `+=` near the end. It's the "add across paths" rule, and it's why PyTorch makes you call `optimizer.zero_grad()` before each step: gradients *accumulate* by design, so leftovers from the previous step would otherwise be added in.
+
+PyTorch's autograd, JAX and TensorFlow are this same idea, scaled up: the "boxes" are whole matrix operations rather than single numbers, the local ratios are matrices, and it all runs on GPUs. But the walk backwards is exactly the one you just stepped through.
+
+## The fading signal
+
+There's a catch hiding in that multiply-as-you-go rule. In a deep network, the gradient reaching the first layer is a product of local ratios from *every* layer above it. Multiply many numbers smaller than 1 and you get something vanishingly small; multiply many numbers larger than 1 and it explodes.
+
+<Predict
+  question="A chain of 12 sigmoid neurons, each with weight 1. Compared with the last layer, how much learning signal reaches the first layer?"
+  options={['About the same', 'About a tenth', 'Less than a millionth', 'More — it builds up along the way']}
+  answer={2}
+>
+
+Sigmoid's slope is never more than 0.25, so every layer shrinks the signal by at least 4×. Twelve layers of that is a factor of millions. Explore it below — then switch to ReLU.
+
+</Predict>
+
+<FadingSignal />
+
+This is the **vanishing gradient** problem (and its twin, **exploding gradients**), and for years it made deep networks nearly impossible to train: the early layers simply never learned. The solutions you'll meet later are all, at heart, ways of keeping this product of local ratios close to 1: ReLU activations, careful weight initialisation, normalisation layers, and the residual connections that let gradients skip straight past layers in every modern transformer.
+
+<Misconception>
+
+"Backpropagation is how neural networks learn." It's half of it. Backpropagation *measures* — it computes exactly how the loss responds to every weight. Deciding what to *do* with those measurements is the optimizer's job (plain gradient descent, momentum, Adam…). The two are so often used together that people blur them, but you can swap optimizers without touching backprop at all, and backprop is used for things other than training — for example, to find which input pixels a classifier is most sensitive to.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- Gradient descent needs the slope of the loss for every weight. Nudging each weight separately is hopelessly slow; **backpropagation** gets them all for about the cost of three forward passes.
+- **Forward pass:** compute every value and remember it. **Backward pass:** start with 1 at the loss and walk backwards.
+- The rule for every box: **gradient = sum over the boxes it feeds of (their gradient × local ratio)**. Multiply along paths, add across them.
+- It only needs **local** knowledge, so it works for any architecture you can draw as a graph.
+- Products of many local ratios can **vanish or explode** in deep networks — the problem behind ReLU, normalisation and residual connections.
+
+</Takeaways>
+
+<InTheWild>
+
+When you write `loss.backward()` in PyTorch, the library walks back through a graph it recorded while your forward pass ran — exactly as in the stepper, but over matrices and on a GPU. The need to store every intermediate value for that walk is why training needs far more memory than inference. A popular trick called **gradient checkpointing** trades compute for memory: it throws some of those values away and recomputes them during the backward pass when they're needed.
+
+</InTheWild>
+
+You now understand the complete learning loop: a forward pass to make a prediction, a loss to measure the mistake, backpropagation to find every weight's slope, and gradient descent to take a step. Everything else in deep learning — every architecture, every training trick — is built on top of this loop.

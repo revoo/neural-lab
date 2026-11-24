@@ -79,7 +79,7 @@ export const MODULES: ModuleMeta[] = [
     lessons: [
       { id: 'backpropagation', title: 'Backpropagation, One Step at a Time', summary: 'Walk a real computational graph forwards and backwards, number by number.', minutes: 35, load: () => import('./lessons/backpropagation/index.mdx') },
     ],
-    planned: ['Vanishing and exploding gradients', 'A neural network from scratch', 'How autodiff libraries work'],
+    planned: ['Vanishing and exploding gradients, in depth', 'A neural network from scratch', 'How autodiff libraries scale to tensors'],
   },
   { id: 'training', number: 6, title: 'Neural Network Training Lab', blurb: 'A full browser-based training sandbox with live decision boundaries.', lessons: [], planned: ['The training laboratory', 'Datasets: circles, spirals, XOR', 'Comparing experiments side by side'] },
   { id: 'generalization', number: 7, title: 'Generalization & Failure Modes', blurb: 'Why a model that aces its training data can still be useless.', lessons: [], planned: ['Overfitting and underfitting', 'Regularization, dropout, early stopping', 'Diagnosing broken models'] },
