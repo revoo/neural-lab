@@ -1,0 +1,162 @@
+import { VectorPlayground } from './VectorPlayground'
+import { EmailSpace } from './EmailSpace'
+import { questions } from './quiz'
+
+## The problem: computers only understand numbers
+
+Suppose you want to build a spam filter. You have an email in front of you — a blob of text with links, capital letters, maybe a suspicious number of exclamation marks. You also have a computer, which is extremely good at arithmetic and has no idea what an email is.
+
+Before any learning can happen, you have to bridge that gap. Somehow, the email has to become numbers.
+
+The simplest approach is to measure a few things about it. How many links does it contain? How many exclamation marks? Write those measurements down in order and you get something like `[3, 6]`. That little list is a **vector**.
+
+As a programmer, you already know exactly what this is: an array of floats. And for a lot of machine learning, that's all a vector needs to be. Houses become `[floor_area, bedrooms, age]`. A 28×28 greyscale image becomes a list of 784 pixel brightnesses. A word inside a language model becomes a list of a few thousand numbers.
+
+But there's a second way to look at the same list, and it's the one that makes machine learning work.
+
+## The double life of a vector
+
+Take the list `[3, 1]`. Read the first number as "go 3 steps right" and the second as "go 1 step up". Now the list is an *arrow* — or equivalently, a *point* at the arrow's tip.
+
+<Analogy>
+
+Think of a street address versus a pin on a map. "221B Baker Street" is just text — a record you can store and look up. The pin on the map is the *same information*, but now you can ask questions that the text alone makes awkward: what's nearby? How far is it to the station? Which direction should I walk?
+
+Vectors work the same way. The list is the address. The arrow is the pin. Machine learning constantly switches between the two views: it *stores* vectors as lists, but it *reasons* about them as positions and directions in space.
+
+</Analogy>
+
+Here's why that matters. Below, ten emails have each been reduced to two numbers — links and exclamation marks — and plotted as points.
+
+<EmailSpace />
+
+Look at what happened. Spam ended up in one region of the plane, normal email in another. The data has *structure*, and that structure is geometric: emails that are alike sit near each other.
+
+That is the central bet of a huge amount of machine learning. **If we can turn things into vectors so that similar things end up close together, then questions about meaning become questions about geometry** — and geometry is something computers are excellent at.
+
+Classifying an email, for instance, could become: *which side of some line does this point fall on?* Hold on to that thought. In a few lessons, you'll see that this is precisely what a single artificial neuron does.
+
+## Playing with arrows
+
+Before we can draw lines through clouds of points, we need to be fluent with the basic moves. There are only three that matter for now: adding vectors, scaling them, and subtracting them.
+
+Drag the handles below. Watch the list on the right update as you move the arrows, and the arrows move as the list changes. They are two views of a single object.
+
+<VectorPlayground />
+
+A few things worth noticing as you play:
+
+- **Adding is "follow one arrow, then the other."** The tip-to-tail picture and the number-by-number arithmetic always agree. That's not a coincidence — the first entry only ever talks to the first entry, the second only to the second.
+- **Scaling never changes the line an arrow sits on.** Multiply by 2 and it's twice as long. Multiply by −1 and it flips around. It can never swing off to the side.
+- **Subtraction measures difference.** The arrow `a − b` points from b to a, so its length is the distance between the two points. That's the formal version of "how different are these two emails?"
+
+## The maths, now that you've seen it
+
+Let's write down what you've been doing. Mathematicians usually write vectors in bold, and refer to the individual numbers inside using subscripts:
+
+$$
+\mathbf{v} = [v_1, v_2, \ldots, v_n]
+$$
+
+The subscript is just an index. $v_1$ is the first entry, $v_2$ the second, and $n$ is how many entries there are — the vector's **<Term id="dimension">dimension</Term>**. One trap for programmers: maths usually counts from 1, while Python and JavaScript count from 0. So $v_1$ is `v[0]`. You'll get used to translating.
+
+The operations you just played with are each one line:
+
+$$
+\mathbf{a} + \mathbf{b} = [a_1 + b_1,\; a_2 + b_2,\; \ldots,\; a_n + b_n]
+\qquad
+k\,\mathbf{a} = [k a_1,\; k a_2,\; \ldots,\; k a_n]
+$$
+
+Everything happens *element-wise*: position 1 combines with position 1, position 2 with position 2. If the vectors have different lengths, the operation simply isn't defined — much like zipping two arrays of different sizes.
+
+### Length, and your first Σ
+
+How long is the arrow `[3, 4]`? It forms the hypotenuse of a right triangle with sides 3 and 4, so Pythagoras says its length is $\sqrt{3^2 + 4^2} = \sqrt{25} = 5$.
+
+The remarkable thing is that the same recipe works in any number of dimensions. For a vector with $n$ entries: square each one, add them all up, take the square root. Mathematicians write this as
+
+$$
+\|\mathbf{v}\| = \sqrt{\sum_{i=1}^{n} v_i^2}
+$$
+
+The double bars mean "length of" (also called the **<Term id="magnitude">norm</Term>** or magnitude). The big $\Sigma$ — the Greek capital sigma — is the part worth pausing on, because you'll see it everywhere from now on. It's just a `for` loop:
+
+```python
+total = 0
+for i in range(n):        # "for i = 1 to n" in maths notation
+    total += v[i] ** 2    # the expression to the right of the Σ
+```
+
+The text below the Σ says where the index starts ($i = 1$), the text above says where it stops ($n$), and the expression to the right is what you add up on each iteration. That's all it is. Whenever a paper hits you with a wall of Σs, you can mentally rewrite each one as a loop.
+
+<Deeper title="Why distance in 768 dimensions still makes sense" tag="Intuition">
+
+You can't picture a 768-dimensional space. Nobody can. But you don't need to picture it to compute in it: the length formula above doesn't care how many terms are in the sum. The distance between two points in 768 dimensions is $\|\mathbf{a} - \mathbf{b}\|$ — subtract entry by entry, square, add, square-root — exactly as in 2D.
+
+This is one of the most useful habits in machine learning: build intuition in 2D or 3D where you can see it, then trust the algebra to carry it into dimensions you can't see. Most of the time the intuition survives. Occasionally it doesn't — high-dimensional spaces have some genuinely strange properties, like almost all random vectors being nearly perpendicular to each other — and we'll point those out as we meet them.
+
+</Deeper>
+
+## In code
+
+In Python, you'd almost never write these loops yourself. The library NumPy stores vectors as compact arrays and runs the loops in optimised C:
+
+```python
+import numpy as np
+
+a = np.array([3.0, 1.0])
+b = np.array([1.0, 2.5])
+
+a + b                    # array([4. , 3.5])   element-wise addition
+2 * a                    # array([6., 2.])     scaling
+a - b                    # array([ 2. , -1.5])
+np.linalg.norm(a)        # 3.1622...           length, √(3² + 1²)
+np.linalg.norm(a - b)    # 2.5                 distance between a and b
+```
+
+The `+` here is not list concatenation (as it would be for plain Python lists, where `[3, 1] + [1, 2]` gives `[3, 1, 1, 2]`). It's vector addition. PyTorch tensors behave the same way. This is a small detail that trips up almost everyone once.
+
+## A trap hiding in plain sight
+
+Distance is a wonderful idea, but it has a catch, and it's worth feeling it now.
+
+<Predict
+  question="Houses are described as [floor area in m², number of bedrooms]. House A is [120, 2], B is [125, 5], and C is [100, 2]. Which one is *closest* to A, measured as the straight-line distance between their vectors?"
+  options={['B: [125, 5]', 'C: [100, 2]', 'They’re equally close']}
+  answer={0}
+>
+
+Compute it. A→B is $\sqrt{5^2 + 3^2} \approx 5.8$. A→C is $\sqrt{20^2 + 0^2} = 20$. So according to the maths, B is far more similar to A — even though it has *two and a half times as many bedrooms*.
+
+The problem is units. Floor area is measured in numbers around 100; bedrooms in numbers around 3. A 20 m² difference is fairly minor for a house, but numerically it dwarfs a jump from 2 to 5 bedrooms. Geometry has no idea what the numbers mean. It just sees big numbers and small numbers.
+
+This is why real ML pipelines almost always **rescale features** to comparable ranges before doing anything geometric with them. Later, you'll see that neural networks have the same sensitivity, and that a whole family of techniques (normalisation layers) exists partly to deal with it.
+
+</Predict>
+
+<Misconception>
+
+It's tempting to think each position in a vector always means something nameable, like "number of links". That's true for vectors *you* design by hand, like the ones in this lesson. But the vectors inside modern neural networks are mostly *learned*. A language model decides for itself how to arrange words in a 4,096-dimensional space, and individual dimensions usually don't correspond to clean human concepts. Meaning tends to be spread across many dimensions at once. The geometry still works — similar words still end up close — but don't expect dimension #1,337 to be "the royalty dimension".
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- A vector is an ordered list of numbers — and, simultaneously, an arrow or point in space. Machine learning stores vectors as lists and reasons about them as geometry.
+- Turning data into vectors so that similar things land close together turns questions about *meaning* into questions about *distance and direction*.
+- Addition, scaling and subtraction all work entry by entry. Length is Pythagoras, generalised: $\sqrt{\sum v_i^2}$.
+- Σ is a `for` loop that adds things up.
+- Geometry treats every number equally, so features on wildly different scales can quietly distort it.
+
+</Takeaways>
+
+<InTheWild>
+
+Every modern AI system runs on vectors. When you type a word into a large language model, the first thing that happens is that each token is looked up and replaced by a vector — 768 numbers in GPT‑2, 4,096 in Llama 3 8B, more in larger models. Image models see a 224×224 colour photo as roughly 150,000 numbers. Search engines and "chat with your documents" tools convert every paragraph into a vector and find relevant passages by looking for vectors that are close together. You've just learned the native data structure of the field.
+
+</InTheWild>
+
+Next, we'll look at the single most important operation you can perform on two vectors. It's three lines of code, it powers everything from neurons to attention, and it answers a deceptively simple question: *how much do these two vectors agree?*

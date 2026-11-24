@@ -1,0 +1,66 @@
+/**
+ * The concept glossary. Entries are short, plain-language definitions written in the same voice
+ * as the lessons: say what the thing *does* before saying what it is called.
+ */
+export type GlossaryEntry = {
+  id: string;
+  term: string;
+  short: string;
+  /** Lesson where the concept is properly taught. */
+  lesson?: string;
+  aka?: string[];
+  related?: string[];
+};
+
+export const GLOSSARY: GlossaryEntry[] = [
+  { id: 'scalar', term: 'Scalar', short: 'A single number, like 3.7. The word exists mainly to contrast with vectors and matrices, which are collections of numbers.', lesson: 'vectors', related: ['vector'] },
+  { id: 'vector', term: 'Vector', short: 'An ordered list of numbers. You can read it as data (a row of features) or as an arrow pointing somewhere in space — and much of machine learning works because both readings are true at once.', lesson: 'vectors', related: ['dot-product', 'dimension'] },
+  { id: 'dimension', term: 'Dimension', short: 'How many numbers a vector contains. A 2D vector is a point on a page; a 768-dimensional vector is a point in a space we cannot picture but can still compute with exactly the same rules.', lesson: 'vectors' },
+  { id: 'magnitude', term: 'Magnitude (length, norm)', short: 'How long a vector’s arrow is: the square root of the sum of its squared components. Pythagoras, generalised to any number of dimensions.', lesson: 'vectors', aka: ['norm', 'length'] },
+  { id: 'dot-product', term: 'Dot product', short: 'Multiply two vectors element by element and add up the results. The answer is large and positive when the vectors point the same way, near zero when they are unrelated, and negative when they point in opposite directions.', lesson: 'dot-product', related: ['cosine-similarity', 'weighted-sum'] },
+  { id: 'weighted-sum', term: 'Weighted sum', short: 'Multiply each input by how much it matters, then add everything up. It is the dot product of the inputs with a vector of weights, and it is the first thing every artificial neuron computes.', lesson: 'neuron', related: ['dot-product', 'weight'] },
+  { id: 'cosine-similarity', term: 'Cosine similarity', short: 'The dot product of two vectors after shrinking both to length 1. It measures only direction: 1 means the same direction, 0 means perpendicular, −1 means opposite.', lesson: 'dot-product' },
+  { id: 'orthogonal', term: 'Orthogonal', short: 'Perpendicular. Two vectors are orthogonal when their dot product is zero — knowing one tells you nothing about the other’s direction.', lesson: 'dot-product' },
+  { id: 'matrix', term: 'Matrix', short: 'A grid of numbers. Read it as a table of data, or — more usefully — as a machine that transforms vectors: its columns record where each basis direction ends up.', lesson: 'matrices', related: ['linear-transformation', 'matrix-multiplication'] },
+  { id: 'linear-transformation', term: 'Linear transformation', short: 'A way of moving every point in space that keeps grid lines straight, parallel and evenly spaced, and keeps the origin fixed. Every matrix is one, and every one is a matrix.', lesson: 'matrices' },
+  { id: 'basis-vectors', term: 'Basis vectors', short: 'The unit arrows along each axis — in 2D, (1, 0) and (0, 1). Every vector is a combination of them, which is why knowing where a transformation sends them tells you where it sends everything.', lesson: 'matrices' },
+  { id: 'determinant', term: 'Determinant', short: 'How much a transformation scales area (in 2D) or volume (in 3D). A determinant of 0 means space gets squashed flat, and information is lost for good.', lesson: 'matrices' },
+  { id: 'matrix-multiplication', term: 'Matrix multiplication', short: 'A batch of dot products: each output entry is the dot product of a row of the first matrix with a column of the second. Geometrically, it composes two transformations into one.', lesson: 'matrix-multiplication' },
+  { id: 'tensor', term: 'Tensor', short: 'In machine learning, simply an n-dimensional array of numbers with a shape like (batch, tokens, features). Scalars, vectors and matrices are tensors with 0, 1 and 2 dimensions.', lesson: 'matrix-multiplication' },
+  { id: 'shape', term: 'Shape', short: 'The size of each dimension of a tensor, e.g. (32, 128, 768). Most bugs in ML code are shape bugs, and most architecture diagrams are really shape diagrams.', lesson: 'matrix-multiplication' },
+  { id: 'broadcasting', term: 'Broadcasting', short: 'Array libraries’ rule for combining tensors of different shapes by implicitly repeating the smaller one along missing or size-1 dimensions — e.g. adding one bias vector to every row of a batch.', lesson: 'matrix-multiplication' },
+  { id: 'function', term: 'Function', short: 'A rule that maps inputs to outputs. A neural network is one big function with millions of adjustable knobs.', lesson: 'derivatives' },
+  { id: 'derivative', term: 'Derivative', short: 'How sensitive a function’s output is to a tiny nudge of its input: output change divided by input change, as the nudge shrinks toward zero. Geometrically, the slope of the graph at that point.', lesson: 'derivatives', related: ['gradient', 'chain-rule'] },
+  { id: 'partial-derivative', term: 'Partial derivative', short: 'The derivative with respect to one input while holding all the other inputs fixed. A function with a million inputs has a million partial derivatives.', lesson: 'gradients' },
+  { id: 'gradient', term: 'Gradient', short: 'The list of all partial derivatives of a function, packed into a vector. It points in the direction in which the output increases fastest; its negative points downhill.', lesson: 'gradients', related: ['gradient-descent'] },
+  { id: 'chain-rule', term: 'Chain rule', short: 'When functions are chained together, their sensitivities multiply. If y changes 3× as fast as u, and u changes 2× as fast as x, then y changes 6× as fast as x.', lesson: 'chain-rule', related: ['backpropagation'] },
+  { id: 'computational-graph', term: 'Computational graph', short: 'A diagram of a calculation as a network of simple operations, where edges carry values forward and gradients backward. Autodiff libraries build one every time you run a model.', lesson: 'backpropagation' },
+  { id: 'probability-distribution', term: 'Probability distribution', short: 'A list of non-negative numbers, one per possible outcome, that add up to 1. A classifier’s output is a distribution over classes; a language model’s output is a distribution over its vocabulary.', lesson: 'probability' },
+  { id: 'logits', term: 'Logits', short: 'The raw, unnormalised scores a model produces before softmax. They can be any real number; only their differences matter.', lesson: 'probability' },
+  { id: 'softmax', term: 'Softmax', short: 'Turns a list of arbitrary scores into a probability distribution: exponentiate each score so it is positive, then divide by the total so they sum to 1. Bigger scores get disproportionately more probability.', lesson: 'probability', related: ['logits', 'temperature'] },
+  { id: 'temperature', term: 'Temperature', short: 'A number that divides the logits before softmax. Low temperature sharpens the distribution toward the top choice; high temperature flattens it toward uniform.', lesson: 'probability' },
+  { id: 'logarithm', term: 'Logarithm', short: 'The inverse of exponentiation: log₂(8) = 3 because 2³ = 8. Logs turn multiplication into addition and squash huge ranges into manageable ones.', lesson: 'information' },
+  { id: 'surprise', term: 'Surprise (information content)', short: 'How surprising an outcome is: −log(p). Certain events carry 0 surprise; a 1-in-1024 event carries 10 bits.', lesson: 'information' },
+  { id: 'entropy', term: 'Entropy', short: 'The average surprise of a distribution — how uncertain it is. A fair coin has 1 bit of entropy; a coin that always lands heads has 0.', lesson: 'information' },
+  { id: 'cross-entropy', term: 'Cross-entropy loss', short: 'How surprised a model was by the correct answer: −log of the probability it assigned to it. Confident and right costs almost nothing; confident and wrong costs a great deal.', lesson: 'information', related: ['softmax', 'loss'] },
+  { id: 'neuron', term: 'Artificial neuron', short: 'A tiny function: multiply each input by a weight, add them up with a bias, then pass the result through an activation function.', lesson: 'neuron', related: ['weight', 'bias', 'activation-function'] },
+  { id: 'weight', term: 'Weight', short: 'A learned number that controls how strongly one input influences a neuron. Positive weights push the output up, negative weights push it down.', lesson: 'neuron' },
+  { id: 'bias', term: 'Bias', short: 'A learned number added to a neuron’s weighted sum. It shifts the neuron’s threshold, letting its decision boundary move away from the origin.', lesson: 'neuron' },
+  { id: 'decision-boundary', term: 'Decision boundary', short: 'The surface in input space where a classifier switches from one answer to another. For a single neuron it is a straight line (or flat plane).', lesson: 'neuron' },
+  { id: 'linearly-separable', term: 'Linearly separable', short: 'A dataset whose classes can be split perfectly by a single straight line (or flat hyperplane). XOR is the classic example of data that is not.', lesson: 'activation-functions' },
+  { id: 'activation-function', term: 'Activation function', short: 'The non-linear function applied after a neuron’s weighted sum. Without it, any stack of layers collapses into a single linear transformation.', lesson: 'activation-functions', related: ['relu', 'sigmoid'] },
+  { id: 'relu', term: 'ReLU', short: 'Rectified Linear Unit: max(0, x). Negative inputs become zero, positive inputs pass through unchanged. Absurdly simple, and the default activation for a decade of deep learning.', lesson: 'activation-functions' },
+  { id: 'sigmoid', term: 'Sigmoid', short: 'An S-shaped curve squashing any number into (0, 1). Handy for probabilities, but its slope nearly vanishes for large inputs, which slows learning in deep networks.', lesson: 'activation-functions' },
+  { id: 'gelu', term: 'GELU', short: 'A smooth cousin of ReLU, x·Φ(x), used in BERT and GPT-style transformers. It lets slightly negative values leak through rather than cutting them off sharply.', lesson: 'activation-functions' },
+  { id: 'loss', term: 'Loss function', short: 'A single number measuring how wrong a model is on some data. Training means adjusting the parameters to make this number smaller.', lesson: 'gradient-descent', aka: ['cost', 'objective'] },
+  { id: 'gradient-descent', term: 'Gradient descent', short: 'Repeatedly nudge every parameter a small step in the direction that reduces the loss — the negative gradient. The step size is the learning rate.', lesson: 'gradient-descent', related: ['learning-rate', 'gradient'] },
+  { id: 'learning-rate', term: 'Learning rate', short: 'How big a step gradient descent takes. Too small and training crawls; too large and it overshoots, oscillates, or diverges entirely.', lesson: 'gradient-descent' },
+  { id: 'parameter', term: 'Parameter', short: 'Any number the model learns during training — weights and biases. A “7B model” has about seven billion of them.', lesson: 'neuron' },
+  { id: 'backpropagation', term: 'Backpropagation', short: 'An efficient way to compute the gradient of the loss with respect to every parameter, by applying the chain rule backwards through the computational graph, reusing work as it goes.', lesson: 'backpropagation', related: ['chain-rule', 'computational-graph'] },
+  { id: 'autodiff', term: 'Automatic differentiation', short: 'Software that records the operations of a calculation and then computes exact derivatives by running the chain rule over that record. PyTorch and JAX are built around it.', lesson: 'backpropagation', aka: ['autograd'] },
+  { id: 'forward-pass', term: 'Forward pass', short: 'Running inputs through the model to compute its outputs (and loss), keeping intermediate values that the backward pass will need.', lesson: 'backpropagation' },
+  { id: 'backward-pass', term: 'Backward pass', short: 'Walking the computational graph from the loss back to the inputs, computing how sensitive the loss is to every intermediate value and parameter.', lesson: 'backpropagation' },
+  { id: 'xor', term: 'XOR', short: '“Exclusive or”: true when exactly one of two inputs is true. Famous in ML because no single straight line can separate its true cases from its false ones.', lesson: 'activation-functions' },
+];
+
+export const glossaryById = Object.fromEntries(GLOSSARY.map((g) => [g.id, g]));
