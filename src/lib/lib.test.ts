@@ -170,6 +170,71 @@ describe('mlp', () => {
   };
   it('backprop matches numerical gradients (bce + sigmoid)', () => gradCheck('bce', ['tanh', 'gelu', 'sigmoid']));
   it('backprop matches numerical gradients (mse + l2)', () => gradCheck('mse', ['tanh', 'tanh', 'linear'], 0.01));
+  it('backprop with dropout matches numerical gradients for fixed masks', () => {
+    const net = new MLP([2, 5, 4, 1], ['tanh', 'relu', 'linear'], createRng(11));
+    net.setDropout(0.4, createRng(5));
+    const X = [[0.3, -0.8], [-1.2, 0.5], [0.9, 0.1], [0.2, 0.7]];
+    const Y = [[1], [-0.5], [0.3], [0]];
+    const masks = X.map(() => net.sampleMasks());
+    // the masks really drop something and scale the rest by 1/(1 − p)
+    const flat = masks.flat(2);
+    expect(flat.some((v) => v === 0)).toBe(true);
+    expect(flat.filter((v) => v !== 0).every((v) => Math.abs(v - 1 / 0.6) < 1e-12)).toBe(true);
+    const l2 = 0.01;
+    net.backprop(X, Y, 'mse', l2, masks);
+    const lossAt = () => {
+      let r = 0;
+      for (const L of net.W) for (const row of L) for (const w of row) r += 0.5 * l2 * w * w;
+      return net.loss(X, Y, 'mse', masks) + r;
+    };
+    const h = 1e-6;
+    let checked = 0;
+    for (let l = 0; l < net.W.length; l++)
+      for (let j = 0; j < net.W[l].length; j++)
+        for (let i = 0; i < net.W[l][j].length; i++) {
+          const orig = net.W[l][j][i];
+          net.W[l][j][i] = orig + h;
+          const up = lossAt();
+          net.W[l][j][i] = orig - h;
+          const dn = lossAt();
+          net.W[l][j][i] = orig;
+          expect(net.gW[l][j][i]).toBeCloseTo((up - dn) / (2 * h), 5);
+          checked++;
+        }
+    for (let l = 0; l < net.b.length; l++)
+      for (let j = 0; j < net.b[l].length; j++) {
+        const ob = net.b[l][j];
+        net.b[l][j] = ob + h;
+        const ub = lossAt();
+        net.b[l][j] = ob - h;
+        const db = lossAt();
+        net.b[l][j] = ob;
+        expect(net.gb[l][j]).toBeCloseTo((ub - db) / (2 * h), 5);
+      }
+    expect(checked).toBe(2 * 5 + 5 * 4 + 4);
+  });
+  it('dropout with p = 0 changes nothing, and keeps each activation’s average', () => {
+    const X = [[0.3, -0.8], [-1.2, 0.5]];
+    const Y = [[1], [0]];
+    const a = new MLP([2, 6, 1], ['tanh', 'sigmoid'], createRng(2));
+    const b = new MLP([2, 6, 1], ['tanh', 'sigmoid'], createRng(2));
+    b.setDropout(0, createRng(9));
+    expect(b.backprop(X, Y, 'bce')).toBe(a.backprop(X, Y, 'bce'));
+    expect(b.gW).toEqual(a.gW);
+    // inverted dropout: averaged over many masks, the hidden layer's output equals the unmasked one
+    const net = new MLP([2, 6, 1], ['tanh', 'sigmoid'], createRng(2));
+    net.setDropout(0.5, createRng(3));
+    const clean = net.forward([0.4, -0.2]).a[1];
+    const avg = clean.map(() => 0);
+    const N = 20000;
+    for (let k = 0; k < N; k++) {
+      const h = net.forward([0.4, -0.2], net.sampleMasks()).a[1];
+      h.forEach((v, j) => (avg[j] += v / N));
+    }
+    avg.forEach((v, j) => expect(v).toBeCloseTo(clean[j], 1));
+    // predict never drops
+    expect(net.predict([0.4, -0.2])).toEqual(net.predict([0.4, -0.2]));
+  });
   it('learns XOR with a hidden layer', () => {
     const rng = createRng(3);
     const net = new MLP([2, 4, 1], ['tanh', 'sigmoid'], rng);

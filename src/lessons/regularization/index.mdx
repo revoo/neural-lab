@@ -1,0 +1,232 @@
+import { EarlyStopping, WeightDecayDial, CureBench, FairComparison } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: keep the big model, lose the bad habits
+
+The last lesson left you with two cures for overfitting, and neither is always available.
+
+**Get more data.** The most reliable cure there is: the degree-11 polynomial went from hopeless to excellent when its 12 points became 100. But data costs money, time and sometimes patients' consent. Often the dataset you have is the dataset you've got.
+
+**Use a smaller model.** That works too, but you saw its catch in the training lab: small networks are *harder to train*. Two hidden neurons could represent XOR, yet training rarely found the solution; three gave gradient descent room to manoeuvre. In practice, people use networks far bigger than the problem strictly needs.
+
+So the real question is: can we keep the big, easy-to-train model and stop it memorising noise? Yes, and the tools for it have a collective name: **<Term id="regularization">regularisation</Term>**, any change to training that deliberately gives up a little fit on the training data in exchange for doing better on new data.
+
+This lesson builds the three most widely used regularisers on the problem you already know: 12 noisy points from a hidden curve, and a 1,153-parameter network that, left alone, ends with zero training error and a test error of 0.213. One thing first, though. Every cure has a *strength* to choose — how early to stop, how hard to penalise — and the last lesson warned you not to choose with the test set. So we add 12 more points from the same source as a **<Term id="validation-set">validation set</Term>**. Training never sees them; we're free to look at them as often as we like.
+
+## Cure 1: stop before it memorises
+
+You've already seen the clue. A network doesn't jump to its final fit; it travels there. It learns the broad shape first and the noise later. The test error passed through a minimum, around step 300, on its way up to 0.213.
+
+So the simplest cure is to stop at the right moment. You can't watch the test error, but the validation error is an honest stand-in: also data the network never trained on.
+
+<Analogy title="Think of tuning an old radio">
+
+You turn the dial, and the station gets clearer, and clearer... and then a little less clear. You only know you've passed the best spot *after* you've passed it. So you keep turning a little further to be sure it isn't just a crackle, and if it doesn't improve, you turn back to the clearest point you found.
+
+</Analogy>
+
+That's **<Term id="early-stopping">early stopping</Term>**, almost word for word. Check the validation error every few steps, remember the weights whenever it hits a new best, and once it hasn't improved for a while — the **patience** — stop and go back to the best weights you remembered.
+
+<Predict
+  question="Patience is how long to wait for a new best before giving up. What do you expect with very little patience (50 steps)?"
+  options={['It stops at the same place, just sooner', 'It can stop too early, fooled by a small wobble in the validation error', 'It never stops']}
+  answer={1}
+>
+
+It can stop too early. The validation error doesn't fall smoothly: with only 12 validation points it jitters. In our run, a patience of 50 gives up at step 110, before the network has even learned the curve's shape, and the kept model's test error is 0.189. With a patience of 200, it stops at step 520 and keeps the weights from step 320: test error **0.130**, against 0.213 for training to the end. Try both.
+
+</Predict>
+
+<EarlyStopping />
+
+Early stopping is cheap — it *saves* compute — and it has no effect on the network or the loss, so it combines with everything else. In practice it's often done as "save a checkpoint whenever the validation score improves, and use the best checkpoint at the end."
+
+## Cure 2: make big weights expensive
+
+Early stopping limits *how long* the network can chase the noise. The second cure limits what the network can become, however long it trains.
+
+Look back at the degree-11 polynomial that threaded all 12 points. To pass exactly through every noisy point, it needed enormous coefficients that almost cancel each other out: huge positive and negative terms, balanced so they agree at the data points and swing wildly in between. Wiggles are expensive in coefficients. Networks are the same: a tanh neuron with small weights is a gentle slope, while one with large weights switches abruptly, and abrupt switches are what a network uses to make sharp kinks around individual points.
+
+So: charge the model for large weights.
+
+<Analogy title="Think of every weight on a spring">
+
+Tie every weight to zero with a spring. The training data pulls weights away from zero, towards whatever fits. A weight only stretches far if lots of training points pull it there, consistently. The noise in one point pulls in a random direction, isn't backed up by its neighbours, and can't pay for much stretch. So the springs keep the weights that the *pattern* needs and let go of the ones only the noise wanted.
+
+</Analogy>
+
+Try it on the wildest model we've met: the degree-11 polynomial, fitted exactly, with a penalty for the size of its coefficients.
+
+<WeightDecayDial />
+
+With no penalty, the coefficients' squares add up to 814 and the test error is 70.7. At λ ≈ 0.018, the best on the validation points, they add up to 3.1, and the test error drops to 0.158 — with the very same 12 coefficients and the same degree. Turn λ up to 1 and you've overdone it: the curve is too stiff to follow the pattern (test error 0.68). The penalty is a capacity dial too, but a continuous one.
+
+### Writing it down
+
+The penalty is added straight to the loss, so gradient descent minimises both at once:
+
+<Eq
+  words="\text{what training minimises} = \text{how wrong on the training data} + \text{strength} \times \text{how big the weights are}"
+  tex="\cp{L_{\text{total}}} = \ca{L_{\text{data}}} + \frac{\cb{\lambda}}{2} \sum_i \cg{w_i}^2"
+>
+
+- $\ca{L_{\text{data}}}$ — the ordinary **loss** on the training data, as before
+- $\cg{w_i}$ — each **weight** in the network (biases are usually left out: they shift neurons, they don't sharpen them)
+- $\sum_i \cg{w_i}^2$ — the **size** of all the weights: square each one and add them up
+- $\cb{\lambda}$ — the **strength** of the springs, chosen on the validation set (the $\frac12$ is only there to make the next step tidy)
+- $\cp{L_{\text{total}}}$ — what training actually **minimises**
+
+</Eq>
+
+Now look at what one gradient-descent step does with it. The slope of $\frac{\lambda}{2}w^2$ is just $\lambda w$, so the step is
+
+<Eq
+  words="\text{new weight} = (\text{shrink it a little}) \times \text{old weight} - \text{step size} \times \text{slope of the data loss}"
+  tex="\cg{w} \leftarrow (1 - \cc{\eta}\cb{\lambda})\,\cg{w} - \cc{\eta}\,\frac{\partial \ca{L_{\text{data}}}}{\partial \cg{w}}"
+>
+
+- $\cc{\eta}$ — the **step size**
+- $(1 - \cc{\eta}\cb{\lambda})$ — a number just below 1: every step, every weight is **shrunk** by that factor before the usual update
+- the last term is the ordinary gradient-descent step on the data loss
+
+</Eq>
+
+Every weight decays towards zero a little on every step, and only survives if the data keeps pushing it back. That's why the L2 penalty is usually called **<Term id="weight-decay">weight decay</Term>**.
+
+<Deeper title="Weight decay and Adam: why AdamW exists" tag="Practice">
+
+For plain gradient descent, "add $\lambda w$ to the gradient" and "shrink every weight by $(1 - \eta\lambda)$" are the same thing, as the equation shows. For Adam they aren't. Adam divides each gradient by a running estimate of its typical size, so if the penalty is added to the gradient, it gets divided too: weights with large, noisy gradients are barely decayed at all.
+
+Ilya Loshchilov and Frank Hutter pointed this out in 2019 and proposed applying the shrink directly to the weights instead, outside Adam's rescaling. That's **AdamW** ("Adam with decoupled weight decay"), and it's the default optimizer for training transformers. The widgets in this lesson use the penalty form, $L_{\text{data}} + \frac{\lambda}{2}\sum w^2$, which is the clearest to reason about.
+
+</Deeper>
+
+## Cure 3: switch neurons off at random
+
+The third cure sounds like vandalism. During training, on every step, switch off a random selection of the hidden neurons — typically between 10% and 50% of them — so they output zero. Next step, a different random selection. At test time, switch them all back on.
+
+Why would breaking the network on purpose help? Because of how big networks overfit. With 64 hidden neurons and 12 points, the network can build fragile conspiracies: one neuron produces a bump near a particular training point, another cancels its side effects elsewhere, a third patches the error the second introduces. Each neuron's job only makes sense in the presence of the others. Those elaborate arrangements are exactly how a network threads noisy points.
+
+<Analogy title="Think of a team where anyone might be off sick">
+
+If every member of a team knows that on any given day, any colleague might be absent, nobody can build their work around one particular person being there. Each person has to be useful on their own, and important knowledge gets spread across several people instead of living in one head. The team is more robust, and when everyone does turn up, it works better than a team that had never practised without its stars.
+
+</Analogy>
+
+That's **<Term id="dropout">dropout</Term>**. Its one subtlety is the bookkeeping. If, during training, each neuron is present only some of the time, the next layer gets used to receiving a smaller total input. Then at test time, with everyone present, it would suddenly get more than it was trained on. The fix is to scale the survivors up during training, so the *average* is unchanged:
+
+<Eq
+  words="\text{neuron's output in training} = \begin{cases} 0 & \text{with probability } p \text{ (switched off)} \\ \text{its usual output} \div (1 - p) & \text{otherwise} \end{cases}"
+  tex="\cp{\tilde h} = \frac{\cv{m}}{1 - \cb{p}}\,\ca{h}, \qquad \cv{m} = \begin{cases} 0 & \text{probability } \cb{p} \\ 1 & \text{probability } 1 - \cb{p} \end{cases}"
+>
+
+- $\ca{h}$ — the neuron's **usual output**, the one it would give with dropout off
+- $\cb{p}$ — the **drop probability**, the strength of the cure (chosen on the validation set)
+- $\cv{m}$ — the **mask**: a fresh random 0 or 1 for every neuron, every example and every step
+- $\cp{\tilde h}$ — what the next layer actually **receives** during training. On average it's $(1-p)\cdot\frac{h}{1-p} = h$, so nothing changes when everyone is present at test time
+
+</Eq>
+
+Backpropagation needs only one change: a neuron that was switched off contributed nothing, so it gets no gradient that step. In code, multiply by the same mask on the way back. (Our network library gained exactly this for this lesson, and a test checks its gradients against numerical ones.)
+
+Now try all three cures on the network.
+
+<CureBench />
+
+Two things to notice. With **weight decay** at its starting strength, λ = 0.01, training error can no longer reach zero — the springs won't let the weights grow big enough to thread every point — and the sum of squared weights stays around 5, against 341 with no cure. (Turn λ down to 0.0001 and the springs are too weak to matter: training error reaches zero again.) With **dropout**, the weights stay large, but the curve still calms down: dropout restrains the network by making conspiracies unreliable, not by shrinking weights. The thinned networks below the plot are the real masks used in the latest training step.
+
+## A fair race
+
+Which cure is best? It's tempting to set each one to some value and compare, but then the comparison mostly measures how well you guessed the settings. So each cure gets its own best setting, chosen by the validation error from a grid, averaged over 10 different datasets of 12 points. Only then do we look at the test error.
+
+<FairComparison />
+
+What we found:
+
+- **Every cure helped, on every dataset.** Averaged over the 10 datasets, test error fell from 0.251 with no cure to 0.123 with early stopping, 0.128 with weight decay and 0.135 with dropout. The noise floor, which no model can beat, is 0.09. And each cure beat no cure on all 10 datasets individually.
+- **Between the cures, we can't name a winner.** The differences are smaller than the variation from one dataset to another: early stopping beat weight decay on only 6 of the 10 datasets, and weight decay beat dropout on 5. Reading a ranking into these averages would be reading noise.
+- **Dropout is no better than the simpler cures here.** That's honest, and expected: dropout earns its keep in big networks with many features that can co-adapt, like the image classifiers it was invented for. In a two-layer network fitting a 1D curve, a spring on the weights does the same job more simply.
+
+The validation set has its limits too. For early stopping, a patience of 400 had the lowest validation error, while patience 100 did slightly better on the test set. With only 12 validation points, even the referee is a little noisy.
+
+## What regularisation really is
+
+Step back and the three cures share one idea. Among all the models that fit the training data about equally well, each one prefers the *simpler* ones:
+
+- **early stopping** prefers what gradient descent finds first, which is the smooth, broad shape;
+- **weight decay** prefers small weights, which make gentle functions;
+- **dropout** prefers solutions that don't depend on any one neuron.
+
+You met the same idea at the end of the last lesson: when infinitely many polynomials fitted the 12 points perfectly, choosing the one with the *smallest coefficients* tamed the error. That preference was weight decay in disguise. Regularisation is how you tell a model which of the many explanations of its data to believe, when the data alone can't decide.
+
+<Deeper title="Other regularisers you'll meet" tag="Going further">
+
+- **Data augmentation:** make more training data out of what you have by applying changes that shouldn't alter the answer: flip, crop or recolour an image of a cat, and it's still a cat. It's "get more data" on a budget, and in computer vision it's often the most powerful regulariser of all.
+- **Label smoothing:** train classifiers towards 90% confidence instead of 100%, so they can't drive their weights to extremes to be ever more certain.
+- **Mini-batch noise:** the randomness of small batches, which you met in the SGD lesson, has a mild regularising effect of its own.
+- **Normalisation layers** (batch norm, layer norm) are mainly there to make training stable, but some of them regularise slightly too.
+
+</Deeper>
+
+## In code
+
+In PyTorch, two of the three cures are one argument each, and early stopping is a few lines in the training loop.
+
+```python
+import copy
+import torch
+import torch.nn as nn
+
+model = nn.Sequential(
+    nn.Linear(1, 32), nn.Tanh(), nn.Dropout(p=0.3),    # dropout after each hidden layer
+    nn.Linear(32, 32), nn.Tanh(), nn.Dropout(p=0.3),
+    nn.Linear(32, 1),
+)
+opt = torch.optim.AdamW(model.parameters(), lr=0.01, weight_decay=0.01)   # decoupled weight decay
+
+best_val, best_state, patience, since_best = float("inf"), None, 200, 0
+for step in range(4000):
+    model.train()                                       # dropout ON
+    loss = nn.functional.mse_loss(model(x_train), y_train)
+    opt.zero_grad(); loss.backward(); opt.step()
+
+    model.eval()                                        # dropout OFF for measuring
+    with torch.no_grad():
+        val = nn.functional.mse_loss(model(x_val), y_val).item()
+    if val < best_val:
+        best_val, best_state, since_best = val, copy.deepcopy(model.state_dict()), 0
+    else:
+        since_best += 1
+        if since_best >= patience:                      # early stopping
+            break
+
+model.load_state_dict(best_state)                       # go back to the best checkpoint
+```
+
+Note the `model.train()` and `model.eval()` calls. They switch dropout on and off, and forgetting `model.eval()` before measuring or deploying is one of the classic bugs: the model keeps randomly switching off neurons at test time and its predictions become noisy and worse.
+
+<Misconception>
+
+"Regularisation makes the model fit better." It makes the model fit the *training data* worse, on purpose. With weight decay, the training error could no longer reach zero; with early stopping, training was cut short while the training error was still falling. If a regulariser ever improves your training error, something else is going on. What it buys is a smaller gap between training and test, and a lower test error.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- **Regularisation** gives up a little fit on the training data to do better on new data. Choose its strength on a **validation set**, never the test set.
+- **Early stopping:** watch validation error, keep the best weights, stop when patience runs out. Cheap, and it combines with everything.
+- **Weight decay (L2):** add $\frac{\lambda}{2}\sum w^2$ to the loss. Each step shrinks every weight by $(1-\eta\lambda)$, so only weights the data keeps pushing survive. Big weights make wiggles; small weights make gentle functions.
+- **Dropout:** randomly switch off hidden neurons in training, scale the survivors by $\frac{1}{1-p}$, use everyone at test time. It stops neurons relying on fragile partnerships.
+- Compared fairly, **every cure beat no cure** on our problem, and the differences between them were within the noise. All three are preferences for simpler explanations of the data.
+
+</Takeaways>
+
+<InTheWild>
+
+Dropout made its name in 2012, when AlexNet won the ImageNet competition by a wide margin; its huge fully connected layers used dropout with $p = 0.5$, which the authors credited with substantially reducing overfitting. The original transformer of 2017 used dropout of 0.1 throughout and trained with Adam. Today, large language models are usually trained with AdamW's weight decay, and many skip dropout during pretraining altogether: when a model sees most of its text only once, there's little chance to memorise it (Google's PaLM, for example, was pretrained without dropout). Early stopping lives on as checkpoint selection: long training runs save the model regularly, and the checkpoint that scores best on held-out evaluations is the one that gets used.
+
+</InTheWild>
+
+You now have the vocabulary for most of the ways training goes wrong: underfitting, overfitting, bad step sizes, saturated and dead neurons. Next, put it to work. The diagnosis lab hands you broken training runs and asks you to find out what's wrong with them.
