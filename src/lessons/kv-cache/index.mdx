@@ -1,0 +1,185 @@
+{/* authored-by: Neon High */}
+import { KvCacheStepper, KvCalculator, RooflineExplorer, VramTetrisLab } from './Widgets';
+import { questions } from './quiz';
+
+# KV Caching & Memory-Bound Decoding
+
+In the last lesson we shrank a model’s weights from 16 bits down to 4 bits — and something peculiar happens when you run that quantised model on a real GPU: **single-user token generation speeds up by more than 3×**, even though the GPU still multiplies numbers in floating point and does the exact same number of arithmetic operations.
+
+How can doing the *exact same arithmetic* run more than three times faster?
+
+To understand what actually happens inside a GPU while an LLM writes a reply — why a 2,000-token prompt is digested in 34 milliseconds while generating 2,000 tokens takes ten seconds, why long contexts suddenly blow up VRAM, and why modern architectures like Llama-3 share key and value heads — we need to trace two things: **what gets recomputed**, and **how fast bytes can cross the memory bus**.
+
+---
+
+## 1. The wasteful loop — and the memoisation trick
+
+Recall from [Next-Token Prediction & Perplexity](#/learn/next-token-prediction) that an autoregressive transformer generates text one token at a time. Suppose you feed it a 512-token prompt and ask for a 256-token reply.
+
+If you naively call the model on the growing sequence at every step:
+1. Step 1 feeds 512 tokens in, runs all 32 layers on every token, and reads only token 512’s logits to pick token 513.
+2. Step 2 feeds **513** tokens in, recomputes the hidden states, queries, keys and values for all 512 earlier tokens from scratch, and throws away the first 512 outputs again.
+3. By step 256, you have run **163,712** token forward passes — over **213×** more work than the 767 tokens in the conversation!
+
+Now remember the <Term id="causal-mask">causal mask</Term> from [The Transformer Block](#/learn/transformer-block). Because token 3 is forbidden from ever looking at token 4, 5 or 6, token 3’s hidden state — and therefore its key vector $k_3$ and value vector $v_3$ in every layer — **never changes** once token 3 has been processed.
+
+So instead of recomputing past keys and values on every step, we save them in GPU memory: the **<Term id="kv-cache">KV cache</Term>**.
+
+- **Prefill** processes your entire prompt in one parallel pass, filling the cache with $k_1 \dots k_P$ and $v_1 \dots v_P$ for every layer.
+- **Decode** processes **only the single new token**, computes its $q_t, k_t, v_t$, appends $k_t$ and $v_t$ to the cache, and scores $q_t$ against all cached keys.
+
+Crucially, this is **exact memoisation, not an approximation**. Step through the real 4-dimensional causal attention layer below and check the difference between the uncached and cached outputs.
+
+<KvCacheStepper />
+
+For a 2,048-token prompt generating 512 tokens, the KV cache cuts token forward passes from **1,179,392** down to **2,559** (a **461×** reduction) with **zero** numerical error (maximum absolute difference `0.00e+0` in our layer).
+
+Nothing in computing is free, though. We just traded redundant **compute** for persistent **GPU memory** — and at modern context lengths, that memory bill grows alarmingly fast.
+
+---
+
+## 2. How big is the KV cache — and why GQA exists
+
+Every single token you keep in the conversation needs a Key vector and a Value vector saved at **every layer** and **every KV head**, for **every concurrent user** in the batch. Put those factors together and the exact memory formula writes itself:
+
+<Eq
+  words="KV cache bytes  =  2 (K and V)  ×  layers  ×  KV heads  ×  head size  ×  context  ×  batch  ×  bytes per number"
+  tex="\text{KV bytes} \;=\; 2 \cdot \ca{L} \cdot \cb{n_{\text{kv}}} \cdot \cc{d_{\text{head}}} \cdot \cp{n_{\text{ctx}}} \cdot \cv{B} \cdot \cg{b_{\text{kv}}}"
+  legend={[
+    ['L', 'number of transformer layers (32 in Llama-3 8B, 80 in 70B)', 'a'],
+    ['n_{\\text{kv}}', 'key–value heads per layer (equals query heads in MHA; smaller in GQA)', 'b'],
+    ['d_{\\text{head}}', 'dimension per attention head (typically 128)', 'c'],
+    ['n_{\\text{ctx}}', 'sequence length in tokens (prompt + generated)', 'p'],
+    ['B', 'batch size — how many users are served simultaneously', 'v'],
+    ['b_{\\text{kv}}', 'bytes per cached number (2 for FP16/BF16, 1 for FP8, 0.5625 for INT4 w/ scales)', 'g'],
+  ]}
+/>
+
+Plug in **Llama-3 8B** if it had used classic Multi-Head Attention (32 layers, 32 KV heads, head size 128, FP16):
+
+$$2 \times 32 \times 32 \times 128 \times 2\text{ bytes} \;=\; 524,288\text{ bytes} \;=\; 512\text{ KiB per token.}$$
+
+At 128k context ($128 \times 1,024 = 131,072$ tokens), **one single user’s** KV cache would consume **64.0 GiB** — more than **4×** the 14.96 GiB of the 8B model’s own FP16 weights! On a 70B model with 80 layers and 64 heads, MHA would require **2.5 MiB per token**, or **320.0 GiB** at 128k context — four 80 GiB H100 GPUs just to hold one conversation’s cache.
+
+That is why almost every modern open-weight LLM uses **<Term id="gqa">Grouped-Query Attention (GQA)</Term>**: keep all $n_q$ query heads so the model can still ask many different questions in parallel, but let groups of query heads **share** a smaller number $n_{\text{kv}}$ of Key and Value heads.
+
+- **Llama-3 8B** shares 8 KV heads across 32 query heads (4:1 GQA), cutting cache size 4× from 512 KiB/token down to **128 KiB/token** (**16.0 GiB** at 128k context).
+- **Llama-3 70B** shares 8 KV heads across 64 query heads (8:1 GQA), cutting cache size 8× from 320.0 GiB down to **40.0 GiB** at 128k context.
+
+Explore the trade-off live below — flip between GQA and hypothetical MHA, drag context length up to 128k, and raise the batch size.
+
+<KvCalculator />
+
+Notice the uncomfortable truth even *with* GQA: **weights are fixed, while the KV cache grows linearly with context length and batch size.** Serve 16 concurrent users at 32k context on Llama-3 8B in FP16 and the KV cache hits **64.0 GiB**, dwarfing the 14.96 GiB model weights by more than 4-to-1.
+
+---
+
+## 3. The roofline: why single-user decoding starves a \$30,000 GPU
+
+Now we can answer the mystery from the opening paragraph.
+
+A modern GPU like an **NVIDIA H100 SXM** has two headline numbers:
+- **Peak compute:** **989 TFLOP/s** of dense FP16/BF16 Tensor Core arithmetic.
+- **Memory bandwidth:** **3.35 TB/s** streaming bytes out of its 80 GiB HBM3 stack into the compute units.
+
+Divide peak compute by memory bandwidth and you get the GPU’s **ridge point**:
+
+<Eq
+  words="Ridge point  =  peak compute speed  ÷  memory bandwidth"
+  tex="\cb{I_{\text{ridge}}} \;=\; \frac{\ca{P_{\text{peak}}}}{\cc{B_{\text{mem}}}} \;=\; \frac{989\text{ TFLOP/s}}{3.35\text{ TB/s}} \;\approx\; 295\text{ FLOPs/byte}"
+  legend={[
+    ['I_{\\text{ridge}}', 'minimum FLOPs per byte needed to keep Tensor Cores 100% busy', 'b'],
+    ['P_{\\text{peak}}', 'GPU peak arithmetic throughput (FLOP/s)', 'a'],
+    ['B_{\\text{mem}}', 'GPU VRAM memory bandwidth (bytes/s)', 'c'],
+  ]}
+/>
+
+Think of the Tensor Cores as a kitchen of 100 Michelin-starred chefs, and HBM3 bandwidth as a single dumbwaiter bringing ingredients up from the cellar. To keep all 100 chefs busy on an H100, **every single byte** delivered by the dumbwaiter must trigger **295 floating-point operations**.
+
+Now ask yourself: how many FLOPs per byte does **single-user decoding** actually do?
+
+<Predict
+  question="Suppose an H100 (989 TFLOP/s, 3.35 TB/s) runs Llama-3 8B in FP16 to generate one token at a time for a single user (batch = 1, 2k context). Roughly what fraction of the H100’s Tensor Cores are busy?"
+  options={[
+    'Around 80–100% — an 8B model is huge, so it saturates the GPU.',
+    'Around 20–40% — some overhead, mostly compute.',
+    'Less than 1% — almost the entire GPU sits idle waiting for bytes from VRAM.',
+  ]}
+  answer={2}
+  explain="To generate 1 token, the GPU must stream ALL 16.06 GB of FP16 weights from HBM just to perform 2N ≈ 16.06 GFLOPs of multiply-adds — an arithmetic intensity of barely 1.05 FLOPs/byte! Against the H100’s 295 FLOP/byte ridge point, only 0.36% of the Tensor Cores are busy; 99.6% sit idle waiting on memory."
+/>
+
+Look at the simple arithmetic behind that shock:
+- In a forward pass of $T$ tokens through a model with $N$ parameters, linear layers do $\approx 2NT$ FLOPs (the exact same $2ND$ forward factor we met in [Scaling Laws](#/learn/scaling-laws)).
+- Regardless of whether $T = 1$ or $T = 2,048$, the GPU has to stream all $N \cdot b_w$ bytes of model weights from HBM **once**.
+- When $T = 1$ (batch = 1 decoding) in FP16 ($b_w = 2$ bytes), the ratio is literally:
+  $$\frac{2N \times 1}{2N} \;=\; 1\text{ FLOP/byte!}$$
+
+That single ratio explains **four** major facts of LLM engineering at once:
+
+1. **Decoding is <Term id="memory-bound">memory-bandwidth bound</Term>.** On an H100 at 2k context, Llama-3 8B FP16 hits **0.36%** Tensor Core utilisation and tops out at **205.2 tok/s** (roofline ceiling).
+2. **Weight quantisation speeds up single-user decoding directly.** Compressing Llama-3 8B’s weights from 16 bits to **INT4 (4.5 b)** cuts the bytes streamed per token by ~3.5× — lifting the H100 single-user ceiling from **205.2 tok/s** to **700.1 tok/s**, with the exact same FLOP count!
+3. **Prefill is compute-bound.** Feeding a 2,048-token prompt all at once multiplies the same weights by 2,048 vectors simultaneously. Arithmetic intensity jumps to **2,082 FLOPs/byte** — way past the 295 ridge point — saturating **100%** of the H100’s Tensor Cores and digesting all 2,048 tokens in **34.4 ms**!
+4. **Batching rescues decode utilisation.** Serving $B = 64$ users together reads the model weights *once* for all 64 users, multiplying total throughput **31×** (from 205 to **6,450 tok/s** at 2k context) while per-user speed only halves to **100.8 tok/s**.
+
+And watch one more twist in the roofline widget below: set **Llama-3 8B + INT4 weights** on an H100 at **B = 1**, then drag context length from **2k** up to **128k**. Speed plummets from **700.1 tok/s** down to **154.4 tok/s** — because reading 16 GiB of FP16 KV cache every single step now dwarfs reading the 4.2 GiB of INT4 weights! Flip KV cache to **FP8** and speed immediately jumps back to **255.6 tok/s**.
+
+<RooflineExplorer />
+
+<Deeper title="Roofline ceiling vs real-world inference engines">
+Our roofline calculator reports the **exact hardware upper bound**: $\text{time} = \max(\text{FLOPs}/P_{\text{peak}},\; \text{Bytes}/B_{\text{mem}})$. Real serving engines like **vLLM**, **SGLang** and **TensorRT-LLM** typically achieve **70–85%** of HBM bandwidth during decode (so an H100 running Llama-3 8B FP16 hits ~150 tok/s against our 205.2 tok/s ceiling) and **50–70%** of peak Tensor Core FLOPs during prefill. Three production techniques close the remaining gaps:
+
+- **FlashAttention** fuses attention into on-chip SRAM so the $n \times n$ attention matrix is never written to slow HBM.
+- **PagedAttention (vLLM)** allocates KV caches in small fixed-size pages like virtual memory, eliminating VRAM fragmentation so much larger batches fit.
+- **Speculative decoding** uses a tiny draft model to propose 4–8 tokens ahead, then verifies them in *one* parallel forward pass of the big model — sneaking extra tokens into that idle 99.6% of Tensor Core capacity for free!
+</Deeper>
+
+---
+
+## 4. Lab: VRAM Tetris
+
+Every inference engineer ends up playing the same game: **VRAM Tetris**. You have a fixed GPU memory wall, a model, a context-length target, a concurrency target, and a latency SLA. Weights, KV cache, and runtime scratchpad all compete for the exact same VRAM — and every byte you put in the KV cache not only eats capacity, it also has to be read across the memory bus on *every single generated token*.
+
+Solve all three engineering briefs below. Each brief has multiple valid solutions (counted exhaustively across all 441 grid settings) and an optional optimisation target. Watch **Brief 3** especially: you may be surprised whether weight precision or KV precision wins when serving 32 long-context users!
+
+<VramTetrisLab />
+
+---
+
+## 5. Twenty lines of Python to verify every number
+
+You do not need a cluster or a profiler to sanity-check whether a deployment will fit and how fast it can possibly run. Twenty lines of plain Python reproduce our exact Llama-3 8B GQA and H100 roofline numbers:
+
+```python
+def kv_cache_gib(layers, kv_heads, d_head, ctx_len, batch=1, bytes_per_elem=2):
+    total_bytes = 2 * layers * kv_heads * d_head * ctx_len * batch * bytes_per_elem
+    return total_bytes / (1024 ** 3)
+
+def decode_tok_s(params_b, w_bytes, kv_gib, bw_tb_s):
+    total_bytes = params_b * 1e9 * w_bytes + kv_gib * (1024 ** 3)
+    return (bw_tb_s * 1e12) / total_bytes
+
+# Llama-3 8B (32 layers, 8 KV heads, d_head=128) at 128k context, FP16
+kv_gqa = kv_cache_gib(32, 8, 128, 131072, bytes_per_elem=2)
+kv_mha = kv_cache_gib(32, 32, 128, 131072, bytes_per_elem=2)
+print(f"8B @ 128k FP16 KV: GQA = {kv_gqa:.1f} GiB, MHA = {kv_mha:.1f} GiB")
+
+# Single-user H100 (3.35 TB/s) decode roofline at 2k context: FP16 vs INT4 weights
+kv_2k = kv_cache_gib(32, 8, 128, 2048, bytes_per_elem=2)
+s_fp16 = decode_tok_s(8.03, 2.0, kv_2k, 3.35)
+s_int4 = decode_tok_s(8.03, 0.5625, kv_2k, 3.35)
+print(f"H100 B=1 @ 2k: FP16 = {s_fp16:.1f} tok/s, INT4 = {s_int4:.1f} tok/s")
+```
+
+Running it prints:
+
+```text
+8B @ 128k FP16 KV: GQA = 16.0 GiB, MHA = 64.0 GiB
+H100 B=1 @ 2k: FP16 = 205.2 tok/s, INT4 = 700.1 tok/s
+```
+
+---
+
+## Check your understanding
+
+<Quiz questions={questions} />
