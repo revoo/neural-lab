@@ -150,4 +150,4 @@ The learning rate is often the single most important setting in training a neura
 
 </InTheWild>
 
-There's one piece missing. Gradient descent needs the slope of the loss with respect to *every* weight — potentially billions of them — at every step. Computing those efficiently is the job of backpropagation, and it's next.
+There's one piece missing. Gradient descent needs the slope of the loss with respect to *every* weight — potentially billions of them — at every step. Computing those efficiently is the job of backpropagation. Before we get there, though, we'll look harder at the other ingredients: what exactly the loss should measure, how to estimate its slope cheaply, and the optimizers and schedules that walk downhill better than a plain step.

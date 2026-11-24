@@ -74,8 +74,8 @@ export const MODULES: ModuleMeta[] = [
       { id: 'loss-functions', title: 'Loss Functions: What Does “Wrong” Mean?', summary: 'Squared error, absolute error and cross-entropy — what each one really asks the model for, and why the choice matters.', minutes: 25, load: () => import('./lessons/loss-functions/index.mdx') },
       { id: 'sgd-minibatch', title: 'Stochastic Gradient Descent and Mini-Batches', summary: 'Why a noisy gradient from a handful of examples beats an exact one from millions.', minutes: 25, load: () => import('./lessons/sgd-minibatch/index.mdx') },
       { id: 'optimizers', title: 'Momentum, RMSProp and Adam', summary: 'Two simple fixes for gradient descent’s weaknesses, and the optimizer that combines them — racing on the same landscapes.', minutes: 30, load: () => import('./lessons/optimizers/index.mdx') },
+      { id: 'lr-schedules', title: 'Learning-Rate Schedules', summary: 'Fast or precise? Why the best step size changes during training — and how to design a schedule yourself.', minutes: 25, load: () => import('./lessons/lr-schedules/index.mdx') },
     ],
-    planned: ['Learning-rate schedules'],
   },
   {
     id: 'backprop',

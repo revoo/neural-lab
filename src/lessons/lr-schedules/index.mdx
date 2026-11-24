@@ -1,0 +1,148 @@
+import { FastOrPrecise, ScheduleRace, ScheduleDesigner } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: what the step size should be depends on *when* you ask
+
+At the end of the SGD lesson, the one-example-at-a-time runner reached the bottom of the bowl quickly and then never settled. Every step was based on a noisy estimate, so even at the minimum it kept getting nudged in random directions.
+
+That leaves an awkward choice. A **big** step size makes fast progress while the model is far from good, but leaves it rattling around once it's close. A **small** step size settles precisely, but takes forever to get anywhere. Feel the dilemma:
+
+<FastOrPrecise />
+
+Neither run is right. The big step size wastes the end of training; the small one wastes the beginning. And this isn't a quirk of this problem. It's true of essentially all training with mini-batches, because the noise never goes away.
+
+The way out is almost embarrassingly simple: **don't use one step size**. Use a big one at the start and a small one at the end. A plan for how the step size changes during training is called a **<Term id="lr-schedule">learning-rate schedule</Term>**.
+
+<Analogy title="Think of parking a car">
+
+You don't park at motorway speed, and you don't drive to the car park at parking speed. You go fast while the destination is far away and the exact position doesn't matter, then slow right down for the last few metres, where small corrections are all that's needed. Nobody thinks of this as two different driving skills. It's one journey with a speed that changes as you get closer.
+
+</Analogy>
+
+## Why the jitter depends on the step size
+
+It's worth seeing exactly why a constant step size can't settle. Near the minimum, the true gradient is almost zero, but each mini-batch's estimate isn't: the examples still disagree, so every estimate carries some noise (the SGD lesson measured it). Each step moves the weights by step size × estimate, so every step adds a random kick whose size is proportional to the step size. The model ends up wandering in a cloud around the minimum, and the size of that cloud is set by the step size.
+
+<Eq
+  words="\text{leftover jitter} \;\propto\; \text{step size} \times \frac{\text{noise in each example's gradient}}{\text{batch size}}"
+  tex="\text{excess loss} \;\propto\; \cb{\eta} \cdot \frac{\cg{\sigma^2}}{\cc{B}}"
+>
+
+- **excess loss** — how far above the best possible loss the model sits on average once it has stopped improving
+- $\cb{\eta}$ — the **step size**
+- $\cg{\sigma^2}$ — how much the **individual examples' gradients disagree** (their variance)
+- $\cc{B}$ — the **batch size**: averaging over more examples shrinks the noise
+- $\propto$ — "**is proportional to**": double the step size, roughly double the jitter
+
+</Eq>
+
+We checked this on the delivery problem: with batches of 4 and long runs, a constant step size of 0.003 leaves the model about 0.024 above the best loss; 0.01 leaves 0.059; 0.1 leaves 0.72; 0.3 leaves 3.8. Close to proportional. So the only ways to settle more precisely are a bigger batch or a smaller step — and a smaller step is free, as long as you only switch to it once you're already close.
+
+## Shapes of schedule
+
+People have tried many shapes. Three are common enough to know by name, plus one variation:
+
+- **Step decay:** keep the step size constant, then divide it by 10 at fixed points — for example halfway through and three-quarters of the way through. Simple, and for years the standard for image models.
+- **Cosine decay:** glide smoothly from the peak to (almost) zero along half a cosine wave. It spends a long time near the peak, then eases off, then lingers at small values.
+- **Warmup:** start *small*, ramp up to the peak over the first few percent of training, then decay. Odd-looking, given everything above — we'll come back to why.
+
+<Eq
+  words="\text{step size at step } t = \text{peak} \times \tfrac{1}{2}\Big(1 + \cos\big(\pi \times \text{fraction of training done}\big)\Big)"
+  tex="\cb{\eta_t} = \cp{\eta_{\max}} \cdot \frac{1}{2}\left(1 + \cos\frac{\pi\, \cc{t}}{\cc{T}}\right)"
+>
+
+- $\cb{\eta_t}$ — the **step size at step $t$**
+- $\cp{\eta_{\max}}$ — the **peak** step size, used at the start
+- $\cc{t} / \cc{T}$ — the **fraction of training done**: 0 at the start, 1 at the end
+- the cosine goes from 1 to −1 as $\pi t / T$ goes from 0 to $\pi$, so the bracket goes from 2 to 0 — the step size glides from the peak to **zero**
+
+</Eq>
+
+Here they all are, racing on a fixed budget of 400 steps. As in the optimizer race, each gets its own best peak step size, found by search, so we're comparing shapes, not luck in tuning.
+
+<Predict
+  question="Each schedule uses its best possible peak step size. How does the best **cosine** schedule compare with the best **constant** step size at the end of 400 steps?"
+  options={['About the same — once tuned, the shape hardly matters', 'Somewhat closer to the best loss — maybe 20% better', 'More than twice as close to the best loss']}
+  answer={2}
+>
+
+In our runs, the best constant step size ends 0.20 above the best possible loss, and the best cosine schedule 0.085: about 2.4 times closer, for exactly the same amount of computation. Step decay lands in between at 0.12.
+
+</Predict>
+
+<ScheduleRace />
+
+Notice the peak step sizes the search chose: the decaying schedules can afford a *higher* peak than the constant one, because they don't have to live with it at the end. A constant step size has to compromise between the two phases; a schedule doesn't.
+
+### What about warmup?
+
+In this race, warmup made things very slightly worse. That's not an accident of tuning. We also tried it where it's often recommended: training a small ReLU network on a spiral dataset with Adam, at peak step sizes from 0.01 up to 0.1, across 8 random starts. With or without 100 steps of warmup, every single run reached 100% accuracy. In small problems like these, warmup has nothing to fix.
+
+It earns its keep in large models, where the beginning of training is fragile. At the start, the weights are random, so gradients can be unusually large and erratic, and Adam's running averages of gradient sizes are based on only a handful of steps, so its per-weight step sizes are unreliable. A full-sized step in that state can knock a large network into a bad region it never recovers from — a sudden loss spike, or many ReLUs dying at once. Warming up gives the averages time to settle and the weights time to leave the most chaotic region before taking big steps. That's why the original transformer paper warmed up for its first 4,000 steps, and why almost every large language model does the same today.
+
+It's a good example of a habit you should keep: a technique that matters at scale may do nothing in a toy problem, and the honest thing is to say so rather than invent a demo.
+
+## Your turn: design a schedule
+
+Cosine is a sensible shape, but nothing says it's the best one. Here you draw your own.
+
+<ScheduleDesigner />
+
+There's no single solution. Holding a high step size for most of training and then dropping it sharply works; so does decaying steadily from a large start; so do shapes in between. What they share is the lesson of this page: **the end of training needs small steps.** Try raising only the last knot of a good schedule and watch how much damage that one change does.
+
+## In code
+
+In PyTorch, a schedule wraps an optimizer and is stepped alongside it:
+
+```python
+optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_steps)
+
+for step in range(num_steps):
+    loss = loss_fn(model(x), y)
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+    scheduler.step()          # move to the next step size on the schedule
+```
+
+Warmup followed by cosine decay is short enough to write directly, which many training codebases do:
+
+```python
+import math
+
+def lr_at(step, total, peak, warmup):
+    if step < warmup:
+        return peak * (step + 1) / warmup                     # linear ramp up
+    progress = (step - warmup) / (total - warmup)
+    return peak * 0.5 * (1 + math.cos(math.pi * progress))    # cosine down to zero
+
+for g in optimizer.param_groups:      # set it by hand each step
+    g["lr"] = lr_at(step, total, peak=3e-4, warmup=2000)
+```
+
+<Misconception>
+
+"Adam adapts its own step sizes, so it doesn't need a schedule." Adam adapts the *relative* step size of each weight — which weights move more than others. It does nothing about the overall step size, and it suffers from the same jitter near the end of training as plain SGD, because its steps are still built from noisy mini-batch gradients. That's why AdamW in large-model training is almost always paired with warmup and a decay schedule.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- With mini-batches, a constant step size leaves the model **jittering** around the minimum, by an amount roughly proportional to the step size.
+- So use **big steps early, small steps late**: a learning-rate schedule. Step decay and cosine decay are the common shapes.
+- Decaying schedules can afford a **higher peak** than a constant step size, because they don't keep it until the end. On our problem, cosine finished 2.4× closer to the best loss than the best constant step size.
+- **Warmup** protects fragile early training in large models. In small problems it does nothing — we checked.
+- The **end** of the schedule matters most: a schedule that finishes with a big step size throws away its precision.
+
+</Takeaways>
+
+<InTheWild>
+
+A typical recipe for pretraining a large language model is AdamW with a linear warmup over the first few thousand steps to a peak around $3 \times 10^{-4}$, then cosine decay to about a tenth of the peak. Some recent models use a "warmup–stable–decay" schedule instead: hold the peak for most of training, then decay quickly at the very end — close to the "hold then drop" shapes you may have found in the designer. Its practical appeal is that you can keep training from the stable phase and only decay when you decide to stop.
+
+</InTheWild>
+
+That completes the optimisation toolkit: a loss to say what's wrong, mini-batches to estimate its slope cheaply, an optimizer to follow it, and a schedule to settle at the end. One piece is still being taken on trust: how the slope of the loss with respect to every weight is computed in the first place. That's backpropagation, and it's next. After it, the training laboratory puts every piece in your hands at once.
