@@ -1,3 +1,4 @@
+// authored-by: Neon High
 /**
  * A tiny, real neural language model (2-word context → embeddings → tanh hidden → softmax)
  * plus fair smoothed n-gram baselines, trained and evaluated on a clean train / val / test split.

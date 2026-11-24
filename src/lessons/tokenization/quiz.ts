@@ -1,3 +1,4 @@
+// authored-by: Neon High
 import type { Question } from '../../components/quizTypes';
 
 export const questions: Question[] = [

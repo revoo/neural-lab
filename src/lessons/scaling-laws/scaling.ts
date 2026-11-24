@@ -1,3 +1,4 @@
+// authored-by: Neon High
 /**
  * Parametric neural scaling laws:
  *   L(N, D) = E + A / N^α + B / D^β,   with training compute C ≈ 6 N D

@@ -1,3 +1,4 @@
+// authored-by: Neon High
 /**
  * Decoding & sampling engine: temperature scaling, top-k, top-p (nucleus) filtering,
  * sharp vs flat context benchmarks, exhaustive slider-grid search for the Sampler Lab,

@@ -1,3 +1,4 @@
+// authored-by: Neon High (extended from initial BPE engine by GPT-6 Astra)
 /**
  * Byte-pair encoding, small enough to watch: learn merges from a corpus, then tokenise new text by
  * replaying them. Words are split on whitespace and each ends with "_", the end-of-word marker, so
