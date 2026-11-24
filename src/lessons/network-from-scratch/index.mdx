@@ -1,0 +1,142 @@
+import { CodeStepper, BackwardLab } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: you know every part; can you build the machine?
+
+By now you've met every component of a neural network separately. The forward pass is a matrix multiplication per layer. The loss measures how wrong the output is. Backpropagation is the chain rule run backwards. Gradient descent takes a step downhill.
+
+In <LessonLink to="backpropagation">the backpropagation lesson</LessonLink> you even built an autograd engine — one number at a time, each `Value` remembering its parents. That's the clearest way to *understand* backprop, and a hopeless way to *run* it: a modest network has millions of weights, and nobody pushes millions of little objects through a graph.
+
+Real code works on whole matrices at once: a whole batch of examples, a whole layer of weights, in one line. This lesson writes a complete neural network that way, from scratch, in about fifteen lines — the same lines that sit, heavily optimised, inside PyTorch. Then you'll write the hardest part yourself.
+
+## Every example at once
+
+The network is the smallest one that can learn XOR: 2 inputs, 3 hidden tanh neurons, 1 sigmoid output. The data is the four XOR cases.
+
+The key move is to stack the four examples as the **rows** of one matrix, $X$, of shape (4, 2). Then one matrix multiplication, `X @ W1`, computes every hidden neuron's tally for every example at once: row $i$ of the result is example $i$, column $j$ is hidden neuron $j$. It's exactly the "many dot products at once" picture from <LessonLink to="matrix-multiplication">the matrix multiplication lesson</LessonLink>, with the examples as the rows.
+
+Step through one complete training step: forward, loss, backward, update. Watch the shapes as much as the numbers.
+
+<CodeStepper />
+
+Two things to notice. In the forward pass, the 4 — the number of examples — rides along untouched in the first dimension of everything: (4, 2), then (4, 3), then (4, 1). And in the backward pass, every gradient comes out with *exactly the shape of the thing it's the gradient of*: `dW1` is (2, 3) like `W1`, `dh` is (4, 3) like `h`. That's not a coincidence, and it's the key to writing backward passes yourself.
+
+## The backward pass, written by its shapes
+
+Here's a remarkable fact: for matrix code, you can very nearly write the backward pass by reasoning about shapes alone.
+
+Take the first layer's line, `z1 = X @ W1`. Backprop has already worked out `dz1`: how the loss responds to each entry of `z1`, a (4, 3) matrix, one number per example per hidden neuron. You want `dW1`, which must have `W1`'s shape, (2, 3). The ingredients are `X`, which is (4, 2), and `dz1`, which is (4, 3).
+
+<Predict
+  question="Using only `X` (4×2) and `dz1` (4×3), with transposes and one matrix multiplication, which expression can produce a 2×3 result?"
+  options={['X @ dz1', 'X.T @ dz1', 'dz1 @ X.T', 'dz1.T @ X']}
+  answer={1}
+>
+
+Only `X.T @ dz1`: (2, 4) @ (4, 3) → (2, 3). `X @ dz1` doesn't fit at all ((4, 2) @ (4, 3): the inner 2 and 4 disagree), `dz1 @ X.T` gives (4, 4), and `dz1.T @ X` gives (3, 2), the transpose of what you need.
+
+And it isn't just a trick that happens to fit; it's the right answer. Entry $(i, j)$ of `X.T @ dz1` is $\sum_{\text{examples}} X[\text{ex}, i]\cdot dz1[\text{ex}, j]$: for weight $W1[i, j]$, add up over every example *its input times the blame on its output*. That's the single-neuron rule from <LessonLink to="neuron">the neuron lesson</LessonLink>, input × error, summed over the batch. The sum over examples happens inside the matrix multiplication, where the 4s meet and disappear.
+
+</Predict>
+
+The same reasoning gives the gradient flowing back into the layer's *input*: `dh` must be (4, 3) like `h`, and the only way to make it from `dz2` (4, 1) and `W2` (3, 1) is `dz2 @ W2.T`. Each hidden output receives the blame on the output tally, passed back along the same weight that carried its signal forward. So every matrix multiplication in the forward pass gets two lines in the backward pass:
+
+<Eq
+  words="\text{forward: output} = \text{input} @ \text{weights} \quad\Longrightarrow\quad \begin{cases} \text{blame on input} = \text{blame on output} @ \text{weights}^{\mathsf T} \\ \text{slope for weights} = \text{input}^{\mathsf T} @ \text{blame on output} \end{cases}"
+  tex="\cp{Z} = \ca{A}\,\cc{W} \;\Longrightarrow\; \frac{\partial L}{\partial \ca{A}} = \cg{\frac{\partial L}{\partial \cp{Z}}}\,\cc{W}^{\mathsf T}, \qquad \frac{\partial L}{\partial \cc{W}} = \ca{A}^{\mathsf T}\,\cg{\frac{\partial L}{\partial \cp{Z}}}"
+>
+
+- $\ca{A}$ — the layer's **input**, one row per example (`X` or `h`)
+- $\cc{W}$ — the layer's **weights**, (inputs × outputs)
+- $\cp{Z}$ — the layer's **output tallies**, one row per example
+- $\cg{\partial L / \partial Z}$ — the **blame** on each output tally: how the loss responds to it. Same shape as $Z$
+- ${}^{\mathsf T}$ — **transpose**: swap rows and columns. It's what lines the shapes up
+
+</Eq>
+
+The other lines are simpler. An elementwise operation like `h = tanh(z1)` passes blame back elementwise, multiplied by its local slope: `dz1 = dh * (1 - h**2)`, using the fact that the slope of tanh is $1 - \tanh^2$, which we already have in `h`. A bias added to every row gets the blame summed over the rows: `db1 = dz1.sum(axis=0)`. And the very first line, `dz2 = (p - y) / n`, is the sigmoid-plus-cross-entropy simplification you met in the neuron lesson, divided by $n$ because the loss is an average over the $n$ examples.
+
+## Lab: write the backward pass
+
+Now it's your turn. The forward pass is given; five lines of the backward pass are blank. For each, choose an expression. Think about shapes first, then about meaning.
+
+<BackwardLab />
+
+<Deeper title="Debrief: what the lab was really testing" tag="Spoiler">
+
+Of the $4^5 = 1{,}024$ ways to fill the five blanks, **24 are correct**, and the gradient check accepts every one of them. They're the same maths written differently:
+
+- `(dz2.T @ h).T` equals `h.T @ dz2`, because transposing a product reverses it: $(AB)^{\mathsf T} = B^{\mathsf T} A^{\mathsf T}$.
+- `dz2 * W2.T` equals `dz2 @ W2.T` here. A (4, 1) column times a (1, 3) row, by broadcasting, is the same outer product the matrix multiplication computes when the inner dimension is 1.
+- `dh * (1 - tanh(z1)**2)` equals `dh * (1 - h**2)`, because `h` *is* `tanh(z1)`. Real frameworks take the second route — reuse the stored forward result instead of recomputing — and that's why training needs so much more memory than prediction: every layer's output has to be kept until the backward pass has used it.
+
+Of the wrong answers, the shape errors are the friendly ones: the interpreter stops you. The dangerous ones fit perfectly and are still wrong. And two of them train anyway. With `dz2 = (p - y)`, forgetting to divide by $n$, the gradient is four times too big, which is just the same as a four times bigger step size, so XOR gets solved regardless. With `(p - y) * p * (1 - p) / n` (the slope you'd get for squared error, not cross-entropy), XOR is also solved, just more slowly: a loss of 0.10 after 300 steps instead of 0.0096. A wrong gradient often still points roughly downhill.
+
+That's the lesson inside the lesson. **"It trained" is not evidence that your gradients are right.** Bugs in hand-written backward passes routinely produce models that learn, just worse than they should, and nothing ever crashes. The numerical gradient check — nudge each weight, measure the change in loss, compare — is how you know.
+
+</Deeper>
+
+## In code
+
+The whole thing, end to end, in NumPy. Every line is one you've now seen run.
+
+```python
+import numpy as np
+
+X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]], dtype=float)   # (4, 2): one row per example
+y = np.array([[0], [1], [1], [0]], dtype=float)               # (4, 1)
+n = len(X)
+
+rng = np.random.default_rng(1)
+W1, b1 = rng.normal(0, 0.63, (2, 3)), np.zeros((1, 3))       # input → hidden
+W2, b2 = rng.normal(0, 0.71, (3, 1)), np.zeros((1, 1))       # hidden → output
+lr = 1.0
+
+for step in range(300):
+    # forward
+    z1 = X @ W1 + b1;  h = np.tanh(z1)
+    z2 = h @ W2 + b2;  p = 1 / (1 + np.exp(-z2))
+    loss = -np.mean(y * np.log(p) + (1 - y) * np.log(1 - p))
+
+    # backward: each matmul gives two lines, each elementwise op one
+    dz2 = (p - y) / n
+    dW2 = h.T @ dz2;   db2 = dz2.sum(axis=0, keepdims=True)
+    dh  = dz2 @ W2.T
+    dz1 = dh * (1 - h ** 2)
+    dW1 = X.T @ dz1;   db1 = dz1.sum(axis=0, keepdims=True)
+
+    # update
+    W1 -= lr * dW1;  b1 -= lr * db1
+    W2 -= lr * dW2;  b2 -= lr * db2
+
+print(loss, (p > 0.5).astype(int).ravel())   # small loss, [0 1 1 0]
+```
+
+(The random numbers differ from the widget's, so the exact losses will too; the shapes and the rules don't.) In PyTorch the backward half disappears: you write the forward lines with tensors that have `requires_grad=True`, call `loss.backward()`, and autograd runs exactly these rules for you. Each built-in operation — matmul, tanh, sum — ships with its own little backward formula, like the ones in the equation above, and autograd chains them together just as your scalar engine did.
+
+<Misconception>
+
+"Deep learning frameworks compute gradients in some cleverer way than this." They compute them in exactly this way: every operation has a backward rule, matrix multiplications turn into multiplications by transposes, and the chain rule strings them together in reverse. What frameworks add is engineering — running the matmuls on GPUs, fusing operations, managing the memory for stored activations — not different maths. If you can write this lab's fifteen lines, you understand what `loss.backward()` does.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- Real networks process a whole **batch** at once: examples are the rows of a matrix, and each layer is one matrix multiplication.
+- **Every gradient has the shape of the thing it's the gradient of.** That alone nearly determines the backward pass.
+- For $Z = AW$: blame on the input is $\frac{\partial L}{\partial Z} W^{\mathsf T}$, and the slope for the weights is $A^{\mathsf T}\frac{\partial L}{\partial Z}$ — input × blame, summed over the batch inside the matmul.
+- Elementwise operations pass blame back elementwise, times their local slope; biases get the blame summed over the batch.
+- Training stores every layer's output for the backward pass, which is why it needs far more memory than prediction.
+- "It trained" doesn't prove the gradients are right. **Check them numerically.**
+
+</Takeaways>
+
+<InTheWild>
+
+Writing a backward pass by hand and verifying it with a numerical gradient check is a rite of passage. It's the core of the assignments in Stanford's CS231n course, which has introduced many thousands of engineers to deep learning, precisely so that `loss.backward()` never feels like magic. Andrej Karpathy's popular "micrograd" and "makemore" walkthroughs do the same: build the scalar engine, then the matrix version, then compare against PyTorch's gradients number by number. Professional framework developers still write gradient checks for every new operation they add.
+
+</InTheWild>
+
+You've now built, by hand, everything a training framework does. From here on, the course can lean on that machinery and turn to architectures that do far more than XOR.

@@ -692,3 +692,15 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 0; }
 .clinic-select { display: flex; flex-direction: column; }
 .clinic-select select { font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--bg); color: var(--text); }
 .clinic-evidence .readout { font-size: 12.5px; line-height: 1.6; }
+
+/* ---------- Network from scratch: code stepper and backward-pass lab ---------- */
+.nfs-code { font-family: var(--font-mono); white-space: pre; font-size: 13.5px; line-height: 1.7; background: var(--bg-sunken); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 0; overflow-x: auto; }
+.nfs-line { border-radius: 4px; padding: 0 4px; margin: 0 -4px; }
+.nfs-line.on { background: var(--accent-soft); color: var(--accent-text); font-weight: 650; box-shadow: inset 3px 0 0 var(--accent); }
+.nfs-line.bad { background: color-mix(in srgb, var(--c-bad) 14%, transparent); }
+.nfs-pick { font-family: var(--font-mono); font-size: 13px; padding: 2px 4px; border-radius: 5px; border: 1px solid var(--border-strong); background: var(--bg-elev); color: var(--text); max-width: 100%; }
+.nfs-mats { display: flex; flex-wrap: wrap; gap: 12px; }
+.nfs-mat { border-radius: 6px; }
+.nfs-mat-head { font-size: 12.5px; margin-bottom: 3px; }
+.nfs-mat .num-table td { padding: 2px 6px; font-size: 12px; }
+.nfs-golf { margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--border-strong); }
