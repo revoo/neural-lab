@@ -1,0 +1,76 @@
+import { LogicWorkbench } from './LogicWorkbench'
+import { questions } from './quiz'
+
+## A machine you build with your own hands
+
+So far, you've watched neurons do things. In this lab, you'll *build* with them.
+
+Here's a fact that surprised people in 1943, when Warren McCulloch and Walter Pitts first wrote it down: a neuron that does nothing more than add up weighted inputs and fire when the total crosses a threshold can behave like a **logic gate** — the AND, OR and NOT gates that every computer chip is built from. And if neurons can be logic gates, then a network of them can, in principle, compute anything a computer can.
+
+That's a big claim. The best way to believe it is to wire up a few gates yourself.
+
+## The parts bin
+
+You get a very simple kind of neuron. It takes inputs that are either 0 (off) or 1 (on), weighs them, adds its bias, and then makes the crudest possible decision: **if the tally is above zero, it fires (outputs 1). Otherwise it stays silent (outputs 0).**
+
+<Eq
+  words="\text{fires} \;\text{ if }\; \big(\text{weight}_A \times A \;+\; \text{weight}_B \times B \;+\; \text{bias}\big) > 0"
+  tex="\text{out} = \begin{cases} 1 & \text{if } \ca{w_A}\,A + \cb{w_B}\,B + \cc{b} > 0 \\ 0 & \text{otherwise}\end{cases}"
+>
+
+- $A$, $B$ — the two **inputs**, each either 0 (off) or 1 (on)
+- $\ca{w_A}$, $\cb{w_B}$ — **weights**: how much each input pushes the tally up (positive) or down (negative)
+- $\cc{b}$ — **bias**: the starting tally before any input is counted — the neuron's default mood
+
+</Eq>
+
+Weights and biases come in half-steps between −2 and +2. The puzzles start with a single neuron and work up to circuits with a hidden layer. There's no single right answer to any of them — many different settings work, and part of the fun is noticing *why* they work.
+
+<LogicWorkbench />
+
+### If you get stuck
+
+Think in terms of **what the bias means**: it's the tally when every input is off. Then each input that switches on adds its weight. For AND, you want "nothing" and "one input" to stay at or below zero, but "both inputs" to climb above it. Every single-neuron puzzle is a variation on that reasoning: decide where the tally *starts*, and how far each input *moves* it.
+
+For XOR, remember the last lesson: one neuron draws one line, and XOR needs two. So use the hidden layer to build two simpler detectors — gates you've already built — and let the output neuron combine their answers. That's the whole trick of hidden layers, and now it's in your hands rather than on a diagram.
+
+## What you just discovered
+
+If you solved XOR, step back and look at your circuit. You'll likely find something like this:
+
+- One hidden neuron detects **"A is on but B isn't"**.
+- Another detects **"B is on but A isn't"**.
+- The output neuron fires if **either** detector fires.
+
+Or perhaps you went another way: one neuron for "at least one is on" (OR), another for "not both" (NAND), and an output that fires only when both agree. Both designs work, and they're genuinely different machines. That's not a quirk of the puzzle — it's true of real networks too. Training can find many different internal arrangements that solve the same problem equally well, which is one reason peering inside a trained network is hard.
+
+Notice what the hidden neurons are doing: each one turns the raw inputs into a **more useful feature**, and the output neuron finds the problem easy once it's looking at those features instead of the raw inputs. This is the deepest idea in deep learning, in miniature. A network's hidden layers are feature builders: each layer re-describes the data in terms that make the next layer's job simpler.
+
+<Callout kind="note" title="If you chased the lowest cost">
+
+The "parts cost" adds up the size of every weight and bias — roughly, how much machinery your circuit uses. It doesn't affect whether the circuit works. But the cheapest solutions tend to be the ones where every part does exactly one job, and finding them forces you to understand precisely what each weight contributes. Real training has a direct analogue: **weight decay** gently pushes every weight towards zero during learning, preferring lean solutions over bloated ones — often because they generalise better to new data.
+
+</Callout>
+
+## The catch
+
+You just designed a handful of weights by thinking hard about four input combinations. A modern language model has billions of weights and has to handle every sentence anyone might type. Nobody can design that by hand.
+
+So the real question isn't whether neurons *can* compute things — you've just proved they can. It's how a network can find good weights **on its own**, from examples. Keep the feeling of nudging those weights by hand, watching rows flip from ✕ to ✓. Learning, as you'll see next, is a principled way of doing exactly that, automatically.
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- A threshold neuron can act as a logic gate: the **bias** sets its default, and each **weight** says how much an input moves it towards firing.
+- One neuron handles AND, OR, NAND and similar gates, but not XOR — it can only draw one line.
+- A **hidden layer** builds simpler features (like "A but not B") that make the output's job easy. That's what hidden layers do in every network.
+- Many different weight settings solve the same problem. Leaner solutions exist, and training methods like weight decay deliberately favour them.
+
+</Takeaways>
+
+<InTheWild>
+
+The logic-gate view of neurons is mostly historical — modern networks use smooth activations and real-valued inputs, and nobody designs them gate by gate. But the core insight lives on in **mechanistic interpretability**, a research field that reverse-engineers trained networks. Researchers have found small "circuits" inside real models — groups of neurons and attention heads that detect a specific pattern and pass it on — that look strikingly like the hand-built circuits you just made.
+
+</InTheWild>
