@@ -1,5 +1,7 @@
 # Neural Lab — instructions for Claude
 
+(Other coding agents: the same rules are in `AGENTS.md`. Keep the two files in sync.)
+
 An interactive website teaching AI from first principles to software engineers and lifelong learners: Feynman-style explanation, 3Blue1Brown-style visuals, Zachtronics-style labs. Every visualisation computes real numbers.
 
 ## Read before doing any work
@@ -18,7 +20,8 @@ Start with **`HANDOFF.md`** — the step-by-step onboarding procedure, lesson ch
 - **Conversational, warm, precise prose.** Structural analogies, predict-before-reveal, let the learner feel the problem first, address real misconceptions. No jargon-for-its-own-sake, no forced enthusiasm.
 - **No fake interactivity.** Widgets compute real values; captions say what to try; live notes explain the current state.
 - **Labs/puzzles:** primitives + clear objective + observable machinery + multiple solutions; working solution first, optional optimisation goals after, with optimums computed rather than guessed. No badges or points.
-- Verify numbers you quote in prose (run them).
+- Verify numbers you quote in prose (run them) and pin them with tests; run every code snippet. Compare methods fairly and report honestly (see the style guide).
+- Three themes (light, dark, matrix): colour widgets only via CSS variables and check all three plus phone width.
 - **After every finished lesson: commit, push, and update the "Current state" block in `docs/ROADMAP.md`** — the session may end at any time and another agent must be able to continue (see `HANDOFF.md`).
 
 ## Commands
@@ -28,7 +31,8 @@ npm run dev     # http://localhost:5173
 npm test        # Vitest: maths, simulations, lesson logic
 npm run build   # typecheck + production build
 node scripts/check-pages.cjs   # with dev server running: loads every lesson, reports console errors and phone-width overflow
-node scripts/shoot-widgets.cjs <lessonId>   # screenshots of every widget, light + dark, into scratch/shots
+node scripts/check-pages.cjs --theme=matrix   # the same in the matrix theme
+node scripts/shoot-widgets.cjs <lessonId>   # screenshots of every widget, light + dark + matrix, into scratch/shots
 node scripts/drive-widget.cjs <lessonId> <i> '<actions JSON>'   # click/drag a widget and screenshot it
 ```
 
