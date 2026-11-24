@@ -1,0 +1,207 @@
+import { BpeStepper, WordTokenizer, Utf8LanguageTax, CompressionLab } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: neural networks only eat numbers
+
+Across the last four lessons you built a complete transformer: attention, multiple heads, rotary positions, residual streams, layer norm and feed-forward networks. Every single layer expects the same thing at the door: a sequence of **vectors**, one per token.
+
+Text is not a sequence of vectors. It is a string of characters — English prose, Python code, numbers, typos, Japanese, emoji. Before the first matrix multiplication can run, something has to chop that string into pieces and turn each piece into an integer ID, so the model can look up its row in the embedding table. That front door is **<Term id="tokenization">tokenisation</Term>**, and choosing the wrong way to chop text breaks the whole machine in one of two opposite ways.
+
+Try the two obvious ideas first:
+
+- **One token per character.** The vocabulary is tiny — a few dozen letters, or 256 raw bytes — and you can spell literally anything, including new words and typos. So why not stop here? Because sequences become four or five times longer. Remember attention's $(n \times n)$ score matrix: make a document **4× longer** and attention has to compare **16× as many pairs**. Worse, the model has to spend its early layers just re-assembling letters into words before it can start thinking about meaning.
+- **One token per word.** Sequences are wonderfully short. Now the other end explodes. English alone has hundreds of thousands of forms once you count plurals, tenses, hyphenations, names, code identifiers and typos (`cat`, `cats`, `cat's`, `fastest`, `unwatched`, `getUserById`). Every single one needs its own row in the embedding table — and the moment a user types a word that wasn't in the training dictionary, it collapses into a single blind `<UNK>` ("unknown") token, its spelling and meaning gone for good.
+
+You want both: short sequences for common words, and the ability to spell out anything rare or brand new.
+
+<Analogy title="Think of a printer's type case with custom shorthand blocks">
+
+An old printing press has a tray of metal letter blocks: one for `a`, one for `b`, one for `c`. Setting a whole book one letter at a time is slow, so a clever printer casts a few extra fused blocks for pieces that show up on every page — `the`, `ing`, `cat`, `est`.
+
+Common words now go down in a single stamp. Rare or invented words — say `unwatched` — don't break the press: the printer simply stamps `u`, `n`, `watch`, `ed` from the blocks already in the tray. No word is ever unprintable, and the tray stays small enough to carry.
+
+</Analogy>
+
+That middle ground — **subword tokenisation** — is what every modern language model uses. And the algorithm that decides which blocks to cast is absurdly simple.
+
+## Byte-pair encoding: compression as vocabulary building
+
+The workhorse algorithm behind GPT-2, GPT-4 and Llama 3 is **<Term id="bpe">byte-pair encoding (BPE)</Term>**, originally invented in 1994 as a plain data-compression trick. Here is the entire training loop:
+
+1. Split the training text into words, break each word into single symbols, and tack an end-of-word marker `_` onto the end (so `cat_` as a whole word stays distinct from `cat` at the start of `catfish`).
+2. Count every adjacent pair of symbols across the whole corpus.
+3. Take the single most frequent pair and fuse it into one brand-new symbol. Record that merge rule.
+4. Repeat until you reach your target vocabulary size — or until no pair appears more than once.
+
+That's it. No grammar rules, no dictionary, no linguistics. Just "glue together whichever two neighbours appear together most often".
+
+<Predict
+  question="Our tiny 10-line corpus has 107 words (50 distinct), starting as 531 single-character tokens. After 28 merges, roughly how much does the n² attention cost shrink compared to character level?"
+  options={[
+    'Barely changes — 28 merges is tiny compared to 531 tokens',
+    'Drops by about half (to around 50%)',
+    'Drops by about three quarters (to around 25%)',
+  ]}
+  answer={2}
+>
+
+It drops to **about 25%** — a fourfold saving. Because BPE always merges the *most frequent* pairs first, the first 28 merges do enormous work: they cut the corpus in half, from 531 tokens down to **264**. Halve the sequence length $n$ and $n^2$ falls to one quarter ($0.497^2 \approx 0.247$). By the final merge (66), the corpus is down to 177 tokens — one third as long, and just **11%** of the character-level attention pairs.
+
+</Predict>
+
+Watch it happen on our corpus, one merge at a time.
+
+<BpeStepper />
+
+Look closely at what emerged from pure frequency counting:
+
+- By **merge 4**, `th + e_` has fused into `the_`, giving the most common word in English its own single block.
+- By **merge 14**, `e + st_` has fused into `est_`. Nobody told the algorithm what a superlative is; it discovered a reusable suffix shared by *fastest*, *slowest*, *oldest*, *youngest* and *warmest*.
+- By **merge 66**, every remaining adjacent pair in the corpus appears only once, so BPE stops with **177 tokens** and a vocabulary of **88** symbols (the 22 starting symbols plus 66 merged ones).
+
+## Encoding new text — and why LLMs can't count letters
+
+Once training is done, the corpus is thrown away. All the tokeniser keeps is the **ordered list of merge rules**. To tokenise a brand-new word, you split it into starting symbols and replay those exact rules from #1 to #$k$, fusing any matching pair as you go.
+
+Try it yourself — start with `strawberry`, then click `unwatched`, `fastest slowest warmest`, and `123456`.
+
+<WordTokenizer />
+
+Three things in that widget explain half of the weird quirks people notice in ChatGPT and Claude:
+
+1. **Unseen words don't break.** `unwatched` never appeared once in our training corpus, yet at 66 merges it splits cleanly into `u | n | watch | ed_`. The model recognises the stem `watch` and the past-tense ending `ed_` without ever emitting `<UNK>`.
+2. **Models are blind to spelling.** With all 66 merges active, `strawberry` becomes `st | r | a | w | berr | y | _`. The transformer does not receive the letters `s-t-r-a-w-b-e-r-r-y`. It receives seven opaque integer IDs — with the first `r` in one token and the other two glued inside `berr`. Asking a language model how many `r`s are in `strawberry`, or to reverse a word, is like handing you seven arbitrary part numbers and asking how many times the letter `r` appeared on the labels before they were thrown away.
+3. **Numbers get chopped unevenly.** Try `123456` above — none of those digits appeared in our toy corpus, so they fall through as single symbols. In a real tokeniser trained on web text, common numbers like `2024` or `100` become single tokens while `2027` or `749281` break into awkward 1-, 2- and 3-digit chunks (`749 | 281`). Column-by-column arithmetic is much harder when the columns don't line up across token boundaries. (Some newer models, such as Llama 3, explicitly cap number tokens to 1–3 digits — or split digits one by one — to help.)
+
+## Byte-level BPE and the non-English token tax
+
+Notice what happened when you typed `123456` or a symbol like `é` into the toy tokeniser above: our corpus only had 22 lowercase letters, so digits showed up as `byte`. If you started BPE from Unicode characters instead, there are over 150,000 of them — far too many to keep as a base vocabulary.
+
+GPT-2 solved this neatly in 2019: **start BPE from the 256 raw UTF-8 bytes.** Every string in every language, every line of code and every emoji is already a sequence of bytes in `0..255`. No character can ever be unknown, and the base alphabet is fixed at 256 symbols forever.
+
+There is a hidden catch, though. UTF-8 was designed to be compact for ASCII (plain English letters take 1 byte each). Other scripts need 2, 3 or 4 bytes per character — before a single merge has even happened.
+
+<Utf8LanguageTax />
+
+Look at the same seven-word sentence ("The cat sat on the warm mat.") across scripts: English starts at **28 bytes** (1.00 byte per character), Greek at **56 bytes** (1.81/char), Japanese at **45 bytes** for just 15 characters (3.00/char), Hindi at **71 bytes** (2.63/char), and four emoji at **16 bytes** (4.00/char). On top of that, because most training corpora are heavily English, English words win far more of the BPE merge budget. The practical consequence is real: a non-English user often pays **2–4× as many tokens** for the same meaning, which means 2–4× the API bill, 2–4× slower generation, and a context window that fills up 2–4× faster.
+
+## Writing it down: how many merges is right?
+
+If every merge shrinks the corpus, why not keep merging forever? Try measuring the corpus alone as fixed-width token IDs: $N$ tokens from a vocabulary of size $V$ take $N \cdot \log_2 V$ bits (remember from <LessonLink to="information">the logarithms and entropy lesson</LessonLink> that choosing one item out of $V$ possibilities costs $\log_2 V$ bits). On our corpus, that number falls on *every single merge*, from 2,368 bits at 0 merges down to 1,143 bits at 66 — there is no sweet spot at all if you ignore the cost of the vocabulary!
+
+In reality, the vocabulary isn't free. In a transformer, every extra token adds a full $d$-dimensional row to the embedding table (and the output layer): recall from <LessonLink to="transformer-block">the transformer block lesson</LessonLink> that GPT-2 small's 50,257-token embedding table is 31% of the entire model. And in compression, you can't decode a compressed file unless you also transmit the **merge table** — each of the $M$ merges names two existing token IDs, costing $2 \cdot \log_2 V$ bits apiece.
+
+Add the two bills together and you get the **minimum description length** — the total bits needed to send the corpus *and* the dictionary needed to read it:
+
+<Eq
+  words="\text{total cost} = \underbrace{\text{tokens} \times \text{bits per ID}}_{\text{the corpus}} \;+\; \underbrace{\text{merges} \times 2 \times \text{bits per ID}}_{\text{the merge table}}"
+  tex="\cc{L} = \ca{N}\,\log_2 \cb{V} \;+\; 2\,\cp{M}\,\log_2 \cb{V}"
+>
+
+- $\ca{N}$ — the number of **tokens** left in the corpus after merging (falls with every merge)
+- $\cp{M}$ — the number of **merges** in your table (grows by 1 each step)
+- $\cb{V}$ — the **vocabulary size**, $V = V_0 + M$ (starts at 22 on our corpus); each token ID takes $\log_2 V$ bits to name
+- $\cc{L}$ — the **total description length** in bits: both the encoded corpus and the merge table needed to decode it
+
+</Eq>
+
+Now there is a real trade-off. Early merges remove dozens of tokens at once and easily pay for themselves. Late merges remove only 2 or 3 tokens while adding 2 IDs to the table *and* nudging $\log_2 V$ slightly higher for every token left in the corpus.
+
+## Lab: compress the corpus
+
+Your turn. You start at 0 merges (**2,368 bits**). Build your own merge table by clicking whichever adjacent pairs you think are worth fusing — or switch to **Sweep BPE** to inspect the exact curve across all 0–66 greedy merges. Your first goal is to get below **1,900 bits** (many different merge choices work). Optional goal: see if you can match BPE's exhaustive optimum.
+
+<CompressionLab />
+
+<Deeper title="After the lab: where the sweet spot sits, and why" tag="Debrief">
+
+Across every one of the 67 greedy BPE checkpoints (0 to 66 merges), the exhaustive minimum is **28 merges** at **1,806 bits** (264 tokens, vocabulary 50) — down from 2,368 bits at 0 merges, and well below the 1,996 bits you get if you merge all the way to 66.
+
+Look at the exact turning point between merge 28 and merge 29:
+
+- **Merge 28** (`n + g`, count **4**) removes 4 tokens from the corpus (saving 14.7 corpus bits) while adding 12.9 bits to the merge table: a net win.
+- **Merge 29** (`s + at_`, count **3**) removes only 3 tokens (saving 9.5 corpus bits) against 12.9 table bits: a net loss, and every count-3 and count-2 merge after it makes the total worse.
+
+Even a beam search over non-greedy merge orders finds the same 1,806-bit floor on this corpus. Real language models make the exact same compromise on a different scale: instead of a merge-table bit count, they balance shorter sequences (faster attention, longer effective context) against the memory and data needed to train $V$ embedding rows (rare tokens barely appear in training, so their vectors stay under-trained). That balance has drifted upward as training sets grew: GPT-2 used $V = 50{,}257$; GPT-4's `cl100k_base` used $100{,}277$; Llama 3 and GPT-4o use $128{,}256$ and $200{,}019$.
+
+</Deeper>
+
+## In code
+
+The entire BPE trainer and encoder — no libraries beyond Python's standard `Counter`:
+
+```python
+from collections import Counter
+
+def learn_bpe(text, num_merges):
+    words = Counter(tuple(w) + ("_",) for w in text.lower().split())
+    merges = []
+    for _ in range(num_merges):
+        pairs = Counter()
+        for word, freq in words.items():
+            for a, b in zip(word, word[1:]):
+                pairs[(a, b)] += freq
+        if not pairs:
+            break
+        best, count = pairs.most_common(1)[0]
+        if count < 2:
+            break
+        merges.append(best)
+        a, b = best
+        updated = Counter()
+        for word, freq in words.items():
+            out, i = [], 0
+            while i < len(word):
+                if i < len(word) - 1 and word[i] == a and word[i + 1] == b:
+                    out.append(a + b)
+                    i += 2
+                else:
+                    out.append(word[i])
+                    i += 1
+            updated[tuple(out)] += freq
+        words = updated
+    return merges
+
+def encode(word, merges):
+    symbols = list(word.lower()) + ["_"]
+    for a, b in merges:
+        out, i = [], 0
+        while i < len(symbols):
+            if i < len(symbols) - 1 and symbols[i] == a and symbols[i + 1] == b:
+                out.append(a + b)
+                i += 2
+            else:
+                out.append(symbols[i])
+                i += 1
+        symbols = out
+    return symbols
+```
+
+Run on our 10-line corpus with `num_merges = 66`, this learns the exact same 66 merges (`('a', 't')`, `('e', '_')`, `('t', 'h')`, `('th', 'e_')`, `('at', '_')`…) and encodes `"strawberry"` to `['st', 'r', 'a', 'w', 'berr', 'y', '_']` and `"unwatched"` to `['u', 'n', 'watch', 'ed_']`. Production tokenisers like OpenAI's `tiktoken` and Hugging Face's `tokenizers` add two things for speed and cleanliness: a regex pre-splitter (so punctuation and spaces don't merge strangely across word boundaries) and fast Rust implementations over UTF-8 bytes.
+
+<Misconception>
+
+"Tokenisation is just a minor preprocessing step — the transformer does all the real work." In practice, tokeniser choices quietly govern a huge share of a model's behaviour and cost. They decide why a model struggles with spelling, rhymes and arithmetic; why leading spaces matter (`" cat"` and `"cat"` are different tokens in GPT-style tokenisers); why Python's four-space indentation used to burn four tokens per indent level until GPT-4 added multi-space whitespace tokens; and why non-English languages cost multiples as much to run. A surprising number of "LLM limitations" turn out to be tokeniser limitations in disguise.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- Neural networks only take **integer IDs** (which look up rows in an embedding table). **Tokenisation** chops raw text into those pieces.
+- **Character-level** encoding keeps the vocabulary tiny but blows up sequence length (and $n^2$ attention cost). **Word-level** encoding keeps sequences short but explodes the vocabulary and breaks on unseen words (`<UNK>`).
+- **Byte-pair encoding (BPE)** starts from base symbols and repeatedly merges the most frequent adjacent pair. Common words become single tokens, reusable suffixes like `est_` emerge automatically, and unseen words decompose cleanly into known pieces.
+- Starting from the **256 raw UTF-8 bytes** eliminates `<UNK>` for any language, code or emoji — at the price of a 2–4× starting byte tax on non-Latin scripts.
+- Because the model only ever sees **opaque token IDs**, tasks that depend on individual characters (counting `r`s in `strawberry`, reversing words, misaligned multi-digit arithmetic) are much harder than they look to a human reader.
+- Choosing the vocabulary size is a genuine **compression vs vocabulary-cost trade-off** — shorter sequences versus a larger merge table and embedding matrix.
+
+</Takeaways>
+
+<InTheWild>
+
+OpenAI's GPT-2 (2019) popularised byte-level BPE with a vocabulary of 50,257 tokens (256 raw bytes + 50,000 merges + one special `<|endoftext|>` token). As training sets grew into trillions of tokens across code and dozens of languages, vocabularies expanded too: GPT-4 moved to ~100k tokens (adding dedicated tokens for runs of spaces, which dramatically sped up code generation), and Llama 3 and GPT-4o jumped to ~128k and ~200k tokens largely to cut the non-English token tax. Meanwhile, Google's Gemini and older models like T5 use **SentencePiece** (often with a probabilistic Unigram model instead of greedy BPE) — a different recipe solving the exact same subword trade-off.
+
+</InTheWild>
+
+You now have the entire transformer from raw text to output logits. Next: Module 13 — how a stack of blocks actually writes, one predicted token at a time, and how temperature, top-$k$ and top-$p$ turn probabilities into prose.
