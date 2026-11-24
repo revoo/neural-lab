@@ -35,6 +35,8 @@ An experienced software engineer and lifelong learner — *not* a university stu
 3. **…but don't over-correct: maths is still first-class and necessary.** Make it accessible and unintimidating, not hidden. Use descriptive names for symbols rather than bare `x`, `y` (e.g. "bias — the neuron's default mood"). → Implemented as the `Eq` component: plain-English word equation on top, colour-coded symbols, legend underneath. `MathExhibit` is only for genuinely deeper optional material.
 4. **Turn concepts into open-ended engineering puzzles** where appropriate: primitives, a well-defined objective, observable behaviour, freedom to find one's own solution. Functional solution first; optional optimisation objectives (accuracy, parameter count, compute, memory, training time) afterwards. Never artificially cryptic.
 
+5. **Work so that anyone can pick up at any moment** (session 2). After each finished lesson: commit, push, and update `docs/ROADMAP.md` ("Current state" and "Next steps") and `HANDOFF.md` if the procedure changed. Assume the session may disconnect after any lesson and another agent will continue from the repository alone — leave plans, decisions and gotchas written down, not in your head.
+
 ## Lesson methodology
 
 Ideally each major lesson: (1) explain the problem, (2) build an intuitive mental model, (3) interactive visualisation, (4) let the learner manipulate variables, (5) explain the maths, (6) show code, (7) test understanding, (8) a challenging experiment exposing an edge case or limitation, (9) summarise transferable principles, (10) connect to real-world AI.

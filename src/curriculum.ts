@@ -58,8 +58,10 @@ export const MODULES: ModuleMeta[] = [
     number: 3,
     title: 'Neural Network Architecture',
     blurb: 'Wiring neurons into layers, and layers into networks you can inspect neuron by neuron.',
-    lessons: [],
-    planned: ['Layers and forward propagation', 'The network playground', 'Depth, width and parameter counts'],
+    lessons: [
+      { id: 'forward-propagation', title: 'Layers and the Forward Pass', summary: 'How neurons are organised into layers, and how an input flows through them — one matrix multiplication at a time.', minutes: 25, load: () => import('./lessons/forward-propagation/index.mdx') },
+    ],
+    planned: ['The network playground', 'Depth, width and parameter counts'],
   },
   {
     id: 'optimization',

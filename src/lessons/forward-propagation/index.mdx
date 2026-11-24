@@ -1,0 +1,217 @@
+import { ForwardStepper } from './ForwardStepper'
+import { FeatureGallery } from './FeatureGallery'
+import { questions } from './quiz'
+
+## The problem: from three neurons to three thousand
+
+In the logic lab you built XOR out of three neurons, wiring each one by hand. You knew exactly which neuron fed which, and you could trace any input through the circuit in your head.
+
+That doesn't scale. A small image classifier has a few thousand neurons; a language model has millions. We need two things before we can even talk about networks that size:
+
+1. **An organising principle** — some regular way of wiring neurons, so that "the network" is a short description instead of a tangle of individual connections.
+2. **A precise recipe** for how an input becomes an output: what gets computed, in what order, using what.
+
+The organising principle is the **<Term id="layer">layer</Term>**, and the recipe is the **<Term id="forward-pass">forward pass</Term>**. Together they're the subject of this lesson — and once you have them, a network of any size is just more of the same.
+
+## The idea: departments that only read each other's reports
+
+<Analogy title="Think of a company organised into departments">
+
+A company has to answer one question about each customer request. Nobody looks at the request and decides alone. Instead:
+
+- The **first department** reads the raw request. Each person in it checks one simple thing and writes a one-number report.
+- The **second department** never sees the request. Each person in it reads *all* of the first department's reports, weighs them according to their own priorities, and writes their own one-number report.
+- And so on, until a final department of one person reads the last batch of reports and gives the answer.
+
+Everyone in a department works at the same time, from the same pile of reports, without talking to each other. Each department only ever reads the reports of the department immediately before it.
+
+</Analogy>
+
+Each person is a neuron: a weighted sum of what they read, plus a bias, passed through an activation. Each department is a **layer**. And because every person in a department reads the same pile of reports, the whole department's work is a single matrix multiplication — the "panel of judges" from <LessonLink to="matrices">the matrices lesson</LessonLink>, where each row of the matrix is one judge's weights.
+
+Let's make this concrete with a network small enough to understand completely. Its job: look at a point on a map and decide whether it's **land**. The map has two triangular islands. I've set every weight by hand so that each neuron has a clear job — you'll soon see what those jobs are.
+
+## Follow one point through the network
+
+<ForwardStepper />
+
+Step through it a few times with the point in different places — inside each island, in the sea between them, right on a coast. Things to notice:
+
+- **Each layer waits for the one before it.** Layer 2 can't start until all six of layer 1's answers exist. That's the "forward" in forward pass: values flow strictly from input to output, one layer at a time.
+- **Within a layer, nothing waits.** The six coastline neurons don't depend on each other at all; they all read the same two input numbers. That independence is exactly what lets the whole layer be written as one matrix multiplication — and computed in parallel on a GPU.
+- **Each layer has two stages.** First the *linear* stage (multiply by the weights, add the biases), which mixes all the inputs together. Then the *activation*, which acts on each number separately. Mixing, then bending; mixing, then bending.
+- **The shapes tell the story.** A layer with 6 neurons reading 2 inputs has a 6 × 2 weight matrix: one row per neuron, one column per input. The shape of the matrix *is* the shape of the layer.
+
+## Writing it down
+
+Everything the stepper did is one rule, applied once per layer. You've seen every piece of it; the only new thing is a way of saying *which* layer.
+
+<Eq
+  words="\text{this layer's outputs} = \text{response}\big(\text{this layer's weights} \times \text{previous layer's outputs} + \text{this layer's biases}\big)"
+  tex="\cp{\mathbf{a}^{(l)}} = \cg{f}\big(\ca{W^{(l)}}\,\mathbf{a}^{(l-1)} + \cc{\mathbf{b}^{(l)}}\big)"
+>
+
+- $(l)$ — the **layer number**. It's a label, not a power: $W^{(2)}$ means "the weights of layer 2", not "$W$ squared". (Some books write $W_l$ or $W^{[l]}$ instead.)
+- $\mathbf{a}^{(l-1)}$ — the **previous layer's outputs**, as one vector. For the first layer, it's the input itself: $\mathbf{a}^{(0)} = \mathbf{x}$.
+- $\ca{W^{(l)}}$ — the layer's **weight matrix**: one row per neuron, one column per input. Row $j$ is neuron $j$'s preferences.
+- $\cc{\mathbf{b}^{(l)}}$ — the layer's **biases**, one per neuron: each one's default mood.
+- $\cg{f}$ — the **activation**, applied to each number on its own.
+- $\cp{\mathbf{a}^{(l)}}$ — this layer's **outputs**, which become the next layer's input.
+
+</Eq>
+
+If the single-neuron formula $a = f(\mathbf{w}\cdot\mathbf{x} + b)$ is one judge, this is the whole panel: the vector of weights became a matrix of them (one row per judge), the bias became a vector of biases, and the single output became a vector of outputs. Nothing else changed.
+
+The whole network is that rule applied three times, each layer's output fed to the next:
+
+<Eq
+  words="\text{answer} = \text{layer 3}\Big(\text{layer 2}\big(\text{layer 1}(\text{input})\big)\Big)"
+  tex="\cp{\hat{y}} = \cg{f}\Big(\ca{W^{(3)}}\;\cg{f}\big(\ca{W^{(2)}}\;\cg{f}(\ca{W^{(1)}}\mathbf{x} + \cc{\mathbf{b}^{(1)}}) + \cc{\mathbf{b}^{(2)}}\big) + \cc{\mathbf{b}^{(3)}}\Big)"
+>
+
+- $\mathbf{x}$ — the **input**: here, a point's position (east, north)
+- $\cp{\hat{y}}$ — the network's **answer** ("y-hat" — the hat means "predicted", to distinguish it from the true answer $y$)
+- read it **inside-out**: the innermost bracket is layer 1, which runs first
+
+</Eq>
+
+For a programmer, that nesting is just function composition: `layer3(layer2(layer1(x)))`. A neural network *is* a function — a big, nested, parameterised one — and the forward pass is simply calling it.
+
+## What each layer builds
+
+The stepper showed you numbers. But the most important thing about layers isn't the arithmetic — it's what each layer *represents*.
+
+<Predict
+  question="The first neuron of layer 2 listens to the west island's three coastline detectors with weights **5, 5, 5** and a bias of **−12.5**. It ignores the other three. Picture its output for every point on the map. Where is it close to 1?"
+  options={['Along the west island’s coastline', 'Everywhere inside the west island', 'Everywhere except the west island', 'It can only be a straight line, like every neuron']}
+  answer={1}
+>
+
+Each coastline detector is near 1 on the land side of its stretch of coast. With a bias of −12.5, the tally only gets above zero when all three are near 1 — that is, on the land side of *all three* coasts at once. That's exactly the inside of the triangle. Below, click that neuron and see for yourself.
+
+The last option is the interesting wrong answer. A neuron *does* draw a straight line — but in the space of its own inputs, which here are the six coastline answers, not the map. Seen from the map, the line has been bent into a triangle by the layer before.
+
+</Predict>
+
+<FeatureGallery />
+
+Read the network left to right and you'll see a progression:
+
+- **Layer 1 draws lines.** Every first-layer neuron is the single neuron from earlier lessons, so each can only split the map with one straight line.
+- **Layer 2 builds shapes.** By combining lines (here, with an AND), it carves out regions — triangles — that no single neuron could produce.
+- **Layer 3 combines shapes.** By combining regions (here, with an OR), it represents something more complex still: land, made of two separate islands.
+
+Each layer **re-describes** the input in terms that make the next layer's job easy. To the final neuron, "is this land?" is a trivial question — its inputs already say "in the west island" and "in the east island". All the hard work was done by building the right description, step by step.
+
+This is the central idea of deep learning, in miniature. In a trained image classifier, researchers find something similar but messier: early layers respond to edges and colour blobs, middle layers to textures and simple parts, later layers to whole objects. Nobody designed those features. Training discovered them, because building up a description layer by layer is the most effective way to solve the problem.
+
+<Callout kind="note" title="A caution about the tidy story">
+
+I set these weights by hand, so every neuron has a job I can name. Trained networks are rarely this neat. A trained neuron usually responds to some blend of things, and different training runs find different arrangements. The "lines, then shapes, then combinations" picture is a real and useful way to think about depth — but don't expect to find a neuron labelled "west island" in a network that learned its weights for itself.
+
+</Callout>
+
+The "break it" experiment shows something else worth remembering. Silencing one coastline detector didn't just smudge the map — it deleted an entire island, two layers downstream, because the island detector needed all three votes. Neurons in a network depend on each other. When you meet a network that fails in a strange way, that chain of dependencies is where you'll go looking.
+
+## A whole batch at once
+
+So far, one point at a time. In practice you almost never run a network on one input: you run it on a **<Term id="batch">batch</Term>** of inputs together — 32 images, or 512 sentences, or every point in a dataset.
+
+The trick is to stack the inputs as the rows of a matrix. Then the same weights meet every input in one big matrix multiplication:
+
+| | one input | a batch of 32 inputs |
+| --- | --- | --- |
+| input | `(2,)` | `(32, 2)` — one point per row |
+| layer 1 | `(6, 2)` weights → `(6,)` | `(32, 2) @ (2, 6)` → `(32, 6)` |
+| layer 2 | `(2, 6)` weights → `(2,)` | `(32, 6) @ (6, 2)` → `(32, 2)` |
+| layer 3 | `(1, 2)` weights → `(1,)` | `(32, 2) @ (2, 1)` → `(32, 1)` — one answer per point |
+
+Two details are worth noticing. First, with a batch, inputs are rows, so the weight matrix appears **transposed** (flipped so rows become columns): `X @ W.T`. That's purely a bookkeeping convention, and libraries hide it. Second, the bias vector is added to every row at once — that's **broadcasting**, from <LessonLink to="matrix-multiplication">the tensors lesson</LessonLink>.
+
+Why bother? Because a GPU does one big matrix multiplication far faster than thirty-two small ones. The arithmetic is identical; the hardware just loves the bigger shape.
+
+### What it costs
+
+You can now count the cost of a network from its shape alone. Each layer stores one weight per (neuron, input) pair plus one bias per neuron, and does one multiply-add per weight:
+
+| layer | weights | biases | multiply-adds per input |
+| --- | --- | --- | --- |
+| 1: 2 → 6 | 12 | 6 | 12 |
+| 2: 6 → 2 | 12 | 2 | 12 |
+| 3: 2 → 1 | 2 | 1 | 2 |
+| **total** | | **35 parameters** | **26** |
+
+Thirty-five numbers describe the whole land detector. The same counting rule tells you that a classic digit-recognising layer reading a 28 × 28 image (784 pixels) into 128 neurons has 784 × 128 + 128 = 100,480 parameters. We'll take that counting much further two lessons from now, when we ask whether it's better to spend parameters on *more layers* or *wider ones*.
+
+## In code
+
+The forward pass is a short loop over layers. Here it is with the exact weights from the widgets:
+
+```python
+import numpy as np
+
+def sigmoid(z):
+    return 1 / (1 + np.exp(-z))
+
+k = 4  # steepness of the coastlines
+layers = [
+    # (weights: one row per neuron, biases)
+    (k * np.array([[0, 1], [2, -1], [-2, -1], [0, -1], [-2, 1], [2, 1]]),
+     k * np.array([0.8, 3, -0.6, 1, 2.6, -1.4])),            # 6 coastline detectors
+    (np.array([[5, 5, 5, 0, 0, 0], [0, 0, 0, 5, 5, 5]]),
+     np.array([-12.5, -12.5])),                              # 2 island detectors
+    (np.array([[6, 6]]), np.array([-3])),                    # 1 "land" neuron (OR)
+]
+
+def forward(x):
+    a = x
+    for W, b in layers:
+        a = sigmoid(W @ a + b)     # mix, then bend
+    return a
+
+forward(np.array([-0.9, 0.0]))     # array([0.944]) — inside the west island
+forward(np.array([0.0, 0.0]))      # array([0.117]) — the strait between the islands
+
+# A batch: one point per row. Note the transpose.
+X = np.array([[-0.9, 0.0], [0.0, 0.0], [1.0, 0.45]])
+A = X
+for W, b in layers:
+    A = sigmoid(A @ W.T + b)       # (3, 2) → (3, 6) → (3, 2) → (3, 1)
+```
+
+In PyTorch, the same network is three `nn.Linear` layers with activations in between, and `nn.Linear(2, 6)` stores its weight with shape `(6, 2)` — one row per neuron, exactly as here:
+
+```python
+model = nn.Sequential(
+    nn.Linear(2, 6), nn.Sigmoid(),
+    nn.Linear(6, 2), nn.Sigmoid(),
+    nn.Linear(2, 1), nn.Sigmoid(),
+)
+model(torch.tensor([[-0.9, 0.0]]))   # calling the model *is* the forward pass
+```
+
+<Misconception>
+
+"Neurons in the same layer pass information to each other." They don't, in a standard feed-forward network. Every neuron in a layer reads the same inputs (the previous layer's outputs) and computes its answer independently; none of them sees what its neighbours decided until the *next* layer reads all their answers together. That's not a limitation people put up with — it's the reason a layer is one matrix multiplication and runs in parallel. (Architectures that do pass information sideways or around in loops exist, such as recurrent networks, and they pay for it in speed.)
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- A **layer** is a set of neurons that all read the same inputs and work independently. That makes the whole layer one matrix multiplication: $\mathbf{a}^{(l)} = f(W^{(l)}\mathbf{a}^{(l-1)} + \mathbf{b}^{(l)})$.
+- The **weight matrix** has one row per neuron and one column per input, so a layer of $n$ neurons reading $m$ inputs has an $n \times m$ matrix.
+- The **forward pass** applies the layers in order, each feeding the next: a network is a nested function, `layer3(layer2(layer1(x)))`.
+- Layers **build on each other's descriptions**: lines, then shapes, then combinations of shapes. Each layer makes the next one's job easier.
+- In practice inputs travel in **batches**, stacked as rows of a matrix, so a whole batch goes through each layer in one big multiplication.
+
+</Takeaways>
+
+<InTheWild>
+
+Strip away the attention mechanism, and most of a transformer's computation is exactly this. Each block contains a two-layer "feed-forward network" applied to every token: in GPT-2, a 768 → 3072 → 768 pair of layers, costing 2 × 768 × 3072 ≈ 4.7 million multiply-adds per token per block. Run a batch of tokens through it and it becomes two large matrix multiplications — precisely the kind of shape GPUs were built to chew through. When people say AI is "mostly matrix multiplication", this is what they mean.
+
+</InTheWild>
+
+You've followed one hand-built network all the way through. Next, a playground where you build and break your own: add layers and neurons, click any neuron or connection to see what it contributes, and watch every intermediate value as a point moves through.

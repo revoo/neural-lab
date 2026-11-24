@@ -24,6 +24,15 @@ npm run dev                       # leave running, then in another terminal:
 node scripts/check-pages.cjs      # expect ✓ for every page at 1300px and 390px
 ```
 
+Visual checks (dev server running; output goes to `scratch/shots/`, which is git-ignored):
+
+```bash
+node scripts/shoot-widgets.cjs <lessonId>            # every widget on a lesson, light + dark
+node scripts/drive-widget.cjs <lessonId> <widgetIndex> '[{"click":"button:has-text(\"Next\")","times":2},{"click":"[data-node=\"1-0\"]"},{"shot":"after"}]'
+```
+
+`drive-widget.cjs` documents its actions (click, clickAt, drag, wait, eval, shot) at the top of the file. Then look at the PNGs.
+
 If anything fails before you've changed a line, fix that first and note it in the roadmap.
 
 ## 3. Pick up the work
@@ -46,7 +55,15 @@ Take the first item under **"Next steps"** in `docs/ROADMAP.md` unless the owner
 - [ ] Every number quoted in prose or code comments has been checked by running it.
 - [ ] Quiz: mostly conceptual questions; wrong-answer feedback explains the misconception; numeric questions are parameterised.
 - [ ] `npm test`, `npm run build` and `node scripts/check-pages.cjs` all pass.
-- [ ] You looked at the widgets in a real browser (Playwright screenshots are fine) in light **and** dark mode.
+- [ ] You looked at the widgets in a real browser (Playwright screenshots are fine) in light **and** dark mode, and at phone width.
+
+### After every finished lesson (owner's instruction)
+
+Assume the session can disconnect at any moment and someone else will continue from the repository alone:
+
+1. Commit and push (`git push -u origin <branch>`).
+2. Update `docs/ROADMAP.md`: the **Current state** block at the top (what's done, what's next), the status table, and **Next steps** (with enough of a plan that the next lesson can be started cold).
+3. If you changed the procedure or found a new gotcha, update this file.
 
 ## 4. Before you end the session
 
@@ -60,4 +77,7 @@ Take the first item under **"Next steps"** in `docs/ROADMAP.md` unless the owner
 - **Colour macros:** use `\ca \cb \cc \cg \cp \cv`. Never name a macro `\cr` — TeX reserves it as "end of row", and matrices silently collapse.
 - **One KaTeX version only.** `package.json` pins it via `overrides`; a second copy makes subscripts render at the baseline.
 - **Heatmaps** recompute whenever their `f` prop changes identity — memoise it (`useMemo`) or define it at module scope.
-- **Lessons stay independent.** Duplicate a small dataset rather than importing from another lesson's folder.
+- **Lessons stay independent.** Duplicate a small dataset rather than importing from another lesson's folder. (Exporting a small component from one lesson's own file to another file in the *same* lesson is fine.)
+- **Shared network drawing:** use `src/components/NetDiagram.tsx` rather than writing another SVG network. Weight layout is `W[l][j][i]` (layer, to-neuron, from-neuron), the same as `src/lib/mlp.ts`.
+- **Quick numeric checks:** `node --experimental-strip-types scratch/foo.ts` runs a TypeScript file that imports lesson `.ts` modules (use explicit `.ts` extensions in the import). Don't point Vitest at a directory outside the repo (e.g. `--root /`): it will crawl the whole disk.
+- **Shell safety check:** multi-line heredocs containing JavaScript template strings (`${…}`) can be refused by the agent's command-safety check. Write scripts with the file-writing tool into `scratch/` (git-ignored) and run them with a plain command.

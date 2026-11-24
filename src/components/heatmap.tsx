@@ -111,3 +111,36 @@ export function Heatmap({
   if (!url) return null;
   return <image href={url} x={x(x0)} y={y(y1)} width={x(x1) - x(x0)} height={y(y0) - y(y1)} preserveAspectRatio="none" opacity={opacity} />;
 }
+
+/**
+ * Render f over a rectangle to a PNG data URL (no SVG needed) — used for small "what this neuron
+ * responds to" thumbnails. Rows run from top (y1) to bottom (y0).
+ */
+export function fieldImage(
+  f: (x: number, y: number) => number,
+  [x0, x1, y0, y1]: [number, number, number, number],
+  res: number,
+  colour: (v: number) => RGB,
+): string {
+  if (typeof document === 'undefined') return '';
+  const canvas = document.createElement('canvas');
+  canvas.width = res;
+  canvas.height = res;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return '';
+  const img = ctx.createImageData(res, res);
+  for (let j = 0; j < res; j++) {
+    const yv = y1 - ((j + 0.5) / res) * (y1 - y0);
+    for (let i = 0; i < res; i++) {
+      const xv = x0 + ((i + 0.5) / res) * (x1 - x0);
+      const [r, g, b] = colour(f(xv, yv));
+      const k = 4 * (j * res + i);
+      img.data[k] = r;
+      img.data[k + 1] = g;
+      img.data[k + 2] = b;
+      img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return canvas.toDataURL();
+}
