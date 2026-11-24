@@ -50,23 +50,34 @@ A few things worth noticing as you play:
 - **Scaling never changes the line an arrow sits on.** Multiply by 2 and it's twice as long. Multiply by −1 and it flips around. It can never swing off to the side.
 - **Subtraction measures difference.** The arrow `a − b` points from b to a, so its length is the distance between the two points. That's the formal version of "how different are these two emails?"
 
-## The maths, now that you've seen it
+## Writing it down
 
-Let's write down what you've been doing. Mathematicians usually write vectors in bold, and refer to the individual numbers inside using subscripts:
+Let's write down what you've been doing. Maths has a compact shorthand for vectors, and it's worth learning to read, because papers use it everywhere. A vector gets a bold letter, and the numbers inside it get little index numbers:
 
-$$
-\mathbf{v} = [v_1, v_2, \ldots, v_n]
-$$
+<Eq
+  words="\text{the list} = [\,\text{first entry},\; \text{second entry},\; \ldots,\; \text{last entry}\,]"
+  tex="\cp{\mathbf{v}} = [\ca{v_1}, \ca{v_2}, \ldots, \ca{v_n}]"
+>
+
+- $\cp{\mathbf{v}}$ — the **whole vector** (bold means "a list of numbers", not a single number)
+- $\ca{v_1}, \ca{v_2}$ — its **individual entries**; the small number is the position in the list
+- $n$ — **how many entries** there are: the vector's dimension
+
+</Eq>
 
 The subscript is just an index. $v_1$ is the first entry, $v_2$ the second, and $n$ is how many entries there are — the vector's **<Term id="dimension">dimension</Term>**. One trap for programmers: maths usually counts from 1, while Python and JavaScript count from 0. So $v_1$ is `v[0]`. You'll get used to translating.
 
-The operations you just played with are each one line:
+The operations you just played with are each one line. Read them as "do the same thing to every position":
 
-$$
-\mathbf{a} + \mathbf{b} = [a_1 + b_1,\; a_2 + b_2,\; \ldots,\; a_n + b_n]
-\qquad
-k\,\mathbf{a} = [k a_1,\; k a_2,\; \ldots,\; k a_n]
-$$
+<Eq
+  words="\text{add: pair up matching entries and add them} \qquad \text{scale: multiply every entry by the same number}"
+  tex="\ca{\mathbf{a}} + \cb{\mathbf{b}} = [\ca{a_1} + \cb{b_1},\; \ca{a_2} + \cb{b_2},\; \ldots] \qquad \cc{k}\,\ca{\mathbf{a}} = [\cc{k}\ca{a_1},\; \cc{k}\ca{a_2},\; \ldots]"
+>
+
+- $\ca{\mathbf{a}}$, $\cb{\mathbf{b}}$ — the two **vectors** from the playground
+- $\cc{k}$ — the **scale factor**: a single plain number
+
+</Eq>
 
 Everything happens *element-wise*: position 1 combines with position 1, position 2 with position 2. If the vectors have different lengths, the operation simply isn't defined — much like zipping two arrays of different sizes.
 
@@ -74,13 +85,20 @@ Everything happens *element-wise*: position 1 combines with position 1, position
 
 How long is the arrow `[3, 4]`? It forms the hypotenuse of a right triangle with sides 3 and 4, so Pythagoras says its length is $\sqrt{3^2 + 4^2} = \sqrt{25} = 5$.
 
-The remarkable thing is that the same recipe works in any number of dimensions. For a vector with $n$ entries: square each one, add them all up, take the square root. Mathematicians write this as
+The remarkable thing is that the same recipe works in any number of dimensions. For a vector with $n$ entries: square each one, add them all up, take the square root. Here's that recipe, first in words and then in the standard shorthand:
 
-$$
-\|\mathbf{v}\| = \sqrt{\sum_{i=1}^{n} v_i^2}
-$$
+<Eq
+  words="\text{length} = \sqrt{\text{add up, over every entry, } (\text{that entry})^2}"
+  tex="\cc{\|\mathbf{v}\|} = \sqrt{\sum_{i=1}^{n} \ca{v_i}^{\,2}}"
+>
 
-The double bars mean "length of" (also called the **<Term id="magnitude">norm</Term>** or magnitude). The big $\Sigma$ — the Greek capital sigma — is the part worth pausing on, because you'll see it everywhere from now on. It's just a `for` loop:
+- $\cc{\|\mathbf{v}\|}$ — the **length** of the vector (the double bars mean "length of")
+- $\ca{v_i}$ — **the entry at position $i$**; $i$ runs through every position
+- $\sum_{i=1}^{n}$ — "**add up** the thing to my right, for $i$ = 1, 2, … up to $n$"
+
+</Eq>
+
+The length is also called the **<Term id="magnitude">norm</Term>** or magnitude. The big $\Sigma$ — the Greek capital sigma — is the part worth pausing on, because you'll see it everywhere from now on. It's just a `for` loop:
 
 ```python
 total = 0

@@ -19,7 +19,7 @@ export function Home() {
           get your hands on the real mechanism. Every diagram here computes real numbers. Drag things. Break things. Predict what happens before you find out.
         </p>
         <p style={{ fontSize: 17 }}>
-          Written for software engineers. No prior maths beyond algebra assumed — every equation is introduced as a description of something you’ve
+          Written for software engineers and lifelong learners. No maths beyond school algebra assumed — every equation is introduced as a description of something you’ve
           already played with.
         </p>
         {nextLesson && (

@@ -28,13 +28,18 @@ That's the whole definition. Here it is as a live receipt, with the loop exposed
 
 <DotTable />
 
-In maths notation, the dot product of two vectors $\mathbf{a}$ and $\mathbf{b}$, each with $n$ entries, is
+Written in the usual shorthand, it looks like this — and it says exactly what the receipt does:
 
-$$
-\mathbf{a} \cdot \mathbf{b} = \sum_{i=1}^{n} a_i\, b_i = a_1 b_1 + a_2 b_2 + \cdots + a_n b_n
-$$
+<Eq
+  words="\text{total} = \text{add up, over every item, } (\text{quantity} \times \text{price})"
+  tex="\ca{\mathbf{a}} \cdot \cb{\mathbf{b}} = \sum_{i=1}^{n} \ca{a_i}\, \cb{b_i} = \ca{a_1}\cb{b_1} + \ca{a_2}\cb{b_2} + \cdots + \ca{a_n}\cb{b_n}"
+>
 
-You've seen the $\Sigma$ before: it's the `for` loop in the code panel. The expression after it, $a_i b_i$, is the line inside the loop.
+- $\ca{a_i}$ — entry $i$ of the first vector (the **quantity** of item $i$)
+- $\cb{b_i}$ — entry $i$ of the second vector (the **price** of item $i$)
+- $\sum_{i=1}^{n}$ — the `for` loop in the code panel; $\ca{a_i}\cb{b_i}$ is the line inside it
+
+</Eq>
 
 ### From receipts to judgements
 
@@ -136,9 +141,16 @@ Document A wins, $11$ to $4$ — but look at the directions. B points in *exactl
 
 The fix is to divide out the lengths, leaving only the alignment:
 
-$$
-\text{cosine similarity}(\mathbf{a}, \mathbf{b}) = \frac{\mathbf{a}\cdot\mathbf{b}}{\|\mathbf{a}\|\,\|\mathbf{b}\|} = \cos\theta
-$$
+<Eq
+  words="\text{similarity of direction} = \frac{\text{dot product}}{\text{length of } \mathbf{a} \times \text{length of } \mathbf{b}}"
+  tex="\text{cosine similarity} = \frac{\ca{\mathbf{a}}\cdot\cb{\mathbf{b}}}{\|\ca{\mathbf{a}}\|\,\|\cb{\mathbf{b}}\|} = \cos\theta"
+>
+
+- top: the **dot product** — alignment mixed with length
+- bottom: the two **lengths** multiplied together — divide them out and only alignment remains
+- $\cos\theta$ — the **alignment** itself: 1 same direction, 0 perpendicular, −1 opposite
+
+</Eq>
 
 It always lands between −1 and 1. For the search example, B now scores a perfect 1.0, and A scores about 0.77. Turn on the **unit vectors** view in the explorer to see this: shrinking both arrows to length 1 throws away their size and keeps only their direction.
 

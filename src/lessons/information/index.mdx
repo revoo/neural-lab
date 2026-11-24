@@ -57,9 +57,16 @@ The less likely an event, the more **surprising** it is, and the more informatio
 
 Information theory makes this precise. The **<Term id="surprise">surprise</Term>** of an event with probability $p$ is
 
-$$
-\text{surprise}(p) = -\log_2 p = \log_2 \frac{1}{p}
-$$
+<Eq
+  words="\text{surprise} = \text{how many coin-flips' worth of unlikeliness the event had}"
+  tex="\text{surprise}(\cp{p}) = \log_2 \frac{1}{\cp{p}} = -\log_2 \cp{p}"
+>
+
+- $\cp{p}$ — the **probability** of the event: 1 = certain, 0.5 = a coin flip
+- $\frac{1}{\cp{p}}$ — "**one in how many?**" A 1-in-8 event has $\frac{1}{p} = 8$
+- $\log_2$ — "**how many doublings** to reach that?" Three, for 8. So a 1-in-8 event carries 3 bits of surprise
+
+</Eq>
 
 A certain event ($p = 1$) has zero surprise. A fair coin landing heads ($p = \frac12$) carries 1 bit. A one-in-a-thousand event carries about 10 bits. And — this is where logarithms earn their keep — the surprise of two independent events is the *sum* of their individual surprises, because the logarithm turned their product of probabilities into a sum.
 
@@ -67,9 +74,16 @@ A certain event ($p = 1$) has zero surprise. A fair coin landing heads ($p = \fr
 
 If surprise measures one outcome, **<Term id="entropy">entropy</Term>** measures a whole distribution: it's the surprise you'd experience *on average*, weighting each outcome by how often it happens.
 
-$$
-H(p) = \sum_i p_i \cdot \log_2 \frac{1}{p_i}
-$$
+<Eq
+  words="\text{average surprise} = \text{add up, over every outcome, } (\text{how often it happens} \times \text{how surprising it is})"
+  tex="H = \sum_i \cp{p_i} \cdot \log_2 \frac{1}{\cp{p_i}}"
+>
+
+- $\cp{p_i}$ — the **probability** of outcome $i$ (sunny, rain…), used as a weight
+- $\log_2 \frac{1}{\cp{p_i}}$ — that outcome's **surprise**
+- $H$ — the **entropy**: the weighted average of the surprises
+
+</Eq>
 
 Entropy is a measure of unpredictability. Play with a weather forecast below and try to hit each target.
 
@@ -85,9 +99,15 @@ Now back to grading predictions. Here's the idea in one sentence:
 
 If a model said 95% cat and the answer was cat, its surprise is $-\ln 0.95 \approx 0.05$ — barely raised an eyebrow. If it said 1% cat, its surprise is $-\ln 0.01 \approx 4.6$ — utterly shocked. So we use the surprise as the loss:
 
-$$
-\text{loss} = -\ln p_{\text{model}}(\text{correct answer})
-$$
+<Eq
+  words="\text{loss} = \text{how surprised the model was by the right answer}"
+  tex="\cv{\text{loss}} = -\ln \cp{p_{\text{model}}(\text{correct answer})}"
+>
+
+- $\cp{p_{\text{model}}(\text{correct answer})}$ — the **probability the model gave to the truth**, e.g. 0.95 for "cat"
+- $-\ln$ — **surprise**, measured with the natural log (the standard in ML code; it only rescales bits)
+
+</Eq>
 
 That's **cross-entropy loss** for a single example. Of all the probabilities the model output, only the one on the correct class matters. (The name comes from a more general formula, $H(p, q) = -\sum_i p_i \ln q_i$, measuring the surprise of a model $q$ when outcomes really follow $p$. When the true distribution puts all its weight on one correct class, every term but one vanishes, leaving exactly the expression above.)
 
@@ -101,11 +121,18 @@ Drag the point below and compare it with the more obvious choice, squared error.
 
 **Its gradient is beautifully simple.** When cross-entropy is combined with softmax, the gradient of the loss with respect to each logit works out to
 
-$$
-\frac{\partial\, \text{loss}}{\partial z_i} = p_i - y_i
-$$
+<Eq
+  words="\text{push on each score} = \text{what the model said} - \text{what it should have said}"
+  tex="\cg{\frac{\partial\, \text{loss}}{\partial z_i}} = \cp{p_i} - \cc{y_i}"
+>
 
-where $y_i$ is 1 for the correct class and 0 for the others. Read it as: *push each logit in proportion to how wrong its probability was.* If the model said 0.7 for the right class, that logit gets a push of $0.7 - 1 = -0.3$ (meaning: increase it). If it said 0.2 for a wrong class, that logit gets $0.2 - 0 = 0.2$ (decrease it). Large errors, large pushes. This is one of the reasons the softmax–cross-entropy pairing is everywhere.
+- $\cp{p_i}$ — the **probability the model gave** to class $i$
+- $\cc{y_i}$ — the **truth**: 1 for the correct class, 0 for the others
+- $\cg{\partial\,\text{loss} / \partial z_i}$ — how the loss responds to **nudging score $i$** (gradient descent moves the score the opposite way)
+
+</Eq>
+
+Read it as: *push each logit in proportion to how wrong its probability was.* If the model said 0.7 for the right class, that logit gets a push of $0.7 - 1 = -0.3$ (meaning: increase it). If it said 0.2 for a wrong class, that logit gets $0.2 - 0 = 0.2$ (decrease it). Large errors, large pushes. This is one of the reasons the softmax–cross-entropy pairing is everywhere.
 
 **It adds up across examples.** The loss on a dataset is the average of the per-example losses. Because logarithms turn products into sums, minimising the *summed* surprise is exactly the same as maximising the *probability the model assigns to the whole dataset at once*. Statisticians call this maximum likelihood. Cross-entropy is just its friendlier face.
 

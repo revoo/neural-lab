@@ -50,9 +50,18 @@ $$
 
 That's the whole neuron. And you've already met the first part: $w_1 x_1 + \cdots + w_n x_n$ is just the dot product $\mathbf{w}\cdot\mathbf{x}$, so the compact version is
 
-$$
-a = f(\mathbf{w}\cdot\mathbf{x} + b)
-$$
+<Eq
+  words="\text{output} = \text{response}\big(\text{how much the input agrees with the neuron's preferences} + \text{default mood}\big)"
+  tex="\cp{a} = \cg{f}(\ca{\mathbf{w}}\cdot\mathbf{x} + \cc{b})"
+>
+
+- $\mathbf{x}$ — the **inputs**, as one vector
+- $\ca{\mathbf{w}}$ — the **weights**, as one vector: the neuron's preferences
+- $\cc{b}$ — the **bias**: its default mood before any evidence
+- $\cg{f}$ — the **activation**: how it responds to the total
+- $\cp{a}$ — the **output** (often called the neuron's *activation*, confusingly — it's the value the activation function produces)
+
+</Eq>
 
 Read it back as a sentence: *the output is a response to how strongly the input agrees with the neuron's preferences, plus its baseline leaning.*
 

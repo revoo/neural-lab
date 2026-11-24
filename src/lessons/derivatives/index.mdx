@@ -43,19 +43,21 @@ What to notice:
 - **Try ReLU and park the point exactly at 0.** There's a sharp corner, and the slope from the left (0) disagrees with the slope from the right (1). No single tangent line exists. Neural networks are full of these kinks, and in practice libraries just pick a value there and carry on.
 - **Push $h$ all the way down to $10^{-15}$.** The estimate goes haywire. This isn't the maths failing; it's floating-point arithmetic. More on that below.
 
-## The maths, now that you've seen it
+## Writing it down
 
-The dashed-line measurement is called a *difference quotient*:
+The dashed-line measurement is exactly what you'd code up: nudge the input, see how far the output moved, divide. The derivative is what that ratio settles down to as the nudge gets tiny. Here it is in words and in the standard notation:
 
-$$
-\frac{f(x + h) - f(x)}{h} = \frac{\text{change in output}}{\text{change in input}}
-$$
+<Eq
+  words="\text{slope at a point} = \frac{\text{output after a nudge} \;-\; \text{output before}}{\text{size of the nudge}} \quad \text{(as the nudge shrinks towards zero)}"
+  tex="\cc{f'(x)} = \lim_{\cg{h} \to 0} \frac{f(x + \cg{h}) - f(x)}{\cg{h}}"
+>
 
-The derivative is what this ratio approaches as the nudge $h$ shrinks towards zero. Mathematicians write that "approaches as $h$ shrinks to zero" with the word $\lim$ (limit):
+- $f(x)$ — the **output** of the function at input $x$ (the height of the curve)
+- $\cg{h}$ — the **nudge**: a small change to the input (the slider in the explorer)
+- $\lim_{\cg{h} \to 0}$ — "**what the ratio settles down to** as the nudge shrinks towards zero"
+- $\cc{f'(x)}$ — the **derivative**: the slope of the curve at $x$ (read "f prime of x")
 
-$$
-f'(x) = \lim_{h \to 0} \frac{f(x + h) - f(x)}{h}
-$$
+</Eq>
 
 Read it as: *the slope you get from smaller and smaller nudges.* The notation $f'(x)$ (read "f prime of x") is one common way to write the derivative. You'll also see
 
@@ -109,11 +111,18 @@ The most important rule of all — how to handle one function *inside* another �
 
 ### The single most useful consequence
 
-If the curve is nearly straight near $x$, then for a small nudge $\Delta x$ ("delta x", a small change in $x$):
+If the curve is nearly straight near $x$, then for a small nudge you can *predict* the new output without recomputing anything:
 
-$$
-f(x + \Delta x) \approx f(x) + f'(x)\,\Delta x
-$$
+<Eq
+  words="\text{new output} \;\approx\; \text{old output} \;+\; \text{slope} \times \text{nudge}"
+  tex="f(x + \cg{\Delta x}) \approx f(x) + \cc{f'(x)}\,\cg{\Delta x}"
+>
+
+- $\cg{\Delta x}$ — "**delta x**": a small change to the input ($\Delta$ is the Greek D, for "difference")
+- $\cc{f'(x)}$ — the **slope** at the starting point
+- $\approx$ — "**approximately equal**": exact for a straight line, very close for a small nudge on a curve
+
+</Eq>
 
 In words: **new output ≈ old output + slope × nudge.** If the loss is 5.0 and its derivative with respect to some weight is −4, then increasing that weight by 0.01 should bring the loss to about $5.0 + (-4)(0.01) = 4.96$.
 

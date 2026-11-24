@@ -38,19 +38,34 @@ Try these:
 - **Find the weight where the gradient is zero.** It's where the neuron's output exactly hits the target, so the last link ($2(a - t)$) is zero. A zero anywhere in the chain zeroes the whole product.
 - **Now drag $w$ all the way down to −3.** The output is pinned near −1, nowhere near the target of 0.8, so the loss is large — over 3. Yet the gradient is tiny. Look at the middle link: $\tanh$ has flattened out, its local derivative is almost zero, and it's choking off the whole chain. The weight is wrong, but the gradient barely notices. That's a preview of the **vanishing gradient** problem, which shaped two decades of neural network design.
 
-## The maths, now that you've seen it
+## Writing it down
 
-If $y$ depends on $u$, and $u$ depends on $x$, then
+The gear-train rule, written in the notation from the derivatives lesson:
 
-$$
-\frac{dy}{dx} = \frac{dy}{du} \cdot \frac{du}{dx}
-$$
+<Eq
+  words="\text{(end-to-end ratio)} = \text{(ratio of the last gear)} \times \text{(ratio of the first gear)}"
+  tex="\frac{dy}{dx} = \cg{\frac{dy}{du}} \cdot \cg{\frac{du}{dx}}"
+>
 
-That's the chain rule. For longer chains, keep multiplying. For the neuron above:
+- $x \to u \to y$ — a **chain**: $x$ affects $u$, and $u$ affects $y$
+- $\cg{du/dx}$ — the **first local ratio**: how fast $u$ responds to $x$
+- $\cg{dy/du}$ — the **second local ratio**: how fast $y$ responds to $u$
 
-$$
-\frac{\partial L}{\partial w} = \frac{\partial L}{\partial a} \cdot \frac{\partial a}{\partial z} \cdot \frac{\partial z}{\partial w}
-$$
+</Eq>
+
+That's the chain rule. For longer chains, keep multiplying. For the neuron above, with descriptive names attached:
+
+<Eq
+  words="\text{how the loss responds to the weight} = (\text{loss vs. output}) \times (\text{output vs. tally}) \times (\text{tally vs. weight})"
+  tex="\frac{\partial \cc{L}}{\partial \ca{w}} = \cg{\frac{\partial \cc{L}}{\partial a}} \cdot \cg{\frac{\partial a}{\partial z}} \cdot \cg{\frac{\partial z}{\partial \ca{w}}}"
+>
+
+- $\ca{w}$ — the **weight** we want to adjust
+- $z$ — the neuron's **tally** (weight × input + bias)
+- $a$ — the neuron's **output** after the tanh squashing
+- $\cc{L}$ — the **loss**: how far the output is from the target
+
+</Eq>
 
 Each factor is a **local derivative** — it only involves one small step of the computation, so it's easy to work out on its own:
 

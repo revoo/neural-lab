@@ -58,22 +58,20 @@ Some things to try, and what to notice:
 - **Whatever you do, grid lines stay straight, parallel, and evenly spaced, and the origin never moves.** That's the defining property of a **<Term id="linear-transformation">linear transformation</Term>**, and it's why matrices are so predictable.
 - **Try "Squash flat".** The whole plane collapses onto a single line. Points that were different now land on top of each other. That information is gone for good — no matrix can un-squash it.
 
-## The maths, now that you've seen it
+## Writing it down
 
-Here's the general 2×2 case. Write the matrix as
+Here's the general 2×2 case, with the columns coloured to match the explorer: the green column is where $\hat{\imath}$ lands, the red one is where $\hat{\jmath}$ lands.
 
-$$
-M = \begin{bmatrix} a & b \\ c & d \end{bmatrix}
-$$
+<Eq
+  words="\text{output} = (\text{steps right}) \times (\text{where } \hat{\imath} \text{ lands}) + (\text{steps up}) \times (\text{where } \hat{\jmath} \text{ lands})"
+  tex="\begin{bmatrix} \cc{a} & \cv{b} \\ \cc{c} & \cv{d} \end{bmatrix}\begin{bmatrix} x \\ y \end{bmatrix} = \underbrace{\begin{bmatrix} \cc{a}x + \cv{b}y \\ \cc{c}x + \cv{d}y \end{bmatrix}}_{\text{rows view: two dot products}} = \underbrace{x\begin{bmatrix} \cc{a} \\ \cc{c} \end{bmatrix} + y\begin{bmatrix} \cv{b} \\ \cv{d} \end{bmatrix}}_{\text{columns view: a blend of the columns}}"
+>
 
-Then for an input $\mathbf{v} = [x, y]$:
+- $x, y$ — the **input**: how far right and how far up the point starts
+- $\cc{a}, \cc{c}$ — the **first column**: where the arrow $[1, 0]$ ends up
+- $\cv{b}, \cv{d}$ — the **second column**: where the arrow $[0, 1]$ ends up
 
-$$
-M\mathbf{v} =
-\underbrace{\begin{bmatrix} ax + by \\ cx + dy \end{bmatrix}}_{\text{rows view: two dot products}}
-=
-\underbrace{x\begin{bmatrix} a \\ c \end{bmatrix} + y\begin{bmatrix} b \\ d \end{bmatrix}}_{\text{columns view: a blend of the columns}}
-$$
+</Eq>
 
 These are the same arithmetic, grouped differently. The rows view says *each output is a weighted sum of the inputs*. The columns view says *the output is a weighted blend of the columns, using the input as the weights*. Engineers tend to compute with the first and reason with the second.
 
@@ -83,9 +81,10 @@ A convention you'll meet constantly: an $m \times n$ matrix has $m$ rows and $n$
 
 Watch the shaded square in the explorer. It starts as the 1×1 square sitting on $\hat{\imath}$ and $\hat{\jmath}$, and gets carried along by the transformation. Its new area is the **<Term id="determinant">determinant</Term>** of the matrix:
 
-$$
-\det M = ad - bc
-$$
+<Eq
+  words="\text{area scaling factor} = (\text{top-left} \times \text{bottom-right}) - (\text{top-right} \times \text{bottom-left})"
+  tex="\det M = \cc{a}\cv{d} - \cv{b}\cc{c}"
+/>
 
 Because a linear transformation treats every part of space the same way, *every* shape's area gets multiplied by this same number. A determinant of 2 doubles all areas; 0.5 halves them. A negative determinant means space has been flipped over, like turning a page face-down (the square turns orange). And a determinant of **0** means space has been squashed into a lower dimension — the alarm bell for lost information.
 

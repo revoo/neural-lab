@@ -44,15 +44,17 @@ If you experimented, you'll have found:
 
 Softmax handles negatives with a neat trick: it first passes each score through the exponential function $e^{z}$, which turns *any* number into a positive one. Then it divides by the total so everything sums to 1:
 
-$$
-\text{softmax}(\mathbf{z})_i = \frac{e^{z_i}}{\sum_{j} e^{z_j}}
-$$
+<Eq
+  words="\text{probability of class } i = \frac{\text{(class } i\text{'s score, made positive)}}{\text{(every class's score, made positive, all added up)}}"
+  tex="\cp{p_i} = \frac{e^{\ca{z_i}}}{\sum_{j} e^{\ca{z_j}}}"
+>
 
-Reading the symbols:
+- $\ca{z_i}$ — the raw **score** (logit) for class $i$, e.g. "cat"
+- $e^{\ca{z_i}}$ — "**make it positive**": the number $e \approx 2.718$ raised to that score. All you need to know is that it's always positive and grows fast: $e^{-2} \approx 0.14$, $e^{0} = 1$, $e^{2} \approx 7.4$, $e^{4} \approx 55$
+- $\sum_j$ — **add up over every class** $j$ (the loop)
+- $\cp{p_i}$ — the resulting **probability** of class $i$
 
-- $\mathbf{z}$ is the vector of logits; $z_i$ is the logit for class $i$.
-- $e^{z_i}$ is the number $e \approx 2.718$ raised to the power $z_i$. You don't need to know much about $e$ here, only that $e^{z}$ is always positive and grows fast: $e^{-2} \approx 0.14$, $e^{0} = 1$, $e^{2} \approx 7.4$, $e^{4} \approx 55$.
-- The bottom of the fraction, $\sum_j e^{z_j}$, is the sum of all the exponentiated scores — the loop over every class.
+</Eq>
 
 In code, it's three steps: exponentiate, sum, divide.
 
@@ -84,9 +86,14 @@ That last expression is the **sigmoid** function, $\sigma(z)$ — the classic S-
 
 Divide every logit by a number $T$ before applying softmax, and you get a dial for confidence:
 
-$$
-p_i = \frac{e^{z_i / T}}{\sum_j e^{z_j / T}}
-$$
+<Eq
+  words="\text{same as softmax, but every score is first divided by the temperature}"
+  tex="\cp{p_i} = \frac{e^{\ca{z_i} / \cb{T}}}{\sum_j e^{\ca{z_j} / \cb{T}}}"
+>
+
+- $\cb{T}$ — the **temperature**: below 1 exaggerates the gaps between scores, above 1 shrinks them
+
+</Eq>
 
 This $T$ is called the **<Term id="temperature">temperature</Term>** (the name is borrowed from physics, where the same formula describes how particles distribute across energy levels).
 

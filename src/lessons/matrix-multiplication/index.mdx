@@ -31,17 +31,19 @@ Click any output cell below to see which conversation produced it.
 
 ### The rule, in symbols
 
-Written out, the entry in row $i$ and column $j$ of $C = AB$ is
+Here is the speed-dating rule in symbols. It's the most compact description of a huge amount of computation, so it's worth decoding slowly:
 
-$$
-C_{ij} = \sum_{k=1}^{K} A_{ik}\, B_{kj}
-$$
+<Eq
+  words="\text{score for (row } i\text{, column } j\text{)} = \text{add up, walking along both, } (\text{row } i \text{ of } A\text{'s entry}) \times (\text{column } j \text{ of } B\text{'s entry})"
+  tex="\cc{C_{ij}} = \sum_{k=1}^{K} \ca{A_{ik}}\, \cb{B_{kj}}"
+>
 
-This is worth decoding slowly, because it's the most compact description of a huge amount of computation.
+- $\cc{C_{ij}}$ — the **result** in row $i$, column $j$. Two subscripts, row first.
+- $\ca{A_{ik}}$ — **row $i$ of $A$**, at position $k$ along it
+- $\cb{B_{kj}}$ — **column $j$ of $B$**, at position $k$ down it
+- $\sum_{k=1}^{K}$ — the inner loop: $k$ walks along the row and down the column together. $K$ is the **shared, inner dimension**.
 
-- $C_{ij}$ — the entry in row $i$, column $j$ of the result. Two subscripts, row first.
-- $\sum_{k=1}^{K}$ — a loop over $k$, the position *along* the row of $A$ and *down* the column of $B$. $K$ is the shared, "inner" dimension.
-- $A_{ik} B_{kj}$ — walk along row $i$ of $A$ (the column index $k$ changes) while walking down column $j$ of $B$ (the row index $k$ changes), multiplying as you go.
+</Eq>
 
 Notice where $k$ appears: as the *second* index of $A$ and the *first* index of $B$. It's summed over, so it vanishes from the result. The surviving indices, $i$ and $j$, tell you the output shape. That leads to the shape rule:
 

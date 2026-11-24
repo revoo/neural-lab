@@ -32,15 +32,23 @@ Some things to look for:
 - **Try the narrow valley.** The gradient mostly points across the valley, not along it towards the true minimum. Hold on to that observation: it's the reason plain gradient descent can zig-zag badly, and the reason optimizers like momentum and Adam exist.
 - **Find the flat spots.** In the bowl, there's one: the minimum. On the saddle, the gradient is zero at the centre, yet it's not a minimum at all.
 
-## The maths, now that you've seen it
+## Writing it down
 
 ### Partial derivatives
 
-For a function of several inputs, the **partial derivative** with respect to one of them is the ordinary derivative you get by treating all the *other* inputs as fixed constants. It gets its own curly symbol, $\partial$ ("partial" or "del"), to remind you that other inputs exist and are being held still:
+For a function of several inputs, the **partial derivative** with respect to one of them is the ordinary derivative you get by treating all the *other* inputs as fixed constants — the slope of one slice. It gets its own curly symbol, $\partial$ ("partial"), to remind you that other inputs exist and are being held still:
 
-$$
-\frac{\partial f}{\partial x} \quad \text{— the slope in the } x \text{ direction, with } y \text{ held fixed}
-$$
+<Eq
+  words="\text{slope going east (north held still)} \qquad \text{slope going north (east held still)}"
+  tex="\cc{\frac{\partial f}{\partial x}} \qquad\qquad \cv{\frac{\partial f}{\partial y}}"
+>
+
+- $f$ — the **height** of the landscape (for a model: the loss)
+- $x, y$ — the **position** on the map (for a model: the parameters)
+- $\cc{\partial f / \partial x}$ — **east–west steepness**: the green arrow and the top slice in the explorer
+- $\cv{\partial f / \partial y}$ — **north–south steepness**: the red arrow and the bottom slice
+
+</Eq>
 
 Let's work one. Take $f(x, y) = x^2 y + 5y$.
 
@@ -51,11 +59,18 @@ That's genuinely all there is to computing them: one ordinary derivative per inp
 
 ### The gradient
 
-Collect all the partial derivatives into a vector and you have the gradient, written $\nabla f$ ("nabla f" or "del f"):
+Collect all the partial derivatives into a single vector and you have the gradient. With two inputs it's just the two arrows from the explorer, stacked into a list:
 
-$$
-\nabla f = \left[\, \frac{\partial f}{\partial x_1},\; \frac{\partial f}{\partial x_2},\; \ldots,\; \frac{\partial f}{\partial x_n} \,\right]
-$$
+<Eq
+  words="\text{uphill arrow} = [\,\text{steepness along input 1},\; \text{steepness along input 2},\; \ldots\,]"
+  tex="\cg{\nabla f} = \left[\, \frac{\partial f}{\partial x_1},\; \frac{\partial f}{\partial x_2},\; \ldots,\; \frac{\partial f}{\partial x_n} \,\right]"
+>
+
+- $\cg{\nabla f}$ — the **gradient** (the upside-down triangle is called "nabla"; read it "grad f")
+- each entry — the **steepness** along one input, with all the others held still
+- $n$ — **how many inputs** there are; for a model, how many parameters
+
+</Eq>
 
 For a model, the inputs to this function are the parameters, and $f$ is the loss. So the gradient of the loss has **one entry per parameter**. A model with 7 billion weights has a 7-billion-entry gradient, and each entry answers "how would the loss respond to nudging this particular weight?"
 
@@ -63,9 +78,15 @@ For a model, the inputs to this function are the parameters, and $f$ is the loss
 
 Remember the most useful fact from the last lesson: for small nudges, a smooth function behaves like a straight line. With several inputs, the same idea says that for a small step $\Delta\mathbf{x}$ (a small vector of nudges, one per input), the output changes by
 
-$$
-\Delta f \approx \frac{\partial f}{\partial x_1}\Delta x_1 + \frac{\partial f}{\partial x_2}\Delta x_2 + \cdots = \nabla f \cdot \Delta\mathbf{x}
-$$
+<Eq
+  words="\text{change in height} \approx \text{add up, over every input, } (\text{steepness along it} \times \text{how far you moved along it})"
+  tex="\Delta f \approx \frac{\partial f}{\partial x_1}\Delta x_1 + \frac{\partial f}{\partial x_2}\Delta x_2 + \cdots = \cg{\nabla f} \cdot \ca{\Delta\mathbf{x}}"
+>
+
+- $\Delta f$ — **how much the output changes**
+- $\ca{\Delta\mathbf{x}}$ — **your step**: a small vector of nudges, one per input
+
+</Eq>
 
 Look at that last expression: it's a **dot product** between the gradient and your step. Each input's nudge is multiplied by its sensitivity, and the effects add up.
 
