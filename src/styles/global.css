@@ -598,6 +598,9 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 0; }
   background: #010503; border-color: #12331f; box-shadow: inset 0 0 24px rgba(43, 255, 136, 0.04);
 }
 
+/* Tables in the reading column stay in the (narrower) prose font so they fit on phones. */
+:root[data-theme='matrix'] .prose table { font-family: var(--font-prose); }
+
 /* Navigation */
 :root[data-theme='matrix'] .nav-link.active,
 :root[data-theme='matrix'] .nav-lessons a.active {
@@ -673,3 +676,19 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 0; }
   :root[data-theme='matrix'] .hero h1::after,
   .boot-cursor { animation: none; }
 }
+
+/* ---------- Model clinic (diagnosis lab) ---------- */
+.clinic-tabs { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 12px; }
+.clinic-tabs button {
+  min-width: 38px; border: 1px solid var(--border); background: var(--bg-sunken); color: var(--text-muted);
+  border-radius: 6px; padding: 5px 8px; cursor: pointer; font-size: 13px; font-variant-numeric: tabular-nums;
+}
+.clinic-tabs button.on { background: var(--accent); border-color: var(--accent); color: var(--bg-elev); font-weight: 700; }
+.clinic-brief { border: 1px solid var(--border); border-left: 3px solid var(--c-b); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; background: var(--bg); }
+.clinic-brief p { font-family: var(--font-prose); font-size: 16px; line-height: 1.5; font-style: italic; }
+.clinic-causes { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
+.clinic-causes .option { font-size: 14px; }
+.clinic-fix { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--border-strong); }
+.clinic-select { display: flex; flex-direction: column; }
+.clinic-select select { font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--bg); color: var(--text); }
+.clinic-evidence .readout { font-size: 12.5px; line-height: 1.6; }

@@ -1,0 +1,116 @@
+import { ModelClinic } from './ModelClinic'
+import { questions } from './quiz'
+
+## Every broken run is broken in its own way
+
+When code fails, you usually get an error message with a line number. When training fails, you get a number that's lower than you hoped. No stack trace, no exception: just a loss curve that went somewhere it shouldn't, and a model that's quietly wrong.
+
+That's what makes debugging neural networks feel like a dark art. But it isn't one. Each way of failing leaves its own fingerprints — in the loss curve, inside the network, or in the data itself — and over the last few modules you've learned to read every one of them. A loss that triples in the first fifty steps. Neurons that were alive at the start and dead at the end. A test score that's better than it has any right to be. Half the labels disagreeing with their own neighbours.
+
+This lab puts that knowledge to work. A colleague brings you a run that went wrong, along with everything a practitioner would look at. Your job is the one a senior engineer does every week: find the **root cause**, not just the symptom, and then fix it.
+
+## How to read the evidence
+
+Every case file has the same instruments. Before you start, here's what each one can tell you.
+
+| instrument | what to look for |
+| --- | --- |
+| **loss curves** | Shooting up early: steps too big. Creeping down and still falling at the end: steps too small, or too few. Flat from the start at about 0.69 ($\ln 2$, the loss of a 50–50 guess): nothing is getting through. A regular rhythm: something about the order of the data. Training loss falling while test loss climbs: overfitting. |
+| **training vs test vs fresh** | Training high, test low: overfitting. All three low and together: underfitting, or nothing to learn. Test much higher than fresh data from the real world: the test set isn't measuring what you think. |
+| **inside the network** | Dead ReLUs (output zero for every input) or saturated tanh neurons (stuck at ±1) pass back almost no gradient. Check whether they were already in trouble **at step 0** — bad starting weights — or became so during training. |
+| **data checks** | Inputs on wildly different scales. Test points that are copies of training points. Labels that don't agree with their neighbours. Batches that contain only one class. |
+
+<Callout title="The diagnostician's habit">
+
+Symptoms are not causes. "Most neurons are dead" is a symptom; it can come from bad initialisation or from a step size that killed them. "Test accuracy is high" can be good news or a leak. Before you name a cause, ask: *what else would produce this, and which piece of evidence tells them apart?*
+
+</Callout>
+
+## The clinic
+
+<ModelClinic />
+
+## Debrief
+
+Here's what the cases have in common, and what they teach once you've solved them. (Go through them first: this section gives the answers away.)
+
+<Deeper title="The answers, and what each case teaches" tag="Spoiler">
+
+**Flatlined after one step** and **The quiet death** have the same cause, a step size that's too large, with completely different symptoms. One saturates 94% of its tanh neurons within 50 steps; the other kills two-thirds of the ReLUs without the loss ever exploding. The giveaway in both is that the neurons were healthy *at step 0*. Compare **Dead on arrival**, where the ReLUs were dead before training began because every hidden bias started at −3: the step size is innocent there, and switching to tanh (which a bias of −3 doesn't kill) or a standard initialisation both fix it.
+
+**The tortoise** is the gentlest failure: nothing is wrong except speed. Interestingly, training four times as long isn't enough on its own; at a step size of 0.0003, plain SGD would need far longer. Only a much bigger step size fixes it with one change.
+
+**Too stiff** is underfitting: training and test are equally bad, and the loss gives up immediately. Any hidden layer fixes it.
+
+**The memoriser** and **Too good to be true** are the same overfitting network. In the second, 90% of the "test" set was copied from the training set, so the test score (93%) measured memory, and only production (75%) told the truth. Removing the duplicates doesn't improve the model; it makes the score honest. For both, the exhaustive search found two single changes that reach 80% on fresh data: **collecting four times as much data**, and — surprisingly — **switching to ReLU**. Be suspicious of the second. We re-ran both with four other random draws of data and starting weights: ReLU scored 79%, 73%, 84% and 81%, no better than the broken configuration, while more data beat it in three of the four. A fix that worked once isn't a fix yet. Check it with another seed.
+
+**Nothing to learn** has labels that are coin flips: only about half of the training points agree with their nearest neighbours. No architecture, step size or regulariser can help, and the search confirms it: the one and only single change that works is fixing the labels. In real projects, label quality is one of the most common, and least glamorous, causes of bad models.
+
+**Lost in translation** has one input in units a hundred times larger than the other. Normalising the inputs fixes it, and so, the search found, does switching to Adam. Adam divides each weight's step by the typical size of its own gradient, so it partly compensates for badly scaled inputs. It's a useful fact, but normalising is still the better habit: it helps every optimizer, and it's what the numbers will look like in production too.
+
+**The see-saw** reads a training file sorted by class, in order: for half of every pass the network sees only one class. Shuffling fixes it — but in this particular run, so do batches of 50, training for 8,000 steps, and even switching to ReLU. Those change how the rhythm plays out rather than removing it; the real fix is to shuffle.
+
+</Deeper>
+
+The habit the clinic is trying to build is the one in the callout above: **separate the symptom from the cause, and look for the piece of evidence that tells candidate causes apart.** The cheap checks — plot the loss, look inside the network at step 0 and at the end, check the inputs' ranges, look for duplicates between training and test, sanity-check the labels — catch most of these problems in minutes, and they're worth doing before you reach for a bigger model or a fancier optimizer.
+
+## In code
+
+Most of the clinic's instruments are a few lines each. Here they are for a PyTorch classifier, as a checklist you can run on a real project.
+
+```python
+import torch
+
+# 1. Input scales: are any features in wildly different units?
+print(X_train.min(0).values, X_train.max(0).values)
+
+# 2. Leakage: do any test rows also appear in the training data?
+train_rows = {tuple(r.tolist()) for r in X_train}
+dupes = sum(tuple(r.tolist()) in train_rows for r in X_test)
+print(f"{dupes / len(X_test):.0%} of test rows are copies of training rows")
+
+# 3. Label sanity: does each point agree with its 5 nearest neighbours?
+d = torch.cdist(X_train, X_train)
+d.fill_diagonal_(float("inf"))
+nearest = d.topk(5, largest=False).indices
+majority = (y_train[nearest].float().mean(1) > 0.5).long()
+print(f"{(majority == y_train).float().mean():.0%} of labels agree with their neighbours")
+
+# 4. Dead ReLUs: which hidden units never fire on the training data?
+acts = {}
+model[1].register_forward_hook(lambda m, i, out: acts.update(h1=out))
+model(X_train)
+print(f"{(acts['h1'] <= 0).all(0).float().mean():.0%} of first-layer ReLUs are dead")
+
+# 5. Shuffling: never iterate over a sorted dataset in order
+loader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=True)
+```
+
+One more check is worth more than all of these: before training on the full dataset, make sure the model can **overfit a tiny batch** — ten examples, trained until the loss is nearly zero. If it can't memorise ten examples, something in the pipeline is broken (wrong labels, a dead network, a bug in the loss) and no amount of tuning will help.
+
+<Misconception>
+
+"When a model performs badly, the fix is a bigger model or more training." Of the ten cases in the clinic, a bigger network fixes exactly one, the underfitting one, and longer training fixes one, by coincidence. The others need a smaller step, a larger step, different starting weights, normalised inputs, shuffled data, clean labels, an honest test set or more data. Reaching for size first wastes time and compute, and can hide the real problem.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- Failed training rarely crashes. It leaves **fingerprints**: in the loss curves, inside the network, and in the data.
+- **Separate symptom from cause.** Dead neurons can come from bad initialisation or from a step size that killed them; check the network **at step 0**.
+- **Loss at about 0.69** for a binary classifier means a 50–50 guess: nothing is getting through, or there's nothing to learn.
+- **Test far better than fresh data** means the test set is contaminated. Check for duplicates between training and test.
+- Cheap **data checks** catch many failures before any tuning: input ranges, duplicates, label agreement, shuffled batches.
+- A fix that worked **once** may be luck. Re-run it with another random seed before believing it.
+
+</Takeaways>
+
+<InTheWild>
+
+Data leakage is one of the most common ways published machine-learning results turn out to be wrong. In 2023, Sayash Kapoor and Arvind Narayanan surveyed reviews of machine learning across 17 scientific fields and found leakage-related errors affecting 294 papers, including test data that overlapped with training data and features that wouldn't be available at prediction time. Andrej Karpathy's widely read guide, "A Recipe for Training Neural Networks", opens with the same advice as this lesson: become one with the data, check the loss at initialisation (it should be about $\ln 2$ for a balanced binary problem), overfit a single batch first, and only then start making the model better.
+
+</InTheWild>
+
+That completes the tour of how training goes wrong and how to fix it. With these instruments in hand, you're ready for models that can do far more interesting things.

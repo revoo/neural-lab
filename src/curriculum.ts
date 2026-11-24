@@ -104,8 +104,8 @@ export const MODULES: ModuleMeta[] = [
     lessons: [
       { id: 'overfitting', title: 'Overfitting and Underfitting', summary: 'Why a perfect score on the training data can mean nothing, the two ways to be wrong, and how data and training time move the line between them.', minutes: 30, load: () => import('./lessons/overfitting/index.mdx') },
       { id: 'regularization', title: 'Regularisation: Early Stopping, Weight Decay and Dropout', summary: 'Three ways to keep a big network and lose its bad habits — and a fair race between them.', minutes: 35, load: () => import('./lessons/regularization/index.mdx') },
+      { id: 'diagnosis-lab', title: 'Lab: The Model Clinic', summary: 'Ten broken training runs, the instruments to examine them, and a menu of root causes. Diagnose each one, then fix it.', minutes: 45, load: () => import('./lessons/diagnosis-lab/index.mdx') },
     ],
-    planned: ['Lab: diagnosing broken models'],
   },
   { id: 'classical', number: 8, title: 'Classical Machine Learning', blurb: 'Trees, nearest neighbours, SVMs, clustering — and when they beat neural networks.', lessons: [], planned: ['Linear and logistic regression', 'k-nearest neighbours', 'Decision trees and forests', 'k-means and PCA'] },
   { id: 'vision', number: 9, title: 'Computer Vision', blurb: 'From pixels to convolutions to object detectors.', lessons: [], planned: ['Images as tensors', 'Convolution and kernels', 'CNNs and feature maps', 'Object detection'] },
