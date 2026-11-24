@@ -9,8 +9,8 @@ _Last updated: session 1._
 | 1 | Mathematical Foundations | **9 lessons done**: vectors, dot product, matrices, matrix multiplication & tensors, derivatives, gradients, chain rule, probability & softmax, logarithms/entropy/cross-entropy |
 | 2 | The Artificial Neuron | **3 lessons done**: the neuron, activation functions (with live XOR training), Lab: Wiring Logic by Hand |
 | 3 | Network Architecture | planned |
-| 4 | Loss & Optimization | see below |
-| 5 | Backpropagation | see below |
+| 4 | Loss & Optimization | **1 lesson done**: gradient descent (fog walker + descent-golf puzzle with computed par) |
+| 5 | Backpropagation | **1 lesson done**: step-through graph explorer with a learner-computed gradient, cost comparison, fading-signal (vanishing/exploding) demo |
 | 6–18 | Training lab → AI systems | planned (titles listed in `src/curriculum.ts`) |
 
 ## Platform features (done)
@@ -35,21 +35,24 @@ _Last updated: session 1._
 
 - Heatmaps re-render on the main thread; fine for small networks, will need a worker or WebGL for the full training lab.
 - KaTeX is in the main bundle (~0.5 MB JS total, gzip ~165 KB). Could be split later.
-- Lessons 1–9 were written before the `Eq` component existed; some key equations still need the word-equation treatment.
+- Inline maths inside running prose (e.g. `$\mathbf{w}\cdot\mathbf{x}$`) isn't colour-coded yet; only `Eq` blocks are.
 - No automated UI tests; verification so far is unit tests on maths plus manual/scripted screenshots.
 
 ## Next steps (in order)
 
-1. Gradient descent lesson + puzzle (in progress).
-2. Backpropagation step-through lesson.
-3. Module 3: forward propagation and a full network playground (inspect every neuron and weight).
-4. Module 4 remainder: loss functions, SGD/mini-batches, momentum/RMSProp/Adam race, learning-rate schedules.
-5. Module 6 training lab (TensorFlow-Playground-style) with Zachtronics-style objectives: hit a target accuracy under a parameter budget.
-6. Then generalisation, transformers (flagship), LLMs, inference/hardware calculators.
+1. Module 3: forward propagation and a full network playground (inspect every neuron and weight).
+2. Module 4 remainder: loss functions, SGD/mini-batches, momentum/RMSProp/Adam race, learning-rate schedules.
+3. Module 6 training lab (TensorFlow-Playground-style) with Zachtronics-style objectives: hit a target accuracy under a parameter budget.
+4. Then generalisation, transformers (flagship), LLMs, inference/hardware calculators.
+
+## Labs built so far
+
+- **Logic workbench** (Module 2): hand-wire step neurons into AND/OR/NAND/XOR/XNOR; optional "parts cost" goal with brute-force-verified optimum.
+- **Descent golf** (Module 4): reach the valley floor in the fewest steps; par computed live by searching step sizes (and momentum).
 
 ## Ideas for more labs
 
-- **Optimizer golf:** reach a loss threshold on a nasty landscape in the fewest steps; choose optimizer and schedule.
+- **Optimizer golf (extended):** reach a loss threshold on a nasty landscape in the fewest steps; choose optimizer and schedule.
 - **Parameter budget:** classify spirals at ≥95% with the fewest weights.
 - **Attention puzzle:** set a query vector so a chosen token gets most of the attention.
 - **VRAM Tetris:** fit a model + KV cache on a given GPU by choosing quantisation and context length.
