@@ -1,0 +1,196 @@
+import { TugOfWar, LineFit, StuckWhenWrong } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: what does "wrong" mean?
+
+Gradient descent walks downhill on the loss. It never looks at anything else: not the data, not your intentions, not whether the model "makes sense". The loss is the only thing training can see. So whatever the loss rewards is exactly what you'll get.
+
+That makes choosing a loss a design decision, not a formality. And it's less obvious than it sounds. Suppose a model predicts delivery times and gets one delivery wrong by 10 minutes and another by 60. How much worse is the second mistake? Six times worse? Thirty-six times? Does it depend on whether 60 minutes was a freak breakdown? Different answers give you different losses — and, trained on the same data, genuinely different models.
+
+This lesson is about the three losses that cover the vast majority of practice: **squared error**, **absolute error**, and **cross-entropy** — what each one really asks for, and how to choose.
+
+## The simplest possible model
+
+To see what a loss wants, strip the model down until there's nothing left but the loss. Here's a model for delivery times that ignores every input and predicts **one number** for every delivery. Training it means choosing that number. Which number is best?
+
+Your instinct is probably "the average". That's the answer under one loss. Under another, it's something else.
+
+<Analogy title="Think of a tug of war">
+
+Pin your guess somewhere on a number line, and attach it to every data point.
+
+- With **squared error**, each attachment is a **spring**. A spring pulls harder the more it's stretched, so far-away points pull hard and nearby points barely pull at all.
+- With **absolute error**, each attachment is a **rope with a fixed pull**, like a weight hung over a pulley. Every point pulls with the same force, however near or far it is.
+
+Let go, and the guess slides until the pulls balance. Where it stops is the best guess under that loss.
+
+</Analogy>
+
+The pulls in this picture aren't a metaphor laid on top of the maths: they're the slope of the loss, the very thing gradient descent follows. Try it.
+
+<TugOfWar />
+
+Two discoveries, and they're worth saying plainly:
+
+- **Squared error's best guess is the mean.** The springs balance where the distances above and below cancel, which is exactly the average.
+- **Absolute error's best guess is the median.** Fixed-strength ropes only care about *how many* points are on each side, so they balance with half above and half below.
+
+Then the van broke down. Drag one delivery to 180 minutes and the mean leaps from 29.6 to 49.9 minutes — a prediction that's wrong for *every* delivery, including the one it moved for. The median doesn't budge from 30. One extreme point had a stretched spring so long that it outpulled the other six combined.
+
+## Writing it down
+
+Both losses average a penalty over the data. They differ only in how a single error is turned into a penalty.
+
+<Eq
+  words="\text{MSE} = \text{average of } (\text{error})^2"
+  tex="\text{MSE} = \frac{1}{\cb{n}} \sum_{i=1}^{\cb{n}} \big(\ca{y_i} - \cp{\hat{y}_i}\big)^2"
+>
+
+- $\ca{y_i}$ — the **true** value for example $i$ (an actual delivery time)
+- $\cp{\hat{y}_i}$ — the model's **prediction** for it
+- $\ca{y_i} - \cp{\hat{y}_i}$ — the **error** (often called the *residual*)
+- $\cb{n}$ — the number of **examples**; $\frac{1}{n}\sum$ means *average over all of them*
+
+</Eq>
+
+<Eq
+  words="\text{MAE} = \text{average of } |\text{error}|"
+  tex="\text{MAE} = \frac{1}{\cb{n}} \sum_{i=1}^{\cb{n}} \big|\ca{y_i} - \cp{\hat{y}_i}\big|"
+>
+
+- $|\ldots|$ — the **size** of the error, ignoring its sign
+- everything else as above
+
+</Eq>
+
+Now you can read the tug of war straight off the equations. The slope of $(y - \hat y)^2$ is $-2(y - \hat y)$: proportional to the error, like a spring. The slope of $|y - \hat y|$ is just $\pm 1$: the same size whatever the error, like a fixed rope. Squaring is what makes a 60-minute error cost 36 times a 10-minute one rather than 6 times — $3600$ versus $100$.
+
+<Deeper title="Why exactly the mean and the median?" tag="Maths">
+
+For a constant guess $c$, the slope of the total squared error is $\sum_i -2(y_i - c)$. Setting it to zero gives $\sum_i y_i = n c$, so $c = \frac{1}{n}\sum_i y_i$: the mean.
+
+For absolute error, each point contributes a slope of $+1$ if it's below $c$ and $-1$ if it's above. The total slope is (number below) − (number above), which is zero exactly when the two counts are equal: the median. (With an even number of points, any $c$ between the two middle ones balances; the convention is to take the midpoint.)
+
+</Deeper>
+
+## Same data, different lines
+
+Real models aren't constants, but the same tug of war happens inside them. Here two straight lines are fitted to the same delivery data, each the best possible under its loss.
+
+<LineFit />
+
+The squared-error line chases the glitch; the absolute-error line mostly ignores it. That's the mean-versus-median story again, now acting on a slope and an intercept instead of a single number.
+
+So which should you use? It depends on what your errors are like and what they cost.
+
+- **Squared error** when big errors really are much worse than small ones, and the data is clean. It's smooth, its slope shrinks gently to zero at the minimum (so training settles nicely), and it's the default for regression.
+- **Absolute error** when the data has outliers you don't trust, or when a 60-minute miss is only 6 times as bad as a 10-minute one. The price: its slope never shrinks near the answer, so gradient descent tends to jitter around the minimum instead of settling.
+- **Huber loss** splits the difference: squared for small errors, absolute for large ones. Many practical regression models use it for exactly this reason.
+
+## Classification: why squared error fails
+
+For yes/no questions — spam or not, cat or not — the model outputs a probability $p$, usually by passing a score $z$ through the sigmoid: $p = \sigma(z)$. You've already met the standard loss in <LessonLink to="information">the cross-entropy lesson</LessonLink>: the model's surprise at the truth, $-\ln p$. There you saw that it punishes confident mistakes far more than squared error does.
+
+But there's an even more important difference, and it's about *learning*, not just scoring. Gradient descent doesn't care about the loss's value — only its **slope**. So what happens to the slope of each loss when the model is confidently wrong?
+
+<Predict
+  question="A spam filter gives a spam email a score of −6, so it says 0.25% spam: confidently wrong. Which loss gives gradient descent the stronger push to fix it?"
+  options={['Squared error on the probability, (1 − p)²', 'Cross-entropy, −ln p', 'They push about equally — both see a big mistake']}
+  answer={1}
+>
+
+Cross-entropy, and not by a little. At a score of −6, its push is about **200 times** stronger. Find out why below.
+
+</Predict>
+
+<StuckWhenWrong />
+
+Here's what's going on. The sigmoid is nearly flat far from zero: a confidently wrong model sits on the flat part. By the chain rule, the push squared error puts on the score is (its own slope with respect to $p$) × (the sigmoid's slope) — and that second factor is almost zero out there. So squared error barely moves the model precisely when it most needs to move.
+
+Cross-entropy's slope with respect to $p$ is $-\frac{1}{p}$, which is huge when $p$ is tiny, and it exactly cancels the sigmoid's flatness. What's left is famously simple:
+
+<Eq
+  words="\text{push on the score} = \text{predicted probability} - \text{truth}"
+  tex="\cg{\frac{\partial L}{\partial z}} = \cp{p} - \ca{y}"
+>
+
+- $\cp{p}$ — the model's **predicted probability** of the positive class
+- $\ca{y}$ — the **truth**: 1 for spam, 0 for not spam
+- $\cg{\partial L / \partial z}$ — how hard the loss **pushes on the score** (gradient descent moves the score the opposite way)
+
+</Eq>
+
+Confidently wrong means $p \approx 0$ with $y = 1$: a push of almost $-1$, the strongest there is. In the widget, from a score of −6 with a step size of 1, cross-entropy gets the model past 50% in 7 steps. Squared error takes 214. Start at −8 and squared error takes over 1,500.
+
+(We moved the score directly to keep things visible. In a real network the score depends on thousands of weights, but by the chain rule every one of their slopes includes this same factor, so the stall spreads to all of them.)
+
+### Writing down the classification losses
+
+For a yes/no question, cross-entropy has to handle both possible truths. It's usually written as one expression in which one of the two terms always vanishes:
+
+<Eq
+  words="\text{loss} = \text{surprise at the truth: } -\ln(\text{prob. of yes}) \text{ if yes, } -\ln(\text{prob. of no}) \text{ if no}"
+  tex="L = -\big[\ca{y}\,\ln \cp{p} + (1 - \ca{y})\ln(1 - \cp{p})\big]"
+>
+
+- $\ca{y}$ — the **truth**, 1 or 0. When $y = 1$ the second term disappears, leaving $-\ln p$; when $y = 0$ the first disappears, leaving $-\ln(1 - p)$
+- $\cp{p}$ — the model's **probability** of "yes"
+- this is **binary cross-entropy** (BCE), also called log loss
+
+</Eq>
+
+With more than two classes, the model outputs a softmax distribution $\mathbf{p}$ over all of them, and the loss is again the surprise at the correct one: $L = -\ln p_{\text{correct}}$. With softmax, the push on each class's score works out to the same tidy form, $p_k - y_k$. That one fact is why softmax with cross-entropy is used to train nearly every classifier and every language model.
+
+## The loss decides what the model learns
+
+| loss | what one error costs | best constant guess | used for |
+| --- | --- | --- | --- |
+| squared error (MSE) | error² | the mean | regression on clean data |
+| absolute error (MAE) | \|error\| | the median | regression with outliers |
+| Huber | squared when small, absolute when large | between the two | robust regression |
+| cross-entropy | −ln(probability of the truth) | the true proportion | classification, language models |
+
+The cross-entropy row hides one more nice fact: if a cross-entropy model must output one fixed probability for every email, its best choice is the fraction of emails that really are spam. Cross-entropy rewards *honest* probabilities, which is why you can read a well-trained classifier's outputs as confidences.
+
+## In code
+
+Every framework ships these losses. Two details matter in practice:
+
+```python
+import torch.nn as nn
+
+nn.MSELoss()(pred, target)          # squared error, averaged
+nn.L1Loss()(pred, target)           # absolute error ("L1" = sum of absolute values)
+nn.HuberLoss(delta=1.0)(pred, target)
+
+# Classification losses take the raw SCORES (logits), not probabilities:
+nn.BCEWithLogitsLoss()(scores, labels)        # sigmoid + binary cross-entropy in one step
+nn.CrossEntropyLoss()(scores, class_indices)  # softmax + cross-entropy in one step
+```
+
+First, **pass scores, not probabilities**, to the classification losses. Fusing the sigmoid (or softmax) with the logarithm lets the library compute $\ln \sigma(z)$ directly and stably; computing $\sigma(z)$ first can round to exactly 0 for a very wrong model, and $\ln 0$ is $-\infty$. Second, these all **average** over the batch by default, so the loss doesn't grow just because the batch got bigger.
+
+<Misconception>
+
+"We train classifiers to maximise accuracy." We judge them by accuracy, but we can't train on it. Accuracy only changes when a prediction crosses 50%, so nudging a weight slightly almost never changes it: it's flat almost everywhere, like the step activation, and gives gradient descent nothing to follow. Cross-entropy is a smooth stand-in that keeps improving as the model becomes more confident about the right answers — and lowering it tends to raise accuracy. The loss you train on and the metric you report are often different things, and it's worth knowing which is which.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- The loss is the only thing training sees, so it **defines** what "good" means.
+- **Squared error** pulls like springs: big errors dominate, and its best constant is the **mean**. **Absolute error** pulls like fixed ropes: every error counts equally, and its best constant is the **median**, which shrugs off outliers.
+- For classification, use **cross-entropy**. Squared error on a sigmoid's output barely pushes a confidently wrong model, because the sigmoid's flatness multiplies its slope; cross-entropy cancels that, leaving the push $p - y$.
+- In code, give classification losses the **scores** (logits), not probabilities.
+
+</Takeaways>
+
+<InTheWild>
+
+Every large language model is trained with exactly one loss: cross-entropy on the next token. At each position in the text, the model outputs a probability for every token in its vocabulary — around 128,000 options for Llama 3 — and pays $-\ln p$ of the token that actually came next. Averaged over trillions of tokens, that single number is what pretraining minimises. Everything the model appears to know is a by-product of becoming less surprised by text.
+
+</InTheWild>
+
+We've been computing the loss over the *whole* dataset before every step. For a dataset of millions of examples, that's impossibly slow. Next: why it's fine — even better — to estimate it from a handful.

@@ -7,7 +7,8 @@ _Last updated: session 2 (in progress — see "Current state" below)._
 Session 2 is working through Module 3 → Module 4 → Module 6 in order, committing and pushing after every finished lesson. The last completed lesson is recorded here; anything not listed as done has not been started (or only exists as uncommitted scratch).
 
 - **Done this session:** Module 3 complete — *Layers and the Forward Pass* (`forward-propagation`), *The Network Playground* (`network-playground`), *Depth, Width and Parameter Counts* (`depth-and-width`).
-- **Next up:** Module 4 · *Loss functions* (`loss-functions`), then SGD, optimizers, schedules. Plans under "Next steps".
+- **Also done:** Module 4 · *Loss functions* (`loss-functions`).
+- **Next up:** Module 4 · *SGD and mini-batches* (`sgd-minibatch`), then optimizers, schedules. Plans under "Next steps".
 
 ## Status at a glance
 
@@ -16,7 +17,7 @@ Session 2 is working through Module 3 → Module 4 → Module 6 in order, commit
 | 1 | Mathematical Foundations | **9 lessons done**: vectors, dot product, matrices, matrix multiplication & tensors, derivatives, gradients, chain rule, probability & softmax, logarithms/entropy/cross-entropy |
 | 2 | The Artificial Neuron | **3 lessons done**: the neuron, activation functions (with live XOR training), Lab: Wiring Logic by Hand |
 | 3 | Network Architecture | **3 lessons done (module complete)**: layers and the forward pass (step-through of a hand-built 2→6→2→1 "two islands" network; per-neuron response thumbnails with a break-a-neuron experiment); the network playground (build/train/inspect any small MLP: per-neuron maps, contribution bars, ablation importance, every tensor at a probe point, parameter breakdown, pruning challenge with an exhaustively computed optimum); depth vs width (parameter calculator with ×2 width/depth buttons; exact linear-piece counting for 1D ReLU nets — folding layers give 2^L pieces vs n+1 for one wide layer, with honest fragility and random-network experiments) |
-| 4 | Loss & Optimization | **1 lesson done**: gradient descent (fog walker + descent-golf puzzle with computed par) |
+| 4 | Loss & Optimization | **2 lessons done**: gradient descent (fog walker + descent-golf puzzle with computed par); loss functions (tug of war: springs vs ropes → mean vs median; exact L2 vs L1 line fits with a draggable glitch; "stuck when wrong": squared error through a sigmoid vs cross-entropy, steps-to-escape) |
 | 5 | Backpropagation | **1 lesson done**: step-through graph explorer with a learner-computed gradient, cost comparison, fading-signal (vanishing/exploding) demo |
 | 6–18 | Training lab → AI systems | planned (titles listed in `src/curriculum.ts`) |
 
@@ -52,7 +53,6 @@ Session 2 is working through Module 3 → Module 4 → Module 6 in order, commit
 ## Next steps (in order)
 
 1. Module 4 remainder (each its own lesson, in this order):
-   - **Loss functions** (`loss-functions`): MSE vs MAE — the best constant under MSE is the mean, under MAE the median, so drag an outlier and watch MSE's fit get dragged; cross-entropy vs MSE for classification — CE punishes confident wrong answers without bound, and with a sigmoid output MSE's gradient vanishes exactly when the model is confidently wrong.
    - **SGD and mini-batches** (`sgd-minibatch`): the full gradient is an average over every example; estimate it from a sample like an opinion poll; widget shows sampled mini-batch gradient arrows around the true one, spread shrinking like 1/√batch; race measured in examples processed, not steps; epochs.
    - **Momentum, RMSProp and Adam** (`optimizers`): race on the same landscapes (narrow valley, banana, saddle, badly scaled axes) using `lib/optimizers`; "optimizer golf" with par computed by grid search.
    - **Learning-rate schedules** (`lr-schedules`): constant vs step vs cosine vs warmup+cosine on a noisy (mini-batch) problem — constant LR stalls at a noise floor, decay lets it settle. Only show a warmup benefit if it is reproducible in a real run; otherwise explain it honestly in prose.

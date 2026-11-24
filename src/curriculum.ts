@@ -71,8 +71,9 @@ export const MODULES: ModuleMeta[] = [
     blurb: 'How a model measures its mistakes, and how it walks downhill to make fewer of them.',
     lessons: [
       { id: 'gradient-descent', title: 'Gradient Descent: Walking Downhill in the Fog', summary: 'The algorithm behind nearly all of modern AI training, and why the step size can make or break it.', minutes: 25, load: () => import('./lessons/gradient-descent/index.mdx') },
+      { id: 'loss-functions', title: 'Loss Functions: What Does “Wrong” Mean?', summary: 'Squared error, absolute error and cross-entropy — what each one really asks the model for, and why the choice matters.', minutes: 25, load: () => import('./lessons/loss-functions/index.mdx') },
     ],
-    planned: ['Loss functions: MSE, MAE and cross-entropy', 'Stochastic and mini-batch gradient descent', 'Momentum, RMSProp and Adam', 'Learning-rate schedules'],
+    planned: ['Stochastic and mini-batch gradient descent', 'Momentum, RMSProp and Adam', 'Learning-rate schedules'],
   },
   {
     id: 'backprop',
