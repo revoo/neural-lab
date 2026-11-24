@@ -25,6 +25,7 @@ src/
   lessons/<id>/        one self-contained folder per lesson: index.mdx + widgets + quiz.ts (+ tests)
   pages/               app shell: home, lesson page, glossary, spaced-repetition review
 docs/
+  VISION.md            the product brief and the owner’s clarifications
   STYLE_GUIDE.md       the editorial and design rules — read before writing content
   ROADMAP.md           what's done, what's next, decisions and known limitations
 ```
