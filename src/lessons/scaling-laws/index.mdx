@@ -1,0 +1,169 @@
+import { PowerLawExplorer, IsoflopTradeoff, InferenceVsTraining, ComputeBudgetLab } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: how do you spend a hundred-million-dollar compute budget?
+
+Suppose someone hands you a cluster of 1,000 H100 GPUs for three weeks — roughly $5 \times 10^{23}$ floating-point operations — and asks you to train the best language model you can. You only get **one shot**. You cannot afford to train ten giant models and see which one wins.
+
+You face one agonising question before writing a single line of training code: **how big should the model be ($N$ parameters), and how much text should it read ($D$ tokens)?**
+
+Make the model too huge and your budget runs out after only a small slice of the internet: lots of brain, barely any education. Make the model too small and it reads trillions of words, but its tiny capacity saturates halfway through and the extra compute goes to waste.
+
+Before 2020, labs mostly guessed. Then researchers at OpenAI (Jared Kaplan and colleagues, 2020) and DeepMind (Jordan Hoffmann and colleagues, 2022) discovered something astonishing: across *six orders of magnitude* of scale, a language model's cross-entropy loss follows a clean, predictable **<Term id="scaling-law">scaling law</Term>**. You can fit the law on small, cheap runs and forecast the loss of a massive run before you ever switch the cluster on.
+
+<Analogy title="Think of dividing a fixed study budget between brain size and reading time">
+
+Suppose a team has a fixed total number of person-hours to master a library of books.
+
+- Hire **100 researchers** for **1 hour each**: plenty of brainpower, but nobody finishes even chapter one.
+- Hire **1 researcher** for **100 hours**: they read everything, but one head can only hold so much detail.
+- Somewhere in the middle — balancing the **size of the team** against **how long each person reads** — gets the best exam score for the exact same payroll.
+
+</Analogy>
+
+## First, count the bill: why training costs 6ND FLOPs
+
+Before balancing $N$ and $D$, we need the exact exchange rate between them. In a dense transformer, almost every floating-point operation happens inside matrix multiplications (`X @ W`) across the attention projections and feed-forward layers:
+
+- **Forward pass:** each weight multiplies one activation and adds into an accumulator → **2 FLOPs per parameter per token** (remember <LessonLink to="matrix-multiplication">matrix multiplication</LessonLink>: one multiply + one add).
+- **Backward pass:** for each weight we compute two matrix multiplications — the gradient flowing back to the previous layer (2 FLOPs) and the gradient for the weight itself (2 FLOPs) → **4 FLOPs per parameter per token**.
+
+Add them up: training a dense transformer with $N$ parameters on $D$ tokens costs approximately **$C \approx 6 N D$ FLOPs** (ignoring the small attention $n^2$ term when sequence length isn't gigantic). Running inference — forward pass only — costs **$2 N$ FLOPs per token**.
+
+Check that formula on a famous run: GPT-3 had $N = 175 \times 10^9$ parameters trained on $D = 300 \times 10^9$ tokens, giving $C \approx 6 \times 175\text{B} \times 300\text{B} = \mathbf{3.15 \times 10^{23}}$ FLOPs.
+
+## Writing it down: the parametric scaling law
+
+Hoffmann and colleagues trained over 400 language models from 70M to 16B parameters across a huge grid of token counts and found that final cross-entropy loss $L(N, D)$ splits cleanly into three additive pieces:
+
+<Eq
+  words="\text{predicted loss} = \text{language floor} \;+\; \text{penalty for finite model} \;+\; \text{penalty for finite data}"
+  tex="\cc{L}(\ca{N}, \cb{D}) = \cv{E} + \frac{A}{\ca{N}^{\alpha}} + \frac{B}{\cb{D}^{\beta}} \qquad \text{with } \cp{C} \approx 6\,\ca{N}\,\cb{D}"
+>
+
+- $\ca{N}$ — **model size** (number of non-embedding parameters)
+- $\cb{D}$ — **dataset size** (number of training tokens seen)
+- $\cp{C}$ — **training compute budget** in FLOPs ($\approx 6ND$)
+- $\cv{E}$ — the **irreducible entropy** of natural language (~1.82 nats/token here): the floor even an infinite model on infinite text can never cross
+- $A / \ca{N}^\alpha$ — the **finite-model penalty** (shrinks slowly as a power law as you add parameters)
+- $B / \cb{D}^\beta$ — the **finite-data penalty** (shrinks slowly as a power law as you add training tokens)
+
+</Eq>
+
+Throughout this lesson we use the **Besiroglu et al. (2024)** replication refit of Hoffmann's Chinchilla dataset ($E = 1.8172$, $A = 482.01$, $B = 2085.43$, $\alpha = 0.3478$, $\beta = 0.3658$) — see the honesty note below on why we chose it over the rounded numbers printed in the original 2022 paper.
+
+Explore how optimal loss behaves across six orders of magnitude of compute.
+
+<PowerLawExplorer />
+
+Switch between **Excess loss ($L - E$)** and **Total loss ($L$)**. On log–log axes, excess loss is a **razor-straight line** — that's what a power law means visually. And notice the sobering implication: every **10× increase in compute** shrinks excess loss by the same ~34% fraction, which means each extra 0.1 nat of loss improvement costs roughly **10× more money and GPUs** than the last.
+
+## The Chinchilla surprise: scaling N and D together
+
+In 2020, Kaplan et al. had estimated that as compute grows, you should put ~73% of it into bigger models and only ~27% into more data. Labs took that advice to heart: GPT-3 scaled to **175B parameters** on just **300B tokens** ($1.7$ tokens/param), and DeepMind's own Gopher scaled to **280B parameters** on **300B tokens** ($1.1$ tokens/param).
+
+<Predict
+  question="In 2022 DeepMind took Gopher’s exact compute budget (~5–6 × 10²³ FLOPs) and instead trained Chinchilla: 4× fewer parameters (70B) on nearly 5× more tokens (1.4T). What happened to its loss compared to 280B-parameter Gopher?"
+  options={[
+    'Chinchilla was slightly worse — 4× fewer parameters is too big a capacity handicap',
+    'They tied almost exactly',
+    'Chinchilla beat Gopher decisively — and was 4× cheaper to run at inference time',
+  ]}
+  answer={2}
+>
+
+**Chinchilla beat Gopher decisively** — and was 4× smaller, faster and cheaper to serve! On our scaling fit, Gopher (280B on 300B tokens) lands at **$L = 2.000$**, while Chinchilla (70B on 1.4T tokens) hits **$L = 1.974$** — right on the exact calculus minimum ($73\text{B}$ on $1.34\text{T}$ tokens).
+
+</Predict>
+
+Because $\alpha \approx 0.35$ and $\beta \approx 0.37$ are almost equal, minimising $L(N, D)$ subject to $6ND = C$ scales $N^*$ and $D^*$ **almost equally** with compute ($N^* \propto C^{0.51}$, $D^* \propto C^{0.49}$), landing near the famous **<Term id="chinchilla-optimal">Chinchilla rule of thumb</Term>: roughly 20 training tokens per parameter.**
+
+Drag the model-size slider on a fixed compute budget and watch the **IsoFLOP U-curve** trade finite-model penalty against finite-data penalty.
+
+<IsoflopTradeoff />
+
+<Deeper title="Honesty note: the rounding bug in the original Chinchilla paper" tag="Replication">
+
+If you look up the 2022 Chinchilla paper (Hoffmann et al., Approach 3), you will often see the constants $E = 1.69, A = 406.4, B = 410.7, \alpha = 0.34, \beta = 0.28$ quoted everywhere. Plug *those* rounded constants into our calculus optimum formula at Chinchilla's compute ($5.88 \times 10^{23}$ FLOPs) and something weird happens: they predict $N^* = 32.5\text{B}, D^* = 3.02\text{T}$ — a ratio of **93 tokens/param**, not 20!
+
+In 2024, Tamay Besiroglu and colleagues (*Chinchilla Scaling: A Replication Attempt*) digitised Hoffmann's own plots and discovered that the discrepancy came from rounding and fitting artefacts in Approach 3's published table, whereas re-fitting the underlying runs gives $E = 1.8172, A = 482.01, B = 2085.43, \alpha = 0.3478, \beta = 0.3658$ — which yields **$D^*/N^* \approx 18.4$** at Chinchilla compute and matches Approaches 1 and 2 of the original paper cleanly. We use Besiroglu et al.'s consistent refit throughout this lesson rather than pretending the rounded table produces 20-to-1!
+
+</Deeper>
+
+## Why modern labs break Chinchilla on purpose
+
+Look at the third preset in the IsoFLOP widget above: **Llama 3 70B** trained on **15 trillion tokens** ($214$ tokens/param), and **Llama 3 8B** trained on **15 trillion tokens** ($1{,}875$ tokens/param — nearly **100×** past Chinchilla's 20-to-1 ratio!).
+
+Did Meta forget Chinchilla? Not at all. Chinchilla solves one very specific problem: **minimise training compute $6ND$ to reach a target loss.** It assumes you train the model, publish a paper, and turn the GPUs off.
+
+If millions of users are going to query your model every day, **inference compute ($2 N D_{\text{inf}}$) dwarfs training compute.** Every single token you serve to a user costs $2N$ FLOPs — directly proportional to model size $N$. A smaller model trained on far more data reaches the exact same loss $L$, costs more to train once, and then saves a fortune on every single reply forever.
+
+Watch the lifecycle-optimal model size plummet as lifetime inference volume grows.
+
+<InferenceVsTraining />
+
+Look at those exact numbers for reaching **$L = 2.00$**:
+
+- At **$D_{\text{inf}} = 0$** (research paper only): optimal is **46.9B params on 0.88T tokens** ($19$ tok/param).
+- At **$D_{\text{inf}} = 20\text{T}$** lifetime inference tokens: a Chinchilla 50B model burns **$2.25 \times 10^{24}$** total FLOPs. Shrinking to **17.1B params** and over-training on **4.33T tokens** ($253$ tok/param) hits the exact same loss while cutting total lifecycle compute **in half**, to **$1.13 \times 10^{24}$ FLOPs**.
+- At **$D_{\text{inf}} = 50\text{T}$**: optimal drops to **14.3B params on 7.32T tokens** ($513$ tok/param).
+
+## Lab: spend the compute budget
+
+Your turn as the chief scientist. Three briefs — a pure research run, a single-GPU edge deployment, and a billion-user chatbot. Set $N$ and $D$ to clear every constraint, then see how close your allocation gets to the exact optimum.
+
+<ComputeBudgetLab />
+
+## In code
+
+Computing the parametric loss and solving the exact Chinchilla calculus optimum takes fifteen lines of plain Python:
+
+```python
+# Chinchilla parametric scaling law (Besiroglu et al. 2024 refit of Hoffmann et al. 2022)
+E, A, B = 1.8172, 482.01, 2085.43
+ALPHA, BETA = 0.3478, 0.3658
+
+def predicted_loss(N, D):
+    return E + A / (N ** ALPHA) + B / (D ** BETA)
+
+def chinchilla_optimal(C):
+    a = BETA / (ALPHA + BETA)
+    b = ALPHA / (ALPHA + BETA)
+    G = ((ALPHA * A) / (BETA * B)) ** (1 / (ALPHA + BETA))
+    N_opt = G * ((C / 6) ** a)
+    D_opt = ((C / 6) ** b) / G
+    return N_opt, D_opt, predicted_loss(N_opt, D_opt)
+
+for name, N, D in [("GPT-3 175B", 175e9, 300e9), ("Chinchilla 70B", 70e9, 1.4e12)]:
+    C = 6 * N * D
+    n_opt, d_opt, l_opt = chinchilla_optimal(C)
+    print(f"{name:14s}: L={predicted_loss(N, D):.4f} | opt {n_opt/1e9:.1f}B params, {d_opt/1e12:.2f}T tokens -> L*={l_opt:.4f}")
+```
+
+Running this prints `GPT-3 175B: L=2.0085 | opt 53.0B params, 0.99T tokens -> L*=1.9923` and `Chinchilla 70B: L=1.9739 | opt 73.0B params, 1.34T tokens -> L*=1.9739`. Real labs run a grid of small IsoFLOP curves (e.g. $10^{19}$–$10^{21}$ FLOPs) with their exact tokeniser, architecture and data mixture, fit their own $(E, A, B, \alpha, \beta)$, and extrapolate to their flagship run.
+
+<Misconception>
+
+"Scaling laws guarantee you can just keep buying GPUs forever and intelligence scales linearly." Two real walls sit ahead. First, **diminishing returns are exponential in cost**: each 10× jump in FLOPs gives a steady fractional drop in excess loss, and once $L$ nears the irreducible floor $E$, raw next-token prediction gets very expensive to squeeze further. Second, **the data wall**: Chinchilla-optimal training at $10^{26}$ FLOPs wants tens of trillions of high-quality unique tokens — roughly the entire clean public web. That is why modern frontier labs increasingly pair pretraining scale with synthetic data, cleaner filtering, and **test-time compute** (letting reasoning models spend extra inference tokens thinking before answering).
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- Dense transformer training costs **$C \approx 6 N D$ FLOPs** (2 forward + 4 backward per parameter per token); inference costs **$2 N$ FLOPs per token**.
+- Predicted cross-entropy loss follows a smooth power law: **$L(N, D) = E + A/N^\alpha + B/D^\beta$**, forming a straight line for excess loss $(L - E)$ on log–log axes.
+- **Chinchilla scaling:** to minimise *training* compute for a given loss, scale parameters and training tokens roughly equally — about **20 tokens per parameter**.
+- **Inference-optimal over-training:** when a model will serve trillions of tokens to users, training a **smaller model on far more data** (100–2,000 tokens/param, as in Llama 3) slashes total lifecycle compute and VRAM cost.
+- Scaling laws let labs forecast billion-dollar runs from small experiments, though data quality and exponential compute costs set real-world limits.
+
+</Takeaways>
+
+<InTheWild>
+
+OpenAI's GPT-4 technical report (2023) famously revealed that they predicted GPT-4's final training loss accurately using runs requiring **less than 1/1,000th** of GPT-4's compute — turning billion-dollar pretraining from blind guesswork into quantitative engineering. Since 2023, nearly every open-weights family (Llama 3, Gemma 2, Qwen 2.5, Mistral) has deliberately embraced **over-training** smaller models (7B–70B) on 10–36 trillion tokens so they fit cleanly on consumer and datacentre GPUs. And that brings us straight to the hardware underneath it all.
+
+</InTheWild>
+
+You've completed Module 13 — from next-token prediction and perplexity through sampling to scaling laws. Next: **Module 15 · Inference & Hardware** — what actually happens on the GPU, why floating-point precision and quantisation matter, and why KV caching and memory bandwidth rule LLM serving speed.

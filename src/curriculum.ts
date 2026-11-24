@@ -133,8 +133,8 @@ export const MODULES: ModuleMeta[] = [
     lessons: [
       { id: 'next-token-prediction', title: 'Next-Token Prediction & Perplexity', summary: 'How a transformer writes one token at a time, what perplexity really means, why neural embeddings beat lookup tables — and Shannon’s betting game.', minutes: 30, load: () => import('./lessons/next-token-prediction/index.mdx') },
       { id: 'sampling', title: 'Sampling: Temperature, Top-k and Top-p', summary: 'Why greedy loops, why raw sampling falls into the long tail, how nucleus sampling adapts to confidence, beam search — and a sampler-tuning lab with an impossible level.', minutes: 30, load: () => import('./lessons/sampling/index.mdx') },
+      { id: 'scaling-laws', title: 'Scaling Laws & Compute-Optimal Training', summary: 'Why training costs 6ND FLOPs, how Chinchilla balances parameters against tokens, why Llama 3 breaks Chinchilla on purpose — and a compute-budget lab.', minutes: 30, load: () => import('./lessons/scaling-laws/index.mdx') },
     ],
-    planned: ['Scaling laws'],
   },
   { id: 'finetuning', number: 14, title: 'Training & Fine-Tuning', blurb: 'Pretraining, fine-tuning, LoRA, RLHF and the rest of the post-training toolkit.', lessons: [], planned: ['Transfer learning', 'LoRA', 'RLHF and DPO'] },
   { id: 'inference', number: 15, title: 'Inference & Hardware', blurb: 'What actually happens on the GPU, and why memory bandwidth rules everything.', lessons: [], planned: ['Floating point formats', 'Quantization', 'KV caching', 'Memory-bound decoding'] },
