@@ -1,0 +1,145 @@
+import { OrderBlind, PositionClocks, RopeDial, PreviousWordLab } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: attention can't tell "dog bites man" from "man bites dog"
+
+Here's something about attention that sounds like a bug, and is one. Every word compares its query with every other word's key, scores them, and blends their values. At no point does anything ask *where* a word is. Shuffle the sentence and each word still meets exactly the same set of other words, gets exactly the same scores, and produces exactly the same output — just in a different place in the list.
+
+<Predict
+  question="An attention layer processes 'dog bites man' and then 'man bites dog'. How does the output vector for 'dog' compare between the two?"
+  options={['Different: dog is the subject in one and the object in the other', 'Exactly the same', 'Similar but not identical']}
+  answer={1}
+>
+
+Exactly the same: in our real layer the two vectors agree to fifteen decimal places, and the remaining difference is only the computer's rounding when it adds the same numbers in a different order. Try it in the widget below with a real layer. Mathematicians call this property *permutation equivariance*: permute the input words, and the outputs are permuted the same way, but are otherwise unchanged. For a set of objects that's often what you want. For language, where order is half the meaning, it's a disaster.
+
+</Predict>
+
+<OrderBlind />
+
+The fix is to make each word's vector *carry its position*: before the first layer, add a **position vector** to each word's vector. "dog" at position 0 and "dog" at position 2 then become different vectors, ask different questions and get different answers.
+
+That leaves the interesting design question: what should a position vector look like?
+
+## Positions as clocks
+
+The obvious idea is to number them: add 0 to the first word, 1 to the second, and so on. But then position 2,000 adds a number in the thousands to a vector whose other entries are around 1, drowning the word's meaning. Scaling the numbers down (position ÷ length) fixes that, but then "one word apart" means something different in a short text and a long one.
+
+The original transformer used a beautifully different idea.
+
+<Analogy title="Think of a clock with many hands">
+
+A clock tells the time with hands turning at different speeds. The second hand distinguishes moments a second apart but comes round every minute; the minute hand comes round only every hour; the hour hand every twelve hours. No single hand can tell you the time, but together they give every moment of the day its own unique combination of angles — and two moments close together have similar angles on every hand.
+
+</Analogy>
+
+A sinusoidal position vector is a clock with many hands. Each pair of its numbers is the sine and cosine of one hand's angle, and each hand turns at its own speed per position: the first by one radian per word, each subsequent one about 3.2 times slower than the one before, down to hands so slow they barely move across a whole book.
+
+<PositionClocks />
+
+Two lovely properties fall out of this, and you can check both in the widget. Every position gets a different pattern, however long the text. And how much two positions agree (their dot product) depends only on **how far apart they are**: positions 3 and 8 agree exactly as much as positions 30 and 35. That's what attention wants: "the word two places back" should mean the same thing everywhere.
+
+<Eq
+  words="\text{position vector, pair } i = \big(\sin(\text{position} \times \text{speed}_i),\; \cos(\text{position} \times \text{speed}_i)\big),\quad \text{each speed slower than the last}"
+  tex="\cp{PE}_{\cb{pos},\,2i} = \sin\!\left(\frac{\cb{pos}}{\cc{10000}^{\,2i/\ca{d}}}\right), \qquad \cp{PE}_{\cb{pos},\,2i+1} = \cos\!\left(\frac{\cb{pos}}{\cc{10000}^{\,2i/\ca{d}}}\right)"
+>
+
+- $\cb{pos}$ — the word's **position**: 0, 1, 2, …
+- $i$ — which **hand** (which pair of numbers): 0 is the fastest
+- $\ca{d}$ — the **length** of the vector (two numbers per hand)
+- $\cc{10000}$ — sets how **slow** the slowest hand is; the speeds are spread evenly between 1 and 1/10000 radians per position on a logarithmic scale
+- $\cp{PE}$ — the **position vector**, added to the word's own vector before the first layer
+
+</Eq>
+
+Many models, GPT-2 among them, skip the formula and simply *learn* a vector for each position, like a word embedding. That works well up to the longest text seen in training, and not at all beyond it: there is no learned vector for position 1,025 if training never went past 1,024.
+
+## Rotary positions: rotate, then compare
+
+Most modern language models — Llama, Mistral, Qwen and many others — use a refinement called **<Term id="rope">rotary position embedding</Term>**, or RoPE (Jianlin Su and colleagues, 2021). Instead of adding a position vector to the word, it applies the clock *inside* attention: just before the comparison, it **rotates** each query and each key by an angle proportional to its position.
+
+Recall from <LessonLink to="dot-product">the dot product lesson</LessonLink> that a dot product depends on the lengths of the two vectors and the angle between them. Rotating both by their own positions changes that angle by exactly *θ × (difference in positions)*. So the score between two words depends on their contents and on **how far apart they are**, and on nothing else.
+
+<RopeDial />
+
+<Eq
+  words="\text{score} = (\text{query turned by its position}) \cdot (\text{key turned by its position}) = \text{query} \cdot (\text{key turned by the offset})"
+  tex="\big(\cv{R}_{\cb{m}}\,\ca{\mathbf{q}}\big)\cdot\big(\cv{R}_{\cb{n}}\,\cc{\mathbf{k}}\big) = \ca{\mathbf{q}}\cdot\big(\cv{R}_{\cb{n}-\cb{m}}\,\cc{\mathbf{k}}\big)"
+>
+
+- $\ca{\mathbf{q}}$, $\cc{\mathbf{k}}$ — the **query** and **key**, from the words' contents as before
+- $\cb{m}$, $\cb{n}$ — the two words' **positions**
+- $\cv{R}_{\cb{m}}$ — a **rotation** by $\theta \times m$ (in real models, one rotation per pair of numbers, each with its own speed: the clock again)
+- the right-hand side contains only $n - m$: the score depends on the **offset**, not on where the pair sits
+
+</Eq>
+
+Every pair of numbers in the query and key gets its own rotation speed, using exactly the clock speeds of the sinusoidal formula. And that's not decoration, as the lab will show you.
+
+## Lab: build a previous-word head
+
+One of the most common heads found in trained language models does something very simple: each word attends to **the word just before it**. It sounds trivial, but it can't be done from content — the head has to use position. Here, every word has identical content, so only the rotation can make the previous word win.
+
+<PreviousWordLab />
+
+<Deeper title="After the lab: why real models use many speeds" tag="Spoiler">
+
+On eight words, one hand is plenty: 91 of the 180 whole-degree speeds give the previous word at least 60%, and the best (156° per position, which makes the immediate neighbours point almost the opposite way) gives it 92%.
+
+On 64 words, no single speed works: the best of all 180 gives the previous word only 15%. A hand turning θ degrees per position comes back to the same angle every 360/θ positions, so a fast hand makes a word dozens of places back look exactly like the previous one. A slow hand never comes round in 64 words, but then neighbours differ by only a few degrees and look nearly identical. One hand has to be either precise or unambiguous; it can't be both.
+
+Two hands fix it, the clock's trick exactly: a fast hand to tell neighbours apart, a slow hand to tell "1 back" from "49 back". 2,689 of the 16,290 pairs of speeds work, for example 4° with 36°, and the best (5° with 80°) gives the previous word 79%. Real models use 32 or 64 hands per head, spanning speeds from one radian per position down to almost nothing, so that they can be precise about neighbours *and* unambiguous across many thousands of positions.
+
+</Deeper>
+
+## In code
+
+```python
+import numpy as np
+
+def sinusoidal_positions(n, d, base=10000):
+    pos = np.arange(n)[:, None]                         # (n, 1)
+    speeds = base ** (-np.arange(0, d, 2) / d)          # (d/2,): one speed per hand
+    angles = pos * speeds                               # (n, d/2)
+    pe = np.zeros((n, d))
+    pe[:, 0::2], pe[:, 1::2] = np.sin(angles), np.cos(angles)
+    return pe                                           # add to the word vectors: X + pe
+
+def rope(x, base=10000):
+    """Rotate each pair (x[2i], x[2i+1]) of every row by position × speed_i."""
+    n, d = x.shape
+    angles = np.arange(n)[:, None] * base ** (-np.arange(0, d, 2) / d)
+    cos, sin = np.cos(angles), np.sin(angles)
+    out = np.empty_like(x)
+    out[:, 0::2] = x[:, 0::2] * cos - x[:, 1::2] * sin
+    out[:, 1::2] = x[:, 0::2] * sin + x[:, 1::2] * cos
+    return out                                          # apply to Q and K, not V
+```
+
+With RoPE, positions never touch the word vectors themselves: `Q, K = rope(X @ W_q), rope(X @ W_k)`, and the values stay unrotated. The scores pick up the relative positions; what gets blended is still pure content.
+
+<Misconception>
+
+"The model knows word order because it reads the text left to right." It doesn't read in any order: attention processes every word at once, and without position information it would be entirely order-blind, as "dog bites man" showed. Everything a transformer knows about order comes from position vectors or rotations like these. (Language models do also use a *mask* that stops each word from looking at later words, which you'll meet with the transformer block. That controls what a word may see, not where things are.)
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- Attention on its own is **order-blind**: shuffle the words and each word's output is unchanged, just moved.
+- Position information is added from outside: **sinusoidal** vectors, **learned** vectors, or **rotations** of queries and keys (RoPE).
+- Sinusoidal positions are a **clock with many hands**: each pair of numbers turns at its own speed, so every position gets a unique pattern and the agreement between two positions depends only on their distance.
+- **RoPE** rotates queries and keys by their positions, so each score depends on the words' contents and their **offset**, nothing else.
+- One rotation speed can be precise or unambiguous, not both; **many speeds** give both. That's why the clock has many hands.
+
+</Takeaways>
+
+<InTheWild>
+
+How positions are handled has turned out to decide how long a text a model can read. Learned position vectors, as in GPT-2 and the original BERT, stop dead at the training length. RoPE generalises more gracefully, and much of the recent race to long context windows has consisted of clever adjustments to RoPE's speeds: methods with names like position interpolation, NTK-aware scaling and YaRN slow the hands down after training, so that a model trained on a few thousand tokens can be stretched to read hundreds of thousands.
+
+</InTheWild>
+
+You now have every ingredient of a transformer layer: attention, many heads, and positions. Next: how they're assembled into the block that gets stacked dozens of times.

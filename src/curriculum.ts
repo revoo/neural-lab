@@ -120,8 +120,9 @@ export const MODULES: ModuleMeta[] = [
     lessons: [
       { id: 'attention', title: 'Attention from Scratch', summary: 'How a word pulls meaning from its context: a soft dictionary lookup built from dot products, softmax and a weighted sum — and puzzles where you steer it.', minutes: 35, load: () => import('./lessons/attention/index.mdx') },
       { id: 'multi-head-attention', title: 'Multi-Head Attention', summary: 'Why one softmax can only answer one question at a time — and how splitting attention into heads asks several at once, for free.', minutes: 25, load: () => import('./lessons/multi-head-attention/index.mdx') },
+      { id: 'positions', title: 'Positions: Teaching Attention About Order', summary: 'Attention can’t tell “dog bites man” from “man bites dog”. Clocks, rotations, and a lab where you build a head that finds the previous word.', minutes: 30, load: () => import('./lessons/positions/index.mdx') },
     ],
-    planned: ['Tokenization', 'Positional information', 'The transformer block'],
+    planned: ['Tokenization', 'The transformer block'],
   },
   { id: 'llms', number: 13, title: 'Large Language Models', blurb: 'From next-token prediction to assistants: sampling, scaling, and their failure modes.', lessons: [], planned: ['Next-token prediction', 'Sampling: temperature, top-k, top-p', 'Scaling laws'] },
   { id: 'finetuning', number: 14, title: 'Training & Fine-Tuning', blurb: 'Pretraining, fine-tuning, LoRA, RLHF and the rest of the post-training toolkit.', lessons: [], planned: ['Transfer learning', 'LoRA', 'RLHF and DPO'] },
