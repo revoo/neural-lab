@@ -1,1 +1,142 @@
-This lesson is being written.
+import { SoftmaxLab } from './SoftmaxLab'
+import { questions } from './quiz'
+
+## The problem: models should say how sure they are
+
+Show an image classifier a photo of a cat, and you'd like it to say "cat". But show it a blurry photo of something small, furry and indistinct, and the honest answer is more like: "probably a cat, possibly a dog, maybe a fox."
+
+Language models face this constantly. After the words "The weather today is", the next word could be "sunny", "cold", "terrible", "unusually"… there isn't one right answer, there's a spread of plausible ones. A model that can only name a single answer throws that information away.
+
+So we want models to output **probabilities**. That raises a practical problem. The last layer of a network produces arbitrary numbers — positive, negative, large, small. How do we turn those into something that behaves like probabilities?
+
+## What a probability distribution is
+
+A **<Term id="probability-distribution">probability distribution</Term>** over a set of outcomes is just a list of numbers, one per outcome, with two rules:
+
+1. **No negatives.** Every number is between 0 and 1.
+2. **They add up to 1.** Something has to happen, and the probabilities share out that certainty.
+
+`[0.7, 0.2, 0.1]` is a distribution. `[0.5, 0.6, −0.1]` is not, even though it sums to 1.
+
+If you've ever written `random.choices(["cat", "dog", "fox"], weights=[0.7, 0.2, 0.1])`, you've used one: run it many times and "cat" comes up about 70% of the time. That's exactly how a language model picks its next word.
+
+## Mental model: dividing up a pie
+
+<Analogy title="Think of splitting a bill by enthusiasm">
+
+Four friends want to split a pizza according to how hungry each one claims to be. They each shout a score. The fair-sounding plan: give each person a slice proportional to their score.
+
+It works fine — until someone says "I'm at minus two hungry". You can't give a person negative pizza. You need a rule that turns *any* collection of scores, however strange, into slices that are all non-negative and add up to one whole pizza. And ideally, the hungriest person should get noticeably more, without anyone being completely shut out.
+
+</Analogy>
+
+The network's raw output scores are called **<Term id="logits">logits</Term>**. Before reading about the standard solution, try the obvious approaches yourself. Start with "divide by the sum", then try to break it.
+
+<SoftmaxLab />
+
+If you experimented, you'll have found:
+
+- **Dividing by the sum** works until a score goes negative. Then you get negative "probabilities" — or, if the scores happen to cancel to zero, a division by zero.
+- **Shifting everything up so the lowest is zero** avoids negatives, but always gives the lowest class *exactly* 0%. A model using this rule could never say "probably cat, but maybe owl".
+- **Softmax** never breaks. Every output is positive, they always sum to 1, the highest score always gets the biggest share, and no class is ever forced to zero.
+
+## Softmax
+
+Softmax handles negatives with a neat trick: it first passes each score through the exponential function $e^{z}$, which turns *any* number into a positive one. Then it divides by the total so everything sums to 1:
+
+$$
+\text{softmax}(\mathbf{z})_i = \frac{e^{z_i}}{\sum_{j} e^{z_j}}
+$$
+
+Reading the symbols:
+
+- $\mathbf{z}$ is the vector of logits; $z_i$ is the logit for class $i$.
+- $e^{z_i}$ is the number $e \approx 2.718$ raised to the power $z_i$. You don't need to know much about $e$ here, only that $e^{z}$ is always positive and grows fast: $e^{-2} \approx 0.14$, $e^{0} = 1$, $e^{2} \approx 7.4$, $e^{4} \approx 55$.
+- The bottom of the fraction, $\sum_j e^{z_j}$, is the sum of all the exponentiated scores — the loop over every class.
+
+In code, it's three steps: exponentiate, sum, divide.
+
+### Why the exponential?
+
+The exponential isn't just a convenient way to make things positive. It has a property that turns out to be exactly what you want:
+
+$$
+\frac{p_i}{p_j} = \frac{e^{z_i}}{e^{z_j}} = e^{\,z_i - z_j}
+$$
+
+The *ratio* between two probabilities depends only on the *difference* between their logits. If cat's logit is 1 higher than dog's, cat is $e^1 \approx 2.7$ times as likely as dog — whatever the other numbers are. If it's 2 higher, cat is about 7.4 times as likely.
+
+So logits behave like a log-scale of confidence: **each unit of difference multiplies the odds by the same factor**. One consequence, which you can test with the shift buttons: adding the same constant to every logit changes nothing at all.
+
+<Deeper title="Softmax and the sigmoid are the same idea" tag="Connection">
+
+With just two classes and logits $[z, 0]$, softmax gives the first class
+
+$$
+\frac{e^{z}}{e^{z} + e^{0}} = \frac{e^{z}}{e^{z} + 1} = \frac{1}{1 + e^{-z}}
+$$
+
+That last expression is the **sigmoid** function, $\sigma(z)$ — the classic S-shaped curve squashing any number into $(0, 1)$. So when a single neuron with a sigmoid outputs "probability of spam", it's doing two-class softmax on the logits $[z, 0]$. You'll meet the sigmoid properly in <LessonLink to="neuron">the neuron lesson</LessonLink>.
+
+</Deeper>
+
+### Temperature
+
+Divide every logit by a number $T$ before applying softmax, and you get a dial for confidence:
+
+$$
+p_i = \frac{e^{z_i / T}}{\sum_j e^{z_j / T}}
+$$
+
+This $T$ is called the **<Term id="temperature">temperature</Term>** (the name is borrowed from physics, where the same formula describes how particles distribute across energy levels).
+
+- **Low temperature** ($T < 1$) stretches the differences between logits, so the top choice dominates. As $T$ approaches 0, softmax becomes "pick the largest" — often called *argmax*.
+- **High temperature** ($T > 1$) shrinks the differences, flattening the distribution towards uniform.
+
+Try both extremes in the lab, and press "Sample" a few times at each. At low temperature, almost every sample is the top class. At high temperature, the samples are scattered.
+
+<Misconception>
+
+"Turning the temperature down makes the model smarter, or more accurate." Temperature doesn't change anything the model has learned. The logits — the model's actual opinion — are identical. Temperature only changes how that opinion is converted into a choice. Low temperature makes a model *predictable*, which can be useful (for code, or factual answers) but can also make it repetitive. High temperature makes it *varied*, which can be useful (for brainstorming) but makes unlikely, possibly wrong, choices more frequent.
+
+</Misconception>
+
+## In code
+
+```python
+import numpy as np
+
+def softmax(z, temperature=1.0):
+    z = np.asarray(z, dtype=float) / temperature
+    z = z - z.max()          # shift for numerical safety — doesn't change the result!
+    e = np.exp(z)
+    return e / e.sum()
+
+softmax([2.0, 1.0, 0.1, -1.0])        # array([0.638, 0.235, 0.095, 0.032])
+softmax([2.0, 1.0, 0.1, -1.0], 0.1)   # array([1.000, 0.000, 0.000, 0.000])  ≈ argmax
+softmax([2.0, 1.0, 0.1, -1.0], 10)    # array([0.288, 0.261, 0.238, 0.213])  ≈ uniform
+
+np.exp(1000.0)                        # inf  — why the shift matters
+```
+
+That `z - z.max()` line is worth understanding. Floating-point numbers overflow to infinity somewhere around $e^{709}$, and real logits can be large. Because shifting all logits by the same amount doesn't change softmax's output, we can subtract the largest one first. Now the biggest exponent is $e^0 = 1$, and nothing can overflow. Every serious implementation does this.
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- A **probability distribution** is a list of non-negative numbers summing to 1. Models use them to express uncertainty.
+- Networks output raw scores called **logits**. **Softmax** turns any logits into a valid distribution: exponentiate, then divide by the total.
+- Softmax only cares about **differences** between logits: each unit of difference multiplies the odds by $e \approx 2.7$.
+- **Temperature** divides the logits before softmax: low $T$ sharpens towards the top choice, high $T$ flattens towards uniform.
+- Implementations subtract the maximum logit first to avoid overflow, which is safe precisely because shifts don't matter.
+
+</Takeaways>
+
+<InTheWild>
+
+Every time a large language model writes a word, its final layer produces one logit per token in its vocabulary — around 50,000 for GPT‑2, 128,000 for Llama 3 — and softmax turns them into a distribution from which the next token is sampled. The "temperature" setting in AI APIs is exactly the $T$ above. Settings like top‑k and top‑p, which we'll explore in the language model module, are rules for trimming the long tail of that distribution before sampling.
+
+</InTheWild>
+
+We now have models that output probabilities. Next question: when the correct answer turns out to be "cat", how do we score a prediction that said 60% cat versus one that said 95% cat? The answer involves logarithms — and a beautifully simple idea called surprise.

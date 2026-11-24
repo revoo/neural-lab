@@ -320,7 +320,7 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 0; }
 .btn.small { padding: 4px 10px; font-size: 12.5px; }
 .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
-.readout { font-family: var(--font-mono); font-size: 13px; background: var(--bg-sunken); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; line-height: 1.7; overflow-x: auto; }
+.readout { white-space: pre-wrap; font-family: var(--font-mono); font-size: 13px; background: var(--bg-sunken); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; line-height: 1.7; overflow-x: auto; }
 .readout .k { color: var(--text-faint); }
 .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .c-a { color: var(--c-a); } .c-b { color: var(--c-b); } .c-c { color: var(--c-c); } .c-grad { color: var(--c-grad); }

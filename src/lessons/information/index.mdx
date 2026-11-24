@@ -1,1 +1,164 @@
-This lesson is being written.
+import { LogExplorer } from './LogExplorer'
+import { EntropyLab } from './EntropyLab'
+import { LossCurves } from './LossCurves'
+import { questions } from './quiz'
+
+## The problem: grading a guess
+
+A classifier looks at a photo and says: 60% cat, 30% dog, 10% fox. The photo is, in fact, a cat. How good was that prediction?
+
+It wasn't *wrong*, exactly. It put the most probability on the right answer. But a different model that said 95% cat was clearly better, and one that said 1% cat was clearly terrible. To train a model, we need to turn this intuition into a single number — a **loss** — that the model can then reduce with gradient descent.
+
+What should that number look like? A few requirements suggest themselves:
+
+- More probability on the correct answer should mean lower loss.
+- Being *confidently* wrong should be punished severely. A model that says "definitely not a cat" about a cat has learned something genuinely false.
+- We'll evaluate the model on many examples, so the per-example losses should combine sensibly.
+
+The standard answer, used to train nearly every classifier and every language model, is called **<Term id="cross-entropy">cross-entropy</Term>**. It sounds forbidding. The idea underneath it is not: *how surprised was the model by the truth?*
+
+To get there, we need one mathematical tool first.
+
+## Logarithms: counting doublings
+
+A **<Term id="logarithm">logarithm</Term>** answers a simple question: *how many times do I have to multiply by some base to reach this number?*
+
+With base 2: how many doublings take you from 1 to 8? Three ($1 \to 2 \to 4 \to 8$). So $\log_2 8 = 3$. How many to reach 1,024? Ten. So $\log_2 1024 = 10$.
+
+You've used this all your career, even if not by name. Binary search over 1,024 sorted items needs at most 10 comparisons. A 32-bit integer can index $2^{32}$ things. $\log_2 n$ is "how many yes/no questions, or how many bits, does it take to single out one of $n$ things".
+
+<LogExplorer />
+
+The property worth remembering from that experiment: **logarithms turn multiplication into addition**.
+
+$$
+\log(a \times b) = \log a + \log b
+$$
+
+Doubling the input always adds exactly one to $\log_2$. This matters for probabilities, because the probability of independent events happening together is a *product*: two fair coins both landing heads is $\frac12 \times \frac12 = \frac14$. Logarithms will turn those products into sums, which are much nicer to work with — numerically and mathematically.
+
+One more fact you'll need: the logarithm of a number between 0 and 1 is negative ($\log_2 \frac18 = -3$: three halvings). Probabilities live between 0 and 1, so their logs are negative. That's why the formulas below have minus signs in front: to turn those negative numbers back into positive ones.
+
+<Deeper title="Which base?" tag="Notation">
+
+Base 2 measures information in **bits**, which is lovely for intuition. In machine learning code, the natural logarithm $\ln$ (base $e \approx 2.718$) is standard, and the unit is called a **nat**. The choice only rescales everything by a constant ($\ln x = \log_2 x \times \ln 2 \approx 0.693 \log_2 x$), so it never changes which model is better or where the minimum is. When a paper writes $\log$ without a base, it almost always means $\ln$.
+
+</Deeper>
+
+## Surprise
+
+<Analogy title="Think of newspaper headlines">
+
+"Sun rises in the east" isn't news. It was certain to happen, so learning that it happened tells you nothing. "Snow falls in the Sahara" is big news — precisely *because* it was so unlikely.
+
+The less likely an event, the more **surprising** it is, and the more information you gain by learning it happened.
+
+</Analogy>
+
+Information theory makes this precise. The **<Term id="surprise">surprise</Term>** of an event with probability $p$ is
+
+$$
+\text{surprise}(p) = -\log_2 p = \log_2 \frac{1}{p}
+$$
+
+A certain event ($p = 1$) has zero surprise. A fair coin landing heads ($p = \frac12$) carries 1 bit. A one-in-a-thousand event carries about 10 bits. And — this is where logarithms earn their keep — the surprise of two independent events is the *sum* of their individual surprises, because the logarithm turned their product of probabilities into a sum.
+
+## Entropy: average surprise
+
+If surprise measures one outcome, **<Term id="entropy">entropy</Term>** measures a whole distribution: it's the surprise you'd experience *on average*, weighting each outcome by how often it happens.
+
+$$
+H(p) = \sum_i p_i \cdot \log_2 \frac{1}{p_i}
+$$
+
+Entropy is a measure of unpredictability. Play with a weather forecast below and try to hit each target.
+
+<EntropyLab />
+
+Notice the balancing act. A rare outcome like snow is hugely surprising when it happens, but it rarely happens, so it contributes little on average. Entropy is highest when every outcome is equally likely (you can predict nothing) and zero when one outcome is certain (you can predict everything).
+
+## Cross-entropy: the model's surprise at the truth
+
+Now back to grading predictions. Here's the idea in one sentence:
+
+> **A good model is one that is not surprised by what actually happens.**
+
+If a model said 95% cat and the answer was cat, its surprise is $-\ln 0.95 \approx 0.05$ — barely raised an eyebrow. If it said 1% cat, its surprise is $-\ln 0.01 \approx 4.6$ — utterly shocked. So we use the surprise as the loss:
+
+$$
+\text{loss} = -\ln p_{\text{model}}(\text{correct answer})
+$$
+
+That's **cross-entropy loss** for a single example. Of all the probabilities the model output, only the one on the correct class matters. (The name comes from a more general formula, $H(p, q) = -\sum_i p_i \ln q_i$, measuring the surprise of a model $q$ when outcomes really follow $p$. When the true distribution puts all its weight on one correct class, every term but one vanishes, leaving exactly the expression above.)
+
+Drag the point below and compare it with the more obvious choice, squared error.
+
+<LossCurves />
+
+### Why surprise makes a good loss
+
+**It punishes confident mistakes without limit.** Squared error on probabilities can never exceed 1, so "gave the right answer 1%" and "gave it 0.0001%" cost almost the same. Cross-entropy says the second is far worse, and heads towards infinity as the probability on the truth heads towards zero. A model that is confidently wrong has something important to unlearn, and the loss reflects that.
+
+**Its gradient is beautifully simple.** When cross-entropy is combined with softmax, the gradient of the loss with respect to each logit works out to
+
+$$
+\frac{\partial\, \text{loss}}{\partial z_i} = p_i - y_i
+$$
+
+where $y_i$ is 1 for the correct class and 0 for the others. Read it as: *push each logit in proportion to how wrong its probability was.* If the model said 0.7 for the right class, that logit gets a push of $0.7 - 1 = -0.3$ (meaning: increase it). If it said 0.2 for a wrong class, that logit gets $0.2 - 0 = 0.2$ (decrease it). Large errors, large pushes. This is one of the reasons the softmax–cross-entropy pairing is everywhere.
+
+**It adds up across examples.** The loss on a dataset is the average of the per-example losses. Because logarithms turn products into sums, minimising the *summed* surprise is exactly the same as maximising the *probability the model assigns to the whole dataset at once*. Statisticians call this maximum likelihood. Cross-entropy is just its friendlier face.
+
+<Deeper title="Perplexity: the language model's report card" tag="Connection">
+
+Language models are trained to predict the next token, with cross-entropy as the loss. Researchers often report **perplexity** instead, which is just $e^{\text{average loss}}$.
+
+It has a lovely interpretation: perplexity is the *effective number of equally likely choices* the model is hesitating between at each step. A perplexity of 1 means perfectly certain; a perplexity of 50,000 on a 50,000-token vocabulary means the model has learned nothing. A good modern model on ordinary English text might be in the single digits: at each step, it's "as uncertain as if it were choosing between a handful of options".
+
+</Deeper>
+
+## In code
+
+```python
+import numpy as np
+
+def cross_entropy_from_logits(logits, correct):
+    z = logits - logits.max()                 # stability shift, as in softmax
+    log_probs = z - np.log(np.exp(z).sum())   # log-softmax, computed safely
+    return -log_probs[correct]
+
+logits = np.array([2.0, 1.0, 0.1, -1.0])      # cat, dog, fox, owl
+cross_entropy_from_logits(logits, correct=0)  # 0.449  → p(cat) ≈ 0.64
+cross_entropy_from_logits(logits, correct=3)  # 3.449  → p(owl) ≈ 0.03
+
+# In PyTorch, the same thing for a batch — note that it takes LOGITS, not probabilities:
+# loss = torch.nn.functional.cross_entropy(logits, targets)
+```
+
+That last comment hides a classic bug. PyTorch's `cross_entropy` applies softmax internally. If you apply softmax yourself first and pass the probabilities in, the model still trains — but with a squashed, distorted gradient — and often trains badly without any error message. Computing log-softmax directly from logits, as above, is both more convenient and more numerically stable than computing probabilities and then taking their log.
+
+<Misconception>
+
+"Low cross-entropy means the model is right." Not necessarily on every example — it means the model assigns high probability to the right answers *on average*. A model can have excellent average loss and still be confidently wrong on a few rare cases, which the average hides. And low loss on the *training* data says nothing guaranteed about new data; that gap is the subject of the generalisation module.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- **Logarithms** count multiplications (doublings, for base 2) and turn products into sums.
+- **Surprise** $= -\log p$: certain events carry no information, rare events carry a lot.
+- **Entropy** is the average surprise of a distribution: a measure of unpredictability.
+- **Cross-entropy loss** $= -\ln p_{\text{model}}(\text{correct})$: the model's surprise at the truth. It punishes confident mistakes without limit.
+- With softmax, cross-entropy's gradient on the logits is simply $p - y$. Frameworks take **logits**, not probabilities.
+
+</Takeaways>
+
+<InTheWild>
+
+Large language models are trained with exactly this loss, one token at a time: at each position in each training document, the model predicts a distribution over its vocabulary, and the loss is its surprise at the token that actually came next — averaged over trillions of tokens. When people say a model was "trained to predict the next word", this is what they mean, and the curve of that average surprise falling over training is the single most-watched number in the field.
+
+</InTheWild>
+
+That completes the mathematical foundations. You now have every tool needed to build and train a neural network: vectors, dot products, matrices, derivatives, gradients, the chain rule, softmax and cross-entropy. Time to put them together — starting with a single artificial neuron.
