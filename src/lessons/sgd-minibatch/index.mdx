@@ -1,0 +1,166 @@
+import { GradientPoll, BudgetRace } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: one step costs the whole dataset
+
+Every gradient descent you've seen so far computed the loss over *all* the training data before taking a single step. That's fine for 40 points. It's a disaster for real datasets.
+
+ImageNet, the classic image dataset, has about 1.3 million training images. Language models are trained on trillions of words. If every step required a pass over all of it, you'd get one step per pass — and training needs hundreds of thousands of steps.
+
+But look at what the full gradient actually *is*. The loss is an average over examples, so its gradient is an average too: each example has its own opinion about which way the weights should move, and the full gradient is the average of all those opinions.
+
+<Eq
+  words="\text{the true downhill direction} = \text{average of every example's own downhill direction}"
+  tex="\cg{\nabla L} = \frac{1}{\cb{N}} \sum_{i=1}^{\cb{N}} \cg{\nabla \ell_i}"
+>
+
+- $\cg{\nabla L}$ — the **full gradient**: the slope of the loss over the whole dataset
+- $\cg{\nabla \ell_i}$ — the gradient of the loss on **example $i$ alone**: that example's "opinion" about which way to move
+- $\cb{N}$ — the number of **training examples**, possibly millions
+
+</Eq>
+
+And there's a very old, very reliable way to find out what an average is without asking everyone.
+
+## The idea: run a poll
+
+<Analogy title="Think of an opinion poll">
+
+Before an election, nobody asks every voter how they'll vote. A polling company asks about a thousand people chosen at random, and the answer is typically within a few percentage points of the truth — whether the country has five million voters or three hundred million. The size of the country barely matters. The size of the *sample* does.
+
+The poll isn't exact. Ask a different thousand people and you get a slightly different answer. But it's right on average, and its error is predictable: a bigger sample gives a smaller error.
+
+</Analogy>
+
+So instead of computing the gradient from all $N$ examples, pick a random handful — a **<Term id="mini-batch">mini-batch</Term>** — and average *their* opinions. It's a poll of the dataset. It costs a tiny fraction of the full gradient, and it points roughly the right way.
+
+Here's that idea on a real problem: fitting a line to 1,000 delivery times, where the two weights are the line's slope and baseline. Because there are only two weights, we can draw the whole loss landscape and see every estimate as an arrow.
+
+<GradientPoll />
+
+<Predict
+  question="With batches of 16, the estimates are scattered by a certain amount. How big would the batches need to be to make that scatter **half** as large?"
+  options={['32 — twice as big', '64 — four times as big', '256 — sixteen times as big']}
+  answer={1}
+>
+
+Four times as big. Set the batch size to 16 and read the typical error, then 64: it roughly halves. Every quadrupling of the batch halves the error. That's the square-root law every pollster knows, and it's a law of diminishing returns: the first few examples buy a lot of accuracy, the next thousand buy much less.
+
+</Predict>
+
+### Writing it down
+
+A mini-batch gradient is exactly the full-gradient formula with a random sample in place of the whole dataset:
+
+<Eq
+  words="\text{estimated downhill direction} = \text{average of the downhill directions of a random batch}"
+  tex="\cg{\mathbf{g}} = \frac{1}{\cb{B}} \sum_{i \,\in\, \text{batch}} \cg{\nabla \ell_i}, \qquad \text{typical error of } \cg{\mathbf{g}} \;\propto\; \frac{1}{\sqrt{\cb{B}}}"
+>
+
+- $\cg{\mathbf{g}}$ — the **estimate** of the gradient from one batch
+- $\cb{B}$ — the **batch size**: how many examples are in the poll
+- $\propto \frac{1}{\sqrt{B}}$ — the estimate's error **shrinks with the square root** of the batch size: 4× the batch, half the error
+
+</Eq>
+
+The update is the same as before, just using the estimate: $\mathbf{w} \leftarrow \mathbf{w} - \eta\,\mathbf{g}$. That's all **<Term id="sgd">stochastic gradient descent</Term>** (SGD) is. "Stochastic" just means "random", because each step's direction depends on which examples happened to be drawn.
+
+Strictly, *stochastic* gradient descent originally meant using one example per step ($B = 1$), and *mini-batch* gradient descent meant using a few. Today people say "SGD" for both, and almost everyone uses mini-batches.
+
+## Many rough steps or a few accurate ones?
+
+A noisy estimate sounds like a compromise. Surely a careful step in the exact downhill direction beats a sloppy one? Let's measure it fairly. Training time is mostly spent computing per-example gradients, so let's give every method the same **budget of examples processed** and see who gets furthest.
+
+<BudgetRace />
+
+The result surprises most people the first time:
+
+- **On a budget of one pass through the data** — one **<Term id="epoch">epoch</Term>** — full-batch descent gets exactly one step. Its single step is perfectly aimed and still leaves it far from the bottom. Batches of 32 get 31 steps for the same work, and those 31 slightly-noisy steps get much further than one perfect one.
+- **Over a few epochs**, the mini-batch runner settles almost exactly on the bottom. After three epochs, in my runs, it's typically within about 0.01 of the best possible loss, while the full-batch runner, with its three careful steps, is still about 5 above.
+- **One example at a time** is the extreme case. It makes progress fastest at first, then never quite settles: it keeps jittering around the bottom.
+
+That jitter is worth understanding, because it shapes the next lesson. Far from the bottom, the true gradient is large — at the starting point its size is about 41 — and a single example's noise (around 30) is smaller than the signal, so even rough steps point broadly downhill. But at the bottom, the true gradient shrinks to zero, while the noise doesn't: the examples still disagree with each other, by about 12 for one example at a time. So close to the minimum, each step is mostly noise. A smaller step size calms it down; a bigger batch averages it away. Both have costs, which is why practical training **lowers the step size over time** — a learning-rate schedule.
+
+## Choosing a batch size in practice
+
+The race measured cost in examples processed, which is the right accounting on a single CPU core. Real hardware adds a twist. A GPU computes many examples *in parallel*, so a batch of 32 often takes barely longer than a batch of 1. Up to the point where the GPU is fully busy, bigger batches are nearly free.
+
+So in practice:
+
+- **Use the biggest batch that fits comfortably in memory and keeps the hardware busy** — typically somewhere from 32 to a few thousand examples for vision models.
+- **Then tune the step size for that batch.** A bigger batch gives a less noisy estimate, which can tolerate a bigger step. A widely used rule of thumb is to scale the step size up in proportion to the batch.
+- **Beyond a certain size, bigger batches stop paying off.** Thanks to the square-root law, quadrupling the batch only halves the noise, and once the noise is already small, the extra examples are wasted work.
+
+Language models measure their batches in tokens rather than examples: GPT-3, for instance, was trained with batches of about 3.2 million tokens per step.
+
+<Deeper title="Why shuffle, and why 'without replacement'?" tag="Detail">
+
+Real training loops don't draw each batch independently. They **shuffle** the dataset at the start of every epoch and then walk through it in consecutive batches, so every example is used exactly once per epoch. (The race does this too.) This gives slightly less noisy estimates than independent random draws, guarantees no example is ignored, and is easy to implement.
+
+Shuffling matters more than it looks. If the data were sorted — all the cats, then all the dogs — consecutive batches would contain only one kind of example, every gradient would pull in a biased direction, and training would lurch back and forth between them.
+
+</Deeper>
+
+<Deeper title="Is the noise only a nuisance?" tag="Research">
+
+On a simple bowl like this one, SGD's noise just stops it settling exactly. In the bumpy, high-dimensional landscapes of real networks, the picture is more interesting. Many researchers believe that the noise of small-batch training helps it avoid sharp, narrow dips in favour of wide, flat ones, and that solutions in flat regions tend to work better on new data. The evidence is suggestive rather than conclusive, but it's one reason people don't simply use the largest batch their hardware allows.
+
+</Deeper>
+
+## In code
+
+The whole of mini-batch training is two nested loops: over epochs, and over batches within an epoch.
+
+```python
+import numpy as np
+
+def train(X, y, w, lr=0.1, batch_size=32, epochs=3):
+    n = len(X)
+    for epoch in range(epochs):
+        order = np.random.permutation(n)                # shuffle every epoch
+        for start in range(0, n - batch_size + 1, batch_size):
+            batch = order[start:start + batch_size]
+            g = gradient(X[batch], y[batch], w)         # the poll: average over B examples
+            w = w - lr * g                              # one step
+    return w
+```
+
+In PyTorch, the `DataLoader` handles the shuffling and batching:
+
+```python
+loader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=True)
+for epoch in range(3):
+    for x, y in loader:                  # one mini-batch per iteration
+        loss = loss_fn(model(x), y)      # averaged over the batch
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+```
+
+Notice that `torch.optim.SGD` is the optimizer's name whatever the batch size: "SGD" now just means "take a step against a gradient estimate".
+
+<Misconception>
+
+"A bigger batch is always better, because its gradient is more accurate." More accurate per step, yes — but not per unit of work. Because the error only shrinks with the square root of the batch size, a batch of 1,024 costs 32 times as much as a batch of 32 but is only about 5.7 times as accurate. When the noise is already small compared with the true gradient, those extra examples buy almost nothing, and many smaller steps would have got further. The best batch size is a balance between hardware efficiency and the number of steps you can take.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- The full gradient is an **average** of per-example gradients, so it can be **estimated from a random sample**: a mini-batch.
+- The estimate is right on average, and its error shrinks like $1/\sqrt{B}$: **four times the batch, half the noise**.
+- For a fixed amount of work, many cheap noisy steps usually beat a few exact ones. That's why essentially all deep learning uses **mini-batch SGD**.
+- Near the minimum, the true gradient vanishes but the noise doesn't, so SGD **jitters** — the motivation for reducing the step size over time.
+- An **epoch** is one pass through the data; shuffle every epoch.
+
+</Takeaways>
+
+<InTheWild>
+
+Every model you've heard of was trained this way. A typical image classifier trains for dozens of epochs with batches of a few hundred images; a large language model often sees each piece of its training text only about once — a single epoch — in batches of millions of tokens. In 2017, a team at Facebook trained an ImageNet classifier in one hour by using batches of 8,192 images spread over 256 GPUs, scaling the step size up with the batch size — and gradually warming it up at the start, a trick you'll meet in the learning-rate schedules lesson.
+
+</InTheWild>
+
+Mini-batches fixed the cost of each step. But plain SGD still has the weakness you saw in descent golf: one step size has to serve every direction at once. Next, the optimizers that fix that — momentum, RMSProp and Adam — racing on the same landscapes.
