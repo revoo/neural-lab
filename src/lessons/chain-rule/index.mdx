@@ -1,1 +1,139 @@
-This lesson is being written.
+import { ChainExplorer } from './ChainExplorer'
+import { PathsDemo } from './PathsDemo'
+import { questions } from './quiz'
+
+## The problem: influence at a distance
+
+A neural network is a chain. Input goes into layer 1, layer 1's output goes into layer 2, and so on until the last layer produces a prediction, which feeds into the loss.
+
+Now pick a weight somewhere in layer 1. It doesn't touch the loss directly. It changes layer 1's output a little, which changes layer 2's output a little, which changes... eventually, the loss. To train that weight, we need its derivative — but the weight's influence travels through a long chain of other computations first.
+
+How do you measure sensitivity across a chain? This lesson answers that, and the answer — the **<Term id="chain-rule">chain rule</Term>** — is the mathematical engine underneath backpropagation, and therefore underneath the training of essentially every neural network.
+
+## Mental model: gears
+
+<Analogy title="Think of a gear train">
+
+Three gears are meshed in a row. When you turn gear A once, gear B turns 3 times. When gear B turns once, gear C turns 2 times. How many times does C turn when you turn A once?
+
+You don't need to think about it: $3 \times 2 = 6$. The ratios multiply.
+
+The chain rule says the same about sensitivities. If $u$ changes 3× as fast as $x$, and $y$ changes 2× as fast as $u$, then $y$ changes 6× as fast as $x$. Each stage has its own local ratio — its derivative — and the end-to-end ratio is their product.
+
+</Analogy>
+
+The analogy holds up surprisingly well. Like a gear ratio, each local derivative can be greater than 1 (amplifying), less than 1 (damping), or negative (reversing direction). And just like gears, if *any* stage in the chain barely turns, nothing downstream moves much either. That last point turns out to matter enormously.
+
+## A real chain
+
+Below is a single artificial neuron with a loss attached — a miniature version of what happens in every network. A weight $w$ multiplies an input, a bias is added, the result goes through the activation function $\tanh$, and the loss measures how far the output is from a target.
+
+Each arrow is labelled with its local derivative: the gear ratio of that stage, at the current values. The chain rule says the sensitivity of the loss to the weight is the product of those ratios. The panel on the right checks that claim against a direct measurement.
+
+<ChainExplorer />
+
+Try these:
+
+- **Move $w$ around and compare** the chain-rule product with the measured value. With a small test nudge, they agree to several decimal places. The chain rule isn't an approximation; the measurement is.
+- **Find the weight where the gradient is zero.** It's where the neuron's output exactly hits the target, so the last link ($2(a - t)$) is zero. A zero anywhere in the chain zeroes the whole product.
+- **Now drag $w$ all the way down to −3.** The output is pinned near −1, nowhere near the target of 0.8, so the loss is large — over 3. Yet the gradient is tiny. Look at the middle link: $\tanh$ has flattened out, its local derivative is almost zero, and it's choking off the whole chain. The weight is wrong, but the gradient barely notices. That's a preview of the **vanishing gradient** problem, which shaped two decades of neural network design.
+
+## The maths, now that you've seen it
+
+If $y$ depends on $u$, and $u$ depends on $x$, then
+
+$$
+\frac{dy}{dx} = \frac{dy}{du} \cdot \frac{du}{dx}
+$$
+
+That's the chain rule. For longer chains, keep multiplying. For the neuron above:
+
+$$
+\frac{\partial L}{\partial w} = \frac{\partial L}{\partial a} \cdot \frac{\partial a}{\partial z} \cdot \frac{\partial z}{\partial w}
+$$
+
+Each factor is a **local derivative** — it only involves one small step of the computation, so it's easy to work out on its own:
+
+| Stage | Computation | Local derivative |
+| --- | --- | --- |
+| Weighted input | $z = w x + b$ | $\frac{\partial z}{\partial w} = x$ |
+| Activation | $a = \tanh(z)$ | $\frac{\partial a}{\partial z} = 1 - a^2$ |
+| Loss | $L = (a - t)^2$ | $\frac{\partial L}{\partial a} = 2(a - t)$ |
+
+This is the real power of the chain rule. You never have to find the derivative of the whole complicated expression $(\tanh(wx + b) - t)^2$ in one go. You break it into tiny pieces whose derivatives you already know, then multiply.
+
+<Deeper title="The fraction illusion" tag="Notation">
+
+Written as $\frac{dy}{du}\cdot\frac{du}{dx}$, the chain rule looks like fractions cancelling: the $du$s seem to cross out, leaving $\frac{dy}{dx}$. That's a genuinely good memory aid, and it's why Leibniz invented the notation.
+
+But derivatives aren't actually fractions, and the illusion breaks once you have several variables. With partial derivatives and branching paths (next section), naive "cancelling" gives wrong answers. Use the picture of gears and paths instead: multiply along a path, add across paths.
+
+</Deeper>
+
+### When paths branch: add them up
+
+Real networks aren't simple chains. A single value often feeds into several later computations. A word's representation is used by many attention heads; a neuron's output feeds every neuron in the next layer.
+
+When a nudge to $x$ can reach $y$ along several routes, each route contributes separately, and the total effect is their sum:
+
+$$
+\frac{dy}{dx} = \sum_{\text{paths from } x \text{ to } y} \big(\text{product of local derivatives along the path}\big)
+$$
+
+<PathsDemo />
+
+This "multiply along paths, add across paths" rule is the complete story. Every derivative of every neural network, no matter how large, is assembled from it.
+
+## In code: the backward walk
+
+Here's the neuron from the explorer, with its derivative computed by the chain rule. Notice the shape of the code: a **forward pass** that computes and *remembers* each intermediate value, followed by a **backward pass** that walks the chain in reverse, multiplying local derivatives as it goes.
+
+```python
+import math
+
+x, b, t = 1.5, 0.2, 0.8
+w = 0.4
+
+# forward pass — compute and keep every intermediate value
+z = w * x + b
+a = math.tanh(z)
+L = (a - t) ** 2
+
+# backward pass — start at the loss and walk back, one local derivative at a time
+dL_da = 2 * (a - t)          # how L responds to a
+dL_dz = dL_da * (1 - a**2)   # chain through tanh
+dL_dw = dL_dz * x            # chain through z = w*x + b
+dL_db = dL_dz * 1            # the bias gets its gradient almost for free
+```
+
+Two details here are worth noticing, because they're the core ideas of backpropagation.
+
+**First, the backward pass needs the forward pass's values.** The local derivative of $\tanh$ uses $a$; the local derivative with respect to $w$ uses $x$. That's why training frameworks keep intermediate activations in memory — and why training uses far more memory than simply running a model.
+
+**Second, work gets reused.** Once we have `dL_dz`, both `dL_dw` and `dL_db` are one multiplication away. In a big network, the gradient flowing back into a layer is computed once and then shared by every weight in that layer. Walking backwards from the loss lets each piece of the chain be computed exactly once. That's the trick that makes it possible to get billions of derivatives for roughly the cost of a forward pass.
+
+<Misconception>
+
+"The chain rule is something the network *learns*." It isn't — it's pure calculus, applied mechanically by the training software. The network learns its weights; the chain rule is just the bookkeeping that tells the optimizer how each weight affected the loss. There's nothing approximate or learned about it.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- **The chain rule:** sensitivities along a chain multiply. $\frac{dy}{dx} = \frac{dy}{du}\cdot\frac{du}{dx}$, like gear ratios.
+- Break a complicated function into small stages, find each **local derivative**, and multiply. You never differentiate the whole thing at once.
+- When influence travels along **several paths**, multiply along each path and **add** the paths.
+- Computing derivatives **backwards from the loss** reuses work and needs the values remembered from the forward pass.
+- A near-zero link anywhere (like a saturated activation) shrinks everything upstream. Many such links in a row cause **vanishing gradients**.
+
+</Takeaways>
+
+<InTheWild>
+
+The chain rule, applied backwards over a recorded graph of operations, is exactly what PyTorch's autograd, JAX's `grad` and TensorFlow's `GradientTape` do. And the vanishing gradient problem you just glimpsed shaped modern architecture: ReLU activations (whose local derivative is exactly 1 for positive inputs), careful weight initialisation, normalisation layers, and the residual connections inside every transformer all exist, in large part, to keep this product of local derivatives from collapsing to zero or exploding to infinity.
+
+</InTheWild>
+
+That completes our calculus toolkit. We have one more mathematical idea to build before we can assemble a learning machine: how models express *uncertainty*, as probabilities — and how to measure how wrong a probabilistic guess was.

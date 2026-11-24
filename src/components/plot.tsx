@@ -266,3 +266,9 @@ export function Seg({ from, to, color = 'var(--text-faint)', width = 1.5, dash, 
   const { x, y } = usePlot();
   return <line x1={x(from[0])} y1={y(from[1])} x2={x(to[0])} y2={y(to[1])} stroke={color} strokeWidth={width} strokeDasharray={dash} opacity={opacity} strokeLinecap={cap} />;
 }
+
+/** A small filled point in data coordinates. */
+export function Dot({ at, r = 4, color = 'var(--text)', stroke, opacity = 1 }: { at: [number, number]; r?: number; color?: string; stroke?: string; opacity?: number }) {
+  const { x, y } = usePlot();
+  return <circle cx={x(at[0])} cy={y(at[1])} r={r} fill={color} stroke={stroke} strokeWidth={stroke ? 1.5 : 0} opacity={opacity} />;
+}

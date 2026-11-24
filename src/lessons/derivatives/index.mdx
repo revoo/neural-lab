@@ -1,1 +1,163 @@
-This lesson is being written.
+import { TangentExplorer } from './TangentExplorer'
+import { questions } from './quiz'
+
+## The problem: a million knobs and no map
+
+Here's the situation at the heart of all machine learning. You have a model with a huge number of adjustable numbers — its parameters. For each setting of those numbers, you can measure how badly the model performs, as a single number called the **<Term id="loss">loss</Term>**. You want the settings that make the loss small.
+
+The naive approach is to try lots of settings and keep the best. That works for one or two knobs. For a modest model with a million parameters, it's hopeless: there are more combinations than atoms in the universe.
+
+What you need instead is a way to ask each knob a local question:
+
+> *If I turn you a tiny bit to the right, does the loss go up or down — and by how much?*
+
+If you could answer that for every knob, you'd know which way to turn each one. That question has a name. The answer is the **<Term id="derivative">derivative</Term>**.
+
+<Analogy title="Think of adjusting a shower">
+
+You step into a shower that's too cold. You turn the tap a little and wait. The water warms slightly. You've just learned two things: *which direction* to turn the tap, and *how sensitive* the temperature is to your turning.
+
+That sensitivity isn't constant. Near one end of the tap's range, a big turn barely changes anything; somewhere in the middle, a tiny touch takes you from lukewarm to scalding. "How sensitive is the output right here?" depends on where you are.
+
+A derivative is exactly this: the sensitivity of an output to a small nudge of an input, measured at a particular point.
+
+</Analogy>
+
+## Sensitivity is a slope
+
+Put the input on the horizontal axis and the output on the vertical axis, and draw the curve. "How much does the output change when I nudge the input?" becomes "how steep is the curve here?"
+
+For a straight line, that's easy: the slope is the same everywhere — rise over run. But curves bend. Their steepness changes from place to place. So how can a curve have *a* slope at a single point?
+
+Here's the trick: **zoom in**. Any smooth curve, viewed closely enough, looks like a straight line. The slope of *that* line — the one the curve becomes when you zoom in on a point — is the derivative at that point.
+
+Try it below. Start with $x^2$, drag the point around, and then shrink the nudge size $h$.
+
+<TangentExplorer />
+
+What to notice:
+
+- **The dashed line is a measurement you could actually make**: pick two points $h$ apart, measure how much the output changed, divide by how much the input changed. As $h$ shrinks, this ratio settles down to a single number — the slope of the green **tangent line**, which just grazes the curve at your point.
+- **Zoom to 100× or 1000×.** The curve becomes indistinguishable from its tangent line. This is the deep idea: *locally, smooth functions are linear*. Almost everything in optimization exploits it.
+- **Watch the lower graph.** It plots the slope at every point: the derivative is itself a function. Where the curve rises, the slope is positive; where it falls, negative; at the bottom of a valley or the top of a hill, exactly zero.
+- **Try ReLU and park the point exactly at 0.** There's a sharp corner, and the slope from the left (0) disagrees with the slope from the right (1). No single tangent line exists. Neural networks are full of these kinks, and in practice libraries just pick a value there and carry on.
+- **Push $h$ all the way down to $10^{-15}$.** The estimate goes haywire. This isn't the maths failing; it's floating-point arithmetic. More on that below.
+
+## The maths, now that you've seen it
+
+The dashed-line measurement is called a *difference quotient*:
+
+$$
+\frac{f(x + h) - f(x)}{h} = \frac{\text{change in output}}{\text{change in input}}
+$$
+
+The derivative is what this ratio approaches as the nudge $h$ shrinks towards zero. Mathematicians write that "approaches as $h$ shrinks to zero" with the word $\lim$ (limit):
+
+$$
+f'(x) = \lim_{h \to 0} \frac{f(x + h) - f(x)}{h}
+$$
+
+Read it as: *the slope you get from smaller and smaller nudges.* The notation $f'(x)$ (read "f prime of x") is one common way to write the derivative. You'll also see
+
+$$
+\frac{df}{dx} \quad\text{or}\quad \frac{dy}{dx}
+$$
+
+which is the same thing, written to look like "a tiny change in $f$ divided by a tiny change in $x$". It isn't literally a fraction, but it's designed to remind you of one, and that reminder is usually helpful.
+
+### Working one out by hand
+
+Let's find the derivative of $f(x) = x^2$ directly from the definition. Nudge $x$ by $h$:
+
+$$
+f(x + h) = (x + h)^2 = x^2 + 2xh + h^2
+$$
+
+The change in output is $(x^2 + 2xh + h^2) - x^2 = 2xh + h^2$. Divide by the change in input:
+
+$$
+\frac{2xh + h^2}{h} = 2x + h
+$$
+
+Now let $h$ shrink towards zero. The $h$ on the end fades away, leaving
+
+$$
+\frac{d}{dx}\, x^2 = 2x
+$$
+
+So at $x = 1$, the slope of $x^2$ is 2; at $x = 3$ it's 6; at $x = 0$ it's flat. Check those against the explorer.
+
+You'll rarely need to do this by hand. Mathematicians long ago worked out rules for common functions, and in practice, software computes derivatives for you. But it's worth seeing once that there's no magic: a derivative is algebra about nudges.
+
+<Deeper title="A small table of derivatives" tag="Reference">
+
+| Function $f(x)$ | Derivative $f'(x)$ | In words |
+| --- | --- | --- |
+| $c$ (a constant) | $0$ | Constants don't respond to nudges. |
+| $x$ | $1$ | Output moves exactly as much as input. |
+| $x^n$ | $n x^{n-1}$ | The "power rule": $x^2 \to 2x$, $x^3 \to 3x^2$. |
+| $e^x$ | $e^x$ | The exponential is its own slope — that's what makes $e$ special. |
+| $\ln x$ | $1/x$ | Logarithms flatten out as $x$ grows. |
+| $\sin x$ | $\cos x$ | |
+| $\max(0, x)$ (ReLU) | $1$ if $x > 0$, else $0$ | Undefined exactly at 0; libraries pick 0. |
+
+Two rules let you combine these. **Sums:** the derivative of $f + g$ is $f' + g'$. **Constant multiples:** the derivative of $c \cdot f$ is $c \cdot f'$. So $3x^2 + 5x$ has derivative $6x + 5$.
+
+The most important rule of all — how to handle one function *inside* another — gets <LessonLink to="chain-rule">its own lesson</LessonLink>, because it's the engine of backpropagation.
+
+</Deeper>
+
+### The single most useful consequence
+
+If the curve is nearly straight near $x$, then for a small nudge $\Delta x$ ("delta x", a small change in $x$):
+
+$$
+f(x + \Delta x) \approx f(x) + f'(x)\,\Delta x
+$$
+
+In words: **new output ≈ old output + slope × nudge.** If the loss is 5.0 and its derivative with respect to some weight is −4, then increasing that weight by 0.01 should bring the loss to about $5.0 + (-4)(0.01) = 4.96$.
+
+That one line is the whole justification for gradient descent. It says the derivative is a reliable guide for *small* steps — and silently warns that for big steps, where the curve bends away from its tangent line, the guide stops being reliable.
+
+## In code
+
+You can estimate a derivative numerically by literally performing the nudge experiment:
+
+```python
+def derivative(f, x, h=1e-6):
+    # central difference: nudge both ways, more accurate than a one-sided nudge
+    return (f(x + h) - f(x - h)) / (2 * h)
+
+f = lambda x: x ** 2
+derivative(f, 3.0)    # 6.000000000838668  (exact answer: 6)
+```
+
+This is slow for models with millions of parameters — you'd need two evaluations of the whole model *per parameter* — so real frameworks compute derivatives exactly using the chain rule instead. But the numerical version is invaluable for **testing**: when you implement a gradient by hand, you check it against this. (This website's own neural-network code is tested exactly that way.)
+
+<Deeper title="Why tiny nudges break in floating point" tag="Edge case">
+
+Computers store numbers like `1.2345678901234567` with about 16 significant digits. When $h = 10^{-15}$, the values $f(x + h)$ and $f(x)$ agree in nearly all of those digits. Subtracting them leaves only the last digit or two — and those digits are mostly rounding noise. Dividing by the tiny $h$ then magnifies that noise into a large error.
+
+So there are two competing errors. Large $h$: the curve bends between your two points (*truncation error*). Tiny $h$: rounding noise dominates (*round-off error*). The best $h$ sits in between — around $10^{-8}$ for a one-sided difference, $10^{-5}$ or $10^{-6}$ for the central difference above. It's a small, concrete example of a theme that will return when we discuss low-precision formats like FP16 and BF16: the gap between mathematics and the numbers a machine can actually represent.
+
+</Deeper>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- A derivative measures **sensitivity**: how much the output changes per unit nudge of the input, at a particular point.
+- Geometrically, it's the **slope** of the curve — the slope of the straight line the curve becomes when you zoom in.
+- $f'(x) = \lim_{h\to0} \frac{f(x+h)-f(x)}{h}$ is that zoom-in, written as a formula.
+- Near any point, **new output ≈ old output + slope × nudge**. This local linear approximation is what makes learning by small steps work.
+- A zero derivative means "locally flat" — a minimum, a maximum, or a plateau.
+
+</Takeaways>
+
+<InTheWild>
+
+Every time a neural network trains, it computes the derivative of the loss with respect to every single parameter — billions of derivatives, for every batch of data. Frameworks like PyTorch and JAX do this automatically: you write the forward calculation, and they produce the derivatives. Understanding what those numbers *mean* — sensitivities, valid for small steps — is what lets you reason about learning rates, unstable training and exploding gradients later on.
+
+</InTheWild>
+
+One knob at a time is a start. But a real model has millions of knobs, all affecting the loss at once. Next: what a derivative looks like when there are many inputs — and the arrow that points uphill.

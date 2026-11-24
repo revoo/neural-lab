@@ -1,1 +1,130 @@
-This lesson is being written.
+import { GradientField } from './GradientField'
+import { questions } from './quiz'
+
+## The problem: many knobs at once
+
+A derivative answers the question "if I nudge *this* input, how does the output respond?" for a function with one input. But a model's loss depends on all of its parameters at once — thousands, millions, billions of them. Nudge one weight and the loss moves; nudge another and it moves differently; nudge both together and the effects combine.
+
+So we need two things. First, a way to talk about the sensitivity to **one input at a time**, while there are others around. Second, a way to bundle all of those sensitivities into a single object that tells us which direction to move in.
+
+The first is the **<Term id="partial-derivative">partial derivative</Term>**. The second is the **<Term id="gradient">gradient</Term>**, and it is the central object of machine learning.
+
+## Mental model: standing on a hillside
+
+<Analogy title="Think of a hiking map">
+
+Imagine a function of two inputs, $f(x, y)$, as a landscape. The inputs are your position on a map: $x$ is how far east you are, $y$ how far north. The output is the altitude at that spot.
+
+Standing on a hillside, you could ask two simple questions. *If I take one step east, how much do I climb?* And separately: *if I take one step north, how much do I climb?* Each question ignores the other direction entirely. Those two answers are the **partial derivatives**.
+
+Now a more useful question: *which way is straight uphill, and how steep is it?* That's answered by combining the two partial derivatives into an arrow on the map. That arrow is the **gradient**. Walk the opposite way and you're heading downhill as fast as possible — which is exactly what training a model is trying to do to its loss.
+
+</Analogy>
+
+Explore it below. Pick a landscape, drag the point around, and watch the arrows.
+
+<GradientField />
+
+Some things to look for:
+
+- **Each partial derivative is an ordinary derivative of a slice.** Freeze $y$, and $f$ becomes a function of $x$ alone — the top small plot. Its slope at your point is $\partial f / \partial x$. Freeze $x$ instead, and the slope of the other slice is $\partial f / \partial y$. Nothing new is happening; we're reusing the one-input derivative twice.
+- **The gradient is always perpendicular to the contour lines.** Contours connect points of equal height, so walking along one changes nothing. The steepest direction has to be at right angles to that.
+- **Try the narrow valley.** The gradient mostly points across the valley, not along it towards the true minimum. Hold on to that observation: it's the reason plain gradient descent can zig-zag badly, and the reason optimizers like momentum and Adam exist.
+- **Find the flat spots.** In the bowl, there's one: the minimum. On the saddle, the gradient is zero at the centre, yet it's not a minimum at all.
+
+## The maths, now that you've seen it
+
+### Partial derivatives
+
+For a function of several inputs, the **partial derivative** with respect to one of them is the ordinary derivative you get by treating all the *other* inputs as fixed constants. It gets its own curly symbol, $\partial$ ("partial" or "del"), to remind you that other inputs exist and are being held still:
+
+$$
+\frac{\partial f}{\partial x} \quad \text{— the slope in the } x \text{ direction, with } y \text{ held fixed}
+$$
+
+Let's work one. Take $f(x, y) = x^2 y + 5y$.
+
+- **With respect to $x$:** treat $y$ as a constant, like the number 3. Then $x^2 y$ is "a constant times $x^2$", whose derivative is $2xy$. And $5y$ doesn't involve $x$ at all, so it contributes nothing. Result: $\frac{\partial f}{\partial x} = 2xy$.
+- **With respect to $y$:** now treat $x$ as the constant. $x^2 y$ is "a constant times $y$", whose derivative is $x^2$. And $5y$ gives $5$. Result: $\frac{\partial f}{\partial y} = x^2 + 5$.
+
+That's genuinely all there is to computing them: one ordinary derivative per input, pretending the rest are numbers.
+
+### The gradient
+
+Collect all the partial derivatives into a vector and you have the gradient, written $\nabla f$ ("nabla f" or "del f"):
+
+$$
+\nabla f = \left[\, \frac{\partial f}{\partial x_1},\; \frac{\partial f}{\partial x_2},\; \ldots,\; \frac{\partial f}{\partial x_n} \,\right]
+$$
+
+For a model, the inputs to this function are the parameters, and $f$ is the loss. So the gradient of the loss has **one entry per parameter**. A model with 7 billion weights has a 7-billion-entry gradient, and each entry answers "how would the loss respond to nudging this particular weight?"
+
+### Why the gradient points uphill
+
+Remember the most useful fact from the last lesson: for small nudges, a smooth function behaves like a straight line. With several inputs, the same idea says that for a small step $\Delta\mathbf{x}$ (a small vector of nudges, one per input), the output changes by
+
+$$
+\Delta f \approx \frac{\partial f}{\partial x_1}\Delta x_1 + \frac{\partial f}{\partial x_2}\Delta x_2 + \cdots = \nabla f \cdot \Delta\mathbf{x}
+$$
+
+Look at that last expression: it's a **dot product** between the gradient and your step. Each input's nudge is multiplied by its sensitivity, and the effects add up.
+
+Now use what you know about dot products. For a step of a fixed small length, $\nabla f \cdot \Delta\mathbf{x}$ is largest when the step points in *the same direction* as $\nabla f$, zero when the step is perpendicular to it, and most negative when the step points in *the opposite* direction. That single observation gives us three facts at once:
+
+1. **The gradient points in the direction of steepest increase.**
+2. **Its length, $\|\nabla f\|$, is how steep that steepest climb is.**
+3. **The negative gradient, $-\nabla f$, points in the direction of steepest decrease** — downhill.
+
+The third one is the foundation of <LessonLink to="gradient-descent">gradient descent</LessonLink>: compute the gradient of the loss, take a small step the opposite way, repeat.
+
+<Deeper title="Why perpendicular to the contours?" tag="Intuition">
+
+Along a contour, $f$ doesn't change: $\Delta f = 0$. From the formula above, that means $\nabla f \cdot \Delta\mathbf{x} = 0$ for any small step along the contour. A zero dot product means perpendicular. So the gradient is at right angles to every contour it crosses — which is why, on the heatmap, the purple arrow always cuts straight across the contour lines like a stream running straight down a hillside.
+
+</Deeper>
+
+## In code
+
+The numerical approach from the last lesson extends directly — nudge one input at a time:
+
+```python
+import numpy as np
+
+def numerical_gradient(f, x, h=1e-6):
+    grad = np.zeros_like(x)
+    for i in range(len(x)):          # one partial derivative per input
+        step = np.zeros_like(x)
+        step[i] = h
+        grad[i] = (f(x + step) - f(x - step)) / (2 * h)
+    return grad
+
+f = lambda v: v[0]**2 * v[1] + 5 * v[1]
+numerical_gradient(f, np.array([3.0, 2.0]))   # array([12., 14.])  → [2xy, x²+5]
+```
+
+Look at the cost: two function evaluations *per input*. For a model with a billion parameters, that's two billion forward passes to get one gradient. That's completely impractical, and it's the problem that backpropagation solves. As you'll see, backpropagation gets the *entire* gradient for roughly the cost of a couple of forward passes, by reusing work cleverly with the chain rule.
+
+<Misconception>
+
+"The gradient points towards the minimum." It doesn't, in general. It points in the direction of steepest *local* descent (when negated) — the best direction for an infinitesimally small step from where you're standing. In the round bowl those happen to coincide, but in the narrow valley the steepest direction points mostly across the valley, not along it to the bottom. Following the gradient is a sensible local rule, not a map to the destination.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- A **partial derivative** is an ordinary derivative with respect to one input, holding all others fixed: the slope of a one-dimensional slice.
+- The **gradient** $\nabla f$ collects every partial derivative into a vector — one entry per input (for a model: per parameter).
+- For a small step, $\Delta f \approx \nabla f \cdot \Delta\mathbf{x}$. Because it's a dot product, the gradient points **straight uphill**, and $-\nabla f$ points straight downhill.
+- A zero gradient means "locally flat" — possibly a minimum, but possibly a maximum or a saddle.
+
+</Takeaways>
+
+<InTheWild>
+
+When you call `loss.backward()` in PyTorch, what you get back — stored in each parameter's `.grad` attribute — is exactly this: the gradient of the loss with respect to every parameter. The optimizer then uses it to update the weights. Almost every training algorithm in deep learning, from the simplest to Adam, is a recipe for turning this vector into a sensible step.
+
+</InTheWild>
+
+We can now measure sensitivity with many inputs. But a neural network isn't one function — it's a long *chain* of functions, each feeding the next. How do sensitivities pass through a chain? That's the chain rule, and it's next.
