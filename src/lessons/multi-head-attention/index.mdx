@@ -1,0 +1,115 @@
+import { OneVsTwoHeads, HeadCost } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: one softmax, one budget
+
+In <LessonLink to="attention">the attention lesson</LessonLink>, "it" looked through the sentence and found "animal". But that's only one of the things "it" needs. To understand "it was tired", the word also needs to know what's being *said* about it: that it was tired, that it didn't cross. A verb needs its subject *and* its object. An adjective needs the noun it describes *and* perhaps the word that negates it.
+
+So what happens if one attention head has to look for two different things at once?
+
+Here's the catch, and it's built into the maths. A head's attention weights come out of a softmax, and a softmax always adds up to 100%. It's a fixed budget. Whatever share goes to "animal" can't also go to "tired".
+
+<Predict
+  question="One head's query asks for both the referent ('animal') and the predicates ('cross', 'tired'). Can any balance between the two give each of them more than half of the attention?"
+  options={['Yes, with the right balance both can get 80%', 'No: one softmax has a single 100% budget, so they can never both exceed 50%', 'Yes, if the query is long enough']}
+  answer={1}
+>
+
+No. The shares add up to at most 100%, so at most one of them can be above half. In practice it's worse: as you'll see, the stronger match tends to take almost everything, and the best balance in our example gives each side only about 46%. Then, in the output, the two pieces of information arrive *mixed together in one vector*, each at half strength.
+
+</Predict>
+
+<OneVsTwoHeads />
+
+## The idea: several lookups side by side
+
+The fix is almost embarrassingly simple: run several attention heads in parallel, each with its own $W_Q$, $W_K$ and $W_V$, so each can ask its own question with its own 100% budget. Then put their outputs side by side.
+
+<Analogy title="Think of a team of researchers reading the same document">
+
+Hand a document to one researcher and ask them to find the main character, the timeline and every money figure, and their attention gets split three ways. Hand it to three researchers, each with one question, and each gives their question their full attention. Then they staple their notes together and an editor combines them into one summary.
+
+</Analogy>
+
+That's **<Term id="multi-head-attention">multi-head attention</Term>**. Each head is a complete attention computation, exactly the one you built in the last lesson, on its own (shorter) vectors. The heads' outputs are **concatenated** — laid end to end — and a final learned matrix, $W_O$, mixes them back into one vector per word, the editor stapling the notes together.
+
+<Eq
+  words="\text{multi-head output} = \big[\,\text{head}_1 \;\big|\; \text{head}_2 \;\big|\; \cdots \;\big|\; \text{head}_h\,\big] \times \text{output mixer}"
+  tex="\cp{\text{MultiHead}}(X) = \text{Concat}\big(\ca{\text{head}_1}, \ldots, \ca{\text{head}_{\cb{h}}}\big)\,\cc{W_O}, \qquad \ca{\text{head}_i} = \text{Attention}\big(X W_Q^{(i)},\; X W_K^{(i)},\; X W_V^{(i)}\big)"
+>
+
+- $\ca{\text{head}_i}$ — one complete **attention** computation, with its own learned $W_Q^{(i)}, W_K^{(i)}, W_V^{(i)}$: its own question, its own softmax, its own blend
+- $\cb{h}$ — the number of **heads**
+- $\text{Concat}$ — lay the heads' outputs **side by side** in one longer vector, so nothing is averaged away
+- $\cc{W_O}$ — the **output mixer**: a learned matrix that combines the heads' findings into one vector per word
+- $\cp{\text{MultiHead}}$ — the layer's output: one vector per word, of the same length as its input
+
+</Eq>
+
+## The surprising part: it's free
+
+You'd expect twelve heads to cost twelve times as much as one. They don't, because of how the vectors are sized. A model of width $d$ with $h$ heads gives each head query, key and value vectors of length $d/h$. GPT-2 small, for instance, has width 768 and 12 heads, so each head works with vectors of length 64 — the $d = 64$ in the original transformer's $\sqrt{d}$.
+
+<HeadCost />
+
+So the parameters are $4d^2$ — the stacked $W_Q$, $W_K$, $W_V$ and $W_O$ — whatever $h$ is: for GPT-2 small, 2,359,296 weights plus 3,072 biases, 2,362,368 in all, in every attention layer. The arithmetic doesn't depend on $h$ either. Splitting into heads doesn't buy more computation; it buys more *separate questions*, each with its own softmax budget, at the price of each question being asked with shorter vectors.
+
+Why not then use as many heads as possible? Because shorter vectors have less room. You saw in the attention puzzles that fine distinctions between similar keys need length; a head working with vectors of length 4 can't make many fine distinctions. Real models settle on head sizes of 64 or 128 and choose the number of heads to match the width.
+
+## What real heads learn
+
+Nobody tells real heads what to look for: each head's matrices are learned from data, and different heads end up specialising because that lowers the loss. Researchers who have looked inside trained models find heads that are recognisable: heads that attend to the previous word, heads that find a verb's subject, heads that link a pronoun to its referent, and "induction heads" that spot a repeated pattern ("…Harry Potter… Harry") and predict that it will continue the same way. Many other heads do things nobody has yet put into words.
+
+<Deeper title="Is it really concatenate, then mix?" tag="Detail">
+
+Yes, and the order matters less than it looks. Multiplying the concatenation $[\text{head}_1 \,|\, \cdots \,|\, \text{head}_h]$ by $W_O$ is the same as splitting $W_O$ into $h$ horizontal slices, multiplying each head's output by its own slice, and *adding* the results. So you can equally say: each head writes its findings into the word's vector through its own output matrix, and the contributions add up. That second reading is the one interpretability researchers often use, because it lets them study each head's contribution separately.
+
+</Deeper>
+
+## In code
+
+```python
+import numpy as np
+
+def softmax(z):
+    e = np.exp(z - z.max(axis=-1, keepdims=True))
+    return e / e.sum(axis=-1, keepdims=True)
+
+def multi_head_attention(X, W_q, W_k, W_v, W_o, h):
+    n, d = X.shape
+    dh = d // h                                           # each head's vector length
+    Q, K, V = X @ W_q, X @ W_k, X @ W_v                    # (n, d): all heads' vectors at once
+    # split the d columns into h heads of dh columns: (h, n, dh)
+    Q, K, V = (M.reshape(n, h, dh).transpose(1, 0, 2) for M in (Q, K, V))
+    weights = softmax(Q @ K.transpose(0, 2, 1) / np.sqrt(dh))   # (h, n, n): one pattern per head
+    heads = weights @ V                                    # (h, n, dh)
+    concat = heads.transpose(1, 0, 2).reshape(n, d)        # side by side again: (n, d)
+    return concat @ W_o                                    # the output mixer
+```
+
+Notice that the heads aren't separate matrices at all: one big `X @ W_q` computes every head's queries at once, and a `reshape` simply reinterprets the $d$ columns as $h$ groups of $d/h$. That's why heads cost nothing extra: it's the same matrix multiplication, sliced differently. PyTorch's `nn.MultiheadAttention(embed_dim=768, num_heads=12)` does exactly this.
+
+<Misconception>
+
+"More heads means a bigger, more expensive model." With the width fixed, the number of heads changes neither the parameter count nor the arithmetic: twelve heads of size 64 cost the same as one head of size 768. What heads change is how the attention is *organised*: how many separate softmaxes, and so how many different things each word can look for at the same time.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- One head has one softmax, and a softmax is a **fixed 100% budget**: one head can't give two different things more than half its attention each, and what it gathers arrives blended in one vector.
+- **Multi-head attention** runs $h$ attention heads side by side, each with its own $W_Q, W_K, W_V$, then **concatenates** their outputs and mixes them with $W_O$.
+- Each head works with vectors of length $d/h$, so the parameters ($4d^2$) and arithmetic don't depend on $h$: heads are **free**; they trade vector length for more separate questions.
+- Trained heads specialise on their own: previous-word heads, subject heads, pronoun heads, induction heads, and many that nobody has yet explained.
+
+</Takeaways>
+
+<InTheWild>
+
+The original transformer used 8 heads of size 64 (width 512); GPT-2 small uses 12 heads of size 64; GPT-3's largest model used 96 heads of size 128. Larger modern models often go one step further with **grouped-query attention**: many query heads share a smaller number of key and value heads. It barely changes quality but shrinks the memory needed to store keys and values during generation, which, as the inference module will show, is often the real bottleneck.
+
+</InTheWild>
+
+Heads let a word ask several questions at once. But none of them can ask "which word is *next to* me?" — attention, as built so far, has no idea what order the words are in. That's the next problem.
