@@ -39,6 +39,8 @@ An experienced software engineer and lifelong learner — *not* a university stu
 
 6. **A third theme, "Matrix" (session 3).** Alongside light and dark: green-phosphor terminal, digital rain, glowing green accents, mainframe-hacker energy — geeky and very theme-specific, but never hard to read. → Implemented as `data-theme='matrix'` (tokens and rules at the end of `src/styles/global.css`), `src/components/DigitalRain.tsx` (rain made of the course's own symbols and terms, in the margins only), a short boot sequence on switching, a rain pause button, and reduced-motion support. Every new widget must look right in all three themes.
 
+7. **Session 3 working order (owner).** Build the Matrix theme first, then work through the roadmap's "Next steps" in order (Module 7 → Module 5's network-from-scratch → Module 12), committing and pushing after every finished lesson, comparing methods fairly (each competitor at its own searched best, averaged over fixed seeds) and reporting honestly when a textbook story doesn't hold in our small problems.
+
 ## Lesson methodology
 
 Ideally each major lesson: (1) explain the problem, (2) build an intuitive mental model, (3) interactive visualisation, (4) let the learner manipulate variables, (5) explain the maths, (6) show code, (7) test understanding, (8) a challenging experiment exposing an edge case or limitation, (9) summarise transferable principles, (10) connect to real-world AI.

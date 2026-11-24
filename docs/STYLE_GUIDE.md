@@ -79,6 +79,10 @@ Where a concept can be *built*, make it a lab:
 - **Report what you actually found.** If a well-known technique (e.g. learning-rate warmup) makes no difference in our small problems, say so and explain where it does matter — never stage a demo to make it look useful.
 - **References for puzzles:** exhaustive optimum where feasible; otherwise "best found by searching <stated space>", from a committed script whose result is re-verified by a test.
 - **Pin quoted behaviour with tests.** If the prose says "this preset stalls near 50%", a test should check it.
+- **A result that worked once may be luck (session 3).** Before the prose credits a fix or a method, re-run it with other seeds; if it doesn't hold up, say so (the model clinic's "ReLU fix" is the example). When differences between methods are smaller than the seed-to-seed spread, say you can't name a winner (the regularisation race).
+- **Impossible puzzles are allowed — and good — when the impossibility teaches something** (the hidden-key attention puzzle). Give the learner a way to declare it impossible, and verify the claim exhaustively in a test.
+- **Count the solution space when it's finite** ("24 of the 1,024 combinations are correct", "5 one-change fixes exist") and compute it in a committed script or test rather than estimating.
+- **Live re-runs of recorded searches** must compare with a tolerance and explain why (Node and browsers can differ in the last bit of `Math.exp`, and long training runs amplify it).
 - **Let the learner stop at the finish line.** Races stop each runner when it reaches the target, so overshooting after arrival doesn't muddy the comparison.
 
 ## 6. Engineering conventions
