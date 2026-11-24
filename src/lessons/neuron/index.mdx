@@ -1,1 +1,197 @@
-This lesson is being written.
+import { NeuronSimulator } from './NeuronSimulator'
+import { BoundaryLab } from './BoundaryLab'
+import { questions } from './quiz'
+
+## The problem: turning evidence into a decision
+
+In the dot product lesson, we built a crude spam score by hand: weigh each feature of an email by how suspicious it is, and add up the evidence. `[4 links, 5 exclamation marks, 0 mentions of your name]` dotted with weights `[1, 2, -3]` gave a score of 14.
+
+That's most of a decision-maker, but not all of it. Two things are missing.
+
+**Where's the cut-off?** Is 14 spam? Is 3? The score is only useful once we know where "not spam" ends and "spam" begins. Different situations need different cut-offs.
+
+**What should come out?** A raw score of 14 isn't an answer. We'd like either a clean yes/no, or — better — a probability like "92% spam".
+
+Add those two pieces to the weighted sum and you have an **<Term id="neuron">artificial neuron</Term>**: the unit from which every neural network, including the largest language models, is assembled.
+
+## The idea in plain English
+
+<Analogy title="Think of deciding whether to go to a party">
+
+You're deciding whether to go to a party tonight. You weigh up a few considerations:
+
+- **Weigh the evidence.** Your best friend is going: that counts strongly *for*. It's an hour away: that counts somewhat *against*. You're tired: strongly against. Each factor gets multiplied by how much you personally care about it, and you tally the result.
+- **Add your baseline inclination.** Some people are party animals who'd go unless there's a good reason not to. Others are homebodies who'd need a lot of convincing. That built-in leaning gets added to the tally whatever the evidence says.
+- **Respond to the total.** If the tally is comfortably positive, you go. If it's clearly negative, you stay home. Somewhere in between, you're torn.
+
+</Analogy>
+
+Those three steps *are* the neuron. Each one becomes one piece of notation:
+
+| Plain English | In the neuron | Symbol |
+| --- | --- | --- |
+| the considerations | the **inputs** | $x_1, x_2, \ldots$ |
+| how much you care about each | the **<Term id="weight">weights</Term>** | $w_1, w_2, \ldots$ |
+| your baseline inclination | the **<Term id="bias">bias</Term>** | $b$ |
+| the tally | the weighted sum, often called $z$ | $z$ |
+| how you respond to the tally | the **<Term id="activation-function">activation function</Term>** | $f$ |
+
+Now write the three steps down, in order, using those symbols. Step one and two produce the tally:
+
+$$
+z = \underbrace{w_1 x_1 + w_2 x_2 + \cdots + w_n x_n}_{\text{weigh the evidence}} + \underbrace{b}_{\text{baseline}}
+$$
+
+Step three turns the tally into a response:
+
+$$
+a = f(z)
+$$
+
+That's the whole neuron. And you've already met the first part: $w_1 x_1 + \cdots + w_n x_n$ is just the dot product $\mathbf{w}\cdot\mathbf{x}$, so the compact version is
+
+$$
+a = f(\mathbf{w}\cdot\mathbf{x} + b)
+$$
+
+Read it back as a sentence: *the output is a response to how strongly the input agrees with the neuron's preferences, plus its baseline leaning.*
+
+### Choosing the response
+
+The activation $f$ is a design choice. The simplest is a hard **step**: output 1 if $z \ge 0$, otherwise 0 — "go" or "don't go". The original perceptron of 1958 worked this way.
+
+A step has a problem we'll feel properly in the gradient descent lesson: it's flat everywhere, so nudging a weight slightly almost never changes the output, and the derivative gives a learner nothing to work with. A softer alternative is the **<Term id="sigmoid">sigmoid</Term>**, $\sigma(z) = \frac{1}{1 + e^{-z}}$, which slides smoothly from 0 to 1. Its output can be read as a probability: very negative tally, near 0; very positive, near 1; exactly zero, a 50–50 shrug. (If the formula looks familiar, it should: it's what softmax becomes with two classes, as you saw in <LessonLink to="probability">the probability lesson</LessonLink>.)
+
+Play with a neuron directly. Notice how each input's contribution — weight × input — shows up on its edge, and how they add into $z$.
+
+<NeuronSimulator />
+
+Some things worth trying:
+
+- **Set a weight to zero.** That input's edge vanishes: the neuron has decided this consideration is irrelevant.
+- **Flip a weight's sign.** The same input now argues the opposite way.
+- **Leave the inputs alone and move only the bias.** The neuron becomes more or less "eager" to fire, independently of any evidence.
+- **Switch between step, sigmoid and ReLU.** The tally $z$ is identical in each case; only the response to it changes.
+
+## The geometry: a neuron is a line
+
+Here's where the earlier lessons pay off, and something surprising appears.
+
+Take a neuron with two inputs, so every possible input is a point on a plane. Which inputs make the neuron fire?
+
+Think about what $z$ depends on. The bias is the same for every input. So the only thing that varies is $\mathbf{w}\cdot\mathbf{x}$ — and from the dot product lesson, you know what that measures: *how far $\mathbf{x}$ reaches in the direction of $\mathbf{w}$*. Two inputs that reach equally far along $\mathbf{w}$ get exactly the same tally, even if they're far apart in other ways.
+
+So the plane is sliced into strips, at right angles to $\mathbf{w}$, where the tally is constant — like contour lines on a map. Moving *along* a strip doesn't change $z$ at all; moving *in the direction of* $\mathbf{w}$ increases it steadily.
+
+The neuron's decision flips at exactly one of those strips: the one where the evidence and the baseline exactly cancel, and $z$ is zero. That strip is the **<Term id="decision-boundary">decision boundary</Term>**. Write "the tally is zero" in symbols and you get its equation:
+
+$$
+\mathbf{w}\cdot\mathbf{x} + b = 0
+$$
+
+In two dimensions, that's a straight line. Everything follows from that picture:
+
+- **The weights set the line's direction.** The boundary is always perpendicular to $\mathbf{w}$, and $\mathbf{w}$ points towards the side where the neuron fires.
+- **The bias slides the line.** Changing $b$ changes how much agreement is needed to reach zero, which moves the line back and forth along $\mathbf{w}$ without turning it. Without a bias, the boundary would be stuck passing through the origin — remember from the matrices lesson that a plain multiplication can never move the origin.
+- **The length of $\mathbf{w}$ sets the confidence.** Doubling $\mathbf{w}$ and $b$ together leaves the line exactly where it is (zero doubled is still zero), but makes $z$ change twice as fast as you move away from it. The sigmoid's transition from "no" to "yes" gets sharper.
+
+Try it on real data. The first dataset is the ten emails from the vectors lesson.
+
+<BoundaryLab />
+
+### Learning, in one sentence
+
+Press "Let gradient descent do it" and the line finds its own way. You'll study gradient descent properly in a later lesson, but you already know every ingredient, and the result is so intuitive that it's worth seeing now.
+
+For a sigmoid neuron trained with cross-entropy, the chain rule gives the gradient of the loss for one example as
+
+$$
+\frac{\partial\, \text{loss}}{\partial \mathbf{w}} = \underbrace{(a - y)}_{\text{how wrong}} \; \underbrace{\mathbf{x}}_{\text{the input}}
+$$
+
+where $a$ is the neuron's output and $y$ is the correct label (0 or 1). Gradient descent moves $\mathbf{w}$ the *opposite* way. So each example tugs the weight vector **towards itself** if it's class 1 and the neuron said too little, and **away from itself** if it's class 0 and the neuron said too much — harder the more wrong the neuron was. Correctly classified, confident examples barely tug at all.
+
+That's the entire learning rule: misclassified points pull the arrow, and the line swings round to put them on the right side.
+
+<Deeper title="Where does (a − y)x come from?" tag="Maths">
+
+It's the chain rule over three stages: $z = \mathbf{w}\cdot\mathbf{x} + b$, then $a = \sigma(z)$, then the loss $L = -[y \ln a + (1-y)\ln(1-a)]$.
+
+- $\frac{\partial L}{\partial a} = -\frac{y}{a} + \frac{1-y}{1-a} = \frac{a - y}{a(1-a)}$
+- $\frac{\partial a}{\partial z} = a(1 - a)$ — the sigmoid's slope.
+- $\frac{\partial z}{\partial w_i} = x_i$
+
+Multiply them: the $a(1-a)$ terms cancel, leaving $\frac{\partial L}{\partial w_i} = (a - y)\,x_i$. That cancellation is no accident — it's the same "$p - y$" simplification you saw for softmax with cross-entropy, and it's why these two are almost always paired. For the bias, $\frac{\partial z}{\partial b} = 1$, so its gradient is just $(a - y)$.
+
+</Deeper>
+
+## A line has limits
+
+Every dataset so far could be separated by a straight line. But one neuron can *only* draw one straight line. What happens when that isn't enough?
+
+<Predict
+  question="Switch the lab to the **XOR** dataset: orange points in two opposite corners, blue in the other two. Can any setting of the weights and bias classify all 32 points correctly?"
+  options={['Yes, with careful tuning', 'Yes, if you train it long enough', 'No — no single line can do it']}
+  answer={2}
+>
+
+Try it anyway, and then let gradient descent try. Whatever you do, at least one corner ends up on the wrong side. The orange corners are diagonally opposite each other, and any line that has both of them on one side must also have at least one blue corner with them.
+
+This isn't a failure of tuning or training. It's a limit of the model: a single neuron can only represent decisions that are **<Term id="linearly-separable">linearly separable</Term>**. In 1969, Marvin Minsky and Seymour Papert made a version of this limitation famous in their book *Perceptrons*, and it contributed to a long cooling of interest in neural networks.
+
+The fix — combining several neurons, with the right kind of activation between them — is the subject of the next lesson.
+
+</Predict>
+
+## In code
+
+```python
+import numpy as np
+
+def sigmoid(z):
+    return 1 / (1 + np.exp(-z))
+
+def neuron(x, w, b):
+    z = w @ x + b          # weigh the evidence, add the baseline
+    return sigmoid(z)      # respond to the tally
+
+w = np.array([0.3, 1.0])   # links matter a little, exclamation marks a lot
+b = -2.5                   # needs real evidence before calling something spam
+neuron(np.array([3, 6]), w, b)   # 0.988 — "YOU HAVE WON!!!" → spam
+neuron(np.array([1, 0]), w, b)   # 0.100 — slides from a design review → fine
+
+# One learning step on one example (label y), using the gradient above:
+def step(x, y, w, b, lr=0.1):
+    a = neuron(x, w, b)
+    w = w - lr * (a - y) * x
+    b = b - lr * (a - y)
+    return w, b
+```
+
+In PyTorch, a neuron is a one-output linear layer followed by an activation: `torch.sigmoid(nn.Linear(2, 1)(x))`. A layer of 128 neurons is `nn.Linear(2, 128)` — 128 weight vectors stacked as the rows of a matrix, which is exactly the "panel of judges" from the matrices lesson.
+
+<Misconception>
+
+"Artificial neurons work like brain neurons." The original idea was loosely inspired by biology — a cell that sums incoming signals and fires past a threshold — and the vocabulary stuck. But real neurons communicate with timed electrical spikes, have complex internal chemistry and change their connections in ways nothing here models. An artificial neuron is a few lines of arithmetic: a weighted sum and a simple function. It's best thought of as a mathematical building block, not a simulation of a cell.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- A neuron does three things: **weigh the evidence** ($\mathbf{w}\cdot\mathbf{x}$), **add a baseline** ($+\,b$), and **respond to the total** ($f$). So $a = f(\mathbf{w}\cdot\mathbf{x} + b)$.
+- Geometrically, a neuron splits input space with a **straight line** (a flat hyperplane in higher dimensions) where $\mathbf{w}\cdot\mathbf{x} + b = 0$.
+- The **weights** set the line's direction (perpendicular to $\mathbf{w}$), the **bias** slides it, and the **size** of $\mathbf{w}$ sets how sharply the output switches.
+- Learning nudges $\mathbf{w}$ by $-(a - y)\mathbf{x}$: wrong examples pull the line until they're on the right side.
+- One neuron can only solve **linearly separable** problems. XOR is the classic counterexample.
+
+</Takeaways>
+
+<InTheWild>
+
+A single sigmoid neuron trained with cross-entropy has another name: **logistic regression**, one of the most widely used models in industry for fraud scoring, click prediction and medical risk scores, precisely because its weights are easy to inspect. And neurons of exactly this form — weighted sum, bias, activation — fill the feed-forward layers of transformers. Llama 3 8B has 32 layers, each with a block of 14,336 of them: nearly half a million neurons, all doing what you just did by hand.
+
+</InTheWild>
+
+One neuron draws one line. Next, we'll find out why stacking neurons into layers doesn't help at all — until you add one small, almost comically simple ingredient.

@@ -81,27 +81,32 @@ It feels like a coincidence that receipt arithmetic should know anything about a
 
 So the dot product is a vote, held separately along every axis, on whether the two vectors agree. Large entries get a bigger vote. When the vectors point the same way, every axis agrees and the votes pile up. When they're perpendicular, the agreeing and disagreeing votes cancel exactly.
 
-### The second formula
+### The same idea, seen as a shadow
 
-That intuition has a precise form. It turns out that
-
-$$
-\mathbf{a} \cdot \mathbf{b} = \|\mathbf{a}\|\, \|\mathbf{b}\| \cos\theta
-$$
-
-where $\theta$ (theta) is the angle between the two arrows. Both formulas always give the same number — the explorer computes them separately, and you can check that they agree.
-
-If trigonometry is rusty, here's all you need to know about $\cos\theta$: it's a function that turns an angle into a measure of alignment. It's **1** when $\theta = 0°$ (same direction), **0** at 90° (perpendicular), and **−1** at 180° (opposite), sliding smoothly in between.
-
-So this formula splits the dot product into two separate ingredients: *how long are the vectors?* ($\|\mathbf{a}\|\|\mathbf{b}\|$) and *how aligned are they?* ($\cos\theta$).
+There's a second way to see this that makes the geometry obvious — and once you have it, the formula writes itself.
 
 <Analogy title="Think of a shadow">
 
-Shine a torch straight down onto the line that $\mathbf{a}$ lies on. The shadow that $\mathbf{b}$ casts on that line has length $\|\mathbf{b}\|\cos\theta$ — the green bar in the explorer. If $\mathbf{b}$ leans backwards, its shadow falls behind the origin and counts as negative.
+Lay $\mathbf{a}$ down as a line on the floor. Hold a torch directly above and look at the shadow that $\mathbf{b}$ casts onto that line — the green bar in the explorer.
 
-The dot product is that shadow's length, multiplied by the length of $\mathbf{a}$. In words: *how far does $\mathbf{b}$ go in $\mathbf{a}$'s direction, scaled by how long $\mathbf{a}$ is?*
+Ask yourself: *how much of $\mathbf{b}$ is going in $\mathbf{a}$'s direction?* That's exactly what the shadow measures. If $\mathbf{b}$ points along $\mathbf{a}$, the shadow is all of $\mathbf{b}$. If $\mathbf{b}$ stands perpendicular, the shadow shrinks to a point. If $\mathbf{b}$ leans backwards, the shadow falls *behind* the origin, and we count it as negative.
 
 </Analogy>
+
+Now build the dot product out of that picture, one piece at a time:
+
+1. **How long is the shadow?** It depends on how long $\mathbf{b}$ is, and on how much it tilts away from $\mathbf{a}$. Write the tilt as an angle $\theta$ (theta). Tilting shrinks the shadow by some factor between 1 (no tilt) and 0 (perpendicular), going negative if you tilt past 90°. Trigonometry has a name for exactly that shrink factor: $\cos\theta$. So the shadow is $\|\mathbf{b}\| \cos\theta$.
+2. **Then scale by $\mathbf{a}$.** The dot product also grows with the length of $\mathbf{a}$ — double $\mathbf{a}$ and every product $a_i b_i$ doubles. So multiply by $\|\mathbf{a}\|$.
+
+Put those two sentences side by side with the formula and you'll see it's just a transcription:
+
+$$
+\mathbf{a} \cdot \mathbf{b} = \underbrace{\|\mathbf{a}\|}_{\text{length of } \mathbf{a}} \; \times \; \underbrace{\|\mathbf{b}\| \cos\theta}_{\text{shadow of } \mathbf{b} \text{ on } \mathbf{a}}
+$$
+
+If trigonometry is rusty, $\cos\theta$ is all you need from it, and you can read it as "how aligned": **1** at 0° (same direction), **0** at 90° (perpendicular), **−1** at 180° (opposite), sliding smoothly in between. That's precisely the pattern you found by dragging the arrows.
+
+The explorer computes this version and the multiply-and-add version separately. Check that they always agree: they're two descriptions of one quantity. One is convenient for computers (no angles needed, just a loop). The other is convenient for understanding — it splits the dot product into *how long are the vectors?* and *how aligned are they?*
 
 <Deeper title="Why do the two formulas agree?" tag="Maths">
 
@@ -117,7 +122,7 @@ Put them together: $\mathbf{a}\cdot\mathbf{b} = \|\mathbf{a}\|\,\|\mathbf{b}\|\c
 
 ## Cosine similarity: direction only
 
-The second formula reveals a catch. The dot product mixes up two different things: alignment and length. Sometimes you only care about one of them.
+The shadow picture reveals a catch. The dot product mixes up two different things: alignment and length. Sometimes you only care about one of them.
 
 <Predict
   question="A search engine represents your query as $[1, 1]$. Document A is $[10, 1]$ and document B is $[2, 2]$. Which document has the **higher dot product** with the query?"

@@ -1,4 +1,4 @@
-import { createContext, Fragment, useContext, useRef, type ReactNode, type PointerEvent as RPointerEvent } from 'react';
+import { createContext, Fragment, useId, useContext, useRef, type ReactNode, type PointerEvent as RPointerEvent } from 'react';
 
 export type Scale = ((v: number) => number) & { inv: (px: number) => number; domain: [number, number] };
 
@@ -271,4 +271,22 @@ export function Seg({ from, to, color = 'var(--text-faint)', width = 1.5, dash, 
 export function Dot({ at, r = 4, color = 'var(--text)', stroke, opacity = 1 }: { at: [number, number]; r?: number; color?: string; stroke?: string; opacity?: number }) {
   const { x, y } = usePlot();
   return <circle cx={x(at[0])} cy={y(at[1])} r={r} fill={color} stroke={stroke} strokeWidth={stroke ? 1.5 : 0} opacity={opacity} />;
+}
+
+/** Clips children to the plot's data area. */
+export function Clip({ children }: { children: ReactNode }) {
+  const { x, y } = usePlot();
+  const id = useId();
+  const [x0, x1] = x.domain;
+  const [y0, y1] = y.domain;
+  return (
+    <g>
+      <defs>
+        <clipPath id={id}>
+          <rect x={x(x0)} y={y(y1)} width={x(x1) - x(x0)} height={y(y0) - y(y1)} />
+        </clipPath>
+      </defs>
+      <g clipPath={`url(#${id})`}>{children}</g>
+    </g>
+  );
 }
