@@ -1,1 +1,153 @@
-This lesson is being written.
+import { FogWalker } from './FogWalker'
+import { DescentGolf } from './DescentGolf'
+import { questions } from './quiz'
+
+## The problem: what happens when you press "Train"?
+
+In the last few lessons, a "Train" button turned a useless network into one that solved XOR. You watched the boundary bend into shape, step by step. But what was it actually *doing*?
+
+Here's the situation it faced. The network had a few dozen weights. For any particular setting of them, it could measure how wrong it was — a single number, the **<Term id="loss">loss</Term>**. It wanted the setting with the smallest loss. And it had no map.
+
+It couldn't try every combination: even with a few dozen weights, there are more combinations than there are atoms in the universe. It couldn't solve an equation for the answer: for real networks, no such equation exists. What it *could* do — thanks to the derivatives and gradients you've already met — was measure one thing very cheaply: **which way is downhill from right here?**
+
+That turns out to be enough.
+
+## Walking downhill in the fog
+
+<Analogy title="Think of a mountain in thick fog">
+
+You're standing somewhere on a mountainside in fog so dense you can only see the ground at your feet. You want to reach the bottom of the valley. You can't see where it is.
+
+What you *can* do is feel the slope under your boots. So you take a step downhill. Then you feel the slope again, and take another step. And another. You never see the whole mountain, but as long as you keep going downhill, you keep getting lower.
+
+</Analogy>
+
+That's **<Term id="gradient-descent">gradient descent</Term>**, and it's how almost every neural network in existence is trained. The mountain is the loss: your position is the current setting of the weights, and your altitude is how wrong the model is. Feeling the slope is computing the derivative (or, with many weights, the gradient). Taking a step is nudging every weight a little in the downhill direction.
+
+Try being the walker. You can only see the ground right around you.
+
+<FogWalker />
+
+Walk through the step sizes in the caption and you'll see four very different personalities:
+
+- **0.1 — smooth and sensible.** Each step lands a bit closer to the bottom. Notice the steps start big and get smaller *on their own*, because the ground flattens as you approach the bottom.
+- **0.01 — glacial.** Every step is correct and every step is tiny. On a real model, where one step can take seconds and you need thousands, this is the difference between an afternoon and a month.
+- **0.9 — zig-zagging.** The walker overshoots the bottom and lands on the far slope, then overshoots back. It still gets there, because each overshoot is smaller than the last.
+- **1.0 and above — disaster.** At exactly 1.0, it bounces between two mirror-image points forever. Above 1.0, each overshoot is *bigger* than the last, and the walker is flung off the map. This is **divergence**, and when you see a training loss explode into `NaN`, this is usually what happened.
+
+That last case is worth dwelling on. The walker always knew which way was downhill. The slope was never wrong. **Knowing the right direction isn't enough — the size of the step matters just as much.**
+
+Now switch to the **bumpy landscape**, start at the left and run. The walker settles happily into the first dip it finds. Lift the fog: there's a much deeper valley it never knew about. Gradient descent is a purely local strategy, so it can get stuck in a **local minimum**. (It's less of a disaster in practice than it sounds — the loss landscapes of large networks have surprisingly few bad dips, for reasons researchers are still working out — but it's a real limitation, and it's why the starting point and the randomness in training both matter.)
+
+## Writing it down
+
+Everything the walker did fits in one line. You've seen every piece of it already:
+
+<Eq
+  words="\text{new weight} = \text{old weight} - \text{step size} \times \text{slope of the loss}"
+  tex="\cp{w_{\text{new}}} = \cp{w_{\text{old}}} - \cb{\eta} \cdot \cg{\frac{\partial L}{\partial w}}"
+>
+
+- $\cp{w}$ — a **weight** (one of the model's adjustable numbers)
+- $L$ — the **loss**: how wrong the model currently is
+- $\cg{\partial L / \partial w}$ — the **slope**: how the loss responds to nudging this weight (from backpropagation)
+- $\cb{\eta}$ — the **step size**, usually called the **<Term id="learning-rate">learning rate</Term>** (the Greek letter "eta"; some papers write $\alpha$ or $\text{lr}$)
+- the **minus sign** — "go *against* the slope": if increasing the weight raises the loss, decrease it
+
+</Eq>
+
+Why does this work? Recall the most useful fact from the derivatives lesson: for a small nudge, *new loss ≈ old loss + slope × nudge*. Gradient descent chooses the nudge to be "minus step size times slope". Plug that in, and the change in loss is "minus step size times slope × slope" — a negative number times something squared. **It's always a decrease**, as long as the step is small enough for the "≈" to hold. That last condition is exactly what fails when you crank the step size up.
+
+With many weights, the same rule is applied to all of them at once, each with its own slope. In vector form, the slopes become the gradient, and the whole update is one line: step against the gradient.
+
+<Eq
+  words="\text{all weights} \leftarrow \text{all weights} - \text{step size} \times \text{uphill arrow}"
+  tex="\cp{\mathbf{w}} \leftarrow \cp{\mathbf{w}} - \cb{\eta}\, \cg{\nabla L}"
+/>
+
+## A harder course: the narrow valley
+
+Real loss landscapes have many dimensions, and the slopes are rarely the same in every direction. A very common shape is a long, narrow valley: steep walls on either side, but a floor that slopes only gently towards the true minimum.
+
+Here's a challenge on exactly that kind of landscape.
+
+<DescentGolf />
+
+If you played for a while, you discovered the central tension:
+
+- The **steep walls** demand a small step. Too large, and the walker bounces from wall to wall with growing swings until it flies out.
+- The **gentle floor** demands a big step. With a small one, the walker crawls along forever.
+
+**One step size has to serve every direction at once**, and in a narrow valley no single value is good for both. The best plain gradient descent can manage is to set the step size just below the point where the walls start to bounce it out — notice how the best runs zig-zag across the valley while drifting along it.
+
+Now flip on **momentum**. The walker becomes a heavy ball that keeps some of its previous velocity. The side-to-side bounces cancel out, while the consistent push along the valley floor builds up speed. The par drops from over twenty steps to a handful. Fixing exactly this weakness is what modern optimizers like momentum, RMSProp and Adam are for — and they'll get a lesson of their own.
+
+<MathExhibit title="Why does the bowl diverge at exactly 1.0?" teaser="A two-line calculation that explains all four behaviours you saw.">
+
+For the bowl $L(w) = (w - 3)^2 + 1$, the slope is $2(w - 3)$. Let $d = w - 3$ be the walker's distance from the bottom. One gradient-descent step gives
+
+$$
+d_{\text{new}} = d - \eta \cdot 2d = (1 - 2\eta)\, d
+$$
+
+So **every step multiplies the distance to the bottom by the same factor, $1 - 2\eta$**.
+
+- $\eta = 0.1$: factor $0.8$ — the distance shrinks by 20% each step, smoothly.
+- $\eta = 0.9$: factor $-0.8$ — the sign flips each step (overshooting to the other side) but the size still shrinks: zig-zag convergence.
+- $\eta = 1.0$: factor $-1$ — same distance, opposite side, forever.
+- $\eta > 1$: the factor's size exceeds 1 — every step lands further away. Divergence.
+
+In general the safe limit depends on how sharply the loss curves: the steeper the walls, the smaller the largest safe step. In the narrow valley, the steep direction sets that limit for *every* direction, which is precisely the problem you ran into.
+
+</MathExhibit>
+
+## In code
+
+The whole algorithm, applied to a model, is a short loop. The interesting work — computing the gradient — happens inside `loss_and_gradient`, which is what the next lesson is about.
+
+```python
+learning_rate = 0.1
+
+for step in range(1000):
+    loss, grads = loss_and_gradient(weights, training_data)   # the slope for every weight
+    for name in weights:
+        weights[name] -= learning_rate * grads[name]          # step against the slope
+    if step % 100 == 0:
+        print(step, loss)
+```
+
+In PyTorch the same loop reads:
+
+```python
+optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+for x, y in data:
+    loss = loss_fn(model(x), y)
+    optimizer.zero_grad()
+    loss.backward()     # compute ∂loss/∂w for every weight (backpropagation)
+    optimizer.step()    # w ← w − lr · ∂loss/∂w
+```
+
+<Misconception>
+
+"The gradient tells you where the minimum is." It doesn't — it only tells you which way is downhill *right here*, and how steep it is. That's why gradient descent takes many small steps rather than one big jump, and why the step size matters so much: the local slope is only a trustworthy guide close to where you measured it.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- Training a model is searching for weights with low loss. **Gradient descent** does it by repeatedly stepping downhill: *new weight = old weight − step size × slope*.
+- It only uses **local** information — the slope where it stands — so it can settle in local dips.
+- The **step size (learning rate)** is critical: too small is slow, too big zig-zags, and beyond a limit it **diverges**.
+- In **narrow valleys** a single step size can't suit every direction. Momentum and adaptive optimizers exist to fix this.
+
+</Takeaways>
+
+<InTheWild>
+
+The learning rate is often the single most important setting in training a neural network, and practitioners treat it with great care. Large language models are typically trained with a peak learning rate somewhere around $10^{-4}$, reached by gradually "warming up" from almost zero over the first few thousand steps (big early steps on a random network can blow it up) and then slowly decayed. Almost all of them use **AdamW**, a descendant of the momentum idea you just previewed — but underneath, every one of those optimizers is still walking downhill in the fog.
+
+</InTheWild>
+
+There's one piece missing. Gradient descent needs the slope of the loss with respect to *every* weight — potentially billions of them — at every step. Computing those efficiently is the job of backpropagation, and it's next.
