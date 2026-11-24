@@ -37,3 +37,24 @@ export function Deeper({ title, tag = 'Go deeper', children, open = false }: { t
     </details>
   );
 }
+
+/**
+ * An optional "museum exhibit" of the maths behind an idea. Collapsed by default:
+ * the lesson must make complete sense without ever opening one.
+ */
+export function MathExhibit({ title, children, teaser }: { title: string; teaser?: string; children: ReactNode }) {
+  return (
+    <details className="exhibit">
+      <summary>
+        <span className="exhibit-mark" aria-hidden>∑</span>
+        <span className="exhibit-text">
+          <span className="exhibit-label">Maths exhibit · optional</span>
+          <span className="exhibit-title">{title}</span>
+          {teaser && <span className="exhibit-teaser">{teaser}</span>}
+        </span>
+        <span className="exhibit-open" aria-hidden>Open ▾</span>
+      </summary>
+      <div className="exhibit-body">{children}</div>
+    </details>
+  );
+}

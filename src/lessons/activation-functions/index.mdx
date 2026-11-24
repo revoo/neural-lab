@@ -1,1 +1,157 @@
-This lesson is being written.
+import { LinearCollapse } from './LinearCollapse'
+import { HingeBuilder } from './HingeBuilder'
+import { XORTrainer } from './XORTrainer'
+import { ActivationGallery } from './ActivationGallery'
+import { questions } from './quiz'
+
+## The problem: one line isn't enough
+
+At the end of the last lesson, a single neuron met the XOR problem and lost. Orange points sat in two opposite corners, blue points in the other two, and no straight line could split them. That wasn't bad luck or bad training. One neuron draws one line, and some problems need more than one line.
+
+The natural fix is obvious: **use more neurons**. Put several side by side so each can draw its own line, and feed their answers into another neuron that combines them. Stack layers of these, and surely you can carve up space however you like.
+
+Surprisingly, that doesn't work — at least, not on its own. Something small but essential is missing, and this lesson is about what it is.
+
+## A factory that does nothing new
+
+<Analogy title="Think of a factory of multiplying machines">
+
+Imagine a small factory that processes numbers. The first machine doubles whatever you feed it. The second multiplies the result by three. The third multiplies by five.
+
+Three machines, a production line, a lot of whirring. But what has the factory actually done? It has multiplied your number by thirty. You could replace the whole factory with one machine that multiplies by thirty, and nobody outside would notice the difference.
+
+</Analogy>
+
+A layer of neurons without activation functions is one of those machines. In the matrices lesson you saw what a layer does: it stretches, rotates and shears space, keeping every straight line straight. Do that three times in a row and you've stretched, rotated and sheared space… which a single stretch-rotate-shear could have done in one go. **However many layers you stack, they collapse into one.**
+
+Don't take my word for it. Below, the same grid is pushed through a three-layer network on the left, and through a single combined layer on the right.
+
+<LinearCollapse />
+
+With activations off, the two pictures are identical. All that machinery, and the network is one layer in disguise. That's why stacking neurons couldn't beat XOR: the whole stack still draws just one straight line.
+
+## The fix: a machine that bends
+
+So what if one of the machines in our factory did something that *isn't* just multiplying?
+
+Here's the simplest possible candidate: a machine that lets positive numbers through untouched, but turns any negative number into zero. That's the whole rule. It has a name — **<Term id="relu">ReLU</Term>**, for "rectified linear unit" — and it is almost comically simple. If you drew it, it would look like a hockey stick: flat along the floor, then a straight line up and to the right.
+
+Switch ReLU on in the demo above and look at what happens to the grid. Lines that were straight are now **bent**. Regions of space get **folded** flat against the axes. That's something no stretch-and-rotate can ever do, so the layers can no longer collapse into one. Each layer now adds something genuinely new.
+
+### Why a bend is all you need
+
+It's not obvious that something as crude as "chop off the negatives" should be enough. Here's the intuition.
+
+Think about what one ReLU neuron contributes on its own: nothing at all until its input crosses a threshold, and then a steady slope. A **hinge**. Now give a layer several such neurons, each with its hinge at a different place, and add their outputs together. Every hinge adds one bend to a line. Enough bends, and a chain of short straight pieces can trace out almost any shape.
+
+Try it below. Each slider step adds one more ReLU neuron.
+
+<HingeBuilder />
+
+With zero hinges you get a straight line — the most a linear network can ever do. With a handful, the shape is recognisable. With twenty, the approximation is nearly perfect. This is the intuition behind a famous result called the *universal approximation theorem*: a network with one layer of enough non-linear neurons can approximate essentially any reasonable function as closely as you like. (The theorem doesn't say it's *easy* to find the right weights, or that one wide layer is the efficient way to do it — that's where depth and training come in.)
+
+### Writing it down
+
+Both ideas — the collapse and the hinges — fit in a line of maths each, and the equations say exactly what the demos showed.
+
+**The collapse.** A layer without an activation just multiplies by its weight matrix (call the three layers' matrices $\ca{W_1}$, $\cb{W_2}$, $\cc{W_3}$). Feed an input through all three, and because each layer is only a multiplication, the brackets can be shuffled so the three matrices multiply each other first:
+
+<Eq
+  words="\text{layer 3}\big(\text{layer 2}(\text{layer 1}(\text{input}))\big) = \underbrace{(\text{layer 3}\times\text{layer 2}\times\text{layer 1})}_{\text{just one combined layer}}(\text{input})"
+  tex="\cc{W_3}\big(\cb{W_2}(\ca{W_1}\,\mathbf{x})\big) = (\cc{W_3}\cb{W_2}\ca{W_1})\,\mathbf{x}"
+>
+
+- $\mathbf{x}$ — the **input** vector going into the network
+- $\ca{W_1}, \cb{W_2}, \cc{W_3}$ — each layer's **weight matrix** (its recipe for stretching and rotating space)
+
+</Eq>
+
+That's the factory of multiplying machines in one line: $\cc{W_3}\cb{W_2}\ca{W_1}$ is a single matrix, so the three layers are really one. Put an activation $f$ between the layers, and the brackets can no longer be shuffled — $f$ is in the way — so the collapse can't happen.
+
+**The hinges.** One layer of ReLU neurons feeding a single output neuron computes exactly the curve from the hinge builder:
+
+<Eq
+  words="\text{output} = \text{starting level} + \text{sum over neurons of }\big(\text{bend amount} \times \text{hinge at its kink point}\big)"
+  tex="\cp{y} = c + \sum_{i} \cb{a_i}\cdot\mathrm{ReLU}(x - \ca{k_i})"
+>
+
+- $x$ — the **input** (the horizontal position in the builder)
+- $\ca{k_i}$ — **kink point** of neuron $i$: where its hinge starts to bend (set by the neuron's bias)
+- $\cb{a_i}$ — **bend amount**: how sharply, and which way, that hinge bends the line (the neuron's outgoing weight)
+- $\mathrm{ReLU}(\ldots)$ — "keep it if positive, otherwise zero": the hinge shape itself
+- $c$ — the **starting level** of the line
+- $\sum_i$ — "add up over all the hidden neurons" (a `for` loop)
+
+</Eq>
+
+Read it aloud and it's the builder's caption: *start from a baseline and add up a collection of hinges.*
+
+<MathExhibit title="How good can the hinges get?" teaser="The universal approximation theorem, and what it does and doesn't promise.">
+
+The *universal approximation theorem* (proved in several forms around 1989–1991, by George Cybenko, Kurt Hornik and others) says that a network with a single hidden layer of non-linear neurons can approximate any continuous function on a bounded region as closely as you like — provided you use enough neurons.
+
+The hinge builder is essentially a proof sketch for one input. With $n$ hinges spaced evenly, you can make the line pass through $n + 1$ points of the target exactly; in between, the error depends on how much the target curves between those points. Double the number of hinges and, for a smooth target, the worst-case error drops to roughly a quarter.
+
+What the theorem does **not** promise: that training will *find* those weights, or that one wide layer is an efficient way to build a function. For many functions, a deep network needs far fewer neurons than a shallow one, because each layer can reuse and recombine the shapes built by the layer before. That's the real argument for depth.
+
+</MathExhibit>
+
+## Solving XOR for real
+
+Now let's go back to the problem that started this. Below is a real neural network, trained live in your browser. You choose how many hidden layers it has, how wide they are, and what activation sits between them.
+
+<Predict
+  question="Start with **two hidden layers of four neurons, but no activation function**. Will this network learn to separate XOR?"
+  options={['Yes — eight neurons is plenty', 'Partly — it will get most points right', 'No — it will be stuck with a single straight line']}
+  answer={2}
+>
+
+Press Train and see. The background settles into two halves split by one straight line, and the accuracy stalls at around 75%. Eight neurons, and they behave exactly like one. Now switch the activation to **ReLU**, start again, and train.
+
+</Predict>
+
+<XORTrainer />
+
+With ReLU, the network solves XOR within a few hundred steps. The faint dashed lines show where each first-layer neuron draws its own line. You can watch the next layer **combine** those lines: "orange if you're above *this* line but below *that* one". One line couldn't do it; several lines, joined by a non-linearity, can.
+
+Some experiments worth trying:
+
+- **Two neurons in one hidden layer** is the theoretical minimum for XOR. It often works, but not always — press "New random start" a few times. Sometimes training gets stuck. Extra neurons give training more ways to succeed, which is one reason real networks are much bigger than the bare minimum.
+- **Tanh** also solves it, with smoother boundaries. **Sigmoid** usually gets there, but more slowly. That difference is a clue to the next section.
+- **Three hidden layers with no activation** still draws one straight line. Depth without non-linearity buys nothing.
+
+## A gallery of bends
+
+ReLU isn't the only option. Any function that isn't a straight line will stop the layers collapsing, and researchers have tried many. They differ mainly in one property that matters enormously for training: **how flat they get**.
+
+Remember the chain-rule lesson: the learning signal that flows backwards through a network is multiplied by each neuron's slope along the way. Where an activation is flat, almost nothing gets through. Stack many flat-ish layers and the signal reaching the early layers fades to nothing — the **vanishing gradient** problem.
+
+<ActivationGallery />
+
+That's the story of the past few decades in one picture. Early networks used sigmoid and tanh, whose flat ends starved deep networks of learning signal. ReLU's slope is exactly the same everywhere it's active, so the signal passes through without fading — one of the key ingredients that made deep networks trainable around 2010–2012. Modern transformers mostly use smooth variants of ReLU like GELU and SiLU, which behave similarly but without the sharp corner.
+
+<Misconception>
+
+"The activation function is what makes a neuron 'decide' or 'fire', so it's mainly about producing yes/no outputs." That's where the idea came from historically, and it's still true in the output layer of a classifier. But in the hidden layers, the activation's real job is different: it's the thing that **stops the layers from collapsing into one**. A hidden ReLU neuron isn't making a decision for anyone. It's providing a bend that the layers after it can build shapes out of.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- Without activation functions, any stack of layers **collapses into a single layer**. More layers add computation, not capability.
+- An activation function is a **bend**. Even one as simple as ReLU ("negatives become zero") breaks the collapse, so each layer can add something new.
+- Adding up enough bends can trace out almost any shape: that's why networks with non-linear activations can learn complicated boundaries.
+- Hidden layers let several neurons each draw a line, and later layers **combine the regions** — which is how XOR gets solved.
+- Activations that go flat (sigmoid, tanh) choke the learning signal in deep networks; ReLU and its smooth cousins keep it flowing.
+
+</Takeaways>
+
+<InTheWild>
+
+Every modern network has non-linear activations between its layers. In a transformer, they live inside the feed-forward block of every layer: the model expands each token's vector to a few times its size, applies GELU or SiLU, and shrinks it back. That's hundreds of thousands of hinges per layer in a large model. And when researchers interpret what individual neurons inside language models respond to, they're studying exactly these units — the places where the model bends its representations into new shapes.
+
+</InTheWild>
+
+You've now seen a network learn — but the learning itself has been a black box behind a "Train" button. Next, we open that box: how does a model actually find good weights? It starts with walking downhill in the fog.

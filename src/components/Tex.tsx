@@ -1,9 +1,10 @@
 import katex from 'katex';
 import { memo } from 'react';
+import { KATEX_MACROS } from '../katexMacros';
 
 /** Render a LaTeX string with KaTeX. Used for live equations inside widgets. */
 export const Tex = memo(function Tex({ children, block = false, className }: { children: string; block?: boolean; className?: string }) {
-  const html = katex.renderToString(children, { displayMode: block, throwOnError: false, strict: false, trust: true });
+  const html = katex.renderToString(children, { displayMode: block, throwOnError: false, strict: false, trust: true, macros: { ...KATEX_MACROS } });
   const Tag = block ? 'div' : 'span';
   return <Tag className={className ?? (block ? 'tex-block' : undefined)} dangerouslySetInnerHTML={{ __html: html }} />;
 });

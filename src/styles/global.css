@@ -441,3 +441,39 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 0; }
 .num-table th { color: var(--text-faint); font-weight: 500; font-family: var(--font-ui); font-size: 12px; }
 .num-input { width: 58px; font-family: var(--font-mono); font-size: 13px; padding: 4px 6px; text-align: right; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--bg); color: var(--text); }
 .page > .prose { max-width: none; }
+
+/* Maths exhibit: optional, collapsed, a placard rather than a lecture */
+.exhibit {
+  font-family: var(--font-ui); margin: 1.8em auto; border-radius: 14px;
+  border: 1px solid color-mix(in srgb, #b8892b 45%, var(--border));
+  background: color-mix(in srgb, #c9a24a 6%, var(--bg-elev));
+}
+.exhibit > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 14px; padding: 14px 18px; }
+.exhibit > summary::-webkit-details-marker { display: none; }
+.exhibit-mark {
+  flex: none; width: 40px; height: 40px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-prose); font-size: 22px; color: #9a6f12; border: 1.5px solid color-mix(in srgb, #b8892b 60%, transparent);
+}
+.exhibit-text { flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.exhibit-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #9a6f12; }
+.exhibit-title { font-family: var(--font-prose); font-size: 18px; font-weight: 600; color: var(--text); }
+.exhibit-teaser { font-size: 13.5px; color: var(--text-muted); }
+.exhibit-open { font-size: 12.5px; color: var(--text-faint); white-space: nowrap; }
+.exhibit[open] .exhibit-open { visibility: hidden; }
+.exhibit-body { padding: 4px 22px 14px; font-family: var(--font-prose); font-size: 17.5px; border-top: 1px dashed color-mix(in srgb, #b8892b 40%, var(--border)); }
+.exhibit-body > * { max-width: none; }
+.exhibit-body .quiz { margin-top: 1.2em; }
+:root[data-theme='dark'] .exhibit-mark, :root[data-theme='dark'] .exhibit-label { color: #e0b75a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .exhibit-mark, :root:not([data-theme='light']) .exhibit-label { color: #e0b75a; } }
+
+/* Accessible equation block: words above, symbols below, legend underneath */
+.eq { margin: 1.6em auto; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-elev); padding: 6px 18px 10px; }
+.eq-words { font-size: 0.92em; color: var(--text-muted); border-bottom: 1px dashed var(--border); }
+.eq-words .katex-display { margin: 0.7em 0; }
+.eq-tex .katex-display { margin: 0.7em 0; }
+.eq-tex .katex { font-size: 1.22em; }
+.eq-legend { font-family: var(--font-ui); font-size: 15px; line-height: 1.55; border-top: 1px dashed var(--border); padding-top: 8px; }
+.eq-legend ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+.eq-legend li { margin: 0; }
+.eq-legend p { margin: 0; }
+.eq-caption { font-family: var(--font-ui); font-size: 13.5px; color: var(--text-muted); padding-top: 6px; }

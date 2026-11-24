@@ -3,11 +3,12 @@
  * Lesson-specific widgets are imported explicitly inside each lesson.
  */
 import type { ComponentProps } from 'react';
-import { Callout, Analogy, Insight, Misconception, InTheWild, Takeaways, Deeper } from './components/Callout';
+import { Callout, Analogy, Insight, Misconception, InTheWild, Takeaways, Deeper, MathExhibit } from './components/Callout';
 import { Predict } from './components/Predict';
 import { Quiz } from './components/Quiz';
 import { Term, LessonLink } from './components/Term';
 import { Tex } from './components/Tex';
+import { Eq } from './components/Eq';
 
 export const mdxComponents = {
   Callout,
@@ -17,10 +18,12 @@ export const mdxComponents = {
   InTheWild,
   Takeaways,
   Deeper,
+  MathExhibit,
   Predict,
   Quiz,
   Term,
   LessonLink,
   Tex,
+  Eq,
   a: (p: ComponentProps<'a'>) => <a {...p} target={p.href?.startsWith('http') ? '_blank' : undefined} rel={p.href?.startsWith('http') ? 'noreferrer' : undefined} />,
 };
