@@ -600,6 +600,52 @@ type LogEntry = {
   inTop5: boolean;
 };
 
+
+/** Bits lost on each word so far (−log₂ p): you, the neural LM and Unigram side by side, so you can see exactly where you lost. */
+function BitsStrip({ log }: { log: { word: string; youP: number; neuP: number; uniP: number }[] }) {
+  const bits = (p: number) => -Math.log2(Math.max(1e-12, p));
+  const cap = 14;
+  const col = 34;
+  const H = 120;
+  const W = Math.max(log.length * col + 30, 200);
+  const series = [
+    { key: 'youP' as const, color: 'var(--accent)', label: 'you' },
+    { key: 'neuP' as const, color: 'var(--c-c)', label: 'neural LM' },
+    { key: 'uniP' as const, color: 'var(--text-faint)', label: 'Unigram' },
+  ];
+  const y = (b: number) => 8 + ((H - 34) * (cap - Math.min(cap, b))) / cap;
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div className="field-label">bits lost per word (taller = more surprised)</div>
+      <div style={{ overflowX: 'auto' }}>
+        <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label="Bits lost on each word by you, the neural LM and Unigram">
+          {[0, 5, 10].map((b) => (
+            <g key={b}>
+              <line x1={24} x2={W} y1={y(b)} y2={y(b)} stroke="var(--border)" />
+              <text x={20} y={y(b) + 3} fontSize={9} textAnchor="end" className="plot-tick">{b}</text>
+            </g>
+          ))}
+          {log.map((e, i) => (
+            <g key={i}>
+              {series.map((sr, k) => {
+                const b = bits(e[sr.key]);
+                return <rect key={sr.key} x={28 + i * col + k * 9} y={y(b)} width={8} height={y(0) - y(b)} fill={sr.color} opacity={0.9}><title>{`${e.word}: ${sr.label} ${b.toFixed(2)} bits`}</title></rect>;
+              })}
+              <text x={28 + i * col + 13} y={H - 12} fontSize={9.5} textAnchor="middle" className="plot-tick">{e.word.length > 6 ? `${e.word.slice(0, 5)}…` : e.word}</text>
+            </g>
+          ))}
+        </svg>
+      </div>
+      <div style={{ display: 'flex', gap: 12, fontSize: 11.5 }}>
+        {series.map((sr) => (
+          <span key={sr.key} style={{ color: sr.color === 'var(--text-faint)' ? 'var(--text-muted)' : sr.color }}>■ {sr.label}</span>
+        ))}
+        <span className="muted">bars are capped at {cap} bits</span>
+      </div>
+    </div>
+  );
+}
+
 export function ShannonLab() {
   const run = useMemo(() => getRun(), []);
   const lm = run.final;
@@ -834,6 +880,8 @@ export function ShannonLab() {
           </div>
         </div>
       )}
+
+      {log.length > 0 && <BitsStrip log={log} />}
 
       <div className="live-note" style={{ marginTop: 10 }}>
         {done ? (
