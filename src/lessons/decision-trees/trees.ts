@@ -483,13 +483,13 @@ export const LAB_BRIEFS: TreeBrief[] = [
   {
     id: 'noisy-table',
     title: 'Brief 2 · Messy 8-Column Table (1,000× Scale + 6 Noise Columns)',
-    story: 'Our 8-column industrial table (Temp, RPM ×1000, 6 noise columns, 6% label noise). Single trees top out at 97.7%, and Random Forest’s feature subsampling gets diluted by the 6 noise columns. Reach ≥ 98.0% held-out accuracy with the fewest total leaves.',
+    story: 'An 8-column industrial table (Temp, RPM ×1000, 6 pure noise columns, and 6% label noise). Reach ≥ 98.0% held-out accuracy using the fewest total leaves possible.',
     minAcc: 0.98,
   },
   {
     id: 'diagonal',
     title: 'Brief 3 · Noisy Curved Boundary (12% Label Flips)',
-    story: 'A curved sine boundary where 12% of training labels were randomly flipped. Single trees top out at 90.8% and boosting chases the flipped labels. Reach ≥ 97.0% held-out accuracy with the fewest total leaves.',
+    story: 'A curved sine boundary where 12% of training labels were randomly flipped. Reach ≥ 97.0% held-out accuracy using the fewest total leaves possible.',
     minAcc: 0.97,
   },
 ];
@@ -518,6 +518,28 @@ export function getTreeLabData(id: TreeBrief['id']) {
   return data;
 }
 
+export const BRIEF_COL_NAMES: Record<TreeBrief['id'], string[]> = {
+  rules: ['Sensor A', 'Sensor B', 'Noise 1', 'Noise 2', 'Noise 3', 'Noise 4'],
+  'noisy-table': MESSY_COL_NAMES,
+  diagonal: ['x₁', 'x₂'],
+};
+
+type AnySplitNode = { leaf: true } | { leaf: false; feature: number; left: AnySplitNode; right: AnySplitNode };
+
+function splitSharesOf(roots: readonly AnySplitNode[], d: number): number[] {
+  const counts = new Array<number>(d).fill(0);
+  let total = 0;
+  const walk = (n: AnySplitNode) => {
+    if (n.leaf) return;
+    counts[n.feature]++;
+    total++;
+    walk(n.left);
+    walk(n.right);
+  };
+  for (const r of roots) walk(r);
+  return total > 0 ? counts.map((c) => c / total) : counts;
+}
+
 export type TreeLabConfig = {
   method: TreeMethod;
   maxDepth: number;
@@ -526,16 +548,29 @@ export type TreeLabConfig = {
 
 export function evaluateTreeLab(id: TreeBrief['id'], cfg: TreeLabConfig) {
   const { train, test } = getTreeLabData(id);
+  const d = train[0].x.length;
+  const padZero = (x0: number, x1: number) => {
+    const v = new Array<number>(d).fill(0);
+    v[0] = x0;
+    v[1] = x1;
+    return v;
+  };
+
   if (cfg.method === 'tree') {
     const t = fitClassTree(train, { maxDepth: cfg.maxDepth, minLeaf: 2 });
+    const pred = (x: readonly number[]) => predictClassTree(t, x);
     return {
-      trainAcc: accuracyOf(train, (x) => predictClassTree(t, x)),
-      testAcc: accuracyOf(test, (x) => predictClassTree(t, x)),
+      trainAcc: accuracyOf(train, pred),
+      testAcc: accuracyOf(test, pred),
       leaves: countLeaves(t),
+      splitShares: splitSharesOf([t], d),
+      tree: t,
+      curve: [{ step: 1, trainAcc: accuracyOf(train, pred), testAcc: accuracyOf(test, pred) }],
+      testPreds: test.map((s) => (pred(s.x) >= 0.5 ? 1 : 0) as 0 | 1),
+      predictXY: (x0: number, x1: number) => pred(padZero(x0, x1)),
     };
   }
   if (cfg.method === 'rf') {
-    const d = train[0].x.length;
     const rf = fitRandomForest(train, {
       nTrees: cfg.nTrees,
       maxDepth: cfg.maxDepth,
@@ -543,19 +578,91 @@ export function evaluateTreeLab(id: TreeBrief['id'], cfg: TreeLabConfig) {
       maxFeatures: Math.max(1, Math.round(Math.sqrt(d))),
       seed: 202,
     });
+    const pred = (x: readonly number[]) => predictForest(rf, x);
+    // Cumulative train/test accuracy across ensemble size 1..nTrees
+    const trSums = new Array<number>(train.length).fill(0);
+    const teSums = new Array<number>(test.length).fill(0);
+    const curve: { step: number; trainAcc: number; testAcc: number }[] = [];
+    for (let m = 0; m < rf.trees.length; m++) {
+      let trOk = 0;
+      let teOk = 0;
+      for (let i = 0; i < train.length; i++) {
+        trSums[i] += predictClassTree(rf.trees[m], train[i].x);
+        if ((trSums[i] / (m + 1) >= 0.5 ? 1 : 0) === train[i].y) trOk++;
+      }
+      for (let i = 0; i < test.length; i++) {
+        teSums[i] += predictClassTree(rf.trees[m], test[i].x);
+        if ((teSums[i] / (m + 1) >= 0.5 ? 1 : 0) === test[i].y) teOk++;
+      }
+      curve.push({ step: m + 1, trainAcc: trOk / train.length, testAcc: teOk / test.length });
+    }
     return {
-      trainAcc: accuracyOf(train, (x) => predictForest(rf, x)),
-      testAcc: accuracyOf(test, (x) => predictForest(rf, x)),
+      trainAcc: accuracyOf(train, pred),
+      testAcc: accuracyOf(test, pred),
       leaves: rf.leaves,
+      splitShares: splitSharesOf(rf.trees, d),
+      tree: null as ClassTreeNode | null,
+      curve,
+      testPreds: test.map((s) => (pred(s.x) >= 0.5 ? 1 : 0) as 0 | 1),
+      predictXY: (x0: number, x1: number) => pred(padZero(x0, x1)),
     };
   }
   const gbt = fitGBT(train, { nRounds: cfg.nTrees, maxDepth: cfg.maxDepth, lr: 0.3, minLeaf: 3 });
+  const pred = (x: readonly number[]) => predictGBT(gbt, x);
+  const curve: { step: number; trainAcc: number; testAcc: number }[] = [];
+  for (let m = 1; m <= gbt.trees.length; m++) {
+    curve.push({
+      step: m,
+      trainAcc: accuracyOf(train, (x) => predictGBT(gbt, x, m)),
+      testAcc: accuracyOf(test, (x) => predictGBT(gbt, x, m)),
+    });
+  }
   return {
-    trainAcc: accuracyOf(train, (x) => predictGBT(gbt, x)),
-    testAcc: accuracyOf(test, (x) => predictGBT(gbt, x)),
+    trainAcc: accuracyOf(train, pred),
+    testAcc: accuracyOf(test, pred),
     leaves: gbt.leaves,
+    splitShares: splitSharesOf(gbt.trees, d),
+    tree: null as ClassTreeNode | null,
+    curve,
+    testPreds: test.map((s) => (pred(s.x) >= 0.5 ? 1 : 0) as 0 | 1),
+    predictXY: (x0: number, x1: number) => pred(padZero(x0, x1)),
   };
 }
+
+/**
+ * Evidence-only hint for the tabular ensemble lab.
+ * Points at train-vs-test gap, split shares on noise columns, or boundary geometry —
+ * never names the winning tree family or a locked control.
+ */
+export function treeLabHint(b: TreeBrief, cfg: TreeLabConfig, r: ReturnType<typeof evaluateTreeLab>): string {
+  const pass = r.testAcc >= b.minAcc - 1e-9;
+  const gap = r.trainAcc - r.testAcc;
+  const noiseShare = r.splitShares.slice(2).reduce((a, v) => a + v, 0);
+  if (pass) {
+    return cfg.method === 'tree'
+      ? `It passes using ${r.leaves} leaves! Check the printed split rules to see whether a shallower depth still clears ${(b.minAcc * 100).toFixed(1)}%.`
+      : `It passes using ${r.leaves} leaves! Check the boundary and learning curve to see whether a leaner family, shallower depth, or smaller ensemble still clears ${(b.minAcc * 100).toFixed(1)}%.`;
+  }
+  if (b.id === 'rules') {
+    return 'Look at the 2D plot: the positive class is a single clean rectangular corner. Check how many axis-aligned cuts are actually needed to carve out one rectangle.';
+  }
+  if (b.id === 'noisy-table') {
+    if (noiseShare > 0.2) {
+      return `Look at the split-share bars: ${(noiseShare * 100).toFixed(0)}% of your model’s splits landed on the 6 pure noise columns! Try a family that inspects all columns at every split, and watch the round-by-round curve for where test accuracy peaks.`;
+    }
+    if (gap > 0.04) {
+      return `Train accuracy (${(r.trainAcc * 100).toFixed(1)}%) is pulling ahead of held-out accuracy (${(r.testAcc * 100).toFixed(1)}%) — the model is chasing the 6% label noise. Check where the learning curve peaked before bending down.`;
+    }
+    return 'Look at the decision surface and error rings: the true rule has three rectangular regions across the two sensor axes, so depth 1–2 underfits it while too many rounds overfit the 6% label noise.';
+  }
+  // Brief 3 (diagonal noisy sine, 12% label flips)
+  if (gap > 0.05) {
+    return `Look at the gap between train (${(r.trainAcc * 100).toFixed(1)}%) and held-out accuracy (${(r.testAcc * 100).toFixed(1)}%): the model is memorising the 12% flipped training labels. Compare how averaging independent trees behaves versus chasing residuals.`;
+  }
+  return 'Look at the blocky decision surface on the left: the true boundary is curved with 12% flipped training labels. Check which ensemble smooths a curve by averaging while ignoring isolated flipped points.';
+}
+
+export type TreeSearchRow = { cfg: TreeLabConfig; testAcc: number; trainAcc: number; leaves: number; pass: boolean };
 
 const LAB_EX_CACHE = new Map<TreeBrief['id'], ReturnType<typeof computeTreeLabExhaustive>>();
 
@@ -565,6 +672,7 @@ function computeTreeLabExhaustive(b: TreeBrief) {
   let bestLeaves = Infinity;
   let bestAccAtMin = -1;
   let best: { cfg: TreeLabConfig; testAcc: number; leaves: number }[] = [];
+  const all: TreeSearchRow[] = [];
 
   for (const method of LAB_METHODS) {
     const counts = method === 'tree' ? [1] : [...LAB_NTREES];
@@ -573,7 +681,9 @@ function computeTreeLabExhaustive(b: TreeBrief) {
         total++;
         const cfg: TreeLabConfig = { method, maxDepth, nTrees };
         const r = evaluateTreeLab(b.id, cfg);
-        if (r.testAcc < b.minAcc - 1e-9) continue;
+        const pass = r.testAcc >= b.minAcc - 1e-9;
+        all.push({ cfg, testAcc: r.testAcc, trainAcc: r.trainAcc, leaves: r.leaves, pass });
+        if (!pass) continue;
         passing++;
         if (r.leaves < bestLeaves) {
           bestLeaves = r.leaves;
@@ -589,7 +699,7 @@ function computeTreeLabExhaustive(b: TreeBrief) {
         }
       }
   }
-  return { total, passing, bestLeaves, bestAccAtMin, best };
+  return { total, passing, bestLeaves, bestAccAtMin, best, all };
 }
 
 export function labExhaustive(b: TreeBrief) {

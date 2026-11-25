@@ -501,6 +501,24 @@ export const HISTORY: HistoryEntry[] = [
       after: { text: 'Raw-feature kNN hits Bellman\'s curse of dimensionality when noisy columns accumulate, so modern systems run approximate nearest-neighbour search over learned neural embeddings instead.', source: WP('Curse_of_dimensionality') },
     },
   },
+  {
+    id: 'decision-trees',
+    lessonId: 'decision-trees',
+    lab: 'Build the Tabular Ensemble',
+    idea: 'CART, Random Forests and Gradient Boosting',
+    years: [1984, 1995, 2001, 2016],
+    when: '1984 · 1995 · 2001 · 2016',
+    who: [
+      { text: 'Leo Breiman and colleagues introduce Classification and Regression Trees (CART) and Gini splitting in 1984.', source: WP('Decision_tree_learning') },
+      { text: 'Tin Kam Ho introduces random decision forests in 1995; Leo Breiman publishes "Random Forests" (combining bagging and random feature subsets) in 2001.', source: WP('Random_forest') },
+      { text: 'Jerome Friedman develops explicit gradient boosting machines (1999/2001); Tianqi Chen and Carlos Guestrin release XGBoost (2016).', source: 'https://arxiv.org/abs/1603.02754' },
+    ],
+    story: {
+      before: { text: 'A single decision tree splits tabular data cleanly without scaling, but deep single trees overfit noisy labels.', source: WP('Decision_tree_learning') },
+      this: { text: 'Bagging + random feature splits (Random Forests) slash variance without overfitting as more trees are added, while gradient boosting fits trees sequentially to residuals in function space.', source: WP('Gradient_boosting') },
+      after: { text: 'Scalable Newton-leaf tree boosters like XGBoost (2016) scale to billions of rows and remain the state of the art on structured tabular data.', source: 'https://arxiv.org/abs/1603.02754' },
+    },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */

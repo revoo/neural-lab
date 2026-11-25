@@ -1,10 +1,15 @@
 // authored-by: Gemini Antigravity
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Widget } from '../../components/Widget';
+import { LabShell, useLabProgress } from '../../components/LabShell';
+import { LiveCode } from '../../components/LabJob';
+import { useMachineLog } from '../../components/MachineLog';
+import { useTweenedArray } from '../../components/motion';
 import { Segmented, Slider } from '../../components/controls';
 import { Plot } from '../../components/plot';
 import { Heatmap, diverging } from '../../components/heatmap';
 import {
+  BRIEF_COL_NAMES,
   LAB_BRIEFS,
   LAB_DEPTHS,
   LAB_METHODS,
@@ -20,13 +25,17 @@ import {
   getGiniData,
   getMessyBench,
   getNoisy2DData,
+  getTreeLabData,
   labExhaustive,
   predictClassTree,
   predictForest,
+  treeLabHint,
+  type ClassTreeNode,
   type TreeBrief,
   type TreeLabConfig,
   type TreeMethod,
 } from './trees';
+import { sklearnTreeLines } from './realCode';
 
 const pct1 = (v: number) => `${(100 * v).toFixed(1)}%`;
 
@@ -367,17 +376,68 @@ function loadLab(): LabState {
   return fresh;
 }
 
+const OPT_LEAVES: Record<TreeBrief['id'], number> = { rules: 3, 'noisy-table': 40, diagonal: 30 };
+
+function seedShellProgress() {
+  const old = loadLab();
+  const solved: Record<string, boolean> = {};
+  const optimal: Record<string, boolean> = {};
+  for (const b of LAB_BRIEFS) {
+    if (old[b.id].solved) solved[b.id] = true;
+    if (old[b.id].bestLeaves !== null && old[b.id].bestLeaves! <= OPT_LEAVES[b.id]) optimal[b.id] = true;
+  }
+  return { solved, optimal };
+}
+
+function formatTreeRules(node: ClassTreeNode, cols: string[], maxLines = 14): string[] {
+  const lines: string[] = [];
+  const walk = (n: ClassTreeNode, indent: string, prefix: string) => {
+    if (lines.length >= maxLines) return;
+    if (n.leaf) {
+      const cls = n.prob1 >= 0.5 ? 'Class 1' : 'Class 0';
+      lines.push(`${indent}${prefix}→ ${cls} (p=${(100 * n.prob1).toFixed(0)}%, n=${n.n})`);
+      return;
+    }
+    const col = cols[n.feature] ?? `x${n.feature}`;
+    const thr = Math.abs(n.threshold) >= 100 ? n.threshold.toFixed(0) : n.threshold.toFixed(2);
+    lines.push(`${indent}${prefix}if ${col} ≤ ${thr}:`);
+    walk(n.left, indent + '  ', 'yes ');
+    walk(n.right, indent + '  ', 'no  ');
+  };
+  walk(node, '', '');
+  if (lines.length >= maxLines) lines.push('  … (deeper branches omitted)');
+  return lines;
+}
+
 export function TreeEnsembleLab() {
   const [lab, setLab] = useState<LabState>(() => loadLab());
   const [briefIdx, setBriefIdx] = useState(0);
-  const [showOpt, setShowOpt] = useState(false);
+  const progress = useLabProgress('nl-trees-lab-v1-shell', seedShellProgress);
+  const log = useMachineLog();
 
   const brief = LAB_BRIEFS[briefIdx];
   const entry = lab[brief.id];
   const effectiveCfg: TreeLabConfig = entry.cfg.method === 'tree' ? { ...entry.cfg, nTrees: 1 } : entry.cfg;
+  const data = useMemo(() => getTreeLabData(brief.id), [brief.id]);
   const res = useMemo(() => evaluateTreeLab(brief.id, effectiveCfg), [brief.id, effectiveCfg]);
   const pass = res.testAcc >= brief.minAcc - 1e-9;
-  const ex = useMemo(() => (showOpt ? labExhaustive(brief) : null), [showOpt, brief]);
+  const isOpt = pass && res.leaves <= OPT_LEAVES[brief.id];
+  const ex = useMemo(() => labExhaustive(brief), [brief]);
+
+  const colNames = BRIEF_COL_NAMES[brief.id];
+  const shownShares = useTweenedArray(
+    res.splitShares.map((s) => s * 100),
+    240,
+  );
+
+  // Memoised heatmap on the two real sensor axes
+  const heatFn = useMemo(() => (x0: number, x1: number) => res.predictXY(x0, x1), [res]);
+
+  const plotRange = useMemo(() => {
+    if (brief.id === 'rules') return { x: [0, 10] as [number, number], y: [0, 10] as [number, number], xl: 'Sensor A', yl: 'Sensor B' };
+    if (brief.id === 'noisy-table') return { x: [0, 10] as [number, number], y: [0, 10000] as [number, number], xl: 'Temp (°C)', yl: 'RPM' };
+    return { x: [-2.25, 2.25] as [number, number], y: [-2.25, 2.25] as [number, number], xl: 'x₁', yl: 'x₂' };
+  }, [brief.id]);
 
   const saved = useRef(lab);
   saved.current = lab;
@@ -389,11 +449,33 @@ export function TreeEnsembleLab() {
       // ignore storage errors
     }
   };
+
+  const methodName = (m: TreeMethod) => (m === 'tree' ? 'Single Tree' : m === 'rf' ? 'Random Forest' : 'Gradient Boosting');
+
+  const logRun = (b: TreeBrief, cfg: TreeLabConfig) => {
+    const eff: TreeLabConfig = cfg.method === 'tree' ? { ...cfg, nTrees: 1 } : cfg;
+    const r = evaluateTreeLab(b.id, eff);
+    const ok = r.testAcc >= b.minAcc - 1e-9;
+    const nPart = eff.method === 'tree' ? '' : `, n=${eff.nTrees}`;
+    const noisePct = r.splitShares.length > 2 ? ` · noise splits ${(r.splitShares.slice(2).reduce((a, v) => a + v, 0) * 100).toFixed(0)}%` : '';
+    log.push(
+      `${methodName(eff.method)} d=${eff.maxDepth}${nPart} → ${r.leaves} leaves · train ${pct1(r.trainAcc)} · test ${pct1(r.testAcc)}${noisePct} ${ok ? '✓' : '✗'}`,
+      ok ? 'good' : 'info',
+    );
+  };
+
   const update = (patch: Partial<TreeLabConfig>) => {
     const nextCfg: TreeLabConfig = { ...entry.cfg, ...patch };
     if (nextCfg.method === 'tree') nextCfg.nTrees = 1;
     else if (!(LAB_NTREES as readonly number[]).includes(nextCfg.nTrees)) nextCfg.nTrees = 5;
     persist({ ...lab, [brief.id]: { ...entry, cfg: nextCfg } });
+    logRun(brief, nextCfg);
+  };
+
+  const resetBrief = () => {
+    const base: TreeLabConfig = { method: 'tree', maxDepth: 1, nTrees: 5 };
+    persist({ ...lab, [brief.id]: { ...entry, cfg: base } });
+    logRun(brief, base);
   };
 
   useEffect(() => {
@@ -410,36 +492,129 @@ export function TreeEnsembleLab() {
     });
   }, [pass, brief.id, res.leaves]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const methodName = (m: TreeMethod) => (m === 'tree' ? 'Single Tree' : m === 'rf' ? 'Random Forest' : 'Gradient Boosting');
+  const liveCode = useMemo(() => sklearnTreeLines(effectiveCfg), [effectiveCfg]);
+  const ruleLines = useMemo(() => (res.tree ? formatTreeRules(res.tree, colNames) : []), [res.tree, colNames]);
+
+  const shellBriefs = useMemo(
+    () =>
+      LAB_BRIEFS.map((b, i) => ({
+        id: b.id,
+        tab: `Brief ${i + 1}`,
+        title: b.title,
+        text: b.story,
+      })),
+    [],
+  );
+
+  const errorCount = data.test.reduce((acc, s, i) => acc + (res.testPreds[i] !== s.y ? 1 : 0), 0);
+  const gap = res.trainAcc - res.testAcc;
+
+  const statusNode = pass ? (
+    <>
+      <strong>{isOpt ? 'Optimal — fewest possible total leaves!' : 'Meets the brief!'}</strong> {methodName(effectiveCfg.method)} ·{' '}
+      <strong>{res.leaves} leaves</strong> · held-out accuracy {pct1(res.testAcc)} (train {pct1(res.trainAcc)}).{' '}
+      {!isOpt && `Optional: can you still clear ${pct1(brief.minAcc)} using ≤ ${OPT_LEAVES[brief.id]} leaves?`}
+    </>
+  ) : (
+    <>
+      <strong>Not yet.</strong> Held-out accuracy {pct1(res.testAcc)} (need ≥ {pct1(brief.minAcc)}) · train {pct1(res.trainAcc)} ({gap > 0.04 ? `gap +${(gap * 100).toFixed(1)} pp — overfitting!` : `${res.leaves} leaves`}).
+    </>
+  );
+
+  // Post-solve reveal: all 35 models plotted as log10(leaves) vs testAcc, coloured by family
+  const revealContent = (
+    <div style={{ display: 'grid', gap: 10 }}>
+      <div style={{ fontSize: 13.5, lineHeight: 1.55 }}>
+        All <strong>{ex.total}</strong> configurations across all three families were trained and scored: <strong>{ex.passing}</strong> pass. Fewest total leaves is{' '}
+        <strong>{ex.bestLeaves}</strong> ({pct1(ex.bestAccAtMin)} held-out accuracy), achieved by:{' '}
+        <strong>
+          {ex.best
+            .slice(0, 2)
+            .map((w) => `${methodName(w.cfg.method)} (depth ${w.cfg.maxDepth}${w.cfg.method === 'tree' ? '' : `, ${w.cfg.nTrees} trees`})`)
+            .join('; or ')}
+        </strong>
+        .
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <Plot
+          width={430}
+          height={185}
+          x={[0.2, 3.2]}
+          y={[0.72, 1.02]}
+          pad={36}
+          xLabel="log₁₀(total leaves)  [0.5≈3 · 1.5≈32 · 2.5≈316]"
+          yLabel="held-out accuracy"
+          ariaLabel="All 35 tree and ensemble models: footprint versus held-out accuracy"
+        >
+          {({ x, y }) => {
+            const colorOf = (m: TreeMethod) => (m === 'tree' ? 'var(--c-c)' : m === 'rf' ? 'var(--c-a)' : 'var(--c-b)');
+            const lx = (leaves: number) => Math.log10(Math.max(1, leaves));
+            const opt = ex.best[0];
+            return (
+              <>
+                <line x1={x(0.2)} x2={x(3.2)} y1={y(brief.minAcc)} y2={y(brief.minAcc)} stroke="var(--c-good)" strokeDasharray="4 3" strokeWidth={1.2} />
+                {ex.all.map((row, i) => (
+                  <circle
+                    key={i}
+                    cx={x(lx(row.leaves))}
+                    cy={y(Math.max(0.73, row.testAcc))}
+                    r={row.pass ? 4 : 2.8}
+                    fill={colorOf(row.cfg.method)}
+                    opacity={row.pass ? 0.9 : 0.3}
+                    stroke={row.pass ? 'var(--bg)' : 'none'}
+                    strokeWidth={0.7}
+                  />
+                ))}
+                {opt && (
+                  <circle cx={x(lx(opt.leaves))} cy={y(Math.max(0.73, opt.testAcc))} r={7.5} fill="none" stroke="var(--c-good)" strokeWidth={2} />
+                )}
+                <circle cx={x(lx(res.leaves))} cy={y(Math.max(0.73, res.testAcc))} r={5.5} fill="none" stroke="var(--accent)" strokeWidth={2.2} />
+              </>
+            );
+          }}
+        </Plot>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 14, fontSize: 12, color: 'var(--text-muted)' }}>
+        <span><span style={{ color: 'var(--c-c)', fontWeight: 700 }}>●</span> Single Tree</span>
+        <span><span style={{ color: 'var(--c-a)', fontWeight: 700 }}>●</span> Random Forest</span>
+        <span><span style={{ color: 'var(--c-b)', fontWeight: 700 }}>●</span> Gradient Boosting</span>
+        <span>◎ outer ring = fewest-leaf optimum · inner ring = yours</span>
+      </div>
+    </div>
+  );
 
   return (
-    <Widget
+    <LabShell
       title="Lab: Build the Tabular Ensemble"
-      wide
       caption={
         <>
-          Pick a tree family (Single Tree, Random Forest, or Gradient Boosting), max depth and ensemble size. Each brief trains live on real data and scores on held-out test rows. Meet the accuracy target; optionally, minimise <strong>total leaves</strong> (model footprint and latency).
+          Pick a tree family (Single Tree, Random Forest, or Gradient Boosting), max depth, and ensemble size. Watch the live decision regions on the left, and the learned split rules / round-by-round train–test curve / column split shares on the right. Meet the accuracy target; optionally, minimise <strong>total leaves</strong> (model footprint and inference latency).
         </>
       }
+      briefs={shellBriefs}
+      active={briefIdx}
+      onSelect={(i) => setBriefIdx(i)}
+      progress={progress}
+      passing={pass}
+      optimal={isOpt}
+      status={statusNode}
+      statusTone={pass ? 'good' : 'neutral'}
+      hint={treeLabHint(brief, effectiveCfg, res)}
+      reveal={{ label: 'the exhaustive 35-model map', content: revealContent }}
+      log={{
+        lines: log.lines,
+        onClear: log.clear,
+        title: 'Ensemble training log',
+        empty: 'Switch tree family, depth or ensemble size to record a training run.',
+      }}
+      actions={
+        <button type="button" className="btn small" onClick={resetBrief}>
+          Reset brief
+        </button>
+      }
     >
-      <Segmented
-        value={briefIdx}
-        onChange={(i) => {
-          setBriefIdx(i);
-          setShowOpt(false);
-        }}
-        options={LAB_BRIEFS.map((b, i) => ({
-          value: i,
-          label: `${lab[b.id].solved ? '✓ ' : ''}${b.title.split(' · ')[0]}`,
-        }))}
-      />
-
-      <div style={{ margin: '12px 0' }}>
-        <div style={{ fontWeight: 650, marginBottom: 4 }}>{brief.title}</div>
-        <div style={{ fontSize: 14.5, lineHeight: 1.55 }}>{brief.story}</div>
-      </div>
-
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
+      {/* Controls */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 12, alignItems: 'end' }}>
         <Segmented
           label="Method"
           value={entry.cfg.method}
@@ -466,55 +641,117 @@ export function TreeEnsembleLab() {
         )}
       </div>
 
-      <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
-        <div className="btn-row">
-          <span className={`status ${pass ? 'good' : 'bad'}`}>{pass ? 'Meets the brief' : 'Not yet'}</span>
-          {entry.solved && (
-            <span className="status good">Solved{entry.bestLeaves !== null ? ` · fewest leaves so far: ${entry.bestLeaves}` : ''}</span>
+      {/* Main machinery: 2D boundary (left) + Internals (right) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(270px, 100%), 1fr))', gap: 14, alignItems: 'start' }}>
+        <div style={{ display: 'grid', gap: 4, justifyItems: 'center' }}>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-muted)', textAlign: 'center' }}>
+            Learned decision surface ({plotRange.xl}, {plotRange.yl}) · {errorCount} {errorCount === 1 ? 'error' : 'errors'} ringed
+          </div>
+          <Plot width={305} height={275} x={plotRange.x} y={plotRange.y} pad={34} xLabel={plotRange.xl} yLabel={plotRange.yl} ariaLabel="Learned tree ensemble decision boundary">
+            <Heatmap f={heatFn} range={[0, 1]} colormap={diverging} resolution={110} opacity={0.55} />
+            {({ x, y }) => (
+              <>
+                {data.test.map((pt, i) => {
+                  const wrong = res.testPreds[i] !== pt.y;
+                  const cx = x(pt.x[0]);
+                  const cy = y(pt.x[1]);
+                  return (
+                    <g key={i}>
+                      {wrong && <circle cx={cx} cy={cy} r={5} fill="none" stroke="var(--c-bad)" strokeWidth={1.3} opacity={0.9} />}
+                      <circle cx={cx} cy={cy} r={2.5} fill={pt.y === 1 ? 'var(--c-a)' : 'var(--c-b)'} stroke="var(--bg)" strokeWidth={0.5} opacity={0.9} />
+                    </g>
+                  );
+                })}
+              </>
+            )}
+          </Plot>
+        </div>
+
+        {/* Right panel: Readout + Tree Rules OR Ensemble Curve + Split Shares */}
+        <div style={{ display: 'grid', gap: 10 }}>
+          <div className="readout" style={{ margin: 0 }}>
+            <span style={{ color: pass ? 'var(--c-good)' : 'var(--c-bad)' }}>{pass ? '✓' : '✗'}</span>{' '}
+            <span className="k">held-out accuracy </span>
+            <strong>{pct1(res.testAcc)}</strong> (need ≥ {pct1(brief.minAcc)})
+            {'\n'}
+            <span className="k">train accuracy </span>
+            {pct1(res.trainAcc)}
+            {' · '}
+            <span className="k">total leaves </span>
+            <strong>{res.leaves}</strong>
+          </div>
+
+          {effectiveCfg.method === 'tree' ? (
+            <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-sunken)', border: '1px solid var(--border)', display: 'grid', gap: 6 }}>
+              <div className="field-label" style={{ margin: 0 }}>Learned decision rules ({res.leaves} leaves)</div>
+              <pre className="mono" style={{ margin: 0, fontSize: 11.5, lineHeight: 1.5, overflowX: 'auto', whiteSpace: 'pre' }}>
+                {ruleLines.join('\n')}
+              </pre>
+            </div>
+          ) : (
+            <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-sunken)', border: '1px solid var(--border)', display: 'grid', gap: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 11.5 }}>
+                <span className="field-label" style={{ margin: 0 }}>
+                  {effectiveCfg.method === 'rf' ? 'Accuracy as bagged trees accumulate' : 'Accuracy across boosting rounds'}
+                </span>
+                <span className="mono" style={{ color: 'var(--text-muted)' }}>
+                  dashed = train · solid = test
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <Plot
+                  width={300}
+                  height={155}
+                  x={[1, Math.max(2, effectiveCfg.nTrees)]}
+                  y={[0.68, 1.02]}
+                  pad={30}
+                  xLabel={effectiveCfg.method === 'rf' ? 'trees' : 'rounds'}
+                  yLabel="accuracy"
+                  ariaLabel="Ensemble learning curve across trees or boosting rounds"
+                >
+                  {({ x, y }) => {
+                    const trPath = res.curve.map((c, i) => `${i === 0 ? 'M' : 'L'}${x(c.step).toFixed(1)},${y(Math.max(0.69, c.trainAcc)).toFixed(1)}`).join(' ');
+                    const tePath = res.curve.map((c, i) => `${i === 0 ? 'M' : 'L'}${x(c.step).toFixed(1)},${y(Math.max(0.69, c.testAcc)).toFixed(1)}`).join(' ');
+                    return (
+                      <>
+                        <line x1={x(1)} x2={x(effectiveCfg.nTrees)} y1={y(brief.minAcc)} y2={y(brief.minAcc)} stroke="var(--c-good)" strokeDasharray="3 3" strokeWidth={1.1} />
+                        <path d={trPath} fill="none" stroke="var(--c-b)" strokeDasharray="4 3" strokeWidth={1.6} opacity={0.85} />
+                        <path d={tePath} fill="none" stroke="var(--c-a)" strokeWidth={2.2} />
+                      </>
+                    );
+                  }}
+                </Plot>
+              </div>
+            </div>
+          )}
+
+          {/* Split-share bars across columns (especially illuminating on 6- and 8-col tables!) */}
+          {colNames.length > 2 && (
+            <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-sunken)', border: '1px solid var(--border)', display: 'grid', gap: 6 }}>
+              <div className="field-label" style={{ margin: 0 }}>Where the splits actually went (% of all nodes)</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 6 }}>
+                {colNames.map((name, idx) => {
+                  const pct = shownShares[idx] ?? 0;
+                  const isNoise = idx >= 2;
+                  return (
+                    <div key={name} style={{ display: 'grid', gap: 2 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }} className="mono">
+                        <span>{name}</span>
+                        <span>{pct.toFixed(0)}%</span>
+                      </div>
+                      <div style={{ height: 7, borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                        <div style={{ width: `${Math.min(100, pct)}%`, height: '100%', background: isNoise ? 'var(--c-b)' : 'var(--c-a)' }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </div>
-
-        <div className="readout">
-          <span style={{ color: pass ? 'var(--c-good)' : 'var(--c-bad)' }}>{pass ? '✓' : '✗'}</span>{' '}
-          <span className="k">held-out accuracy </span>
-          {pct1(res.testAcc)} (need ≥ {pct1(brief.minAcc)})
-          {'\n'}
-          <span className="k">train accuracy </span>
-          {pct1(res.trainAcc)}
-          {'\n'}
-          <span className="k">total leaves (model footprint) </span>
-          <strong>{res.leaves}</strong>
-        </div>
-
-        <div className="live-note">
-          {pass
-            ? `Meets the brief at ${pct1(res.testAcc)} using ${res.leaves} leaves! Optional: can you hit ${pct1(brief.minAcc)} with even fewer leaves?`
-            : brief.id === 'rules'
-              ? 'This rule is clean and axis-aligned — a shallow Single Tree handles it with almost no leaves at all.'
-              : brief.id === 'noisy-table'
-                ? 'With 6 noise columns, Random Forest’s feature subsampling dilutes splits while a single tree caps at 97.7%. Try Gradient Boosting with moderate depth and a small number of rounds (before it overfits the 6% label noise!).'
-                : 'With 12% flipped training labels on a curved boundary, boosting chases the flipped labels. Bagging (Random Forest) averages the label noise away!'}
-        </div>
-
-        {entry.solved && (
-          <div>
-            <button type="button" className="btn" onClick={() => setShowOpt((s) => !s)}>
-              {showOpt ? 'Hide' : 'Show'} the exhaustive search
-            </button>
-            {showOpt && ex && (
-              <div className="live-note" style={{ marginTop: 10 }}>
-                All {ex.total} configurations were trained and scored: <strong>{ex.passing}</strong> pass. Fewest total leaves is{' '}
-                <strong>{ex.bestLeaves}</strong> ({pct1(ex.bestAccAtMin)} held-out accuracy), with{' '}
-                {ex.best
-                  .slice(0, 2)
-                  .map((w) => `${methodName(w.cfg.method)} (depth ${w.cfg.maxDepth}${w.cfg.method === 'tree' ? '' : `, ${w.cfg.nTrees} trees`})`)
-                  .join('; or ')}
-                .
-              </div>
-            )}
-          </div>
-        )}
       </div>
-    </Widget>
+
+      <LiveCode code={liveCode} note="scikit-learn tree / ensemble API" />
+    </LabShell>
   );
 }
