@@ -1,0 +1,136 @@
+{/* authored-by: Gemini Antigravity */}
+import { Eq } from '../../components/Eq';
+import { Predict } from '../../components/Predict';
+import { Callout, Deeper } from '../../components/Callout';
+import { Term } from '../../components/Term';
+import { Quiz } from '../../components/Quiz';
+import { IouExplorerWidget, NmsExplorerWidget, ApCurveWidget, DetectorTuningLab } from './Widgets';
+import { questions } from './quiz';
+
+# Object Detection
+
+Everything a CNN classifier did in the previous lesson was answer one question per photograph: *“what single thing is in this picture?”*
+
+Real-world vision rarely works that way. A street-camera frame holds two pedestrians, a car, and a distant cyclist at the same time — and a self-driving car doesn’t just need to know *that* a pedestrian exists; it needs to know **how many** there are and **exactly where** each one stands!
+
+**Object detection** solves both problems at once: output a variable-length list of **bounding boxes** $(x_1, y_1, x_2, y_2)$, class labels, and confidence scores. Modern detectors (YOLO, Faster R-CNN, RetinaNet) do this by turning a CNN’s spatial feature map into a dense grid of candidate boxes (or **anchors**), predicting a box offset and class probability at *every* grid cell.
+
+That single design choice creates three crisp geometric problems that every vision engineer must master:
+
+1. How do we measure whether a predicted box is “close enough” (**<Term id="iou">IoU</Term>**)?
+2. When 5 neighbouring grid cells all spot the exact same car, how do we collapse duplicates without accidentally erasing a neighbouring pedestrian (**<Term id="nms">NMS</Term>**)?
+3. How do we turn a ranked stream of boxes across multiple classes and overlap thresholds into one honest score (**<Term id="map">mAP</Term>**)?
+
+---
+
+## 1. Intersection over Union (IoU) — and the small-object trap
+
+Given a ground-truth box $\ca{A}$ and a predicted box $\cb{B}$, **Intersection over Union** divides their overlapping area by their combined area:
+
+<Eq
+  words="IoU  =  area where both boxes overlap  /  total area covered by either box"
+  tex="\cg{\text{IoU}}(\ca{A}, \cb{B}) = \frac{\text{Area}(\ca{A} \cap \cb{B})}{\text{Area}(\ca{A}) + \text{Area}(\cb{B}) - \text{Area}(\ca{A} \cap \cb{B})}"
+>
+  - $\cg{\text{IoU}}$ — overlap score in $[0, 1]$ (`0` = disjoint, `1` = identical boxes)
+  - $\ca{A} \cap \cb{B}$ — the overlapping rectangle (area `0` if boxes do not touch)
+  - Denominator — exact area of the union $\ca{A} \cup \cb{B}$ (subtracting intersection once so it isn’t double-counted)
+</Eq>
+
+<Predict
+  question="A detector makes the exact same 10-pixel horizontal localisation error on a large 100×100 car and on a distant 20×20 pedestrian. On the 100×100 car, IoU = 0.818 (passes strict AP75). What is the IoU on the 20×20 pedestrian?"
+  options={[
+    'Still 0.818 — a 10-pixel shift causes the same error on every box.',
+    '0.500 — half the box still overlaps.',
+    '0.333 — failing even the forgiving AP50 cut-off!',
+  ]}
+  answer={2}
+>
+  Half the 20×20 box overlaps (`10 × 20 = 200 px²`), while the union stretches across `30 × 20 = 600 px²`, so IoU plunges to **`200 / 600 = 0.333`**! Small distant objects tolerate almost zero pixel jitter — which is why real detectors build multi-scale **Feature Pyramid Networks (FPNs)** to keep fine high-resolution feature maps alive.
+</Predict>
+
+Test large vs small boxes interactively below.
+
+<IouExplorerWidget />
+
+---
+
+## 2. Non-Maximum Suppression (NMS) and crowded scenes
+
+Because every feature-map cell near a car sees the car inside its receptive field, a raw detector fires **multiple overlapping boxes** around every single object (9 raw boxes for just 3 real objects in our street scene below!).
+
+**Greedy <Term id="nms">Non-Maximum Suppression (NMS)</Term>** cleans them up in three lines:
+
+1. Drop boxes below a confidence cut-off, and sort the rest from highest confidence to lowest.
+2. **Pick** the top remaining box and add it to the output list.
+3. **Suppress** (delete) every remaining box of the *same class* whose IoU with the picked box is $\ge \tau_{\text{nms}}$. Repeat until empty.
+
+Now feel the hidden catch in crowded scenes: what if **two real pedestrians** stand close enough that their true bounding boxes overlap?
+
+<NmsExplorerWidget />
+
+Watch the exact trade-off on our street scene (`conf = 0.40`):
+
+- **Too tight (`IoU = 0.25`):** Pedestrian 2’s box overlaps Pedestrian 1 at IoU **0.339 ≥ 0.25**, so Hard NMS deletes a real human! (`TP = 2, FP = 0, FN = 1`, `F1 = 0.800`).
+- **Sweet spot (`IoU = 0.50`):** Every duplicate (`IoU ≥ 0.73`) is deleted while both pedestrians survive (`TP = 3, FP = 0, FN = 0`, `F1 = 1.000`).
+- **Too loose (`IoU = 0.85`):** Four duplicate boxes survive (`TP = 3, FP = 4`, `F1 = 0.600`).
+
+**Soft-NMS** softens step 3: instead of setting overlapping scores harshly to zero, it multiplies them by a smooth Gaussian decay $\exp(-\text{IoU}^2 / \sigma)$ — gently lowering a neighbour’s score (say `0.75 → 0.38`) while crushing near-identical duplicates (`IoU = 0.87`) below the confidence floor!
+
+<Deeper title="How modern transformer detectors (DETR) eliminate NMS altogether">
+  Architectures like **DETR** replace dense anchor grids with a fixed set of learned object queries trained via **Hungarian 1-to-1 bipartite matching**. Because the training loss itself penalises outputting two boxes for the same ground-truth object, DETR learns to emit at most one box per object end-to-end — no hand-tuned NMS threshold needed!
+</Deeper>
+
+---
+
+## 3. Average Precision (AP) and COCO mAP@[.50:.95]
+
+To score a detector without tying yourself to one arbitrary confidence threshold, sort all predicted boxes by confidence and walk down the list:
+
+- A box is a **True Positive (TP)** only if its IoU with an **unmatched** ground-truth box of the same class meets the threshold (e.g., `0.50`).
+- **Each ground-truth object can be matched at most once.** A second high-IoU box on an already-matched car counts as a **False Positive (FP)**!
+- Plot Precision against Recall at every step; the area under the upper Precision–Recall envelope is **Average Precision (AP)**.
+- Average AP across all classes to get **<Term id="map">mAP</Term>** — and in the COCO benchmark, average again across **10 IoU thresholds** (`0.50, 0.55, …, 0.95`) to get **`mAP@[.50:.95]`**.
+
+<ApCurveWidget />
+
+Notice how cleaning up our street scene with NMS lifts `AP50` from **0.917 → 1.000** and `mAP@[.50:.95]` from **0.825 → 0.900** — and raising the bar to `AP90` reveals that even clean boxes lose credit when their corners are slightly off.
+
+---
+
+## 4. Lab: Tune the Object Detector
+
+Deploy the detector across three distinct traffic scenes. Every brief is checked exhaustively across all 42 `(mode, conf, nmsIou)` combinations.
+
+<DetectorTuningLab />
+
+<Deeper title="Exhaustive lab takeaways">
+  - **Brief 1 (Clean street):** **15 of 42** settings achieve perfect `F1 = 1.00` (e.g., Hard NMS `conf = 0.35–0.65, IoU = 0.40–0.65`, or Soft-NMS).
+  - **Brief 2 (Crowded sidewalk, GT overlap `0.53`):** Tight Hard NMS (`IoU = 0.40`) wipes out the overlapping second pedestrian (`Recall = 66.7%`, FAIL). Raising Hard NMS to `IoU = 0.50–0.65` OR switching to **Soft-NMS** (`conf = 0.35`) rescues both pedestrians (`11/42` pass, best `F1 = 1.00`).
+  - **Brief 3 (Autonomous-braking gate):** The distant foggy cyclist scores only `0.32`, so any `conf ≥ 0.35` misses them (`Recall = 75%`, FAIL!). Lowering `conf` to **`0.30`** catches all 4 road users with **0 False Positives** (`10/42` pass) — a vivid reminder that safety-critical recall dictates your operating point.
+</Deeper>
+
+---
+
+## 5. Exact IoU in 8 lines of Python
+
+```python
+def iou(a, b):
+    ix1, iy1 = max(a[0], b[0]), max(a[1], b[1])
+    ix2, iy2 = min(a[2], b[2]), min(a[3], b[3])
+    inter = max(0, ix2 - ix1) * max(0, iy2 - iy1)
+    area_a = (a[2] - a[0]) * (a[3] - a[1])
+    area_b = (b[2] - b[0]) * (b[3] - b[1])
+    return inter / (area_a + area_b - inter)
+
+# Exact 10-pixel shift on a large 100x100 car vs a tiny 20x20 distant pedestrian
+print(f"100x100 box shifted 10 px -> IoU = {iou((0,0,100,100), (10,0,110,100)):.3f}")
+print(f" 20x20  box shifted 10 px -> IoU = {iou((0,0,20,20),   (10,0,30,20)):.3f}")
+# 100x100 box shifted 10 px -> IoU = 0.818
+#  20x20  box shifted 10 px -> IoU = 0.333
+```
+
+---
+
+## Check your understanding
+
+<Quiz questions={questions} />
