@@ -1555,10 +1555,20 @@ export function PGLab() {
               />
             )}
             <Clip>
+              {/* Every seed faintly, so "a few lucky seeds" is visible at a glance. */}
+              {result.curves.map((c, k) => (
+                <g key={k} opacity={0.28}>
+                  <Polyline
+                    pts={(isHall ? smooth(c, 10) : c).map((v, t) => [t + 1, v] as [number, number])}
+                    color={result.perSeed[k] >= brief.threshold ? "var(--c-good)" : "var(--text-faint)"}
+                    width={1}
+                  />
+                </g>
+              ))}
               <Polyline
                 pts={curve.map((v, t) => [t + 1, v] as [number, number])}
                 color={result.pass ? "var(--c-good)" : "var(--c-bad)"}
-                width={2.2}
+                width={2.6}
               />
             </Clip>
           </Plot>
@@ -1576,6 +1586,8 @@ export function PGLab() {
               {"\n"}
               <span className="k">seeds that individually reach the goal </span>
               {result.perSeed.filter((s) => s >= brief.threshold).length} / 20
+              {"\n"}
+              <span className="k">faint lines: each seed (green if it reaches the goal); bold: the average</span>
             </div>
             <div className="live-note">
               {result.pass

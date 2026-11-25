@@ -495,7 +495,8 @@ export function runContextBandit(
   return { pBest: th.map((row) => softmax(row)[best]), curve };
 }
 
-export type LabResult = { score: number; perSeed: number[]; curve: number[]; pass: boolean };
+/** `curves`: each seed's own learning curve (the average of them is `curve`). */
+export type LabResult = { score: number; perSeed: number[]; curve: number[]; curves: number[][]; pass: boolean };
 
 const labCache = new Map<string, LabResult>();
 
@@ -505,6 +506,7 @@ export function evaluateLab(brief: LabBriefId, cfg: LabConfig): LabResult {
   if (hit) return hit;
   const b = LAB_BRIEFS.find((x) => x.id === brief)!;
   const perSeed: number[] = [];
+  const curves: number[][] = [];
   let curve: number[] = [];
   for (let sd = 1; sd <= LAB_SEEDS; sd++) {
     let s: number;
@@ -519,11 +521,12 @@ export function evaluateLab(brief: LabBriefId, cfg: LabConfig): LabResult {
       c = run.curve;
     }
     perSeed.push(s);
+    curves.push(c);
     if (curve.length === 0) curve = new Array<number>(c.length).fill(0);
     c.forEach((v, i) => (curve[i] += v / LAB_SEEDS));
   }
   const score = mean(perSeed);
-  const res = { score, perSeed, curve, pass: score >= b.threshold };
+  const res = { score, perSeed, curve, curves, pass: score >= b.threshold };
   labCache.set(key, res);
   return res;
 }

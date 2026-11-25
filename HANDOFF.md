@@ -139,7 +139,7 @@ The owner asked for the plan in `docs/LAB_IMPROVEMENTS.md` to be implemented in 
 - [x] 8. Decision lines in the Logic workbench.
 - [x] 9. Replay helper (`useReplay`, `ReplayControls`, `GhostPath`); reward hacking (9a), Wire the Policy (9b), golf labs (9c), VRAM Tetris falling blocks + roofline (9d).
 - [ ] 10. **IN PROGRESS** Remaining rows of the three tables, one commit per lab (tick as done):
-  - [ ] Stabilise the policy gradient: 20 faint seed lines under the average
+  - [x] Stabilise the policy gradient: 20 faint seed lines under the average
   - [ ] Design a schedule: 20 seeded runs behind the average, best cosine ghost after a solve, moving marker
   - [ ] Prune it: the exhaustive minimum's kept neurons beside yours, log
   - [ ] LoRA: per-layer captured vs missed heatmaps, log
