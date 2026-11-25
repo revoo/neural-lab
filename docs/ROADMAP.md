@@ -92,6 +92,8 @@ Session 3 (owner's order): first a **Matrix theme**, then resume "Next steps" wi
 
 ## Labs built so far
 
+_A review of all 25 labs with a prioritised improvement plan (hint and answer-reveal fixes, real-world briefs, motion, machine logs, sourced history cards and a timeline page) is in `docs/LAB_IMPROVEMENTS.md`. Not implemented yet; its "Suggested order of work" is the plan._
+
 - **Superposition** (Module 1, high-dimensions): fit ±1 "concept vectors" into d dimensions with every pairwise |dot| under a limit; 5 briefs including a provably impossible one (3 perpendicular in 6D); all maxima found by exhaustive branch-and-bound over every set of ±1 vectors (4, 4, 8, 2, 16).
 - **The Dice Workshop** (Module 1, statistics): build a random roll from d2/d4/d6/d8/d12/d20 (+ a constant in briefs 2–3) to hit an exact mean, an SD range and a bell shape (≤ x% of probability out of place); exhaustive over all 531,441 recipes per brief (3, 451, 5 work); optional fewest-dice-then-most-bell-like optimum (3d6; 4d8+12; d2+3d4+41).
 - **The Reward-Hacking Sandbox** (Module 16, reward-hacking): set reward dials for 3 worlds (sponsor's turbo pad, vase in the hallway, camera that checks the cleaning); an exact Value Iteration optimiser finds the highest-reward behaviour and a pessimistic checker follows every tied optimal plan; exhaustive over all dial settings (13/90, 34/75, 12/72 work) with a unique simplest working reward per brief as the optional goal (persisted in `nl-reward-hack-lab-v1`).
