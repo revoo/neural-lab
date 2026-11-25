@@ -206,7 +206,7 @@ The owner asked for this next, in a fresh session. `docs/LAB_IMPROVEMENTS.md` re
 - [x] object-detection · Tune the Object Detector
 - [x] one-hot-vs-dense · Choose & Size the Representation
 - [x] word-embeddings · Train & Debug Word2Vec
-- [ ] similarity-search · Tune the Vector Index
+- [x] similarity-search · Tune the Vector Index
 - [ ] contrastive-learning · Tune Contrastive Training
 - [ ] rnns · Tame BPTT
 - [ ] lstms-grus · Wire the Gated Cell

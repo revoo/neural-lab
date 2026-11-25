@@ -89,7 +89,9 @@ Shape the collision S-curve below.
 
 ## 4. Lab: Tune the Vector Index
 
-Optimise IVF, multi-table LSH, and 10M-vector RAM compression across three exhaustive briefs.
+<LabJob>You run the retrieval tier behind a semantic search engine serving 10 million 1,536-dimensional embeddings. Tune Voronoi probing (`nlist`/`nprobe`) against a 25% compute cap, benchmark random-hyperplane LSH honestly against IVF, and quantise the index to fit inside a 16 GiB RAM node without losing retrieval quality.</LabJob>
+
+Optimise IVF, multi-table LSH, and 10M-vector RAM compression while watching bucket occupancy, per-query Recall@5 tiles, and LSH S-curves update live.
 
 <VectorIndexLab />
 
@@ -98,6 +100,14 @@ Optimise IVF, multi-table LSH, and 10M-vector RAM compression across three exhau
   - **Brief 2 (LSH under 35% scan, ≥ 85% Recall@5):** Out of 12 `(b, L)` pairs, **`b = 6 bits, L = 16 tables`** is the **unique** winner (**90.7%** Recall@5 at **29.3%** scan = **3.4×** speedup) — honestly trailing IVF’s 4.1× on the same clustered data.
   - **Brief 3 (10M × 1,536D under 16 GiB RAM at ≥ 95% recall):** FP32 (`57.22 GiB`) and FP16 (`28.61 GiB`) exceed RAM; PQ-64 (`0.60 GiB`, 96×) and Binary (`1.79 GiB`, 32×) trade away too much recall without re-ranking. **Scalar INT8 (`14.31 GiB`, 4× smaller, ~98.5% recall)** is the unique passing format!
 </Deeper>
+
+<ForReal>
+
+Production vector engines (**FAISS**, **Qdrant**, **Milvus**, **pgvector**) rarely pick just one technique — they compose them. A classic billion-scale FAISS index is `IVF65536,PQ64` (partition into 65,536 Voronoi cells, compress each vector to 64 PQ bytes so 1 billion vectors fit in ~64 GB RAM), often paired with a **two-stage re-ranker**: retrieve the top-200 approximate candidates from INT8/PQ/binary vectors in RAM, then fetch those 200 full-precision FP16/FP32 vectors from SSD to compute exact top-10 scores!
+
+</ForReal>
+
+<HistoryCard id="similarity-search" />
 
 ---
 
