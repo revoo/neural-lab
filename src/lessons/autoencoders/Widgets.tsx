@@ -3,6 +3,9 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import { Widget } from '../../components/Widget';
 import { Segmented, Slider } from '../../components/controls';
 import { Handle, Plot } from '../../components/plot';
+import { AnswerReveal } from '../../components/AnswerReveal';
+import { LiveCode } from '../../components/LabJob';
+import { MachineLog, useMachineLog } from '../../components/MachineLog';
 import { createRng } from '../../lib/rng';
 import {
   REAL_TOL,
@@ -23,6 +26,7 @@ import {
   LATENTS,
   LAB_STEPS,
   designKey,
+  facePrinterHint,
   labData,
   labTest,
   labTrainer,
@@ -34,6 +38,7 @@ import {
   type PrintResult,
 } from './lab';
 import { LAB_RESULTS, labOptimum } from './labResults';
+import { facePrinterRealCode } from './realCode';
 
 const f3 = (v: number) => v.toFixed(3);
 /** Percentages of 200 prints come in steps of 0.5%, so show one decimal only when it's needed. */
@@ -547,13 +552,6 @@ function loadLab(): LabState {
   return d;
 }
 
-const HINTS: Record<BriefId, string> = {
-  printer:
-    'Count the knobs that make one face different from another: the code needs at least that many numbers. Then remember who supplies the codes. The printer draws them from the standard bell, so training must have agreed to put the faces there — but not so firmly that the codes stop carrying detail.',
-  compressor:
-    'Nobody will ever feed this decoder random codes, so the bell is no longer the point. What does the pull towards the bell cost a compressor? And does a little of it still help training go well?',
-};
-
 const betaLabel = (b: number) => (b === 0 ? 'none (plain AE)' : `β = ${b}`);
 const mark = (ok: boolean) => <span style={{ color: ok ? 'var(--c-good)' : 'var(--c-bad)' }}>{ok ? '✓' : '✗'}</span>;
 
@@ -562,17 +560,24 @@ export function FacePrinterLab() {
   const [lab, setLab] = useState<LabState>(() => loadLab());
   const [briefIdx, setBriefIdx] = useState(0);
   const [hint, setHint] = useState(false);
-  const [showOpt, setShowOpt] = useState(false);
+  const [guesses, setGuesses] = useState<Record<string, 'pass' | 'fail' | null>>({});
+  const log = useMachineLog(20);
+  const loggedRuns = useRef<Set<string>>(new Set());
+
   const brief = BRIEFS[briefIdx];
   const entry = lab[brief.id];
   const d = entry.design;
+  const dKey = designKey(d);
+  const guessKey = `${brief.id}:${dKey}`;
+  const guess = guesses[guessKey] ?? null;
+
   const seedRuns = LAB_SEEDS.map((seed) => runs.get(runKey(d, seed)));
   const started = seedRuns.some(Boolean);
   const results = seedRuns.map((r) => r?.result ?? null);
   const finished = results.every(Boolean);
   const verdicts = results.map((r) => (r ? verdict(brief, r) : null));
   const pass = finished && verdicts.every((v) => v!.pass);
-  const recorded = LAB_RESULTS[designKey(d)];
+  const recorded = LAB_RESULTS[dKey];
   const drift = finished && results.some((r, i) => Math.abs(r!.recon - recorded.seeds[i].recon) > 0.002);
   const current = seedRuns.find((r) => r && !r.result);
   const savedRef = useRef(lab);
@@ -588,18 +593,38 @@ export function FacePrinterLab() {
   };
 
   useEffect(() => {
+    if (!finished) return;
+    const tag = `${brief.id}:${dKey}`;
+    if (!loggedRuns.current.has(tag)) {
+      loggedRuns.current.add(tag);
+      const r0 = results[0]!;
+      const nPass = verdicts.filter((v) => v!.pass).length;
+      const metric = brief.minReal > 0 ? `recon ${f3(r0.recon)}, real ${pct(r0.realShare)}, ${r0.cells}/16 kinds` : `recon ${f3(r0.recon)}`;
+      log.push(
+        `${brief.id === 'printer' ? 'B1' : 'B2'}: L=${d.latent} H=${d.hidden} β=${d.beta} (${paramCount(d).toLocaleString('en-GB')}p) → ${metric} · ${nPass}/3 seeds (${pass ? 'PASS' : 'FAIL'})`,
+        pass ? 'good' : 'bad',
+      );
+    }
     if (!pass) return;
     const cur = savedRef.current[brief.id];
     const params = paramCount(d);
     if (cur.solved && cur.best !== null && cur.best <= params) return;
     persist({ ...savedRef.current, [brief.id]: { ...cur, solved: true, best: cur.best === null ? params : Math.min(cur.best, params) } });
-  }, [pass, brief.id, designKey(d)]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [finished, pass, brief.id, dKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setDesign = (patch: Partial<Design>) => persist({ ...lab, [brief.id]: { ...entry, design: { ...d, ...patch } } });
-  const build = () => LAB_SEEDS.forEach((seed) => startRun(d, seed));
+  const build = () => {
+    log.push(`Training 3 seeds: L=${d.latent}, H=${d.hidden}, β=${d.beta} (${paramCount(d).toLocaleString('en-GB')} params)…`, 'info');
+    LAB_SEEDS.forEach((seed) => startRun(d, seed));
+  };
   const opt = labOptimum(brief.id);
   const usesPrinter = brief.minReal > 0;
   const first = results[0];
+  const hintText = useMemo(
+    () => facePrinterHint(brief.id, d, finished ? (results as PrintResult[]) : null),
+    [brief.id, d, finished, results],
+  );
+  const liveCode = useMemo(() => facePrinterRealCode(d), [d]);
 
   return (
     <Widget
@@ -616,7 +641,6 @@ export function FacePrinterLab() {
         onChange={(i) => {
           setBriefIdx(i);
           setHint(false);
-          setShowOpt(false);
         }}
         options={BRIEFS.map((b, i) => ({ value: i, label: `${lab[b.id].solved ? '✓ ' : ''}${b.title.split(' · ')[0]}` }))}
       />
@@ -634,6 +658,32 @@ export function FacePrinterLab() {
           <Segmented label="Hidden width" value={d.hidden} onChange={(hidden) => setDesign({ hidden })} options={HIDDENS.map((h) => ({ value: h as number, label: String(h) }))} />
         </div>
         <Segmented label="Pull towards the bell" value={d.beta} onChange={(beta) => setDesign({ beta })} options={BETAS.map((b) => ({ value: b as number, label: betaLabel(b) }))} />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+          <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Predict first (optional): will all 3 seeds pass?</span>
+          <div style={{ display: 'inline-flex', gap: 6 }}>
+            <button
+              type="button"
+              className={`btn small${guess === 'pass' ? ' primary' : ''}`}
+              disabled={started}
+              onClick={() => setGuesses((g) => ({ ...g, [guessKey]: g[guessKey] === 'pass' ? null : 'pass' }))}
+            >
+              Pass
+            </button>
+            <button
+              type="button"
+              className={`btn small${guess === 'fail' ? ' primary' : ''}`}
+              disabled={started}
+              onClick={() => setGuesses((g) => ({ ...g, [guessKey]: g[guessKey] === 'fail' ? null : 'fail' }))}
+            >
+              Fail
+            </button>
+          </div>
+          {finished && guess !== null && (
+            <span style={{ fontSize: 12.5, fontFamily: 'var(--mono)', color: (guess === 'pass') === pass ? 'var(--c-good)' : 'var(--c-b)' }}>
+              {(guess === 'pass') === pass ? 'Prediction matched!' : `Predicted ${guess}, got ${pass ? 'pass' : 'fail'}.`}
+            </span>
+          )}
+        </div>
         <div className="btn-row">
           <button type="button" className="btn primary" disabled={started} onClick={build}>
             {finished ? 'Built' : started ? 'Training…' : 'Build (3 seeds)'}
@@ -642,10 +692,10 @@ export function FacePrinterLab() {
           <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{paramCount(d).toLocaleString('en-GB')} parameters</span>
           {entry.solved && <span className="status good">Solved{entry.best !== null ? ` · smallest so far ${entry.best.toLocaleString('en-GB')}` : ''}</span>}
         </div>
-        {hint && <div className="live-note">{HINTS[brief.id]}</div>}
+        {hint && <div className="live-note">{hintText}</div>}
       </div>
       {started && !finished && current && (
-        <div style={{ display: 'grid', gap: 4 }}>
+        <div style={{ display: 'grid', gap: 4, marginBottom: 12 }}>
           <div className="progress-bar">
             <div style={{ width: `${(100 * (results.filter(Boolean).length * LAB_STEPS + current.done)) / (LAB_SEEDS.length * LAB_STEPS)}%` }} />
           </div>
@@ -655,7 +705,7 @@ export function FacePrinterLab() {
         </div>
       )}
       {finished && first && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16, alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16, alignItems: 'start', marginBottom: 12 }}>
           <div>
             {usesPrinter ? (
               <>
@@ -725,20 +775,79 @@ export function FacePrinterLab() {
           </div>
         </div>
       )}
-      {entry.solved && (
-        <div style={{ marginTop: 14 }}>
-          <button type="button" className="btn" onClick={() => setShowOpt((s) => !s)}>{showOpt ? 'Hide' : 'Show'} the exhaustive search</button>
-          {showOpt && (
-            <div className="live-note" style={{ marginTop: 10 }}>
+
+      <LiveCode note="PyTorch VAE / Autoencoder" code={liveCode} />
+
+      <div style={{ marginTop: 12 }}>
+        <AnswerReveal solved={entry.solved} stuckKey={`face-printer:${brief.id}`} label="the 54-design exhaustive map">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+            <div className="live-note">
               All {LATENTS.length * HIDDENS.length * BETAS.length} designs were trained with all three seeds. <strong>{opt.passing}</strong> meet this spec every time. The smallest is{' '}
               <strong>
                 {opt.design.latent} code numbers, width {opt.design.hidden}, {betaLabel(opt.design.beta)}
               </strong>{' '}
               ({opt.params.toLocaleString('en-GB')} parameters){opt.ties === 1 ? ', the only design that small' : `, one of ${opt.ties} that size`}. Judged on seed 1 alone, {opt.seed1Passing} designs would have “passed”, and the smallest would have been {opt.seed1Smallest.latent} code numbers, width {opt.seed1Smallest.hidden}, {betaLabel(opt.seed1Smallest.beta)}: a lucky run.
             </div>
-          )}
-        </div>
-      )}
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--mono)', fontSize: 11 }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '4px 6px', borderBottom: '1px solid var(--border)' }}>L · H \ β</th>
+                    {BETAS.map((b) => (
+                      <th key={b} style={{ textAlign: 'center', padding: '4px 5px', borderBottom: '1px solid var(--border)' }}>
+                        {b === 0 ? 'AE' : `β=${b}`}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {LATENTS.flatMap((L) =>
+                    HIDDENS.map((H) => (
+                      <tr key={`${L}-${H}`}>
+                        <td style={{ padding: '3px 6px', fontWeight: 600 }}>L={L}, H={H}</td>
+                        {BETAS.map((b) => {
+                          const des: Design = { latent: L, hidden: H, beta: b };
+                          const seeds = LAB_RESULTS[designKey(des)].seeds;
+                          const nPass = seeds.filter((s) => verdict(brief, s).pass).length;
+                          const seed1Only = verdict(brief, seeds[0]).pass && nPass < 3;
+                          const isWinner = designKey(des) === designKey(opt.design);
+                          return (
+                            <td
+                              key={b}
+                              style={{
+                                textAlign: 'center',
+                                padding: '3px 5px',
+                                borderRadius: 4,
+                                color: nPass === 3 ? 'var(--c-good)' : seed1Only ? 'var(--c-b)' : 'var(--text-muted)',
+                                fontWeight: nPass === 3 || isWinner ? 700 : 400,
+                                background: nPass === 3 ? 'color-mix(in srgb, var(--c-good) 14%, transparent)' : seed1Only ? 'color-mix(in srgb, var(--c-b) 12%, transparent)' : 'transparent',
+                              }}
+                            >
+                              {isWinner ? '★ 3/3' : nPass === 3 ? '3/3' : seed1Only ? '1s!' : `${nPass}/3`}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    )),
+                  )}
+                </tbody>
+              </table>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                <code>★ 3/3</code> = unique smallest winner · <code>3/3</code> = passes all 3 seeds · <code>1s!</code> = lucky seed-1 trap (fails on seeds 2 or 3).
+              </div>
+            </div>
+          </div>
+        </AnswerReveal>
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <MachineLog
+          title="FACE PRINTER LOG"
+          lines={log.lines}
+          onClear={log.clear}
+          empty="Pick latent width, hidden size, and β, then press Build (3 seeds)."
+        />
+      </div>
     </Widget>
   );
 }

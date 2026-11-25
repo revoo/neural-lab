@@ -743,6 +743,26 @@ export const HISTORY: HistoryEntry[] = [
       after: { text: 'Once attention proved it could route information in O(1) hops, dropping recurrence completely produced the Transformer architecture behind modern LLMs.', source: 'https://arxiv.org/abs/1706.03762' },
     },
   },
+  {
+    id: 'autoencoders',
+    lessonId: 'autoencoders',
+    lab: 'The Face Printer',
+    idea: 'Autoencoders, Variational Autoencoders (VAE) & β-VAE',
+    years: [1986, 2006, 2013, 2014, 2018],
+    when: '1986 · 2006 · 2013 · 2014 · 2018',
+    who: [
+      { text: 'David Rumelhart, James McClelland, and the PDP group (1986) propose training neural networks in auto-association mode, followed by early speech and image bottlenecks in 1987–1988.', source: WP('Autoencoder') },
+      { text: 'Geoffrey Hinton and Ruslan Salakhutdinov publish Reducing the Dimensionality of Data with Neural Networks in Science (2006), showing deep autoencoders beat PCA for nonlinear compression.', source: WP('Autoencoder') },
+      { text: 'Diederik Kingma and Max Welling (December 2013) introduce Auto-Encoding Variational Bayes (VAE) and the reparameterisation trick, enabling gradient-based training of continuous latent generative models.', source: 'https://arxiv.org/abs/1312.6114' },
+      { text: 'Danilo Rezende, Shakir Mohamed, and Daan Wierstra (January 2014) independently publish stochastic backpropagation for deep latent Gaussian models.', source: 'https://arxiv.org/abs/1401.4082' },
+      { text: 'Irina Higgins, Christopher Burgess, and colleagues at DeepMind analyse β-VAE (ICLR 2017 / arXiv 2018), tuning the KL weight β to trade reconstruction fidelity against smooth, disentangled latents.', source: 'https://arxiv.org/abs/1804.03599' },
+    ],
+    story: {
+      before: { text: 'Plain autoencoders could compress images into low-dimensional codes, but left arbitrary gaps between codes so sampling random points produced nonsense.', source: WP('Autoencoder') },
+      this: { text: 'Encoding each input as a Gaussian smudge and penalising its KL divergence from a standard normal made the latent space smooth enough to sample brand-new examples directly.', source: 'https://arxiv.org/abs/1312.6114' },
+      after: { text: 'VAEs became the first-stage image compressors inside Latent Diffusion and Stable Diffusion, while VQ-VAEs and sparse autoencoders now power multimodal tokenisation and mechanistic interpretability.', source: WP('Autoencoder') },
+    },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */
