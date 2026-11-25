@@ -56,6 +56,15 @@ Before every commit: `npm test` → `npm run build` → `rg "<MODEL_NAME>" dist/
 
 ### Gotchas found in this run
 
+- **(WP2–WP5) Vitest only collects `src/**/*.test.ts`.** A probe test in `scratch/` is "not found". To print data from modules the TS runner can't load, put a throwaway `src/zz-probe.test.ts` in place, run it with `--silent=false`, then delete it.
+- **(WP2–WP5) Make bulk-edit scripts idempotent, or run them once.** Re-running an earlier "replace X with Y" script silently undid a later hand edit (the 31-word summaries). After any scripted edit, re-run the relevant test.
+- **(WP2–WP5) Screenshot scripts and themes:** the theme is stored in `localStorage` under `nl-theme` (`light`, `dark`, `matrix`).
+- **(WP2–WP5) Uppercase text again:** `.lesson-kicker` and the Home card `.n` line are uppercased, so an era like `1670s` would show as `1670S`. Both render the era with `text-transform: none`. Keep anything with lowercase letters that matter out of those lines, or do the same.
+- **(WP2–WP5) Sources that disagree:** Wikipedia's Mark I and Perceptron articles give different dates for the machine. Don't pick one silently: avoid the date in prose and record the disagreement in the history entry's `dispute`.
+- **(WP2–WP5) A lab primitive can make the goal trivial.** In the Mark I lab, free starting weights made "fewest mistakes" equal 0 (set the knobs by hand), so Brief 2 locks them. Check that every optional goal still needs thought after you've listed the primitives.
+- **(WP2–WP5) Search results are bounds, so say which way.** `bestMargin` can only find a margin at or below the true one, so `novikoffBound` errs on the safe side; pin such numbers with `toBeCloseTo`, not exact equality.
+- **(WP6.2 note)** The perceptron lesson already has its "You are standing where they stood" `Insight`, at the end of "The wall" (after the lab), not directly before the history card. The logic lab now ends with a one-line link to the perceptron lesson; WP6.2's logic-lab note goes before its `HistoryCard`, above that line.
+
 - **Heredocs.** The agent's command-safety check refused heredocs containing `${…}`. Write helper scripts as files instead.
 - **`<Predict>` inside a list.** A `<Predict>` inserted between Markdown list items breaks the MDX parse ("Unexpected end of file before attribute name"). Put it before or after the list.
 - **JSX attribute strings don't process escapes.** In `question="…"`, write `\mathbf` with a single backslash. If you generate Predicts with `json.dumps`, un-double the backslashes in the attribute.
