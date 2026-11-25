@@ -348,6 +348,42 @@ function SpeedPairCanvas({ L, sp }: { L: Level; sp: number[] }) {
   );
 }
 
+
+/**
+ * The key's clock hands for the first few offsets, relative to the query's aim
+ * (straight up = pointing exactly where the query looks: one place back). A
+ * hand near the top scores high; the previous word's hands are all straight up.
+ */
+function Clocks({ speeds, count }: { speeds: number[]; count: number }) {
+  const r = 13;
+  const gap = 34;
+  const W = count * gap + 8;
+  const colors = ['var(--accent)', 'var(--c-b)'];
+  return (
+    <div style={{ overflowX: 'auto', marginTop: 6 }}>
+      <svg viewBox={`0 0 ${W} 52`} width={W} height={52} role="img" aria-label="Clock hands for each offset, relative to the query's aim">
+        {Array.from({ length: count }, (_, o) => {
+          const cx = 4 + gap * o + gap / 2;
+          return (
+            <g key={o}>
+              <circle cx={cx} cy={20} r={r} fill="var(--bg-sunken)" stroke={o === 1 ? 'var(--c-c)' : 'var(--border)'} strokeWidth={o === 1 ? 2 : 1} />
+              <line x1={cx} x2={cx} y1={20 - r} y2={20 - r + 3} stroke="var(--text-faint)" />
+              {speeds.map((sp, k) => {
+                const a = ((sp * (o - 1)) * Math.PI) / 180;
+                return <line key={k} x1={cx} y1={20} x2={cx + (r - 2) * Math.sin(a)} y2={20 - (r - 2) * Math.cos(a)} stroke={colors[k % 2]} strokeWidth={2} strokeLinecap="round" />;
+              })}
+              <text x={cx} y={48} fontSize={9.5} textAnchor="middle" className="plot-tick">{o}</text>
+            </g>
+          );
+        })}
+      </svg>
+      <div className="muted" style={{ fontSize: 12 }}>
+        Each clock is a word that many places back, with its hand{speeds.length > 1 ? 's' : ''} turned relative to where the query aims (the tick at the top). Hands pointing up score high; the previous word (1, outlined) always points straight up, so it wins only if no other clock comes close.
+      </div>
+    </div>
+  );
+}
+
 export function PreviousWordLab() {
   const [idx, setIdx] = useState(0);
   const [speeds, setSpeeds] = useState<Record<string, number[]>>({ short: [20], long: [20], two: [3, 20] });
@@ -439,6 +475,7 @@ export function PreviousWordLab() {
           ))}
         </svg>
       </div>
+      <Clocks speeds={sp} count={Math.min(L.length, 12)} />
       <div className={`live-note`} style={{ marginTop: 10 }}>
         {note}
       </div>
