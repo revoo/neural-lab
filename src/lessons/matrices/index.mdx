@@ -1,3 +1,4 @@
+import { UntangleLab } from './UntangleLab'
 import { GridTransformer } from './GridTransformer'
 import { questions } from './quiz'
 
@@ -121,6 +122,30 @@ That means a plain matrix can never "shift everything one unit to the right". A 
 Graphics programmers solve the same problem differently: they add an extra dimension and use 3×3 matrices for 2D (or 4×4 for 3D), a trick called homogeneous coordinates. That's why CSS's `matrix()` takes six numbers rather than four.
 
 </Deeper>
+
+## Lab: Untangle the Data
+
+Imagine a sorting gate with a fixed divider down the middle. You can move the whole cloud of points by changing the grid beneath it. Watch what happens to the points nearest the divider when you turn a column.
+
+<LabJob>Build a transformation that sends the filled dots to the right of the vertical axis and the rings to the left.</LabJob>
+
+<UntangleLab />
+
+<Deeper title="Debrief: what can a straight grid separate?" tag="Spoiler">
+
+The exhaustive search tried every matrix on the controls’ grid. Of 43,046,721 matrices, 5,248,800 separate the first cloud. Keeping the area factor between 0.9 and 1.1 leaves 355,886. Moving a point up or down has no effect on which side of a vertical gate it reaches, but it does affect how much area a grid cell covers.
+
+In the shifted cloud, a ring and a filled dot lie on the same ray from the origin. A matrix sends both along the same new ray. Sliding the whole picture lets the divider fall between them.
+
+At the opposite corners, join each pair of matching marks. Their segments share a midpoint. After *any* matrix and shift they still share it, so a straight cut between them is impossible. Clamping negative coordinates to zero breaks that constraint. Try switching the kink off after you find a split and watch the shared midpoint come back.
+
+</Deeper>
+
+<ForReal>A hidden layer does exactly what you just did to the points. It mixes measurements, shifts the result, then bends the space so that a later layer can draw a simpler boundary.</ForReal>
+
+<HistoryCard id="untangle" />
+
+You've just used a <LessonLink to="neuron">neuron’s bias</LessonLink> to move a boundary and an <LessonLink to="activation-functions">activation function</LessonLink> to separate opposite corners. In <ModuleRef id="architecture" />, you’ll see those operations at work in a whole layer.
 
 ## In code
 

@@ -36,6 +36,20 @@ const WP = (page: string) => `https://en.wikipedia.org/wiki/${page}`;
 
 export const HISTORY: HistoryEntry[] = [
   {
+    id: 'untangle',
+    lessonId: 'matrices',
+    lab: 'Untangle the Data',
+    idea: 'A direction that separates classes',
+    years: [1936],
+    when: '1936',
+    who: [{ text: 'Ronald Fisher developed a discriminant for two classes in 1936.', source: WP('Linear_discriminant_analysis') }],
+    story: {
+      before: { text: 'Fisher posed a taxonomic problem involving several measurements of each specimen.', source: WP('Linear_discriminant_analysis') },
+      this: { text: 'Project the measurements onto a line chosen to spread the class means apart relative to the variation within classes.', source: WP('Linear_discriminant_analysis') },
+      after: { text: 'C. R. Rao extended the analysis to more than two classes.', source: WP('Linear_discriminant_analysis') },
+    },
+  },
+  {
     id: 'spam-scorer',
     lessonId: 'dot-product',
     lab: 'Tune the Spam Scorer',
