@@ -1,0 +1,45 @@
+{/* authored-by: Gemini Antigravity */}
+import { questions } from './quiz'
+
+In 2006, neural networks were still a minority pursuit. Six years later, a single competition result set off the deep-learning boom. Remarkably, almost none of the underlying maths was new — what changed was the data and the chips.
+
+<EraStrip from={2007} to={2012} />
+
+## The data: ImageNet (2009)
+
+In 2006, computer-vision researcher Fei-Fei Li decided the real bottleneck wasn't cleverer hand-tuned algorithms, it was data. <Src href="https://en.wikipedia.org/wiki/ImageNet" /> Starting from the nouns of WordNet, her team at Princeton turned to Amazon Mechanical Turk to label photographs at a scale nobody had attempted before. <Src href="https://en.wikipedia.org/wiki/ImageNet" />
+
+Between July 2008 and April 2010, roughly 49,000 crowd workers from 167 countries filtered and labelled candidate images, producing a database of more than 14 million hand-annotated photographs across over 20,000 categories. <Src href="https://en.wikipedia.org/wiki/ImageNet" /> Li's team presented ImageNet as a poster at CVPR 2009, and from 2010 onward hosted an annual contest — the ImageNet Large Scale Visual Recognition Challenge (ILSVRC) — testing systems on 1,000 object classes. <Src href="https://en.wikipedia.org/wiki/ImageNet" />
+
+## The hardware: graphics cards and CUDA (2007)
+
+While vision researchers were assembling ImageNet, video games were quietly funding a parallel-computing revolution. Graphics processing units (GPUs) had been engineered to compute thousands of pixel colours at once for real-time 3D graphics. <Src href="https://en.wikipedia.org/wiki/CUDA" />
+
+Before 2007, using a GPU for general arithmetic meant disguising matrices as graphics textures in APIs like OpenGL or Direct3D. Nvidia created **CUDA** in 2004 and officially released it in 2007, giving programmers a C-based platform to run general-purpose parallel maths directly on GPUs. <Src href="https://en.wikipedia.org/wiki/CUDA" /> Matrix multiplications and convolutions — the exact multiply-add work you met in <ModuleRef id="foundations" /> — mapped onto GPU cores effortlessly.
+
+## The result: AlexNet (2012)
+
+On 30 September 2012, Alex Krizhevsky, Ilya Sutskever and Geoffrey Hinton at the University of Toronto submitted **AlexNet** to ILSVRC 2012. <Src href="https://en.wikipedia.org/wiki/AlexNet" /> It was an eight-layer convolutional neural network with 60 million parameters and 650,000 neurons, trained on 1.2 million ImageNet photographs for five to six days across two consumer Nvidia GTX 580 gaming cards (3 GB of memory each). <Src href="https://en.wikipedia.org/wiki/AlexNet" />
+
+AlexNet won the challenge with a **15.3% top-5 error rate** — more than **10.8 percentage points better** than the runner-up. <Src href="https://en.wikipedia.org/wiki/AlexNet" />
+
+## The lesson
+
+Up to 2012, most computer-vision progress relied on hand-engineered features such as SIFT and HoG fed into classical classifiers, and learning features directly from pixels was a minority position. <Src href="https://en.wikipedia.org/wiki/AlexNet" /> Yet backpropagation had been popularised in 1986 and Yann LeCun's convolutional network LeNet had read handwritten digits in 1989. <Src href="https://en.wikipedia.org/wiki/Backpropagation" /> <Src href="https://en.wikipedia.org/wiki/LeNet" />
+
+Most of the ideas were already over twenty years old. What changed in 2012 was the scale of labelled data and parallel arithmetic — and once those arrived, learned features swept the field. You are about to build every layer of that vision pipeline yourself, culminating in <LessonLink to="cnns">CNNs and feature maps</LessonLink>.
+
+## Check your understanding
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- ImageNet (presented at CVPR 2009) used roughly 49,000 crowd workers from 167 countries to build a database of over 14 million labelled images, launching the 1,000-class ILSVRC contest in 2010.
+- Nvidia's CUDA (released 2007) opened massively parallel gaming GPUs to general-purpose arithmetic without graphics workarounds.
+- AlexNet (2012), trained on 1.2 million images over five to six days on two GTX 580 GPUs, won ILSVRC with 15.3% top-5 error — over 10.8 percentage points ahead of the runner-up.
+- The core ideas (backpropagation, convolutions) were from 1986–1989; data and parallel compute turned them into a breakthrough.
+
+</Takeaways>
+
+Let's open up the grid of numbers a vision network actually sees, starting with <LessonLink to="images-as-tensors">images as tensors</LessonLink>.

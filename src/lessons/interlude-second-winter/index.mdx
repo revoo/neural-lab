@@ -1,0 +1,52 @@
+{/* authored-by: Gemini Antigravity */}
+import { questions } from './quiz'
+
+In the modules behind you, you trained multilayer neural networks with backpropagation and diagnosed why they overfit or stall. You might assume that once backpropagation arrived in 1986, neural networks immediately took over the world. They didn't — for almost twenty years, they were out of fashion.
+
+<EraStrip from={1987} to={2006} />
+
+## The boom and the 1987 crash
+
+In the early 1980s, money poured back into AI on the promise of **expert systems** — rule-based software built for narrow commercial tasks — and specialised workstations designed to run the LISP programming language. <Src href="https://en.wikipedia.org/wiki/History_of_artificial_intelligence" /> Then in 1987 the LISP-machine market collapsed, kicking off the **second AI winter**, roughly 1987 to 2000. <Src href="https://en.wikipedia.org/wiki/AI_winter" />
+
+## When tidy guarantees won
+
+Backpropagation worked, and researchers kept publishing clever networks. Yet throughout 1990–2010, on the datasets and CPUs available at the time, neural networks did not outperform competing machine-learning methods. <Src href="https://en.wikipedia.org/wiki/AlexNet" />
+
+Two rivals stole the spotlight:
+
+- **Support vector machines (SVMs).** Building on Vladimir Vapnik and Alexey Chervonenkis's maximum-margin classifier, Bernhard Boser, Isabelle Guyon and Vapnik applied the kernel trick in 1992 to handle nonlinear boundaries, and Corinna Cortes and Vapnik proposed the soft margin in 1993 (published in 1995). <Src href="https://en.wikipedia.org/wiki/Support_vector_machine" /> SVMs had a single clean optimum with no local-minima lottery and strong statistical theory behind them.
+- **Random forests.** Tin Kam Ho introduced random decision forests in 1995, and Leo Breiman published the modern formulation of random forests in 2001 — combining many trees to cancel out a single tree's habit of overfitting. <Src href="https://en.wikipedia.org/wiki/Random_forest" />
+
+Compared with hand-tuning a finicky neural network whose gradients vanished after a few layers, SVMs and tree ensembles were reliable, fast and mathematically tidy.
+
+## The name nobody wanted
+
+After the 1987 crash, the phrase "artificial intelligence" itself carried a stigma. Many engineers "avoided the term artificial intelligence for fear of being viewed as wild-eyed dreamers", preferring quieter labels like machine learning, statistical learning or pattern recognition. <Src href="https://en.wikipedia.org/wiki/History_of_artificial_intelligence" /> Research kept moving forward — just under different names.
+
+## A small group kept going
+
+Neural networks never vanished completely. In 2004, Geoffrey Hinton and collaborators launched a research programme at the Canadian Institute for Advanced Research (CIFAR) called "Neural Computation and Adaptive Perception" — whose members included Yoshua Bengio and Yann LeCun. <Src href="https://en.wikipedia.org/wiki/Geoffrey_Hinton" />
+
+In 2006, Hinton, Simon Osindero and Yee Whye Teh published *"A fast learning algorithm for deep belief nets"*, showing that a stack of layers could be trained greedily one layer at a time — one of the first effective **deep learning** algorithms. <Src href="https://en.wikipedia.org/wiki/Deep_belief_network" /> The new name helped researchers get papers past reviewers who still associated "neural network" with a bygone fad.
+
+## Why this module exists
+
+It is tempting to treat 1990s methods as stepping stones that deep learning made obsolete. That would be a mistake.
+
+Neural networks eventually conquered raw images, audio and text. But much of everyday software engineering deals with **tabular data**: spreadsheets and database rows with dozens of mixed columns and thousands (not billions) of rows. On those problems, the methods you are about to build — linear models, SVMs, <LessonLink to="knn">k-nearest neighbours</LessonLink>, <LessonLink to="decision-trees">decision trees and random forests</LessonLink>, and <LessonLink to="clustering-pca">k-means and PCA</LessonLink> — are still fast, transparent and hard to beat.
+
+## Check your understanding
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- After the 1987 collapse of the LISP-machine market came a second AI winter (roughly 1987–2000), during which many researchers avoided the phrase "artificial intelligence".
+- From 1990 to 2010, methods with cleaner optimisation and strong performance on CPUs — especially SVMs (1992/1995) and random forests (1995/2001) — generally outperformed neural networks.
+- A small group kept neural-network research alive, including CIFAR's 2004 programme and Hinton, Osindero and Teh's 2006 deep belief networks paper.
+- Classical machine learning is not just history: on structured tabular data, these methods remain the practical default.
+
+</Takeaways>
+
+Before we meet those classical models, one surprising piece of geometry underpins all of them — and deep learning too: <LessonLink to="high-dimensions">high-dimensional geometry</LessonLink>.

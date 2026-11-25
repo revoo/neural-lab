@@ -1,0 +1,53 @@
+{/* authored-by: Gemini Antigravity */}
+import { questions } from './quiz'
+
+You have just built a single artificial neuron, wired hidden units by hand for XOR, and watched the perceptron learn — and then stall forever on a problem no straight line can cut. Here is what happened to the field when it hit that same wall.
+
+<EraStrip from={1969} to={1980} />
+
+## The promise (1958)
+
+A decade before the wall, expectations were sky-high. After a 1958 US Navy press conference on Frank Rosenblatt's perceptron, *The New York Times* described it as "the embryo of an electronic computer that [the Navy] expects will be able to walk, talk, see, write, reproduce itself and be conscious of its existence." <Src href="https://en.wikipedia.org/wiki/Perceptron" />
+
+The machine itself was a remarkable piece of engineering — a grid of photocells wired to motor-driven potentiometers — but headlines like that set a bar no 1950s circuit could clear.
+
+## The book (1969)
+
+In 1969, Marvin Minsky and Seymour Papert published *Perceptrons*, setting out mathematically what a single-layer perceptron cannot compute, including problems like XOR. <Src href="https://en.wikipedia.org/wiki/AI_winter" />
+
+It was already known that multilayer perceptrons are not subject to that limit — you proved as much with your own hands in <LessonLink to="logic-lab">the logic lab</LessonLink>. What nobody in the 1960s knew was how to *train* a multilayer network, because backpropagation was still years away. <Src href="https://en.wikipedia.org/wiki/AI_winter" />
+
+A word of caution about the folklore: the popular story that *Perceptrons* single-handedly killed neural networks is simplified, and Wikipedia's article on the book notes that "there are many mistakes" in that account. <Src href="https://en.wikipedia.org/wiki/Perceptrons_(book)" /> Early neural-network funding was already drying up before 1969 — Stanford Research Institute's MINOS project ran out of funding in 1966, and Rosenblatt struggled to secure continued support through the 1960s. <Src href="https://en.wikipedia.org/wiki/History_of_artificial_intelligence" /> Still, mainstream funding for connectionist work became very hard to find through the 1970s and early 1980s. <Src href="https://en.wikipedia.org/wiki/AI_winter" />
+
+## The report and the cuts (1973–1974)
+
+The freeze soon widened beyond neural networks to AI as a whole. In 1973, Sir James Lighthill published an evaluation of academic AI for Britain's Science Research Council, concluding that "In no part of the field have the discoveries made so far produced the major impact that was then promised." <Src href="https://en.wikipedia.org/wiki/Lighthill_report" /> Lighthill pointed to **combinatorial explosion**: techniques that looked clever in tiny toy domains ground to a halt as soon as they met the scale of the real world. <Src href="https://en.wikipedia.org/wiki/Lighthill_report" />
+
+His report formed the basis for the British government's decision to end support for AI research in most British universities. <Src href="https://en.wikipedia.org/wiki/Lighthill_report" /> Across the Atlantic in 1973–1974, DARPA cut back undirected academic AI grants as well, ushering in what historians call the **first AI winter**, lasting roughly from 1974 to 1980. <Src href="https://en.wikipedia.org/wiki/AI_winter" />
+
+## The machines of the 1970s
+
+It is easy to judge those debates with a modern laptop on your desk, so picture what hardware actually looked like. Memory and speed were brutally tight: Ross Quillian's natural-language demonstration could hold a vocabulary of only 20 words because that was all that fit in memory. <Src href="https://en.wikipedia.org/wiki/History_of_artificial_intelligence" /> As late as 1976, the fastest supercomputer on earth — the 8-million-dollar Cray-1 — managed 130 million instructions per second (MIPS), while a typical desktop had 1 MIPS. <Src href="https://en.wikipedia.org/wiki/History_of_artificial_intelligence" />
+
+Meanwhile, most early neural-network work did not even run as digital simulations; machines such as ADALINE, MINOS and the Mark I Perceptron were built as bespoke analogue hardware using electric motors, electroplated memistors or ferrite cores. <Src href="https://en.wikipedia.org/wiki/History_of_artificial_intelligence" /> On the digital machines that existed in the 1970s, writing explicit logical rules over symbols — **symbolic AI** — looked like the practical way forward. <Src href="https://en.wikipedia.org/wiki/AI_winter" />
+
+## Minsky's turn
+
+History rarely divides neatly into heroes and villains. Marvin Minsky, who co-wrote the best-known critique of perceptrons, had begun his career building a neural-network machine himself.
+
+In the summer of 1951, as a mathematics graduate student at Princeton, Minsky teamed up with physics graduate student Dean S. Edmonds — with a few thousand dollars from the Office of Naval Research — to build **SNARC** (Stochastic Neural Analog Reinforcement Calculator). <Src href="https://en.wikipedia.org/wiki/Stochastic_Neural_Analog_Reinforcement_Calculator" /> Wired from about 40 Hebb synapses and 300 vacuum tubes and "the size of a grand piano", SNARC simulated rats learning to navigate a maze, adjusting probabilities with clutches driven by a surplus B-24 bomber autopilot motor. <Src href="https://en.wikipedia.org/wiki/Stochastic_Neural_Analog_Reinforcement_Calculator" /> Eighteen years later, the same person who had soldered those vacuum tubes helped show why single-layer learning machines were not enough on their own.
+
+## Check your understanding
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- Headlines in 1958 promised far more than a single-layer perceptron could deliver; in 1969, *Perceptrons* proved the single-layer limit while multilayer training remained unsolved.
+- The first AI winter (roughly 1974–1980) followed wider setbacks — including the 1973 Lighthill report on combinatorial explosion and 1973–74 DARPA funding cutbacks — not just one book.
+- Severe 1970s memory and speed limits, combined with early neural nets relying on bespoke analogue hardware, made symbolic AI look like the practical bet at the time.
+- Even Marvin Minsky had built one of the earliest neural-network machines (SNARC, 1951) before turning to symbolic AI.
+
+</Takeaways>
+
+Now we cross the wall that stopped the 1960s: first by stacking neurons into layers in <LessonLink to="forward-propagation">layers and the forward pass</LessonLink>, and then by learning how to train them in <ModuleRef id="backprop" />.

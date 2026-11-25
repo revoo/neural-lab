@@ -858,7 +858,8 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 0; }
   font-weight: 600;
   white-space: nowrap;
 }
-.era-strip-list {
+.era-strip-list,
+.prose .era-strip-list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -866,7 +867,9 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 0; }
   flex-wrap: wrap;
   gap: 8px;
 }
-.era-strip-list > li {
+.era-strip-list > li,
+.prose .era-strip-list > li {
+  margin: 0;
   max-width: 100%;
 }
 .era-strip-item {

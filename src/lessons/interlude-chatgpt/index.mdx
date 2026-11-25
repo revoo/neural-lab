@@ -1,0 +1,50 @@
+{/* authored-by: Gemini Antigravity */}
+import { questions } from './quiz'
+
+You have just assembled the transformer architecture piece by piece. For five years after its 2017 paper, transformers were mostly a tool for engineers and researchers. Then, in one week at the end of 2022, almost everyone in the world heard about them.
+
+<EraStrip from={2017} to={2024} />
+
+## Scale as a strategy (2018–2020)
+
+In June 2018, OpenAI published its original GPT paper, showing that pre-training a decoder-only transformer on plain text gave a strong base for language tasks. <Src href="https://en.wikipedia.org/wiki/GPT-3" /> Two years later, in May 2020, **GPT-3** pushed that same architecture to **175 billion parameters** with a 2,048-token context window — demonstrating strong zero-shot and few-shot abilities across many tasks simply by prompting the model with instructions or a handful of examples. <Src href="https://en.wikipedia.org/wiki/GPT-3" />
+
+Scale was no longer just making existing benchmarks slightly better; it was changing how people interacted with a model.
+
+## 30 November 2022
+
+On **30 November 2022**, OpenAI released **ChatGPT** as a conversational interface to its large language models. <Src href="https://en.wikipedia.org/wiki/ChatGPT" /> Adoption was astonishingly fast: it reached **100 million monthly active users** two months after release, turning neural language models into an everyday household tool and sparking worldwide debate over coding, writing and knowledge work. <Src href="https://en.wikipedia.org/wiki/ChatGPT" />
+
+## What was old, and what was new
+
+From the outside, ChatGPT looked like magic appearing out of nowhere. Inside, most of its parts were older than the headlines suggested:
+
+- The **transformer** architecture dated from 2017 (*"Attention Is All You Need"*). <Src href="https://en.wikipedia.org/wiki/Attention_Is_All_You_Need" />
+- Studying English text through **next-symbol prediction and entropy** went all the way back to Claude Shannon's 1951 article *"Prediction and Entropy of Printed English"*. <Src href="https://en.wikipedia.org/wiki/Claude_Shannon" />
+- Even **backpropagation** and **gradient descent** were decades — or centuries — old.
+
+What was newer was putting that scaled-up predictor through **post-training on human preferences**, using a reward model trained from human oversight so the model answered questions helpfully instead of merely continuing web text. <Src href="https://en.wikipedia.org/wiki/ChatGPT" /> You will inspect next-token prediction and scaling laws right here in this module, and then build the post-training step itself in <ModuleRef id="finetuning" />.
+
+## 2024: Stockholm takes notice
+
+Two years after ChatGPT's launch, the Nobel committees gave the era a historic punctuation mark:
+
+- The **2024 Nobel Prize in Physics** was awarded jointly to **John J. Hopfield** and **Geoffrey Hinton** *"for foundational discoveries and inventions that enable machine learning with artificial neural networks"*. <Src href="https://www.nobelprize.org/prizes/physics/2024/summary/" />
+- The **2024 Nobel Prize in Chemistry** was divided, one half to **David Baker** *"for computational protein design"* and the other half jointly to **Demis Hassabis** and **John Jumper** *"for protein structure prediction"*. <Src href="https://www.nobelprize.org/prizes/chemistry/2024/summary/" />
+
+Sixty-eight years after the Dartmouth workshop hoped for a breakthrough in a single summer, neural networks had become part of the everyday machinery of both software and basic science.
+
+## Check your understanding
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- From GPT (2018) to GPT-3 (May 2020, 175 billion parameters, 2,048-token context window), scaling up decoder-only transformers unlocked zero-shot and few-shot prompting.
+- ChatGPT launched on 30 November 2022 and reached 100 million monthly active users two months later.
+- Its foundations were older (the 2017 transformer; Shannon's 1951 work on entropy and prediction of English); the newer layer was post-training on human preferences.
+- In 2024, both the Nobel Prize in Physics (Hopfield and Hinton) and the Nobel Prize in Chemistry (Baker, Hassabis and Jumper) recognised neural-network and computational breakthroughs.
+
+</Takeaways>
+
+Let's open the hood on how a transformer actually writes one token at a time in <LessonLink to="next-token-prediction">next-token prediction and perplexity</LessonLink>.

@@ -69,6 +69,7 @@ export const MODULES: ModuleMeta[] = [
       { id: 'activation-functions', title: 'Why Networks Need Activation Functions', summary: 'Stack a hundred linear layers and you still have one. Then add a kink, and everything changes.', minutes: 25, load: () => import('./lessons/activation-functions/index.mdx') },
       { id: 'logic-lab', title: 'Lab: Wiring Logic by Hand', summary: 'A puzzle workbench: build AND, OR and finally XOR out of neurons whose weights you set yourself.', minutes: 30, load: () => import('./lessons/logic-lab/index.mdx') },
       { id: 'perceptron', title: 'The Perceptron: A Machine That Learns Its Own Weights', summary: 'A machine with motor-driven knobs that learned to tell shapes apart: the simple rule it used, why it always works when a line exists, and where it fails for ever.', minutes: 30, load: () => import('./lessons/perceptron/index.mdx') },
+      { id: 'interlude-first-winter', title: 'Interlude: The First Winter (1969–1980)', summary: 'How the excitement around perceptrons cooled into the first AI winter: Minsky and Papert’s proof, the Lighthill report, hardware limits, and why symbolic AI won the 1970s.', minutes: 8, load: () => import('./lessons/interlude-first-winter/index.mdx') },
     ],
   },
   {
@@ -139,6 +140,7 @@ export const MODULES: ModuleMeta[] = [
     title: 'Classical Machine Learning',
     blurb: 'Trees, nearest neighbours, SVMs, clustering — and when they beat neural networks.',
     lessons: [
+      { id: 'interlude-second-winter', title: 'Interlude: When Neural Networks Were Unfashionable (1987–2006)', summary: 'After the 1987 LISP-machine crash, support vector machines and random forests ruled the 1990s while a small group kept neural nets alive. Why those classical methods still matter.', minutes: 8, load: () => import('./lessons/interlude-second-winter/index.mdx') },
       { id: 'high-dimensions', title: 'High-Dimensional Geometry', summary: 'Why almost all of an orange is peel in 768 dimensions, why random arrows are perpendicular, why neighbours look alike — and Lab: Superposition.', minutes: 30, load: () => import('./lessons/high-dimensions/index.mdx') },
       { id: 'linear-regression', title: 'Linear and Logistic Regression', summary: 'The oldest learning machine: fit a line by least squares, see why it fails at yes-or-no questions, fix it with logistic regression — and a feature-engineering lab.', minutes: 35, load: () => import('./lessons/linear-regression/index.mdx') },
       { id: 'knn', title: 'k-Nearest Neighbours', summary: 'Classify by asking the neighbours: no training at all, one dial that trades memorising for smoothing, and the two ways it quietly breaks — and Lab: Rescue the kNN Classifier.', minutes: 30, load: () => import('./lessons/knn/index.mdx') },
@@ -153,6 +155,7 @@ export const MODULES: ModuleMeta[] = [
     title: 'Computer Vision',
     blurb: 'From pixels to convolutions to object detectors.',
     lessons: [
+      { id: 'interlude-big-bang', title: 'Interlude: Data, Graphics Cards and 2012', summary: 'How ImageNet, programmable graphics cards, and one 2012 convolutional network turned ideas from 1989 into the deep-learning boom.', minutes: 8, load: () => import('./lessons/interlude-big-bang/index.mdx') },
       { id: 'images-as-tensors', title: 'Images as Tensors', summary: 'What a photo looks like to a network: grids of numbers, colour channels, and why shrinking an image the naive way invents patterns — and Lab: Build the Vision Preprocessor.', minutes: 30, load: () => import('./lessons/images-as-tensors/index.mdx') },
       { id: 'convolution', title: 'Convolution and Kernels', summary: 'Slide one small pattern-detector across a whole image: edge finders, blurs, and the arithmetic of output sizes — and Lab: Design the Kernel.', minutes: 35, load: () => import('./lessons/convolution/index.mdx') },
       { id: 'cnns', title: 'CNNs and Feature Maps', summary: 'Stack small detectors into big ones: how each layer sees a wider patch, and why a tiny CNN beats a much bigger plain network — and Lab: Architect the CNN.', minutes: 35, load: () => import('./lessons/cnns/index.mdx') },
@@ -204,6 +207,7 @@ export const MODULES: ModuleMeta[] = [
     title: 'Large Language Models',
     blurb: 'From next-token prediction to assistants: sampling, scaling, and their failure modes.',
     lessons: [
+      { id: 'interlude-chatgpt', title: 'Interlude: The Week Everyone Noticed (2022)', summary: 'From GPT-3 to ChatGPT’s sudden public arrival in November 2022, what was old versus new inside it, and the 2024 Nobel Prizes that marked the moment.', minutes: 8, load: () => import('./lessons/interlude-chatgpt/index.mdx') },
       { id: 'next-token-prediction', title: 'Next-Token Prediction & Perplexity', summary: 'How a transformer writes one token at a time, what perplexity really means, why neural embeddings beat lookup tables — and Shannon’s betting game.', minutes: 30, load: () => import('./lessons/next-token-prediction/index.mdx') },
       { id: 'sampling', title: 'Sampling: Temperature, Top-k and Top-p', summary: 'Why greedy loops, why raw sampling falls into the long tail, how nucleus sampling adapts to confidence, beam search — and a sampler-tuning lab with an impossible level.', minutes: 30, load: () => import('./lessons/sampling/index.mdx') },
       { id: 'scaling-laws', title: 'Scaling Laws & Compute-Optimal Training', summary: 'How much better does a model get with more size, data and compute? The surprisingly regular answer, the famous correction, and a compute-budget lab.', minutes: 30, load: () => import('./lessons/scaling-laws/index.mdx') },

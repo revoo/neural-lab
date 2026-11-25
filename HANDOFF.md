@@ -2,9 +2,9 @@
 
 You're picking up **Neural Lab**, an interactive website that teaches AI from first principles: Feynman-style explanation, 3Blue1Brown-style visuals, Zachtronics-style labs. This file is the onboarding procedure. Follow it in order. (Agent rules in brief: `AGENTS.md` / `CLAUDE.md`.)
 
-## 0. Resume here: curriculum plan, WP6 complete, next WP7
+## 0. Resume here: curriculum plan, WP7 complete, next WP8
 
-The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented step by step (WP0 → WP9). WP0 to WP6 are done and pushed on `claude/cool-feynman-4hci4d`: Claude Opus 5.5 did WP0–WP1.7, Labs 1–2, WP1.10, WP1.9 and WP2–WP5; Codex Meridian 6 did Labs 3–9; Gemini Antigravity is finishing WP6–WP9 without pausing.
+The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented step by step (WP0 → WP9). WP0 to WP7 are done and pushed on `claude/cool-feynman-4hci4d`: Claude Opus 5.5 did WP0–WP1.7, Labs 1–2, WP1.10, WP1.9 and WP2–WP5; Codex Meridian 6 did Labs 3–9; Gemini Antigravity is finishing WP6–WP9 without pausing.
 
 **Read first, in this order:** `AGENTS.md`, this file (especially "Owner's standing instructions" and "Curriculum plan: progress" at the end), `docs/CURRICULUM_PLAN.md` §0 and §1 and the section for your step, and the "Current state" block at the top of `docs/ROADMAP.md`.
 
@@ -35,12 +35,12 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented step by step (WP
 | WP5 | `era` on every module in `curriculum.ts` (test: every history card's years fall inside its module's era); shown on Home cards and in the lesson kicker (linked to the timeline); 12 sourced `MILESTONES` in `src/history.ts`. |
 | WP1.9 | `minutes` +15 for each toolkit lesson; vectors' units section trimmed to point at Lab 1's brief 3; two closing teasers cut; consistent backprop cost (about three forward passes). Widget fixes: Sensitivity Probe chart legend and axes; Build the Pipeline counts every intermediate layer as hidden (`meets`, brief 2 optimum now 50,816); Calibrate the Forecaster's `shownPercent` never shows a positive probability as 0. |
 | WP6 | WP6.1 sourced opening hooks in 12 lessons (`neuron`, `gradient-descent`, `loss-functions`, `activation-functions`, `backpropagation`, `vanishing-gradients`, `optimizers`, `overfitting`, `cnns`, `transformer-block`, `mdps`, `word-embeddings`); WP6.2 "You are standing where they stood" `Insight` notes in 6 remaining labs (`logic-lab`, `network-from-scratch`, `vanishing-gradients`, `attention`, `chain-rule`, `information`; `perceptron` already had its note). |
+| WP7 | `src/components/EraStrip.tsx` (+ `eraStrip.test.ts`, registered in `mdxComponents.tsx`) and four 8-minute sourced interlude lessons (`interlude-first-winter` in `neuron`, `interlude-second-winter` in `classical`, `interlude-big-bang` in `vision`, `interlude-chatgpt` in `llms`). |
 
 ### What to do next, in order
 
-1. **WP7 (Era interludes):** build `EraStrip` first, then the four interlude lessons (`interlude-first-winter`, `interlude-second-winter`, `interlude-big-bang`, `interlude-chatgpt`).
-2. **WP8:** `svm` (WP8.1), `gans` (WP8.2), `open-questions` with new `epilogue` module (WP8.3).
-3. **WP9:** Final documentation across `ROADMAP.md`, `HANDOFF.md`, `VISION.md`, and `CURRICULUM_AUDIT.md`.
+1. **WP8:** `svm` (WP8.1), `gans` (WP8.2), `open-questions` with new `epilogue` module (WP8.3).
+2. **WP9:** Final documentation across `ROADMAP.md`, `HANDOFF.md`, `VISION.md`, and `CURRICULUM_AUDIT.md`.
 
 ### How each maths lab was built (copy this)
 
@@ -333,7 +333,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 �
 - [x] WP5 Era labels and the timeline
 - [x] WP6.1 Opening hooks
 - [x] WP6.2 "You are standing where they stood"
-- [ ] WP7 Era interludes (EraStrip + four interludes)
+- [x] WP7 Era interludes (EraStrip + four interludes)
 - [ ] WP8.1 `svm`
 - [ ] WP8.2 `gans`
 - [ ] WP8.3 `open-questions`
