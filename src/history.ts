@@ -801,6 +801,24 @@ export const HISTORY: HistoryEntry[] = [
       after: { text: 'CFG became the universal steering dial inside Stable Diffusion, Imagen, DALL·E 2, and video generators, with modern distillation baking guided trajectories directly into few-step students.', source: 'https://arxiv.org/abs/2112.10741' },
     },
   },
+  {
+    id: 'rag',
+    lessonId: 'rag',
+    lab: 'Tune the Retriever',
+    idea: 'Okapi BM25, Dense Passage Retrieval (DPR) & Retrieval-Augmented Generation (RAG)',
+    years: [1994, 2020],
+    when: '1994 · 2020',
+    who: [
+      { text: 'Stephen Robertson, Karen Spärck Jones, and the Okapi team at City University London formulate Okapi BM25 (TREC-3, 1994), becoming the gold-standard lexical ranking function.', source: WP('Okapi_BM25') },
+      { text: 'Vladimir Karpukhin, Barlas Oğuz, Sewon Min, Patrick Lewis, and colleagues at Facebook AI Research publish Dense Passage Retrieval (DPR, April 2020), beating BM25 on open-domain QA with dual-encoder embeddings.', source: 'https://arxiv.org/abs/2004.04906' },
+      { text: 'Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, and colleagues introduce Retrieval-Augmented Generation (RAG, May 2020), coupling a parametric language model with a non-parametric retrieved document index at inference time.', source: 'https://arxiv.org/abs/2005.11401' },
+    ],
+    story: {
+      before: { text: 'Language models froze their world knowledge inside static weights at training time and hallucinated confidently when asked about private, recent, or rare facts.', source: WP('Retrieval-augmented_generation') },
+      this: { text: 'Retrieving relevant source passages at query time and pasting them into the prompt grounded generation in verifiable, instantly updatable documents without retraining.', source: 'https://arxiv.org/abs/2005.11401' },
+      after: { text: 'Hybrid lexical-plus-vector RAG pipelines with rerankers now underpin enterprise search, customer support assistants, and codebase Q&A across production AI.', source: WP('Retrieval-augmented_generation') },
+    },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */

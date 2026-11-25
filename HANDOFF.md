@@ -214,7 +214,7 @@ The owner asked for this next, in a fresh session. `docs/LAB_IMPROVEMENTS.md` re
 - [x] autoencoders · The Face Printer
 - [x] diffusion · Spend the Step Budget
 - [x] guidance · Tune the Guidance
-- [ ] rag · Tune the Retriever
+- [x] rag · Tune the Retriever
 - [ ] tool-calling · Harden the Agent Pipeline
 - [ ] evaluation · Size Your Eval Suite
 
