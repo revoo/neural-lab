@@ -262,8 +262,13 @@ export function ScheduleDesigner() {
   const ref = useMemo(() => ({ constant: bestPeak(DATA, STATS, 'constant', RACE_T, B, SEEDS, GRID), cosine: bestPeak(DATA, STATS, 'cosine', RACE_T, B, SEEDS, GRID) }), []);
   const sched = useMemo(() => makeSchedule('custom', 0, knots.map((k) => 10 ** k)), [knots]);
   const score = useMemo(() => meanFinalExcess(DATA, STATS, sched, RACE_T, B, SEEDS), [sched]);
-  const curve = useMemo(() => meanCurve(sched, RACE_T, SEEDS.slice(0, 10), 4), [sched]);
+  const curve = useMemo(() => meanCurve(sched, RACE_T, SEEDS, 4), [sched]);
+  // Every seeded run, drawn faintly behind the average, so the spread between runs is visible.
+  const seedRuns = useMemo(() => SEEDS.map((seed) => train(DATA, STATS, sched, RACE_T, B, seed, [0, 10], 4).losses.map((l) => l - BEST.loss)), [sched]);
   const ok = score < GOAL;
+  const solvedOnce = best !== null || ok;
+  const cosineSched = useMemo(() => makeSchedule('cosine', ref.cosine.peak), [ref]);
+  const cosineCurve = useMemo(() => (solvedOnce ? meanCurve(cosineSched, RACE_T, SEEDS, 4) : null), [solvedOnce, cosineSched]);
   useEffect(() => {
     if (ok) setBest((b) => (b === null ? score : Math.min(b, score)));
   }, [ok, score]);
@@ -303,6 +308,19 @@ export function ScheduleDesigner() {
                 <text x={x(0) + 4} y={y(0) + 12} className="plot-label">
                   step size
                 </text>
+                {solvedOnce && (
+                  <polyline
+                    points={Array.from({ length: 101 }, (_, k) => {
+                      const t = (k / 100) * (RACE_T - 1);
+                      return `${x(t).toFixed(1)},${y(Math.max(-3, Math.log10(Math.max(1e-6, cosineSched(t, RACE_T))))).toFixed(1)}`;
+                    }).join(' ')}
+                    fill="none"
+                    stroke="var(--c-b)"
+                    strokeWidth={2}
+                    strokeDasharray="5 4"
+                    opacity={0.8}
+                  />
+                )}
                 <polyline
                   points={Array.from({ length: 101 }, (_, k) => {
                     const t = (k / 100) * (RACE_T - 1);
@@ -327,7 +345,23 @@ export function ScheduleDesigner() {
           </Plot>
         </div>
         <div className="widget-col" style={{ flex: '1 1 300px' }}>
-          <LogChart T={RACE_T} lo={-2} hi={3} yLabel="above the best loss" width={320} height={170} series={[{ color: 'var(--c-grad)', ys: curve }]} marks={[{ y: GOAL, label: `goal ${GOAL}` }]} />
+          <LogChart
+            T={RACE_T}
+            lo={-2}
+            hi={3}
+            yLabel="above the best loss"
+            width={320}
+            height={170}
+            series={[
+              ...seedRuns.map((ys) => ({ color: 'color-mix(in srgb, var(--c-grad) 14%, transparent)', ys })),
+              ...(cosineCurve ? [{ color: 'var(--c-b)', ys: cosineCurve, dash: '5 4' }] : []),
+              { color: 'var(--c-grad)', ys: curve },
+            ]}
+            marks={[{ y: GOAL, label: `goal ${GOAL}` }]}
+          />
+          <div className="muted" style={{ fontSize: 12 }}>
+            Faint lines: each of the {SEEDS.length} seeded runs; bold: their average.{cosineCurve ? ' Dashed: the best cosine schedule (unlocked by your solve), in both charts.' : ''}
+          </div>
           <div className="readout" style={{ fontSize: 12.5 }}>
             <span className="k">your schedule      </span> <strong>{Number.isFinite(score) ? score.toFixed(3) : 'diverged'}</strong>
             {'\n'}
