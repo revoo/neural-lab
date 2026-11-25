@@ -4,7 +4,7 @@ An interactive place to understand AI from first principles — Feynman-style ex
 
 Every visualisation computes real numbers: real gradients, real softmax, real networks trained live in the browser.
 
-New contributor or agent? Start with **[`HANDOFF.md`](HANDOFF.md)**. Agent instructions: [`AGENTS.md`](AGENTS.md) (any agent) and [`CLAUDE.md`](CLAUDE.md) (Claude Code), kept in sync.
+New contributor or agent? Start with **[`HANDOFF.md`](HANDOFF.md)**. Agent instructions: [`AGENTS.md`](AGENTS.md) (any agent; `AGENT.md` links to it) and [`CLAUDE.md`](CLAUDE.md) (Claude Code), identical text checked by a test.
 
 ## Running it
 
