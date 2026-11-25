@@ -14,7 +14,8 @@ _Last updated: lab-improvement treatment completed for all 21 post-review labs (
 - **Runtime:** Node 22 reproduces the existing clinic and regularisation training fixtures on this machine. Node 24.22.3 diverges on both. Run CPU-heavy browser checks separately from the full suite to avoid timing out the existing BPE search.
 - **Done [Codex Meridian 6]:** WP1.8 Lab 4, Build the Pipeline (`matrix-multiplication`).
 - **Lab 4 tuning:** The minimum for each cost brief is unique with the specified parts, so the minimum is an optional goal after a working chain. The grid target includes scaling to give several equally short recipes.
-- **Next:** WP1.8 Lab 5, The Sensitivity Probe.
+- **Done [Codex Meridian 6]:** WP1.8 Lab 5, The Sensitivity Probe (`derivatives`).
+- **Next:** WP1.8 Lab 6, Which Knob, and How Far?.
 - **Deviations from the plan (recorded):** WP1.3's vectors opener quotes the neuron lesson's real example `[4 links, 5 exclamation marks, 0 mentions of your name]` (the plan said `[3, 6]`). WP1.5 skipped the plan's "rotate then shear" Predict: `matrix-multiplication` already asks exactly that. Lab 1's data was re-tuned by random search (the first draft had 227/375 perfect settings), and brief 4's text became "find a second route" because links turned out not to be the easy route. Lab 2's data: two real emails were moved off the spam's angular range so brief 4 (cosine) is solvable. WP1.7 colour audit: Eqs and widgets already agree; `probability`'s SoftmaxLab colours by class rather than by role and was left alone.
 - **Known follow-ups:** `similarity-search` says "In the RAG lesson we searched…" although RAG comes later (fix in WP2.2); `scaling-laws` ends "Next: Inference & Hardware" (fix in WP2.1, when RL moves in between); the vectors lesson's "A trap hiding in plain sight" section now overlaps Lab 1's brief 3 (trim in WP1.9).
 - **Open questions for the owner:** none so far.
@@ -147,6 +148,8 @@ Session 3 (owner's order): first a **Matrix theme**, then resume "Next steps" wi
 1. Resume the curriculum plan at WP1.8 Lab 4. Use the progress checklist in `HANDOFF.md` and the lab specifications in `docs/CURRICULUM_PLAN.md`.
 
 ## Labs built so far
+
+- **The Sensitivity Probe** (derivatives).
 
 - **Build the Pipeline** (matrix-multiplication).
 

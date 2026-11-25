@@ -36,6 +36,20 @@ const WP = (page: string) => `https://en.wikipedia.org/wiki/${page}`;
 
 export const HISTORY: HistoryEntry[] = [
   {
+    id: "probe",
+    lessonId: "derivatives",
+    lab: "The Sensitivity Probe",
+    idea: "Two independent approaches to calculus",
+    years: [1710, 1716],
+    when: "1710–1716",
+    who: [{ text: "Isaac Newton and Gottfried Wilhelm Leibniz independently developed calculus in Europe.", source: WP("Leibniz–Newton_calculus_controversy") }],
+    story: {
+      before: { text: "Newton’s surviving manuscript from 1666 records early work on his method of fluxions.", source: WP("Leibniz–Newton_calculus_controversy") },
+      this: { text: "Leibniz published his differential calculus in 1684.", source: WP("Leibniz–Newton_calculus_controversy") },
+      after: { text: "The question of priority later prompted a dispute over whether Leibniz had developed calculus independently.", source: WP("Leibniz–Newton_calculus_controversy") },
+    },
+  },
+  {
     id: 'pipeline',
     lessonId: 'matrix-multiplication',
     lab: 'Build the Pipeline',

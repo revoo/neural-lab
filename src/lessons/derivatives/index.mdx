@@ -1,3 +1,4 @@
+import { SensitivityLab } from './SensitivityLab'
 import { TangentExplorer } from './TangentExplorer'
 import { questions } from './quiz'
 
@@ -151,6 +152,28 @@ If the curve is nearly straight near $x$, then for a small nudge you can *predic
 In words: **new output ≈ old output + slope × nudge.** If the loss is 5.0 and its derivative with respect to some weight is −4, then increasing that weight by 0.01 should bring the loss to about $5.0 + (-4)(0.01) = 4.96$.
 
 That one line is the whole justification for gradient descent. It says the derivative is a reliable guide for *small* steps — and silently warns that for big steps, where the curve bends away from its tangent line, the guide stops being reliable.
+
+## Lab: The Sensitivity Probe
+
+The slope tells you how much an output moves when you nudge its input. In this lab you can ask for the output at any setting. The curve itself stays hidden, so every estimate starts with a choice about where to look.
+
+<LabJob>A colleague hands you a black box. Measure its sensitivity where they plan to run it.</LabJob>
+
+<SensitivityLab />
+
+<Deeper title="Debrief: how close should the probes be?" tag="Spoiler">
+
+Putting the probes on either side of a smooth point lets some of the curvature cancel. At the corner, that same trick averages the two different slopes. Measure each side on its own.
+
+The lower-precision machine adds another limit. In a search over powers of ten, centred steps of 0.01 and 0.001 both met the tolerance. At a step of $10^{-7}$, rounding error was already too large. Look for the valley in the error plot.
+
+</Deeper>
+
+<ForReal>When you implement a backward pass, a numerical probe gives you an independent measurement of the slope. Spacing the probes carefully makes the comparison much more informative.</ForReal>
+
+<HistoryCard id="probe" />
+
+You've just used the same idea as the gradient checks in <LessonLink to="network-from-scratch">building a network from scratch</LessonLink>.
 
 ## In code
 
