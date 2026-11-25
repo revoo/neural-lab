@@ -1,3 +1,4 @@
+import { GearLab } from './GearLab'
 import { ChainExplorer } from './ChainExplorer'
 import { PathsDemo } from './PathsDemo'
 import { questions } from './quiz'
@@ -123,6 +124,26 @@ $$
 <PathsDemo />
 
 This "multiply along paths, add across paths" rule is the complete story. Every derivative of every neural network, no matter how large, is assembled from it.
+
+## Lab: Find the Slipping Gear
+
+A turn near the start of a pipeline may barely reach the end. Inspect the slope of each stage and trace what happens to a small change on its way downstream.
+
+<LabJob>Find the knob that moves the output furthest, then use a single adjustment to reach a new target.</LabJob>
+
+<GearLab />
+
+<Deeper title="Debrief: keep the downstream product" tag="Spoiler">
+
+Each sensitivity needs the slopes of the stages that follow it. Calculating each separately takes ten multiplications. Reusing the downstream products takes seven. The final knob needs only its own local slope. Moving backwards, the downstream product grows by one factor at a time.
+
+</Deeper>
+
+<ForReal>A neural network’s backward pass uses the same reuse. When a sigmoid saturates, a tiny slope multiplies every derivative that passes through it.</ForReal>
+
+<HistoryCard id="slipping-gear" />
+
+You've just walked backwards through a miniature <LessonLink to="backpropagation">backpropagation</LessonLink> calculation and seen how a <LessonLink to="vanishing-gradients">vanishing gradient</LessonLink> cuts off earlier stages.
 
 ## In code: the backward walk
 

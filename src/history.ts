@@ -36,6 +36,20 @@ const WP = (page: string) => `https://en.wikipedia.org/wiki/${page}`;
 
 export const HISTORY: HistoryEntry[] = [
   {
+    id: "slipping-gear",
+    lessonId: "chain-rule",
+    lab: "Find the Slipping Gear",
+    idea: "Local slopes and the backward walk",
+    years: [1970],
+    when: "1970",
+    who: [{ text: "Gottfried Wilhelm Leibniz mentioned the chain rule in a 1676 memoir.", source: WP("Chain_rule") }],
+    story: {
+      before: { text: "Leibniz considered the derivative of the square root of a quadratic expression.", source: WP("Chain_rule") },
+      this: { text: "He treated the expression as the composition of the square root and the quadratic.", source: WP("Chain_rule") },
+      after: { text: "Seppo Linnainmaa described efficient backward propagation of derivatives in his 1970 master’s thesis.", source: WP("Seppo_Linnainmaa") },
+    },
+  },
+  {
     id: "probe",
     lessonId: "derivatives",
     lab: "The Sensitivity Probe",
