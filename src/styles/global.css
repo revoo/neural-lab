@@ -805,3 +805,103 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 0; }
 @keyframes tetris-drop { from { transform: translateY(-110%); } to { transform: translateY(0); } }
 .token-fresh { animation: token-fresh 600ms ease-out; }
 @keyframes token-fresh { from { transform: scale(1.25); } to { transform: scale(1); } }
+
+/* Era strip (src/components/EraStrip.tsx) */
+.era-strip {
+  margin: 18px 0 24px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+.era-strip-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.era-strip-range {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+.era-strip-eras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.era-strip-era {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  border: 1px solid var(--border);
+  text-decoration: none;
+}
+.era-strip-era:hover { text-decoration: none; border-color: var(--accent); }
+.era-strip-era.kind-founding { background: color-mix(in srgb, var(--accent) 12%, var(--bg-sunken)); }
+.era-strip-era.kind-winter { background: color-mix(in srgb, var(--c-b) 14%, var(--bg-sunken)); }
+.era-strip-era.kind-boom { background: color-mix(in srgb, var(--c-good) 14%, var(--bg-sunken)); }
+.era-strip-all {
+  margin-left: auto;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.era-strip-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.era-strip-list > li {
+  max-width: 100%;
+}
+.era-strip-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.35;
+  max-width: 100%;
+  text-decoration: none;
+}
+.era-strip-item:hover {
+  text-decoration: none;
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+.era-strip-item.is-milestone {
+  border-left: 3px solid var(--accent);
+}
+.era-strip-item.is-history {
+  border-left: 3px solid var(--c-a);
+}
+.era-strip-year {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--accent-text);
+  font-variant-numeric: tabular-nums;
+}
+.era-strip-label {
+  overflow-wrap: anywhere;
+}

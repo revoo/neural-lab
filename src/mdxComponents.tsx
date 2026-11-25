@@ -15,6 +15,7 @@ import { Eq } from './components/Eq';
 import { LabJob, ForReal } from './components/LabJob';
 import { HistoryCard } from './components/HistoryCard';
 import { RivalTable } from './components/RivalTable';
+import { EraStrip } from './components/EraStrip';
 
 export const mdxComponents = {
   Callout,
@@ -39,5 +40,6 @@ export const mdxComponents = {
   ForReal,
   HistoryCard,
   RivalTable,
+  EraStrip,
   a: (p: ComponentProps<'a'>) => <a {...p} target={p.href?.startsWith('http') ? '_blank' : undefined} rel={p.href?.startsWith('http') ? 'noreferrer' : undefined} />,
 };
