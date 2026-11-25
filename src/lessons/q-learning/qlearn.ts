@@ -593,7 +593,7 @@ export const QLAB_BRIEFS: QLabBrief[] = [
       '4×5 maze with a wall and −10 pit, tight budget of only 25 training episodes (averaged over 10 seeds). Tune the agent to reach greedy discounted evaluation return ≥ +4.30.',
     metricLabel: 'Greedy eval V(S)',
     target: 4.3,
-    hint: 'With only 25 episodes, a tiny learning rate α = 0.1 propagates rewards too slowly from the Goal back to Start. Pair a responsive α with optimistic init (Q₀ = +5) or active exploration.',
+    hint: 'Look at how many seeds reach the goal at all. After only 25 episodes, the goal’s value has to travel back square by square to the start: what sets how far each update moves a Q-value, and what would make the agent try moves it has not tried yet?',
   },
   {
     id: 'safe-cliff',
@@ -602,7 +602,7 @@ export const QLAB_BRIEFS: QLabBrief[] = [
       '4×8 Cliff Walking with a mandatory 10% safety floor on exploration (ε ≥ 0.10, 250 episodes, 10 seeds). Beat average ONLINE return ≥ −17.0 during episodes 101–250.',
     metricLabel: 'Online return (ep 101–250)',
     target: -17.0,
-    hint: 'Because exploration stays at least 10%, off-policy Q-learning keeps hugging the cliff and falling in (−50!). Switch to on-policy SARSA so the agent prices in its own exploration risk.',
+    hint: 'Compare the online return with the greedy-path return. If the greedy path is fine but the online return is poor, the agent has learned the short route along the edge and keeps falling off while it explores. Which update rule values a square by what the agent will actually do next, random moves included?',
   },
   {
     id: 'shifting-goal',
@@ -611,7 +611,7 @@ export const QLAB_BRIEFS: QLabBrief[] = [
       'At episode 100, the old Goal at (0,4) shrinks from +10 down to +2 while a new +10 Vault opens at (3,4)! Achieve average online return ≥ +5.50 across episodes 141–220 (10 seeds).',
     metricLabel: 'Post-shift return (ep 141–220)',
     target: 5.5,
-    hint: 'With Q₀ = 0, decaying ε or tiny ε = 0.02 gets trapped on the downgraded +2 corner — you need constant ε = 0.15 AND a responsive α = 0.6 to rediscover the new +10 Vault. (Or try optimistic init Q₀ = +5 to keep unvisited paths enticing!)',
+    hint: 'Compare the pre-shift and post-shift returns. A post-shift return near +2 means the agent still walks to the old corner. After 100 episodes of habit, what would make it go back and check routes it has already judged, and how quickly can its estimates change when it does?',
   },
 ];
 

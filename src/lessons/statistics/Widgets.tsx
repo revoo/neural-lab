@@ -1,6 +1,10 @@
 // authored-by: Claude Opus 5.5
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Widget } from '../../components/Widget';
+import { LabShell, useLabProgress } from '../../components/LabShell';
+import { useMachineLog } from '../../components/MachineLog';
+import { useFramePlayer } from '../../components/motion';
+import { createRng } from '../../lib/rng';
 import { Segmented, Slider } from '../../components/controls';
 import { Handle, Plot, usePlot } from '../../components/plot';
 import {
@@ -20,7 +24,9 @@ import {
   median,
   normalPdf,
   probLooksBetter,
+  recipeChangeLine,
   recipeDist,
+  rollRecipe,
   solveWorkshop,
   sumOf,
   variance,
@@ -356,6 +362,9 @@ export function TestSetNoise() {
 // ------------------------------------------------------------------ 4. Lab: the dice workshop
 
 const LAB_KEY = 'nl-stats-dice-lab-v1';
+const PROGRESS_KEY = 'nl-stats-dice-progress-v1';
+const ROLLS = 1000;
+const ROLL_FRAMES = 20;
 type Saved = Record<string, { r: Recipe; solved: boolean; optimal: boolean }>;
 const emptyRecipe = (): Recipe => ({ counts: { d2: 0, d4: 0, d6: 0, d8: 0, d12: 0, d20: 0 }, plus: 0 });
 
@@ -393,13 +402,39 @@ const describeRecipe = (r: Recipe) => {
 export function DiceWorkshop() {
   const [saved, setSaved] = useState<Saved>(() => loadSaved());
   const [bi, setBi] = useState(0);
-  const [showOpt, setShowOpt] = useState(false);
+  const progress = useLabProgress(PROGRESS_KEY, () => ({
+    solved: Object.fromEntries(WORKSHOP.map((b) => [b.id, saved[b.id].solved])),
+    optimal: Object.fromEntries(WORKSHOP.map((b) => [b.id, saved[b.id].optimal])),
+  }));
+  const log = useMachineLog();
   const brief = WORKSHOP[bi];
   const entry = saved[brief.id];
   const r = entry.r;
   const check = checkRecipe(brief, r);
   const d = useMemo(() => (check.dice > 0 ? recipeDist(r) : null), [r, check.dice]);
-  const solution = useMemo(() => (entry.solved ? solveWorkshop(brief) : null), [brief, entry.solved]);
+  const solution = useMemo(() => (progress.solved[brief.id] || check.pass ? solveWorkshop(brief) : null), [brief, progress.solved, check.pass]);
+  const optimal = !!solution && check.pass && check.dice === solution.fewest && Math.abs(check.gap - solution.best.gap) < 1e-12;
+
+  // Roll: throw the recipe 1,000 times, 50 at a time, and watch the histogram grow towards the exact bars.
+  const [rolls, setRolls] = useState<{ key: string; totals: number[]; shown: number } | null>(null);
+  const recipeKey = `${brief.id}:${describeRecipe(r)}`;
+  const rollSeed = useRef(1);
+  const player = useFramePlayer(ROLL_FRAMES, 45, (i) => setRolls((cur) => (cur ? { ...cur, shown: Math.round((cur.totals.length * i) / ROLL_FRAMES) } : cur)));
+  const roll = () => {
+    const totals = rollRecipe(r, ROLLS, createRng(1000 + rollSeed.current++));
+    setRolls({ key: recipeKey, totals, shown: 0 });
+    player.start();
+    const m = totals.reduce((a, b) => a + b, 0) / totals.length;
+    const sd = Math.sqrt(totals.reduce((a, b) => a + (b - m) ** 2, 0) / totals.length);
+    log.push(`rolled ${describeRecipe(r)} ${ROLLS.toLocaleString()} times: sample mean ${m.toFixed(2)}, SD ${sd.toFixed(2)} (exact ${check.mean.toFixed(2)}, ${check.sd.toFixed(2)}; a 1,000-throw mean typically wobbles by about ±${(check.sd / Math.sqrt(ROLLS)).toFixed(2)})`);
+  };
+  const live = rolls && rolls.key === recipeKey ? rolls : null;
+  const sample = useMemo(() => {
+    if (!live || !d) return null;
+    const p = new Array<number>(d.p.length).fill(0);
+    for (let i = 0; i < live.shown; i++) p[live.totals[i] - d.min] += 1;
+    return { p: p.map((c) => c / Math.max(1, live.shown)), n: live.shown };
+  }, [live, d]);
 
   const persist = (next: Saved) => {
     setSaved(next);
@@ -411,12 +446,8 @@ export function DiceWorkshop() {
   };
   const update = (nr: Recipe) => {
     const c = checkRecipe(brief, nr);
-    let optimal = entry.optimal;
-    if (c.pass) {
-      const sol = solveWorkshop(brief);
-      optimal = optimal || (c.dice === sol.fewest && Math.abs(c.gap - sol.best.gap) < 1e-12);
-    }
-    persist({ ...saved, [brief.id]: { r: nr, solved: entry.solved || c.pass, optimal } });
+    log.push(recipeChangeLine(r, nr) + (c.dice ? ` · out of place ${pct(c.gap)}` : '') + (c.pass ? ' · meets the brief' : ''), c.pass ? 'good' : 'info');
+    persist({ ...saved, [brief.id]: { ...entry, r: nr } });
   };
   const setCount = (id: DieId, delta: number) => {
     const c = Math.min(MAX_EACH, Math.max(0, r.counts[id] + delta));
@@ -425,32 +456,61 @@ export function DiceWorkshop() {
   const setPlus = (delta: number) => update({ ...r, plus: Math.max(-99, Math.min(99, r.plus + delta)) });
 
   const tick = (ok: boolean) => <span style={{ color: ok ? 'var(--c-good)' : 'var(--c-bad)', fontWeight: 700 }}>{ok ? '✓' : '✗'}</span>;
+  const yMax = d ? Math.max(...d.p, ...(sample ? sample.p : [0])) * 1.15 : 1;
 
   return (
-    <Widget
+    <LabShell
       title="Lab: The Dice Workshop"
-      wide
       caption={
         <>
-          Build a random number generator out of dice (d2 is a coin that shows 1 or 2). Pick how many of each to roll and add up; in some briefs you may also add a constant. The distribution, its mean, its SD and how bell-shaped it is are all computed exactly as you go. Your recipes are saved in this browser.
+          Build a random number generator out of dice (d2 is a coin that shows 1 or 2). Pick how many of each to roll and add up; in some briefs you may also add a constant. The distribution, its mean, its SD and how bell-shaped it is are all computed exactly as you go; <strong>Roll</strong> throws your recipe 1,000 times so you can watch real throws pile up towards the exact bars. Your recipes are saved in this browser.
         </>
       }
+      briefs={WORKSHOP.map((b) => ({
+        id: b.id,
+        tab: b.title.split(' · ')[0],
+        title: b.title,
+        text: (
+          <>
+            {b.story}
+            <div style={{ fontSize: 13.5, color: 'var(--text-muted)', marginTop: 6 }}>
+              Mean exactly {b.mean} · SD from {b.sdLo} to {b.sdHi} · at most {pct(b.maxGap, 1)} of the probability out of place compared with a bell
+            </div>
+          </>
+        ),
+      }))}
+      active={bi}
+      onSelect={setBi}
+      progress={progress}
+      passing={check.pass}
+      optimal={optimal}
+      status={
+        check.dice === 0
+          ? 'Means add and variances add: that’s the whole trick. Each die’s mean and variance are listed next to it.'
+          : check.pass
+            ? optimal
+              ? 'Meets the brief with the fewest possible dice and, among those, the most bell-like shape. That’s the exhaustive optimum.'
+              : 'Meets the brief. Optional: can you do it with fewer dice — and among recipes with that few, find the most bell-shaped?'
+            : !check.meanOk
+              ? `The mean is ${check.mean.toFixed(2)}. Means add: each die contributes (sides + 1)/2.`
+              : !check.sdOk
+                ? `The SD is ${check.sd.toFixed(3)}. SDs don’t add — variances do. Add up the variances, then take the square root.`
+                : `Right mean and spread, but ${pct(check.gap)} of the probability is out of place: too few dice to make a bell, or one die dominating the rest.`
+      }
+      reveal={
+        solution
+          ? {
+              label: 'the exhaustive search',
+              content: (
+                <>
+                  Every recipe with up to {MAX_EACH} of each die was tried (9⁶ = 531,441 combinations, with the constant set to hit the mean where allowed): <strong>{solution.passing.length}</strong> meet the brief. The fewest dice that work is <strong>{solution.fewest}</strong> ({solution.fewestRecipes.length} recipe{solution.fewestRecipes.length === 1 ? '' : 's'}), and the most bell-shaped of those is <strong>{describeRecipe(solution.best.r)}</strong> ({pct(solution.best.gap)} out of place).
+                </>
+              ),
+            }
+          : undefined
+      }
+      log={{ lines: log.lines, onClear: log.clear, empty: 'Change the recipe or press Roll: each change is logged here.' }}
     >
-      <Segmented
-        value={bi}
-        onChange={(i) => {
-          setBi(i);
-          setShowOpt(false);
-        }}
-        options={WORKSHOP.map((b, i) => ({ value: i, label: `${saved[b.id].solved ? '✓ ' : ''}${b.title.split(' · ')[0]}` }))}
-      />
-      <div style={{ margin: '12px 0' }}>
-        <div style={{ fontWeight: 650, marginBottom: 4 }}>{brief.title}</div>
-        <div style={{ fontSize: 14.5, lineHeight: 1.55 }}>{brief.story}</div>
-        <div style={{ fontSize: 13.5, color: 'var(--text-muted)', marginTop: 6 }}>
-          Mean exactly {brief.mean} · SD from {brief.sdLo} to {brief.sdHi} · at most {pct(brief.maxGap, 1)} of the probability out of place compared with a bell
-        </div>
-      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: 16, alignItems: 'start' }}>
         <div style={{ display: 'grid', gap: 8 }}>
           {DICE.map((die) => (
@@ -476,6 +536,9 @@ export function DiceWorkshop() {
           )}
           <div className="btn-row">
             <button type="button" className="btn" onClick={() => update(emptyRecipe())}>Clear</button>
+            <button type="button" className="btn primary" onClick={roll} disabled={check.dice === 0 || player.running}>
+              {player.running ? 'Rolling…' : `Roll ${ROLLS.toLocaleString()} times`}
+            </button>
           </div>
           <div className="readout">
             <span className="k">recipe </span>
@@ -502,39 +565,37 @@ export function DiceWorkshop() {
         </div>
         <div style={{ display: 'grid', gap: 10 }}>
           {d ? (
-            <Plot width={440} height={230} x={[d.min - 0.5, d.min + d.p.length - 0.5]} y={[0, Math.max(...d.p) * 1.15]} xLabel="total" ariaLabel="Exact distribution of the recipe">
+            <Plot width={440} height={230} x={[d.min - 0.5, d.min + d.p.length - 0.5]} y={[0, yMax]} xLabel="total" ariaLabel="Exact distribution of the recipe">
               <Bars d={d} color={check.pass ? 'var(--c-good)' : 'var(--c-a)'} />
               <Bell mu={check.mean} sigma={check.sd} />
+              {sample && <SampleMarks d={d} p={sample.p} />}
             </Plot>
           ) : (
             <div className="live-note">Add some dice to see the distribution.</div>
           )}
-          <div>{check.pass ? <span className="status good">Meets the brief</span> : <span className="status neutral">Not yet</span>}</div>
-          <div className="live-note">
-            {check.dice === 0
-              ? 'Means add and variances add: that’s the whole trick. Each die’s mean and variance are listed next to it.'
-              : check.pass
-                ? entry.optimal
-                  ? 'Meets the brief with the fewest possible dice and, among those, the most bell-like shape. That’s the exhaustive optimum.'
-                  : 'Meets the brief. Optional: can you do it with fewer dice — and among recipes with that few, find the most bell-shaped?'
-                : !check.meanOk
-                  ? `The mean is ${check.mean.toFixed(2)}. Means add: each die contributes (sides + 1)/2.`
-                  : !check.sdOk
-                    ? `The SD is ${check.sd.toFixed(3)}. SDs don’t add — variances do. Add up the variances, then take the square root.`
-                    : `Right mean and spread, but ${pct(check.gap)} of the probability is out of place: too few dice to make a bell, or one die dominating the rest.`}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+            {check.pass ? <span className="status good">Meets the brief</span> : <span className="status neutral">Not yet</span>}
+            {sample && (
+              <span className="muted" style={{ fontSize: 12.5 }}>
+                Dashes: the share of {sample.n.toLocaleString()} real throws landing on each total. Bars: the exact probabilities.
+              </span>
+            )}
           </div>
-          {entry.solved && solution && (
-            <div>
-              <button type="button" className="btn" onClick={() => setShowOpt((s) => !s)}>{showOpt ? 'Hide' : 'Show'} the exhaustive search</button>
-              {showOpt && (
-                <div className="live-note" style={{ marginTop: 8 }}>
-                  Every recipe with up to {MAX_EACH} of each die was tried (9⁶ = 531,441 combinations, with the constant set to hit the mean where allowed): <strong>{solution.passing.length}</strong> meet the brief. The fewest dice that work is <strong>{solution.fewest}</strong> ({solution.fewestRecipes.length} recipe{solution.fewestRecipes.length === 1 ? '' : 's'}), and the most bell-shaped of those is <strong>{describeRecipe(solution.best.r)}</strong> ({pct(solution.best.gap)} out of place).
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
-    </Widget>
+    </LabShell>
+  );
+}
+
+/** Sampled shares as short horizontal dashes on top of the exact bars. */
+function SampleMarks({ d, p }: { d: Dist; p: number[] }) {
+  const { x, y } = usePlot();
+  const w = Math.max(3, Math.abs(x(1) - x(0)) * 0.7);
+  return (
+    <g>
+      {p.map((q, i) =>
+        q <= 0 ? null : <rect key={i} x={x(d.min + i) - w / 2} y={y(q) - 1.5} width={w} height={3} rx={1.5} fill="var(--text)" />,
+      )}
+    </g>
   );
 }

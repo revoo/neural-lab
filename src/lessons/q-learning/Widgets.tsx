@@ -1,6 +1,8 @@
 // authored-by: Gemini Antigravity
 import { useMemo, useState } from 'react';
 import { Widget } from '../../components/Widget';
+import { LabShell, useLabProgress } from '../../components/LabShell';
+import { useMachineLog } from '../../components/MachineLog';
 import { Segmented, Slider } from '../../components/controls';
 import { createRng } from '../../lib/rng';
 import {
@@ -689,6 +691,7 @@ export function CliffWalkingRace() {
 // ------------------------------------------------------------------ 4. Lab: Tune the Q-Learner
 
 const QLAB_STORAGE_KEY = 'nl-qlearn-lab-v1';
+const QLAB_PROGRESS_KEY = 'nl-qlearn-lab-progress-v1';
 
 const DEFAULT_CFG: QLabConfig = {
   algo: 'qlearning',
@@ -710,32 +713,35 @@ function loadQLabConfigs(): Record<string, QLabConfig> {
   return {};
 }
 
+const fmtQ = (v: number) => (v >= 0 ? `+${v.toFixed(2)}` : v.toFixed(2));
+const cfgLabel = (c: QLabConfig) =>
+  `${c.algo === 'qlearning' ? 'Q-learning' : 'SARSA'}, α ${c.alpha}, ε ${c.epsSchedule === 'decay' ? 'decaying' : c.epsSchedule.replace('const-', '')}, Q₀ ${c.qInit}`;
+
 export function QLearnerLab() {
   const [briefIdx, setBriefIdx] = useState(0);
   const [configs, setConfigs] = useState<Record<string, QLabConfig>>(() => loadQLabConfigs());
-  const [showHint, setShowHint] = useState(false);
+  // Seeded from the saved settings, so learners who solved a brief before this frame existed keep their ticks.
+  const progress = useLabProgress(QLAB_PROGRESS_KEY, () => ({
+    solved: Object.fromEntries(QLAB_BRIEFS.map((b) => [b.id, evaluateQLabConfig(b.id, configs[b.id] ?? DEFAULT_CFG).passed])),
+  }));
+  const log = useMachineLog();
 
   const brief = QLAB_BRIEFS[briefIdx];
   const cfg = configs[brief.id] ?? DEFAULT_CFG;
 
-  const exhaustiveByBrief = useMemo(
-    () => QLAB_BRIEFS.map((b) => solveQLabBriefExhaustive(b.id)),
-    [],
-  );
-
-  const evalsByBrief = useMemo(
-    () => QLAB_BRIEFS.map((b) => evaluateQLabConfig(b.id, configs[b.id] ?? DEFAULT_CFG)),
-    [configs],
-  );
-
-  const curEval = evalsByBrief[briefIdx];
-  const curOpt = exhaustiveByBrief[briefIdx];
-  const isOpt = curEval.score >= curOpt.bestScore - 0.01;
+  const curOpt = useMemo(() => solveQLabBriefExhaustive(brief.id), [brief.id]);
+  const curEval = useMemo(() => evaluateQLabConfig(brief.id, cfg), [brief.id, cfg]);
+  const isOpt = curEval.passed && curEval.score >= curOpt.bestScore - 0.01;
 
   const updateCfg = (patch: Partial<QLabConfig>) => {
     const nextCfg = { ...cfg, ...patch };
     const next = { ...configs, [brief.id]: nextCfg };
     setConfigs(next);
+    const ev = evaluateQLabConfig(brief.id, nextCfg);
+    log.push(
+      `${brief.title.split(' · ')[0]} · ${cfgLabel(nextCfg)} → ${brief.metricLabel} ${fmtQ(ev.score)} (was ${fmtQ(curEval.score)}) · ${ev.secondaryLabel.toLowerCase()} ${ev.secondaryValue}${ev.passed ? ' · passes' : ''}`,
+      ev.passed ? 'good' : ev.score < curEval.score ? 'bad' : 'info',
+    );
     try {
       localStorage.setItem(QLAB_STORAGE_KEY, JSON.stringify(next));
     } catch {
@@ -744,37 +750,43 @@ export function QLearnerLab() {
   };
 
   return (
-    <Widget
+    <LabShell
       title="Lab: Tune the Q-Learner"
-      wide
       caption={
         <>
-          Configure algorithm, learning rate <code>α</code>, exploration schedule <code>ε</code>, and initial optimism <code>Q₀</code> across three realistic briefs. Every setting is averaged over 10 fixed seeds and checked against the exhaustive optimum across all <strong>36 grid combinations</strong>. Progress saves automatically.
+          Configure algorithm, learning rate <code>α</code>, exploration schedule <code>ε</code>, and initial optimism <code>Q₀</code> across three realistic briefs. Every setting is averaged over 10 fixed seeds; the optional goal is the best of all <strong>36 grid combinations</strong>, found by trying every one. Progress saves automatically.
         </>
       }
+      briefs={QLAB_BRIEFS.map((b) => ({ id: b.id, tab: b.title.split(' · ')[1] ?? b.title, title: b.title, text: b.description }))}
+      active={briefIdx}
+      onSelect={setBriefIdx}
+      progress={progress}
+      passing={curEval.passed}
+      optimal={isOpt}
+      status={
+        isOpt
+          ? `Exhaustive grid optimum matched (${fmtQ(curEval.score)})! Out of all 36 combinations, ${curOpt.passingCount} pass and yours ties the top score.`
+          : curEval.passed
+            ? `Brief passed (${fmtQ(curEval.score)} vs target ${fmtQ(brief.target)})! Optional challenge: can you reach the exhaustive grid best of ${fmtQ(curOpt.bestScore)}?`
+            : `Not quite yet (${fmtQ(curEval.score)} vs target ${fmtQ(brief.target)}). Read the two numbers above: they say which failure you are looking at.`
+      }
+      hint={brief.hint}
+      actions={
+        <button type="button" className="btn" onClick={() => updateCfg(DEFAULT_CFG)}>
+          Reset brief
+        </button>
+      }
+      reveal={{
+        label: 'the exhaustive grid search',
+        content: (
+          <>
+            All {curOpt.totalConfigs} settings were tried: <strong>{curOpt.passingCount}</strong> pass this brief. The best is <strong>{cfgLabel(curOpt.bestConfig)}</strong> at {fmtQ(curOpt.bestScore)}.
+          </>
+        ),
+      }}
+      log={{ lines: log.lines, onClear: log.clear, empty: 'Change a setting: each 10-seed result is logged here, so you can compare what you tried.' }}
     >
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-        {QLAB_BRIEFS.map((b, i) => {
-          const ev = evalsByBrief[i];
-          const opt = exhaustiveByBrief[i];
-          const bestHit = ev.score >= opt.bestScore - 0.01;
-          return (
-            <button
-              key={b.id}
-              type="button"
-              className={`btn${i === briefIdx ? ' primary' : ''}`}
-              onClick={() => { setBriefIdx(i); setShowHint(false); }}
-            >
-              {bestHit ? '★ ' : ev.passed ? '✓ ' : ''}
-              {b.title}
-            </button>
-          );
-        })}
-      </div>
-
-      <p style={{ margin: '0 0 12px', fontSize: 13.5, color: 'var(--text-muted)' }}>{brief.description}</p>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12, marginBottom: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px, 100%), 1fr))', gap: 12 }}>
         <div style={{ background: 'var(--bg-sunken)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <Segmented<TdAlgo>
             label="Algorithm"
@@ -809,84 +821,26 @@ export function QLearnerLab() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px' }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{brief.metricLabel}</div>
-              <div className="mono" style={{ fontSize: 19, fontWeight: 700, color: curEval.passed ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                {curEval.score >= 0 ? `+${curEval.score.toFixed(2)}` : curEval.score.toFixed(2)}
-              </div>
-              <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-faint)' }}>
-                target ≥ {brief.target >= 0 ? `+${brief.target.toFixed(2)}` : brief.target.toFixed(2)}
-              </div>
+              <div className="mono" style={{ fontSize: 19, fontWeight: 700, color: curEval.passed ? 'var(--c-good)' : 'var(--c-bad)' }}>{fmtQ(curEval.score)}</div>
+              <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-faint)' }}>target ≥ {fmtQ(brief.target)}</div>
             </div>
             <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px' }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{curEval.secondaryLabel}</div>
-              <div className="mono" style={{ fontSize: 19, fontWeight: 700, color: 'var(--c-a)' }}>
-                {curEval.secondaryValue}
-              </div>
-              <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-faint)' }}>
-                10-seed average
-              </div>
+              <div className="mono" style={{ fontSize: 19, fontWeight: 700, color: 'var(--c-a)' }}>{curEval.secondaryValue}</div>
+              <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-faint)' }}>10-seed average</div>
             </div>
           </div>
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            <span
-              className="mono"
-              style={{
-                fontSize: 11.5,
-                padding: '3px 8px',
-                borderRadius: 999,
-                border: `1px solid ${curEval.passed ? 'var(--c-good)' : 'var(--border)'}`,
-                color: curEval.passed ? 'var(--c-good)' : 'var(--text-muted)',
-                background: curEval.passed ? 'color-mix(in srgb, var(--c-good) 12%, var(--bg))' : 'var(--bg)',
-              }}
-            >
-              {curEval.passed ? '✓ Brief passed' : '○ Target not met'}
-            </span>
-            <span
-              className="mono"
-              style={{
-                fontSize: 11.5,
-                padding: '3px 8px',
-                borderRadius: 999,
-                border: `1px solid ${isOpt ? 'var(--accent)' : 'var(--border)'}`,
-                color: isOpt ? 'var(--accent-text)' : 'var(--text-muted)',
-                background: isOpt ? 'color-mix(in srgb, var(--accent) 14%, var(--bg))' : 'var(--bg)',
-              }}
-            >
-              {isOpt ? '★ Grid optimum matched' : `Grid best: ${curOpt.bestScore >= 0 ? '+' : ''}${curOpt.bestScore.toFixed(2)}`}
-            </span>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            {curEval.passed ? (
+              <>
+                Optional goal: the best of all 36 settings scores <strong>{fmtQ(curOpt.bestScore)}</strong>.
+              </>
+            ) : (
+              <>{curOpt.passingCount} of the 36 settings pass this brief.</>
+            )}
           </div>
-
-          <div style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>
-            Exhaustive search over all <strong>{curOpt.totalConfigs}</strong> grid settings: <strong>{curOpt.passingCount}</strong> pass this brief.
-          </div>
-
-          <div className="btn-row">
-            <button type="button" className="btn" onClick={() => setShowHint((h) => !h)}>
-              {showHint ? 'Hide hint' : 'Hint'}
-            </button>
-            <button type="button" className="btn" onClick={() => updateCfg(DEFAULT_CFG)}>
-              Reset brief
-            </button>
-          </div>
-
-          {showHint && (
-            <div style={{ fontSize: 12.5, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', color: 'var(--text-muted)' }}>
-              {brief.hint}
-            </div>
-          )}
         </div>
       </div>
-
-      <div
-        className="live-note"
-        style={{ borderColor: isOpt ? 'var(--c-good)' : curEval.passed ? 'var(--c-a)' : undefined }}
-      >
-        {isOpt
-          ? `Exhaustive grid optimum matched (${curEval.score >= 0 ? '+' : ''}${curEval.score.toFixed(2)})! Out of all 36 combinations, ${curOpt.passingCount} pass and yours ties the top score.`
-          : curEval.passed
-            ? `Brief passed (${curEval.score >= 0 ? '+' : ''}${curEval.score.toFixed(2)} vs target ${brief.target >= 0 ? '+' : ''}${brief.target.toFixed(2)})! Optional challenge: can you reach the exhaustive grid best of ${curOpt.bestScore >= 0 ? '+' : ''}${curOpt.bestScore.toFixed(2)}?`
-            : `Not quite yet (${curEval.score >= 0 ? '+' : ''}${curEval.score.toFixed(2)} vs target ${brief.target >= 0 ? '+' : ''}${brief.target.toFixed(2)}). Check whether your algorithm, step size α, or exploration strategy fits this environment’s failure mode.`}
-      </div>
-    </Widget>
+    </LabShell>
   );
 }

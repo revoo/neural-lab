@@ -133,7 +133,7 @@ The owner asked for the plan in `docs/LAB_IMPROVEMENTS.md` to be implemented in 
 - [x] 2. A real job in every brief, "where this happens for real" debrief lines, live code lines in the six tuning labs.
 - [x] 3. History cards: `src/history.ts` + test, collapsed card after each lab.
 - [x] 4. Solution maps: Attention puzzles (11×11 query map), Build a previous-word head (180-speed strip).
-- [ ] 5. Shared pieces: `LabShell`, `MachineLog`, reduced-motion hook; Dice Workshop and Tune the Q-Learner moved onto them.
+- [x] 5. Shared pieces: `LabShell`, `MachineLog`, reduced-motion hook; Dice Workshop and Tune the Q-Learner moved onto them.
 - [ ] 6. Machinery for the four "needs work" labs: Q-Learner maze replay, live sampler text, compute-budget map, alignment reply bars.
 - [ ] 7. Timeline page built from `src/history.ts`.
 - [ ] 8. Decision lines in the Logic workbench.
@@ -145,4 +145,5 @@ Notes for whoever continues:
 - Step 2 added `src/components/LabJob.tsx`: `<LabJob>` (one line above a lab, in MDX), `<ForReal>` ("Where this happens for real", after the debrief) and `LiveCode` (live code line inside a widget). Each tuning lab's code builder lives in `src/lessons/<id>/realCode.ts` with a test; APIs were checked against library source on GitHub (TRL, vLLM, peft, llama.cpp, transformers).
 - Step 3 added `src/history.ts` (25 entries, one per reviewed lab; every sentence a `Claim` with its own source URL, plus `ERAS` and `MILESTONES` for the timeline) and `<HistoryCard id>` placed after each lab's `<ForReal>`. `src/history.test.ts` checks sources, dates and that every entry's card is in its lesson. All † affiliations were confirmed on the papers' title pages; entries without a sourced mood line simply omit it.
 - Step 4: `queryMap` (attention) and `speedStrip`/`speedPairMap` (positions) feed post-solve maps behind a "Show the map" button that appears once a puzzle is solved or declared impossible. The two-hand level gets a 180×180 canvas map (colours read from CSS variables, redrawn on theme change).
+- Step 5 added the shared lab pieces. `src/components/LabShell.tsx`: `LabShell` (brief tabs with ✓/★ and a count, brief text, body, status line, hint toggle, `reveal` gated by AnswerReveal, `log`, `actions`) and `useLabProgress(key, seed?)` (solved/optimal per brief in localStorage; `seed` carries over progress saved in an older format). `src/components/MachineLog.tsx`: `useMachineLog()` + `<MachineLog>` (collapsible console, newest line shown in the summary). `src/components/motion.ts`: `usePrefersReducedMotion`, `useTweenedArray`/`useTweened`, `useFramePlayer`; global.css zeroes transitions inside widgets under reduced motion. The Dice Workshop (Roll 1,000 times + log) and Tune the Q-Learner (log, evidence hints, answer behind reveal) now use them.
 - `scripts/drive-widget.cjs` takes `--title=<text>` to pick a widget by title instead of index.

@@ -264,3 +264,35 @@ export function solveWorkshop(b: WorkshopBrief) {
   const fewestRecipes = passing.filter((p) => p.dice === fewest).sort((a, b) => a.gap - b.gap);
   return { passing, fewest, fewestRecipes, best: fewestRecipes[0], checkedDists };
 }
+
+/** Throw a recipe `n` times with a seeded RNG: the totals, for the Roll button. */
+export function rollRecipe(r: Recipe, n: number, rng: { int: (k: number) => number }): number[] {
+  const out = new Array<number>(n);
+  for (let t = 0; t < n; t++) {
+    let s = r.plus;
+    for (const die of DICE) for (let c = 0; c < (r.counts[die.id] ?? 0); c++) s += 1 + rng.int(die.sides);
+    out[t] = s;
+  }
+  return out;
+}
+
+/**
+ * One machine-log line for a recipe change, e.g.
+ * "+d6: mean 10.50 → 14.00 · variance 8.75 → 11.67 · SD 2.96 → 3.42".
+ */
+export function recipeChangeLine(before: Recipe, after: Recipe): string {
+  const parts: string[] = [];
+  for (const die of DICE) {
+    const d = (after.counts[die.id] ?? 0) - (before.counts[die.id] ?? 0);
+    if (d > 0) parts.push(`+${d > 1 ? d : ''}${die.id}`);
+    if (d < 0) parts.push(`−${d < -1 ? -d : ''}${die.id}`);
+  }
+  const dp = after.plus - before.plus;
+  if (dp) parts.push(`constant ${dp > 0 ? '+' : '−'}${Math.abs(dp)}`);
+  const a = recipeMoments(before);
+  const b = recipeMoments(after);
+  const va = a.sd * a.sd;
+  const vb = b.sd * b.sd;
+  const what = parts.length ? parts.join(', ') : 'cleared';
+  return `${what}: mean ${a.mean.toFixed(2)} → ${b.mean.toFixed(2)} · variance ${va.toFixed(2)} → ${vb.toFixed(2)} · SD ${a.sd.toFixed(2)} → ${b.sd.toFixed(2)}`;
+}
