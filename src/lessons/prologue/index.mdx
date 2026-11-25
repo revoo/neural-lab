@@ -1,0 +1,90 @@
+{/* authored-by: Claude Opus 5.5 */}
+import { PrologueDemo } from './PrologueDemo'
+import { FIRST_WINTER, SECOND_WINTER } from './prologue'
+import { timelineHref } from '../../router'
+import { questions } from './quiz'
+
+Before any maths, a question, some people, a lot of hype, two long winters, and a working learning machine you can watch in your browser. The rest of the course takes that machine apart and puts it back together, one idea at a time.
+
+## A question older than the computer you're using
+
+In 1950 the mathematician Alan Turing published a paper called "Computing Machinery and Intelligence" in the philosophy journal *Mind*. It opens with the question "Can machines think?" <Src href="https://en.wikipedia.org/wiki/Computing_Machinery_and_Intelligence" />
+
+Most people remember the paper for the imitation game, now called the Turing test. Its last section is about something else: **learning machines**. Turing suggested that instead of trying to program an adult mind directly, it might be easier to program something like a child's mind, and then educate it. <Src href="https://en.wikipedia.org/wiki/Computing_Machinery_and_Intelligence" />
+
+That is the idea this whole course is about. Don't write the rules; build something that can find the rules from examples.
+
+## One summer
+
+On 31 August 1955, four researchers, John McCarthy, Marvin Minsky, Nathaniel Rochester and Claude Shannon, proposed a summer project at Dartmouth College on what they called "artificial intelligence". Their proposal said: <Src href="https://en.wikipedia.org/wiki/Dartmouth_workshop" />
+
+> We think that a significant advance can be made in one or more of these problems if a carefully selected group of scientists work on it together for a summer.
+
+"These problems" included making machines use language, form abstractions and concepts, and improve themselves. Language models that do some of that arrived about seventy years later.
+
+It's worth sitting with that for a moment, because it is the theme of this course. The people who wrote that sentence were among the best minds of their time. Shannon was one of the founders of information theory, which you'll use in <ModuleRef id="foundations" short />. They weren't foolish; the problem was much harder than it looked, and the ideas that finally worked took decades to find, to be believed, and to become practical. When something in this course feels hard, that is not a sign you're doing it wrong. It felt hard to them too.
+
+## Hype, then winter
+
+In 1958, after a press conference organised by the US Navy, *The New York Times* described Frank Rosenblatt's perceptron, a machine that learned to recognise simple patterns, as "the embryo of an electronic computer that [the Navy] expects will be able to walk, talk, see, write, reproduce itself and be conscious of its existence." <Src href="https://en.wikipedia.org/wiki/Perceptron" />
+
+It could do none of those things. In 1969, Marvin Minsky and Seymour Papert published a book, *Perceptrons*, that set out precisely what a single perceptron cannot learn, and mainstream research on perceptrons largely stopped. Nobody in the 1960s knew how to train networks with more than one layer of these units. <Src href="https://en.wikipedia.org/wiki/AI_winter" />
+
+Money and interest dried up across AI. Historians call the period that followed, roughly {FIRST_WINTER}, the first **AI winter**. A boom in the 1980s ended the same way: in 1987 the market for specialised AI hardware collapsed, and a second winter lasted roughly {SECOND_WINTER}. <Src href="https://en.wikipedia.org/wiki/AI_winter" />
+
+You will meet the perceptron in <ModuleRef id="neuron" />, and find its limit yourself before you read about the book.
+
+## The long wait
+
+Some of the most important ideas in this course were found during or between those winters:
+
+- In 1986, David Rumelhart, Geoffrey Hinton and Ronald Williams showed in *Nature* how to train networks with many layers by sending errors backwards through them: **backpropagation**. <Src href="https://en.wikipedia.org/wiki/Backpropagation" />
+- In 1989, Yann LeCun and colleagues at Bell Labs trained a convolutional network to read handwritten digits. <Src href="https://en.wikipedia.org/wiki/LeNet" />
+- In 1997, Sepp Hochreiter and Jürgen Schmidhuber published the **LSTM**, a network that could remember things over long sequences. <Src href="https://en.wikipedia.org/wiki/Long_short-term_memory" />
+
+All three are in this course, and all three are still in use. What they waited for was data and computing power. In 2012, a convolutional network called AlexNet, trained by backpropagation on 1.2 million labelled images using two consumer graphics cards, won the ImageNet image-recognition competition, and the deep-learning boom began. <Src href="https://en.wikipedia.org/wiki/AlexNet" /> On 30 November 2022, OpenAI released ChatGPT, built on the transformers you'll meet in <ModuleRef id="transformers" />. <Src href="https://en.wikipedia.org/wiki/ChatGPT" />
+
+In 2019, the reinforcement-learning researcher Rich Sutton summed up the pattern in a short essay called "The Bitter Lesson": "general methods that leverage computation are ultimately the most effective, and by a large margin." <Src href="http://www.incompleteideas.net/IncIdeas/BitterLesson.html" />
+
+## The machine you'll build
+
+Here is a small neural network, the same kind you'll build from scratch in this course. It has 25 adjustable numbers inside it, and it's about to see 120 points: an inner group and a ring around it. Its job is to learn which group any point belongs to. Nobody will tell it what a circle is.
+
+<Predict
+  question="The network starts with random numbers, and the only feedback it gets is how wrong its guesses are. What will its final boundary between the two groups look like?"
+  options={["Something close to a circle around the inner group", "A straight line: a network can only cut space in two with one line", "Nothing useful: it has to be told to look for a circle first"]}
+  answer={0}
+>
+It finds a closed, roughly round boundary on its own. Each of its six hidden neurons draws one straight line (you'll see why in <ModuleRef id="neuron" short />), and the network learns to bend and combine those lines until the inner group is fenced in. The second answer describes a single neuron, and it's a real limit: it's the wall the perceptron hit in 1969.
+</Predict>
+
+<PrologueDemo />
+
+Every step, the network measures how wrong it is, works out which way to nudge each of its 25 numbers to be a little less wrong, and nudges them. That's all learning is, here and in the largest language models. The rest is detail, and the detail is what this course is for.
+
+<MachineMap />
+
+The top row of this diagram is how the network turns a point into a guess; the bottom row is how it learns from its mistake. Each box is one lesson of <ModuleRef id="foundations" />, and by the end of <ModuleRef id="backprop" short /> you'll be able to explain every number on this screen.
+
+## How to read this course
+
+**Every idea here was once confusing to the people who invented it,** and many were declared dead before they worked. If an idea takes you two attempts, you are in good company.
+
+**Labs come before history.** You'll often rediscover something in a lab first, and only then find out who else found it, and when. Notes headed "You are standing where they stood" mark those moments, and a history card below each lab tells the story with its sources.
+
+**The <a href={timelineHref()}>timeline</a>** shows where each lab's idea sits in time, from Turing's paper to today, with the winters marked. It fills in as you go.
+
+## Check your understanding
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- The question behind this course is Turing's from 1950: can we build a machine that learns, rather than one we program?
+- The field's founders expected a significant advance in one summer. It took about seventy years, two winters, and ideas that waited decades for enough data and computing power.
+- A learning machine adjusts its own numbers to make its mistakes smaller. The small network above found a round boundary that nobody described to it.
+- In this course, you'll usually do the experiment before you read the history.
+
+</Takeaways>
+
+Start with <LessonLink to="vectors">vectors</LessonLink>, the first box in the diagram: how a list of numbers can describe an email, a house or a word.

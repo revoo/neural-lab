@@ -25,6 +25,15 @@ export type ModuleMeta = {
 
 export const MODULES: ModuleMeta[] = [
   {
+    id: 'prologue',
+    number: 0,
+    title: 'Prologue',
+    blurb: 'Before any maths: the question, the people, the hype, the winters, and the machine you are about to build.',
+    lessons: [
+      { id: 'prologue', title: 'Can a Machine Learn?', summary: 'Seventy years of bold promises, dead ends and comebacks, and a working learning machine you can watch in your browser before we take it apart.', minutes: 12, load: () => import('./lessons/prologue/index.mdx') },
+    ],
+  },
+  {
     id: 'foundations',
     number: 1,
     title: 'The Maths Toolkit',

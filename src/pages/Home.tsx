@@ -25,7 +25,7 @@ export function Home() {
         {nextLesson && (
           <div className="btn-row" style={{ marginTop: 18 }}>
             <a className="btn primary" href={lessonHref(nextLesson.id)} style={{ textDecoration: 'none' }}>
-              {done === 0 ? 'Start with lesson 1' : 'Continue'}: {nextLesson.title} →
+              {done === 0 ? 'Start with the prologue' : 'Continue'}: {nextLesson.title} →
             </a>
           </div>
         )}
