@@ -118,6 +118,53 @@ function featureThumb(id: FeatureName) {
 
 // ---------------------------------------------------------------- the lab
 
+
+/** Neuron maps (what each hidden neuron and the output respond to over the input square) for a trained network. */
+function neuronMaps(t: Trainer, cfg: Config) {
+  const sizes = sizesOf(cfg);
+  const res = 22;
+  const vals = sizes.map((sz) => Array.from({ length: sz }, () => new Float64Array(res * res)));
+  for (let r = 0; r < res; r++)
+    for (let c = 0; c < res; c++) {
+      const x = -DOMAIN + ((c + 0.5) / res) * 2 * DOMAIN;
+      const y = DOMAIN - ((r + 0.5) / res) * 2 * DOMAIN;
+      t.net.forward(featurize(cfg.features, x, y)).a.forEach((col, ci) => col.forEach((v, j) => (vals[ci][j][r * res + c] = v)));
+    }
+  const last = sizes.length - 1;
+  return vals.slice(1).map((col, k) =>
+    col.map((arr) => {
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (const v of arr) {
+        lo = Math.min(lo, v);
+        hi = Math.max(hi, v);
+      }
+      let i = 0;
+      return k + 1 === last
+        ? fieldImage(() => arr[i++], [-DOMAIN, DOMAIN, -DOMAIN, DOMAIN], res, (v) => diverging(1 - v))
+        : fieldImage(() => (arr[i++] - lo) / (hi - lo || 1), [-DOMAIN, DOMAIN, -DOMAIN, DOMAIN], res, sequential);
+    }),
+  );
+}
+
+function MapRow({ title, maps }: { title: string; maps: string[][] }) {
+  return (
+    <div style={{ marginTop: 6 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 3 }}>{title}</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+        {maps.map((layer, l) => (
+          <div key={l} style={{ display: 'flex', gap: 3 }}>
+            {layer.map((src, j) => (
+              <img key={j} src={src} width={40} height={40} alt={l === maps.length - 1 ? 'output map' : `layer ${l + 1} neuron ${j + 1} map`} style={{ borderRadius: 4, border: '1px solid var(--border)' }} />
+            ))}
+            {l < maps.length - 1 && <span className="muted" style={{ alignSelf: 'center' }}>→</span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function TrainingLab() {
   const [mode, setMode] = useState<string>('free');
   const challenge = CHALLENGES.find((c) => c.id === mode) ?? null;
@@ -137,6 +184,7 @@ export function TrainingLab() {
   const [snaps, setSnaps] = useState<Snapshot[]>([]);
   const [bests, setBests] = useState<Record<string, number>>(loadBests);
   const [showRef, setShowRef] = useState(false);
+  const [compare, setCompare] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const raf = useRef(0);
   const snapCount = useRef(0);
@@ -293,6 +341,13 @@ export function TrainingLab() {
 
   const ref = challenge ? BEST_FOUND[challenge.id] : null;
   const yourBest = challenge ? bests[challenge.id] : undefined;
+  // The reference network, trained once (same data, same steps as the search recorded).
+  const refMaps = useMemo(() => {
+    if (!compare || !ref || !challenge) return null;
+    const refT = new Trainer(ref.cfg, data.train, data.test);
+    refT.step(ref.reachedAt);
+    return neuronMaps(refT, ref.cfg);
+  }, [compare, ref, challenge, data]);
 
   return (
     <Widget
@@ -521,6 +576,20 @@ export function TrainingLab() {
                   <button className="btn small" onClick={() => setShowRef(!showRef)}>
                     {showRef ? 'Hide' : 'Show'} how
                   </button>
+                  {achieved && (
+                    <button className="btn small" style={{ marginLeft: 6 }} onClick={() => setCompare(!compare)}>
+                      {compare ? 'Hide' : 'Compare'} neuron maps
+                    </button>
+                  )}
+                  {compare && achieved && trainer && refMaps && (() => {
+                    return (
+                      <div style={{ marginTop: 6 }}>
+                        <MapRow title={`Yours (${params} parameters)`} maps={neuronMaps(trainer, cfg)} />
+                        <MapRow title={`The search's smallest (${ref.params} parameters, trained ${ref.reachedAt.toLocaleString()} steps)`} maps={refMaps} />
+                        <div className="muted" style={{ fontSize: 12 }}>Each square is what one neuron responds to over the input square; the last is the output. Different networks often find different pieces that add up to the same answer.</div>
+                      </div>
+                    );
+                  })()}
                   {showRef && (
                     <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>
                       Inputs {ref.cfg.features.map((f) => FEATURES.find((q) => q.id === f)!.label).join(', ')}; {ref.cfg.hidden.length ? `hidden ${ref.cfg.hidden.join('×')} ${ref.cfg.activation}` : 'no hidden layer'}; Adam, step size {ref.cfg.lr}, batch {ref.cfg.batch}; random start #{ref.cfg.seed}; reached the target at step {ref.reachedAt.toLocaleString()}. The search tried {ref.space} ({ref.spaceSize.toLocaleString()} runs), smallest first — so it is the best in that space, not a proof that nothing smaller exists.{' '}
