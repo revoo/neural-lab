@@ -36,6 +36,26 @@ const WP = (page: string) => `https://en.wikipedia.org/wiki/${page}`;
 
 export const HISTORY: HistoryEntry[] = [
   {
+    id: 'svm',
+    lessonId: 'svm',
+    lab: 'Widen the Street',
+    idea: 'Maximum-margin hyperplanes, kernels and the soft margin',
+    years: [1992, 1995],
+    when: '1992 · 1995',
+    who: [
+      { text: 'Vladimir Vapnik and Alexey Chervonenkis laid the statistical learning foundations (VC theory) and original linear maximum-margin algorithm.', source: WP('Support_vector_machine') },
+      { text: 'Bernhard Boser, Isabelle Guyon and Vladimir Vapnik introduced nonlinear kernel maximum-margin classifiers in 1992.', source: WP('Support_vector_machine') },
+      { text: 'Corinna Cortes and Vladimir Vapnik developed the soft-margin support-vector network at AT&T Bell Laboratories, proposed in 1993 and published in Machine Learning in 1995.', source: WP('Support_vector_machine') },
+    ],
+    mood: { text: 'Throughout 1990–2010, neural networks did not outperform competing machine-learning methods such as support vector machines, kernel regression and boosting.', source: WP('AlexNet') },
+    story: {
+      before: { text: 'Vapnik’s original maximum-margin algorithm constructed only a linear classifier for cleanly separable data.', source: WP('Support_vector_machine') },
+      this: { text: 'Adding the kernel trick (1992) handled curved boundaries via dot products in a lifted space, and the soft margin (1995) handled noisy, overlapping classes.', source: WP('Support_vector_machine') },
+      after: { text: 'SVMs dominated 1990s and 2000s benchmarks until large labelled datasets like ImageNet and GPU-trained deep networks overtook them on raw images in 2012.', source: WP('AlexNet') },
+    },
+    dispute: { text: 'Wikipedia’s own Support Vector Machine article dates Vapnik and Chervonenkis’s original linear algorithm to 1964 in its history section and to 1963 in its nonlinear-kernels section.', source: WP('Support_vector_machine') },
+  },
+  {
     id: 'mark-i',
     lessonId: 'perceptron',
     lab: 'Train the Mark I',

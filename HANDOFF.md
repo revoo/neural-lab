@@ -334,7 +334,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 â†
 - [x] WP6.1 Opening hooks
 - [x] WP6.2 "You are standing where they stood"
 - [x] WP7 Era interludes (EraStrip + four interludes)
-- [ ] WP8.1 `svm`
+- [x] WP8.1 `svm`
 - [ ] WP8.2 `gans`
 - [ ] WP8.3 `open-questions`
 - [ ] WP9 Final documentation
