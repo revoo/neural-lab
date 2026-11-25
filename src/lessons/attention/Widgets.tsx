@@ -324,6 +324,43 @@ function QueryMap({ p, q }: { p: Puzzle; q: Vec }) {
   );
 }
 
+
+/** The arithmetic behind the bars, key by key: q·k → ÷√2 → exp → share of the total. */
+function WorkedTable({ p, q }: { p: Puzzle; q: Vec }) {
+  const scores = p.keys.map((k) => q[0] * k.k[0] + q[1] * k.k[1]);
+  const scaled = scores.map((v) => v / Math.SQRT2);
+  const m = Math.max(...scaled);
+  const ex = scaled.map((v) => Math.exp(v - m));
+  const tot = ex.reduce((a, b) => a + b, 0);
+  return (
+    <div style={{ overflowX: 'auto', marginTop: 8 }}>
+      <table className="num-table" style={{ width: '100%', fontSize: 12.5 }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign: 'left' }}>key</th>
+            <th>q·k</th>
+            <th>÷ √2</th>
+            <th>exp (relative)</th>
+            <th>share</th>
+          </tr>
+        </thead>
+        <tbody>
+          {p.keys.map((k, i) => (
+            <tr key={k.name}>
+              <td style={{ textAlign: 'left', color: KEY_COLORS[i], fontWeight: 700 }}>{k.name}</td>
+              <td>{scores[i]}</td>
+              <td>{scaled[i].toFixed(2)}</td>
+              <td>{ex[i] < 0.001 ? ex[i].toExponential(1) : ex[i].toFixed(3)}</td>
+              <td>{pct(ex[i] / tot)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="muted" style={{ fontSize: 11.5 }}>exp is shown relative to the largest (dividing every term by the same number leaves the shares unchanged).</div>
+    </div>
+  );
+}
+
 export function AttentionPuzzles() {
   const [idx, setIdx] = useState(0);
   const [saved, setSaved] = useState<Saved>(load);
@@ -404,6 +441,7 @@ export function AttentionPuzzles() {
             <span className="k">goal  </span> {p.goalText}
           </div>
           <WeightBars names={p.keys.map((k) => k.name)} weights={w} colors={KEY_COLORS} />
+          <WorkedTable p={p} q={q} />
           <div className={`feedback ${ok ? 'good' : ''}`} style={{ marginTop: 10 }}>
             {ok ? (
               <>

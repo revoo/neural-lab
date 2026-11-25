@@ -151,7 +151,7 @@ The owner asked for the plan in `docs/LAB_IMPROVEMENTS.md` to be implemented in 
   - [x] Write the backward pass: collection of the correct versions, wrong-but-trains call-out, gradient-check log
   - [x] Training-lab challenges: reference network's neuron maps after a challenge
   - [x] Rescue the deep network: per-layer log
-  - [ ] Attention puzzles: worked q·k → ÷√2 → exp → share table
+  - [x] Attention puzzles: worked q·k → ÷√2 → exp → share table
   - [ ] The model clinic: train.log tail per case; two-cause cases
 
 Notes for whoever continues:
