@@ -138,9 +138,17 @@ Now put all four tools together. You have three broken deep stacks:
 2. **Level 2 · The 16-layer Sigmoid curse** — activation is locked to Sigmoid. Try every init scale first to confirm that **0 of 5** plain initialisations work, then unlock architectural lifelines to break the $0.25^{16}$ curse.
 3. **Level 3 · The 32-layer tower** — 0 of 15 plain stacks can keep 32 layers tightly balanced. Combine normalisation, skips, and initialisation to hit the green corridor — and see why modern transformers (like GPT-2) scale residual branches small at step 0!
 
+<LabJob>You're on call. A deep training job has sat at loss 0.693 (a coin flip) since step 1, and you have only the activation, the initialisation and, in later levels, the architecture to fix it with.</LabJob>
+
 <RescueDeepNetLab />
 
 ---
+
+<ForReal>
+
+Every transformer block in every large language model carries the fix from Level 2 and 3: a **residual** connection around each sub-layer and a **LayerNorm** (or its cousin RMSNorm) at its input. Without them nobody trains a 100-layer network. The initialisation half is just as real: PyTorch's default `nn.Linear` initialisation and `kaiming_normal_` are the scales you chose between here.
+
+</ForReal>
 
 ## 6. Fifteen lines of Python to see twelve orders of magnitude
 

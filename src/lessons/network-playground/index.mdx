@@ -92,6 +92,8 @@ These are **<Term id="dead-neuron">dead neurons</Term>**. A ReLU outputs zero wh
 
 ## The challenge: prune it
 
+<LabJob>Ship this classifier to a smartwatch, where every neuron costs memory, battery and time. Remove as much of the network as you can without breaking it.</LabJob>
+
 Here's a question every deployed model eventually faces: **how much of this network does it actually need?** Smaller networks are cheaper to run, and often you can delete a surprising fraction of a trained model without losing accuracy.
 
 The challenge box under the playground turns this into a puzzle. With a trained network at 95% or better, switch off as many hidden neurons as you can **while keeping accuracy at 95% or above** — no retraining allowed. When you've found a solution, you can ask for the true minimum, which the widget computes by checking every combination of neurons on and off, smallest first. That's only feasible because these networks are tiny: 14 neurons already means 16,384 combinations, and a real model's would be astronomically many — which is why real pruning methods rely on heuristics instead.
@@ -101,6 +103,12 @@ A few things you'll likely discover:
 - Removing neurons that look unimportant one at a time usually works for a while — until it suddenly doesn't, because you've removed the last neuron covering some job.
 - The minimum depends on the dataset. The circle needs at least three neurons on (three lines are the fewest that can fence in a region), while the two clusters, which one straight line can separate, can get by with a single neuron.
 - Two networks trained from different random starts, with identical architecture and accuracy, can have different minimums. They found different internal arrangements.
+
+<ForReal>
+
+**Pruning** is a standard step before shipping a model to a phone or a microcontroller, and PyTorch has it built in (`torch.nn.utils.prune`). Removing whole neurons, as you did here, is called *structured* pruning, and it's the kind that actually saves time and memory: zeroing scattered individual weights leaves every matrix the same size unless the hardware can skip zeros. Real pipelines usually fine-tune for a while after each round of pruning so the survivors can take over the lost neurons' work.
+
+</ForReal>
 
 ## Counting what you're paying for
 

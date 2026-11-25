@@ -1,5 +1,7 @@
 // authored-by: Neon High
 import { useEffect, useMemo, useState } from 'react';
+import { LiveCode } from '../../components/LabJob';
+import { hfGenerateLine } from './realCode';
 import { Widget } from '../../components/Widget';
 import { Segmented, Slider } from '../../components/controls';
 import { createRng } from '../../lib/rng';
@@ -788,6 +790,11 @@ export function SamplerLab() {
           </button>
         </div>
       )}
+
+      <LiveCode
+        code={hfGenerateLine(effT, effK, effP)}
+        note={effK < 16 && effP < 1 ? 'Hugging Face applies top-p after re-normalising the top-k survivors, so with both on it can cut slightly more than the lab' : 'Hugging Face transformers; top_k=0 and top_p=1.0 mean off'}
+      />
 
       <div className="live-note">
         {level.impossible && declaredImpossible ? (

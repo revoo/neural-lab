@@ -116,6 +116,8 @@ Step into the RL engineer's chair across three realistic deployment briefs:
 
 Every configuration is averaged across **10 fixed seeds** and checked against the exhaustive optimum over all **36 grid combinations**.
 
+<LabJob>A robot vacuum has 25 practice runs to learn a new flat. The cliff is the staircase, and in the last brief someone moves its charging dock. Choose how it explores and learns so it gets home reliably.</LabJob>
+
 <QLearnerLab />
 
 <Deeper title="Debrief: two surprising ways to beat the Shifting Goal" tag="Spoiler">
@@ -125,6 +127,12 @@ In **Brief 3 (Shifting Goal)**, once the old corner `(0,4)` downgrades from `+10
 Yet our exhaustive search also surfaced a second valid mechanism: **optimistic initialisation (`Q₀ = +5`)**! Because the unvisited south squares still hold their initial `+5` optimism, the instant the north corner drops to `+2`, the agent's greedy policy pivots south on its own — hitting **`+9.66`**! Real-world non-stationary systems (such as news recommenders) rely on the same two tools: never letting exploration drop to zero, and giving unseen options an optimistic prior.
 
 </Deeper>
+
+<ForReal>
+
+Q-learning with a neural network instead of a table is **DQN**, the method DeepMind used in 2013–2015 to learn dozens of Atari games from the raw screen. The knobs you tuned (step size, discount, how much to explore and when to stop) are the hyperparameters of every value-based RL system, and the moved charging dock is the real problem of a world that changes after training.
+
+</ForReal>
 
 ## In code
 

@@ -97,9 +97,17 @@ Standard LoRA assigns the exact same rank $r$ to every layer. Yet in real fine-t
 
 Below, three 8×8 layers of a pretrained model face a domain shift. You have a budget of **≤ 80 trainable parameters** (vs 192 for full fine-tuning) and must drive average residual MSE down to **≤ 0.005**. Watch how both uniform choices fail (`[1, 1, 1]` gets `0.0148` MSE; `[2, 2, 2]` costs 96 params), inspect each layer’s singular-value bars, and find the asymmetric allocation that solves it — and see if you can hit the exhaustive optimum across all 125 combinations!
 
+<LabJob>Fine-tune a large model on your company's documents with one GPU. You can only afford a few trainable parameters, so decide which layers get them. The live code line shows the same allocation as a real `peft` configuration.</LabJob>
+
 <LoraBudgetLab />
 
 ---
+
+<ForReal>
+
+LoRA is the default way to fine-tune open models on modest hardware. Hugging Face's `peft` library sets it up with a `LoraConfig`, and its `rank_pattern` option gives different layers different ranks, exactly the allocation you made here. QLoRA (2023) adds a 4-bit frozen base model, which is how people fine-tune 65B-parameter models on a single 48 GB GPU.
+
+</ForReal>
 
 ## 5. Ten lines of Python for exact LoRA & QLoRA VRAM budgets
 

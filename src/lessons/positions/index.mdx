@@ -80,6 +80,8 @@ Every pair of numbers in the query and key gets its own rotation speed, using ex
 
 One of the most common heads found in trained language models does something very simple: each word attends to **the word just before it**. It sounds trivial, but it can't be done from content — the head has to use position. Here, every word has identical content, so only the rotation can make the previous word win.
 
+<LabJob>Build an attention head that always looks at the previous word. Real language models grow heads like this on their own, and they are the first half of how a model copies patterns from its context.</LabJob>
+
 <PreviousWordLab />
 
 <Deeper title="After the lab: why real models use many speeds" tag="Spoiler">
@@ -91,6 +93,12 @@ On 64 words, no single speed works: the best of all 180 gives the previous word 
 Two hands fix it, the clock's trick exactly: a fast hand to tell neighbours apart, a slow hand to tell "1 back" from "49 back". 2,689 of the 16,290 pairs of speeds work, for example 4° with 36°, and the best (5° with 80°) gives the previous word 79%. Real models use 32 or 64 hands per head, spanning speeds from one radian per position down to almost nothing, so that they can be precise about neighbours *and* unambiguous across many thousands of positions.
 
 </Deeper>
+
+<ForReal>
+
+**Previous-token heads** are among the best-understood circuits in real transformers. Anthropic's 2022 work on **induction heads** showed that one head copies "what came before me" and a later head uses it to find and continue repeated patterns, a mechanism the authors argue drives much of in-context learning. Llama-family models use rotary position embeddings (RoPE), the same clock-hand rotation you tuned here.
+
+</ForReal>
 
 ## In code
 

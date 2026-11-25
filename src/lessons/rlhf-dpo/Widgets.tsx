@@ -1,5 +1,7 @@
 // authored-by: Neon High
 import { useEffect, useMemo, useState } from 'react';
+import { LiveCode } from '../../components/LabJob';
+import { trlConfigLine } from './realCode';
 import { Widget } from '../../components/Widget';
 import { AnswerReveal } from '../../components/AnswerReveal';
 import { Segmented, Slider } from '../../components/controls';
@@ -580,6 +582,8 @@ export function AlignmentLab() {
           </div>
         ))}
       </div>
+
+      <LiveCode code={trlConfigLine(cfg, brief.allowDpo)} note="Hugging Face TRL; in TRL, larger beta = tighter leash" />
 
       <div
         className="live-note"

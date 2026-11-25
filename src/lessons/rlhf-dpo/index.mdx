@@ -110,9 +110,17 @@ Now step into the post-training seat across three realistic alignment briefs:
 
 Every legal grid combination is verified exhaustively.
 
+<LabJob>Ship a chatbot update when the reward model loves flattery and bullet spam. Tune the alignment step so real helpfulness goes up without the model learning to game its judge. The live code line shows the same settings in Hugging Face TRL.</LabJob>
+
 <AlignmentLab />
 
 ---
+
+<ForReal>
+
+This is the post-training step behind every chat assistant. Hugging Face's TRL library implements both families: DPO with `DPOConfig(beta=…)`, and reward-model RL methods (such as RLOO) whose `beta` is the same KL leash you tuned. The failure you met first, a policy that games its reward model, is called **reward over-optimisation**, and labs measure it exactly as here: proxy reward keeps rising while true quality falls.
+
+</ForReal>
 
 ## 5. Twelve lines of Python for DPO’s loss & self-weighting gradient
 

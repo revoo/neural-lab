@@ -28,6 +28,8 @@ Symptoms are not causes. "Most neurons are dead" is a symptom; it can come from 
 
 ## The clinic
 
+<LabJob>Engineers bring you broken training runs. Read the instruments, name the root cause, and prescribe the fix, the way you would on a real team.</LabJob>
+
 <ModelClinic />
 
 ## Debrief
@@ -53,6 +55,12 @@ Here's what the cases have in common, and what they teach once you've solved the
 </Deeper>
 
 The habit the clinic is trying to build is the one in the callout above: **separate the symptom from the cause, and look for the piece of evidence that tells candidate causes apart.** The cheap checks — plot the loss, look inside the network at step 0 and at the end, check the inputs' ranges, look for duplicates between training and test, sanity-check the labels — catch most of these problems in minutes, and they're worth doing before you reach for a bigger model or a fancier optimizer.
+
+<ForReal>
+
+This is daily work for anyone who trains models. Andrej Karpathy's widely read "A Recipe for Training Neural Networks" (2019) warns that "neural net training fails silently": a misconfigured run usually doesn't crash, it just learns worse. The first thing a real engineer opens is the training log (loss, gradient norm and step size per step), then the same instruments as this clinic.
+
+</ForReal>
 
 ## In code
 

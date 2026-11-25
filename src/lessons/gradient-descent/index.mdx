@@ -71,6 +71,8 @@ Real loss landscapes have many dimensions, and the slopes are rarely the same in
 
 Here's a challenge on exactly that kind of landscape.
 
+<LabJob>Each step of gradient descent on a real dataset is a full pass over the training data, so every step costs compute time and money. Get to the minimum in as few steps as you can.</LabJob>
+
 <DescentGolf />
 
 If you played for a while, you discovered the central tension:
@@ -100,6 +102,12 @@ So **every step multiplies the distance to the bottom by the same factor, $1 - 2
 In general the safe limit depends on how sharply the loss curves: the steeper the walls, the smaller the largest safe step. In the narrow valley, the steep direction sets that limit for *every* direction, which is precisely the problem you ran into.
 
 </MathExhibit>
+
+<ForReal>
+
+The narrow valley is what a badly scaled problem looks like: one direction steep, another almost flat. Real training hits it whenever inputs are on very different scales (floor area in hundreds, bathrooms in single digits), which is why practitioners standardise their features before training and why adaptive optimizers like Adam were invented: they give each direction its own effective step size.
+
+</ForReal>
 
 ## In code
 

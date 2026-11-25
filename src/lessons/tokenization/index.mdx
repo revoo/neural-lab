@@ -112,6 +112,8 @@ Now there is a real trade-off. Early merges remove dozens of tokens at once and 
 
 Your turn. You start at 0 merges (**2,368 bits**). Build your own merge table by clicking whichever adjacent pairs you think are worth fusing — or switch to **Sweep BPE** to inspect the exact curve across all 0–66 greedy merges. Your first goal is to get below **1,900 bits** (many different merge choices work). Optional goal: see if you can match BPE's exhaustive optimum.
 
+<LabJob>You're choosing the vocabulary for a new model. More tokens make every input shorter (cheaper attention, more text per context window) but make the embedding table bigger. Find the merges that make the corpus plus its merge table as small as possible.</LabJob>
+
 <CompressionLab />
 
 <Deeper title="After the lab: where the sweet spot sits, and why" tag="Debrief">
@@ -126,6 +128,12 @@ Look at the exact turning point between merge 28 and merge 29:
 Even a beam search over non-greedy merge orders finds the same 1,806-bit floor on this corpus. Real language models make the exact same compromise on a different scale: instead of a merge-table bit count, they balance shorter sequences (faster attention, longer effective context) against the memory and data needed to train $V$ embedding rows (rare tokens barely appear in training, so their vectors stay under-trained). That balance has drifted upward as training sets grew: GPT-2 used $V = 50{,}257$; GPT-4's `cl100k_base` used $100{,}277$; Llama 3 and GPT-4o use $128{,}256$ and $200{,}019$.
 
 </Deeper>
+
+<ForReal>
+
+Every production language model ships a tokenizer built this way, and its vocabulary size is a design decision with the same trade-off: GPT-2 used about 50,000 tokens and later models use 100,000 to 200,000. Libraries such as OpenAI's `tiktoken` and Hugging Face `tokenizers` train and apply byte-level BPE in a few lines, and the quirks you saw (a word split differently by a leading space, rare words in many pieces) show up in real model behaviour.
+
+</ForReal>
 
 ## In code
 

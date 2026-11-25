@@ -1,5 +1,7 @@
 // authored-by: Neon High
 import { useEffect, useMemo, useState } from 'react';
+import { LiveCode } from '../../components/LabJob';
+import { peftLoraLines } from './realCode';
 import { Widget } from '../../components/Widget';
 import { AnswerReveal } from '../../components/AnswerReveal';
 import { Segmented, Slider } from '../../components/controls';
@@ -636,6 +638,8 @@ export function LoraBudgetLab() {
           Uniform r=2 (96p)
         </button>
       </div>
+
+      <LiveCode code={peftLoraLines(ranks)} note="Hugging Face peft" />
 
       <div
         className="live-note"

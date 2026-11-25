@@ -77,6 +77,8 @@ This gap between training and test performance is called **<Term id="overfitting
 
 ## Challenges
 
+<LabJob>Each challenge is a small version of a real modelling decision: which input features to give the model, how big to make it, and how hard to train it.</LabJob>
+
 The buttons along the top of the lab hold three challenges. Each fixes the data and some rules, and asks you to reach a target accuracy on the **test** points.
 
 - **A circle with no hidden layer:** you have one neuron; choose its inputs wisely.
@@ -92,6 +94,12 @@ In the logic lab, you built XOR with a hidden layer of just **two** neurons. So 
 There's no contradiction. With only two hidden neurons there's no slack: both must end up in exactly the right roles, and gradient descent often settles into an arrangement where one neuron is doing the wrong job and every small change makes things worse. A third neuron gives the search room to manoeuvre. This is one of the most important practical facts in deep learning: networks are usually made much bigger than strictly necessary, not because the problem needs the capacity, but because bigger networks are *easier to train*. If you find a random start that trains two neurons to 95%, you'll have beaten the search.
 
 </Deeper>
+
+<ForReal>
+
+Feature choice beats model size surprisingly often. A fraud model learns far more from "distance from the cardholder's home" than from raw coordinates, just as the circle challenge is easy once the network can see x² and y². In tabular machine learning, where gradient-boosted trees still dominate, much of the work is exactly this kind of feature engineering.
+
+</ForReal>
 
 ## In code
 

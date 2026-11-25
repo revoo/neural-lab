@@ -26,6 +26,8 @@ You get a very simple kind of neuron. It takes inputs that are either 0 (off) or
 
 Weights and biases come in half-steps between −2 and +2. The puzzles start with a single neuron and work up to circuits with a hidden layer. There's no single right answer to any of them — many different settings work, and part of the fun is noticing *why* they work.
 
+<LabJob>Build the logic for two everyday devices out of neurons: an alarm that sounds when the door is open *and* the system is armed (AND), and the two-way light switch at the top and bottom of the stairs, where flipping either switch changes the light (XOR).</LabJob>
+
 <LogicWorkbench />
 
 ### If you get stuck
@@ -51,6 +53,12 @@ Notice what the hidden neurons are doing: each one turns the raw inputs into a *
 The "parts cost" adds up the size of every weight and bias — roughly, how much machinery your circuit uses. It doesn't affect whether the circuit works. But the cheapest solutions tend to be the ones where every part does exactly one job, and finding them forces you to understand precisely what each weight contributes. Real training has a direct analogue: **weight decay** gently pushes every weight towards zero during learning, preferring lean solutions over bloated ones — often because they generalise better to new data.
 
 </Callout>
+
+<ForReal>
+
+XOR is the shape of every **feature interaction**. In a fraud model, a large purchase is normal and a purchase abroad is normal, but the two together can be suspicious: the answer depends on the combination, not on either input alone. A single linear model can't draw that boundary, for exactly the reason you just met. Engineers either hand-build a combined feature (a "crossed" feature in a linear model) or give the network a hidden layer and let it find the two lines itself.
+
+</ForReal>
 
 ## The catch
 

@@ -106,6 +106,8 @@ In 1951, Claude Shannon estimated the entropy of English by sitting a human down
 
 At each position, distribute your 100% probability budget across the five candidate words (shown alphabetically, never peeking at the true answer) plus the **other 55 words** bucket. Then lock your bet and reveal the true next word. Your goal: finish with lower perplexity than the Unigram baseline — and optionally, beat our trained neural LM.
 
+<LabJob>You are the suggestion bar on a phone keyboard. Bet on the next word, and see how surprised your users would be, measured the way language models are scored.</LabJob>
+
 <ShannonLab />
 
 <Deeper title="After the lab: why human context beats a 2-word window — unless you get arrogant" tag="Debrief">
@@ -116,6 +118,12 @@ Notice two lessons you feel immediately when playing Shannon's game:
 - **Calibration beats bravado.** Because the five candidate buttons never peek at the true word, the true word occasionally sits in the `"other 55 words"` bucket (for instance `watched` in sentence #1, or `hid` in sentence #3). Starving that bucket down to 1% can hand you a 10-nat surprise that erases five great guesses. Every well-trained language model learns the same humility.
 
 </Deeper>
+
+<ForReal>
+
+Next-word prediction is how every large language model is pretrained, and the score you just earned is the one researchers report: cross-entropy in bits per token, or its exponential, perplexity. The phone keyboard is the everyday version; a chatbot is the same predictor run over and over, feeding each sampled word back in.
+
+</ForReal>
 
 ## In code
 

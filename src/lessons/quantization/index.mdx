@@ -88,6 +88,8 @@ In real local LLM files (like `GGUF Q4_K_M` in `llama.cpp`), not every tensor ge
 
 You have four weight blocks with different outlier profiles and a strict average memory budget of **≤ 5.75 bits/weight**. Uniform `INT4 tensor` (4.25 b) gets **0.1089** RMSE and fails; uniform `INT4 g=16` (5.00 b) gets **0.0646** and still fails. Spend your bit budget smartly to drive average RMSE **≤ 0.045** — and optionally find the exhaustive optimum across all $5^4 = 625$ recipes.
 
+<LabJob>Fit a large model onto a laptop. You have a budget of bits per weight; spend them where the errors would hurt most. The live code line names the nearest llama.cpp block format for your average.</LabJob>
+
 <QuantLab />
 
 <Deeper title="After the lab: what the exhaustive 625-recipe search found" tag="Debrief">
@@ -100,6 +102,12 @@ Out of all **625** mixed-precision combinations ($5^4$):
 - **Exhaustive optimum:** `Attn QKV → INT8`, `Attn Output → INT4 g=16`, `FFN Up → INT4 tensor`, `FFN Down → INT4 g=16` (**5.625 bits/weight**, avg RMSE **0.0334** — over 3× lower error than uniform INT4 tensor!).
 
 </Deeper>
+
+<ForReal>
+
+This is what llama.cpp's "K-quant" presets do. A file called `…Q4_K_M.gguf` stores most tensors in a 4-bit block format and keeps the most sensitive ones (such as some attention and feed-forward output matrices) at 6 bits, so the *average* lands between 4.5 and 5 bits per weight (llama.cpp lists the Llama-3-8B file at 4.58 GB). GPTQ and AWQ checkpoints for GPU serving make the same kind of trade with different formats.
+
+</ForReal>
 
 ## In code
 

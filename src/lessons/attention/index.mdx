@@ -105,6 +105,8 @@ Dividing by $\sqrt{d}$ cancels that growth exactly: the scores stay about the sa
 
 You've seen what attention does. Now steer it. In each puzzle you control one query; the keys are fixed. The scores, the $\sqrt{d}$ and the softmax are exactly those in the equation above.
 
+<LabJob>A translator meets "The animal didn't cross the street because it was too tired." To write "il" (for *l'animal*) or "elle" (for *la rue*) in French, the model must work out what "it" refers to. Steer one attention head so a word looks at the right place.</LabJob>
+
 <AttentionPuzzles />
 
 <Deeper title="After the puzzles: what they were about" tag="Spoiler">
@@ -118,6 +120,12 @@ You've seen what attention does. Now steer it. In each puzzle you control one qu
 **The hidden key** is impossible, and the reason is the most useful idea in the lab. A key that's an average of other keys can never beat all of them, because a dot product is linear: its score is always the average of theirs. Geometrically, a key inside the region spanned by the others is never the "most extreme" in any direction. In 2D that's a real limitation. In the hundreds of dimensions of a real model, it almost never bites.
 
 </Deeper>
+
+<ForReal>
+
+That exact sentence was Google's example when it introduced the transformer in 2017: a visualised attention head in the trained translation model linked "it" to "animal", and changing "tired" to "wide" switched it to "street". Real heads are learned rather than hand-set, but the machinery is this one: a query, keys, dot products, softmax and a weighted sum of values.
+
+</ForReal>
 
 ## In code
 

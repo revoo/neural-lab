@@ -86,9 +86,17 @@ It's a good example of a habit you should keep: a technique that matters at scal
 
 Cosine is a sensible shape, but nothing says it's the best one. Here you draw your own.
 
+<LabJob>You have a fixed budget of 400 training steps and need the lowest final loss. Design how the step size changes over the run, the way every real training script does with a warm-up and a decay.</LabJob>
+
 <ScheduleDesigner />
 
 There's no single solution. Holding a high step size for most of training and then dropping it sharply works; so does decaying steadily from a large start; so do shapes in between. What they share is the lesson of this page: **the end of training needs small steps.** Try raising only the last knot of a good schedule and watch how much damage that one change does.
+
+<ForReal>
+
+Real runs almost always use a schedule. A short **warm-up** followed by a **cosine decay** is the default in most language-model recipes, and Hugging Face provides it ready-made as `get_cosine_schedule_with_warmup`; PyTorch has `torch.optim.lr_scheduler.CosineAnnealingLR` and `OneCycleLR`. Your hand-drawn knots are the same idea: move fast early, then slow down to settle into the bottom.
+
+</ForReal>
 
 ## In code
 

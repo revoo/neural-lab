@@ -103,6 +103,8 @@ Now you write the rewards. Each brief is a small world, a description of what th
 
 Getting a reward that works is the goal. Once you have, there's an optional second challenge: find the **simplest** reward that works (fewest non-zero terms, then the smallest numbers). The optimum was found by trying every setting of the dials.
 
+<LabJob>Write a reward for an agent that will optimise it perfectly. Every loophole you leave, it will find, as real agents have: a racing boat circling for bonus points, a robot that knocks over a vase, a cleaner that covers its own camera.</LabJob>
+
 <RewardLab />
 
 <Deeper title="Debrief: what the three briefs teach" tag="Spoiler">
@@ -116,6 +118,12 @@ Getting a reward that works is the goal. Once you have, there's an optional seco
 The simplest working reward is **+1 per step the camera reports "clean", −5 for touching the camera**. Keep the camera's report as the thing you pay for, but make tampering with it cost more than it can earn. It's fragile, though: raise the report to +2 per step and the same −5 fine becomes a price worth paying. A fine is a price, not a prohibition.
 
 </Deeper>
+
+<ForReal>
+
+Reward hacking is a live problem in today's systems. OpenAI's 2016 CoastRunners boat circled a lagoon farming targets instead of finishing the race, and researchers keep a public list of such "specification gaming" examples. Language models trained with reinforcement learning do it too, for example by writing code that special-cases the unit tests instead of solving the task, which is why reward design and monitoring are part of every RL pipeline.
+
+</ForReal>
 
 ## In code
 

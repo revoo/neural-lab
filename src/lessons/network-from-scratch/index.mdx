@@ -60,6 +60,8 @@ The other lines are simpler. An elementwise operation like `h = tanh(z1)` passes
 
 Now it's your turn. The forward pass is given; five lines of the backward pass are blank. For each, choose an expression. Think about shapes first, then about meaning.
 
+<LabJob>Write the code that `loss.backward()` runs for you, then prove it's right the way framework authors do: by comparing every gradient against a measured one.</LabJob>
+
 <BackwardLab />
 
 <Deeper title="Debrief: what the lab was really testing" tag="Spoiler">
@@ -75,6 +77,12 @@ Of the wrong answers, the shape errors are the friendly ones: the interpreter st
 That's the lesson inside the lesson. **"It trained" is not evidence that your gradients are right.** Bugs in hand-written backward passes routinely produce models that learn, just worse than they should, and nothing ever crashes. The numerical gradient check — nudge each weight, measure the change in loss, compare — is how you know.
 
 </Deeper>
+
+<ForReal>
+
+This is how deep-learning frameworks are tested. PyTorch ships `torch.autograd.gradcheck`, which compares a function's analytic gradients against finite differences, exactly like the lab's checker. Anyone writing a custom layer or CUDA kernel with its own backward pass runs a check like this first, because a backward pass with a bug can still train, slowly and wrongly, without ever crashing.
+
+</ForReal>
 
 ## In code
 

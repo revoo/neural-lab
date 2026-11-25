@@ -123,6 +123,8 @@ That pattern is the honest summary of optimizer research: each trick fixes a par
 
 The banana is a notoriously awkward shape: the valley is easy to find and hard to follow. Your turn.
 
+<LabJob>You're choosing the optimizer line for a real training script. The banana-shaped valley is the classic test of whether an optimizer can follow a curving floor; the settings you pick here map one-to-one onto PyTorch's `torch.optim` (the live code line under the controls).</LabJob>
+
 <OptimizerGolf />
 
 If you played for a while, you probably found that:
@@ -130,6 +132,12 @@ If you played for a while, you probably found that:
 - **Plain gradient descent can get there, but only just.** Its step size is capped by the valley's steep walls, and then it creeps along the floor for hundreds of steps.
 - **Momentum helps a lot,** but heavier isn't always better. In my search, it does best with $\beta_1$ around 0.9 to 0.95 (about 48 steps at its best step size); at 0.98 the ball overshoots the bend and sloshes around, and it needs 79.
 - **The best settings are not the defaults.** Par is set by a configuration nobody would guess — which is exactly why practitioners tune their optimizers, and why defaults like $\beta_2 = 0.999$ are a starting point rather than a law.
+
+<ForReal>
+
+Almost every large model today trains with **AdamW**, Adam with decoupled weight decay (`torch.optim.AdamW`), usually with β₁ = 0.9 and β₂ between 0.95 and 0.999. Plain SGD with momentum is still common for image models, where it often generalises as well or better. The rule you met here is the real one: the best step size depends on the optimizer, so comparing optimizers at a single shared step size is unfair to all but one of them.
+
+</ForReal>
 
 ## The price of memory
 

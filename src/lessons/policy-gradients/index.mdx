@@ -193,6 +193,8 @@ Now you're the one keeping a policy gradient upright. Three briefs, one engine: 
 
 Each brief has more than one setting that works; each also retires one of the estimators. All runs are averaged over 20 fixed seeds, and once you've solved a brief you can see every one of the 32 settings tried exhaustively.
 
+<LabJob>Pick which of three page layouts to show visitors, learning only from noisy click rewards, like an online recommender. Make the learning reliable across many runs, not just lucky on one.</LabJob>
+
 <PGLab />
 
 <Deeper title="Debrief: what the three briefs were testing" tag="Spoiler">
@@ -206,6 +208,12 @@ Each brief has more than one setting that works; each also retires one of the es
 Notice the pattern across the briefs: there was never one magic setting, but each brief had a *reason* some estimators couldn't work, and that reason told you which family to pick before you touched the step size.
 
 </Deeper>
+
+<ForReal>
+
+Policy gradients with a baseline are how large language models are fine-tuned with reinforcement learning. RLHF used PPO, whose value estimate is a learned baseline, and newer methods such as GRPO and RLOO use the average reward of several samples for the same prompt as the baseline, exactly the variance-reduction idea of this lab. Online recommenders and ad systems use the same family of methods to learn from clicks.
+
+</ForReal>
 
 ## In code
 

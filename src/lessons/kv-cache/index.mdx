@@ -142,9 +142,17 @@ Every inference engineer ends up playing the same game: **VRAM Tetris**. You hav
 
 Solve all three engineering briefs below. Each brief has multiple valid solutions (counted exhaustively across all 441 grid settings) and an optional optimisation target. Watch **Brief 3** especially: you may be surprised whether weight precision or KV precision wins when serving 32 long-context users!
 
+<LabJob>Make a model fit and run fast on a real GPU, the way you would before launching a serving engine. The live code line turns your settings into the equivalent vLLM launch command.</LabJob>
+
 <VramTetrisLab />
 
 ---
+
+<ForReal>
+
+Serving engineers do this arithmetic before every deployment. vLLM's `--max-model-len`, `--max-num-seqs` and `--kv-cache-dtype` flags are the context, batch and KV precision you just chose, and the engine refuses to start if the weights plus the KV cache for that many sequences don't fit. The roofline speed is why a batch of users costs little more per step than one: decoding is limited by reading the weights from memory, not by arithmetic.
+
+</ForReal>
 
 ## 5. Twenty lines of Python to verify every number
 

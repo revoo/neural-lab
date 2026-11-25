@@ -113,7 +113,15 @@ Look at those exact numbers for reaching **$L = 2.00$**:
 
 Your turn as the chief scientist. Three briefs — a pure research run, a single-GPU edge deployment, and a billion-user chatbot. Set $N$ and $D$ to clear every constraint, then see how close your allocation gets to the exact optimum.
 
+<LabJob>You have a fixed amount of compute for a training run. Decide how big the model should be and how much text to train it on, for a research run, an edge model and a chatbot that will answer a billion users.</LabJob>
+
 <ComputeBudgetLab />
+
+<ForReal>
+
+Every large lab makes this decision before a big run. DeepMind's Chinchilla (2022) showed that many earlier models were too big for their data; Meta's Llama 3 (2024) deliberately trained much smaller models on about 15 trillion tokens, far past the compute-optimal point, because a smaller model is cheaper to serve to millions of users. That is the trade-off of the lab's third brief.
+
+</ForReal>
 
 ## In code
 

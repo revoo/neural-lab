@@ -103,6 +103,8 @@ You can feel the effect with vectors simple enough to search exhaustively: every
 
 Each brief gives a dimension and a limit on how much any two vectors may overlap. Your job is to fit the required number of ±1 concept vectors. One brief is impossible, and you can declare it so. The maximum for every brief was found by searching every possible set of ±1 vectors, so the optional goal (fit as many as possible) has a known answer.
 
+<LabJob>A language model has to represent far more concepts (*is code*, *is French*, *is a question*, …) than it has neurons. Your job is the same squeeze in miniature: pack more directions than dimensions while keeping them from clashing.</LabJob>
+
 <PackLab />
 
 <Deeper title="Debrief: what the maxima say" tag="Spoiler">
@@ -118,6 +120,12 @@ Each brief gives a dimension and a limit on how much any two vectors may overlap
 **Brief 5** asks for 10 in 6D; the exhaustive maximum is **16**, more than two and a half times the dimension, with every pair agreeing in 2, 3 or 4 of the 6 places. With 7 dimensions and |cos| ≤ 1/7 you can already fit 8. The gap between "exactly perpendicular" (at most d) and "nearly perpendicular" grows explosively with d. At 768 dimensions it's the reason one embedding space can hold so many concepts.
 
 </Deeper>
+
+<ForReal>
+
+This is **superposition**, and interpretability researchers find it in real models. Anthropic's *Toy Models of Superposition* (2022) showed small networks packing extra sparse features in exactly this almost-perpendicular way, and later work used sparse autoencoders to pull millions of separate features back out of a production language model. The clashes you saw are why a single neuron in a real model often responds to several unrelated things.
+
+</ForReal>
 
 ## In code
 

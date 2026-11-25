@@ -1,5 +1,7 @@
 // authored-by: Neon High
 import { useEffect, useMemo, useState } from 'react';
+import { LiveCode } from '../../components/LabJob';
+import { vllmServeLines } from './realCode';
 import { Widget } from '../../components/Widget';
 import { AnswerReveal } from '../../components/AnswerReveal';
 import { Segmented, Slider } from '../../components/controls';
@@ -978,6 +980,8 @@ export function VramTetrisLab() {
           </div>
         ))}
       </div>
+
+      <LiveCode code={vllmServeLines(brief.modelId, cfg)} note="vLLM" />
 
       {/* Status + optional exhaustive optimum */}
       <div

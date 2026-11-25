@@ -129,6 +129,8 @@ Now turn the tables. Instead of letting Value Iteration choose the arrows, **you
 
 Pay special attention to **Level 3 (The Ice Corridor)**. A sensible safe route clears the primary target easily, yet falls `0.074` short of the true Bellman optimum (`2.352`). Finding that last `0.074` reveals a genuinely counterintuitive trick that only exists in stochastic MDPs.
 
+<LabJob>Route a warehouse robot across a wet floor. The floor is slippery, so sometimes the robot slides sideways, and a slide into the pit is a dropped parcel. Set an arrow on every square so the robot's expected result is as good as it can be.</LabJob>
+
 <PolicyArchitectLab />
 
 <Deeper title="After Level 3: why aiming into a wall beats crossing the gap" tag="Spoiler">
@@ -141,6 +143,12 @@ In **Level 3 (The Ice Corridor)**, square `(0,2)` sits directly above a `−12` 
 Real stochastic control policies — from spacecraft station-keeping to robot manipulation — exploit physical guardrails like this all the time.
 
 </Deeper>
+
+<ForReal>
+
+Markov decision processes are how planners handle uncertainty: robot navigation, inventory control (how much stock to order when demand is random), and the scheduling of maintenance. When the model of the world is known, as here, the exact Bellman calculation you just used is the practical method. When it isn't known, the agent has to learn from experience, which is the next lesson.
+
+</ForReal>
 
 ## In code
 

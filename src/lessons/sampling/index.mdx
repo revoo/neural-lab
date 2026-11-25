@@ -102,6 +102,8 @@ Why don't chatbots use beam search for conversation? Because in open-ended text,
 
 Now put the machinery to work. Each challenge evaluates your single `(T, top-k, top-p)` setting simultaneously across our sharp, medium and flat prompts. Notice Level 2: it locks temperature and top-$p$ so you can *only* move top-$k$. Don't assume every challenge is solvable — if a constraint is mathematically impossible, prove it to yourself and declare it impossible.
 
+<LabJob>One sampler setting has to serve two products: a support bot that must state facts ("The capital of France is…") and a brainstorming tool that should surprise ("I opened the box and found a…"). The live code line shows the same settings as a real `generate` call.</LabJob>
+
 <SamplerLab />
 
 <Deeper title="After the lab: what the exhaustive 6,080-setting search proved" tag="Debrief">
@@ -113,6 +115,12 @@ Every count below comes from testing all $20 \times 16 \times 19 = 6{,}080$ slid
 - **Level 3 (One Sampler for All: sharp ≥ 98%, flat ≥ 9.5 choices, 0.0% tail junk):** **88** of 6,080 settings pass. Temperature alone gets **0**. Top-$k$ alone gets **0**. Top-$p$ alone gets **2** ($p = 0.85$ and $p = 0.90$ at $T = 1.0$). Exhaustive optimum across the whole grid: **$T = 0.9, k = 12, p = 0.95$** (**98.7%** sharp accuracy, **11.40** effective flat choices, **0.0%** tail junk).
 
 </Deeper>
+
+<ForReal>
+
+These knobs are the ones every LLM API exposes: `temperature` and `top_p` in OpenAI's and Anthropic's APIs (Anthropic's also takes `top_k`), and all three in Hugging Face's `model.generate` and in local runners like llama.cpp. Providers' own advice matches what the lab found: low temperature for factual or analytical tasks, higher for creative ones, and usually adjust temperature *or* top-p rather than both.
+
+</ForReal>
 
 ## In code
 

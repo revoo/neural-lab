@@ -140,6 +140,8 @@ Game designers face a version of this lesson every day: they need random numbers
 
 Each brief has several working recipes. The optional goal is to use the **fewest dice**, and among recipes with that few, the most bell-shaped. The optimum was found by trying every recipe with up to 8 of each die.
 
+<LabJob>A game designer needs random numbers with a set average, a set spread and a bell shape, and all they have is dice. Weight initialisation is the same job in disguise: choose the spread of each random part so that a sum of hundreds of them comes out the size you want.</LabJob>
+
 <DiceWorkshop />
 
 <Deeper title="Debrief: the arithmetic that solves every brief" tag="Spoiler">
@@ -153,6 +155,12 @@ A $k$-sided die has mean $(k+1)/2$ and variance $(k^2 - 1)/12$, and both add up 
 **Brief 3** (mean 50, SD 1.5–2): only 5 recipes work, because a small spread with a bell shape needs *several small* dice. The one optimum is **d2 + 3d4 + 41**. The variances 0.25 + 3 × 1.25 = 4 give an SD of exactly 2, right on the edge.
 
 </Deeper>
+
+<ForReal>
+
+**He initialisation** (2015) is this workshop's arithmetic. A neuron adds up hundreds of inputs times random weights, variances add, so PyTorch's `torch.nn.init.kaiming_normal_` draws each weight with variance 2 ÷ (number of inputs) to keep the total's spread steady from layer to layer. The other half of the lesson turns up whenever someone compares two models: a benchmark score is a sum of many random right-or-wrong answers, so it wobbles by a predictable amount, and a gap smaller than that wobble isn't evidence of anything.
+
+</ForReal>
 
 ## In code
 

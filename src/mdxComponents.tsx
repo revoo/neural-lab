@@ -9,6 +9,7 @@ import { Quiz } from './components/Quiz';
 import { Term, LessonLink } from './components/Term';
 import { Tex } from './components/Tex';
 import { Eq } from './components/Eq';
+import { LabJob, ForReal } from './components/LabJob';
 
 export const mdxComponents = {
   Callout,
@@ -25,5 +26,7 @@ export const mdxComponents = {
   LessonLink,
   Tex,
   Eq,
+  LabJob,
+  ForReal,
   a: (p: ComponentProps<'a'>) => <a {...p} target={p.href?.startsWith('http') ? '_blank' : undefined} rel={p.href?.startsWith('http') ? 'noreferrer' : undefined} />,
 };

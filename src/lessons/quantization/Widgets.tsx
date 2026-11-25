@@ -1,5 +1,7 @@
 // authored-by: Neon High
 import { useEffect, useMemo, useState } from 'react';
+import { LiveCode } from '../../components/LabJob';
+import { llamaCppLines } from './realCode';
 import { Widget } from '../../components/Widget';
 import { Segmented, Slider } from '../../components/controls';
 import { Plot } from '../../components/plot';
@@ -507,6 +509,8 @@ export function QuantLab() {
           Uniform INT4 g=16 (5.00 b)
         </button>
       </div>
+
+      <LiveCode code={llamaCppLines(res.avgBits)} note="llama.cpp; the lab's INT4/INT8 blocks are simpler than K-quants, so this is the nearest real format" />
 
       <div className="live-note">
         {isOpt ? (

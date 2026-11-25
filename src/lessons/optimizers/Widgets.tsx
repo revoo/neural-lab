@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { LiveCode } from '../../components/LabJob';
+import { torchOptimLine } from './realCode';
 import { Widget } from '../../components/Widget';
 import { Segmented, Slider, Toggle } from '../../components/controls';
 import { Clip, Dot, Plot, usePlot } from '../../components/plot';
@@ -332,6 +334,7 @@ export function OptimizerGolf() {
             <span className="k">par       </span> {par.steps}
           </div>
           {verdict}
+          <LiveCode code={torchOptimLine(cfg)} note="PyTorch torch.optim" />
           {best !== null && (
             <button className="btn small" onClick={() => setShowPar(!showPar)}>
               {showPar ? 'Hide' : 'Show'} the par configuration
