@@ -138,7 +138,7 @@ The owner asked for the plan in `docs/LAB_IMPROVEMENTS.md` to be implemented in 
 - [x] 7. Timeline page built from `src/history.ts`.
 - [x] 8. Decision lines in the Logic workbench.
 - [x] 9. Replay helper (`useReplay`, `ReplayControls`, `GhostPath`); reward hacking (9a), Wire the Policy (9b), golf labs (9c), VRAM Tetris falling blocks + roofline (9d).
-- [ ] 10. **IN PROGRESS** Remaining rows of the three tables, one commit per lab (tick as done):
+- [x] 10. Remaining rows of the three tables, one commit per lab (small leftovers listed in ROADMAP "Current state"):
   - [x] Stabilise the policy gradient: 20 faint seed lines under the average
   - [x] Design a schedule: 20 seeded runs behind the average, best cosine ghost after a solve (moving marker not done)
   - [x] Prune it: the exhaustive minimum's kept neurons beside yours, log
@@ -161,4 +161,5 @@ Notes for whoever continues:
 - Step 4: `queryMap` (attention) and `speedStrip`/`speedPairMap` (positions) feed post-solve maps behind a "Show the map" button that appears once a puzzle is solved or declared impossible. The two-hand level gets a 180×180 canvas map (colours read from CSS variables, redrawn on theme change).
 - Step 5 added the shared lab pieces. `src/components/LabShell.tsx`: `LabShell` (brief tabs with ✓/★ and a count, brief text, body, status line, hint toggle, `reveal` gated by AnswerReveal, `log`, `actions`) and `useLabProgress(key, seed?)` (solved/optimal per brief in localStorage; `seed` carries over progress saved in an older format). `src/components/MachineLog.tsx`: `useMachineLog()` + `<MachineLog>` (collapsible console, newest line shown in the summary). `src/components/motion.ts`: `usePrefersReducedMotion`, `useTweenedArray`/`useTweened`, `useFramePlayer`; global.css zeroes transitions inside widgets under reduced motion. The Dice Workshop (Roll 1,000 times + log) and Tune the Q-Learner (log, evidence hints, answer behind reveal) now use them.
 - Step 7: `#/timeline` (`src/pages/TimelinePage.tsx`, sidebar link "Timeline of AI") draws `HISTORY`, `ERAS` and `MILESTONES` from `src/history.ts`: era bands (click for the sourced mood), a dot per lab idea (filled when its lesson is completed), a "you are here" marker at the latest idea reached, and every card below (shared `HistoryBody`). `timelineX`/`assignLanes` are tested. Each lesson's history card links to `#/timeline/<id>`, which highlights it.
+- New gotcha: the dev server stops between long sessions; `drive-widget.cjs` then fails with `Node.js v…` and no screenshot. Restart `npm run dev` (see Environment tips).
 - `scripts/drive-widget.cjs` takes `--title=<text>` to pick a widget by title instead of index.

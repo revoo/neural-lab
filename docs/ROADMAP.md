@@ -1,8 +1,18 @@
 # Roadmap & Progress
 
-_Last updated: all 18 curriculum modules 100% complete (0 planned lessons remaining)._
+_Last updated: lab-improvement plan (`docs/LAB_IMPROVEMENTS.md`) implemented, steps 1–10; all 18 curriculum modules complete._
 
 ## Current state (read this first if you're picking up mid-session)
+
+**Lab-improvement plan, done [Claude Opus 5.5]** (owner's request: implement `docs/LAB_IMPROVEMENTS.md` in its suggested order; progress checklist in `HANDOFF.md`). Summary of what now exists:
+
+- **Done [Claude Opus 5.5]:** Shared lab pieces in `src/components/`: `AnswerReveal` (answers only after a solve or a remembered "I'm stuck"), `LabJob`/`ForReal`/`LiveCode` (real job above each lab, "where this happens for real" after it, live library call), `HistoryCard` + `src/history.ts` (sourced history for all 25 reviewed labs), `LabShell` + `useLabProgress`, `MachineLog`, `motion.ts` (`usePrefersReducedMotion`, tweens, `useFramePlayer`, `useReplay`), `ReplayControls`, `GhostPath` (plot.tsx). Reduced motion zeroes widget transitions in global.css.
+- **Done [Claude Opus 5.5]:** New page `#/timeline` (A timeline of AI) from `src/history.ts`.
+- **Done [Claude Opus 5.5]:** Per-lab upgrades: hints never name locked options (tested); sampler live draws; compute-budget (N, D) map; Q-learner predict-then-train with curves and maze replay; alignment reply bars + Goodhart dot + prediction; Logic workbench decision lines (draggable); attention 11×11 query map + worked table; previous-word speed strip/pair map + clock hands; reward-hacking replay with ledger and hack-vs-intended values; Wire the Policy "Run 20 episodes"; golf ghosts and step logs; VRAM Tetris drop + roofline; Dice Roll; Superposition cube; Prune comparison; LoRA captured/missed heatmaps; quantisation number line; Shannon bits strip; corpus live sentence (and a pinned beam search showing hand merges can't beat 1,806 bits); backward-pass collection; training-lab neuron-map comparison and event log; rescue per-layer log; policy-gradient seed lines; schedule seed runs + cosine ghost; model clinic train.log and **two new two-cause cases (11, 12)**.
+- **Not done (small, optional):** schedule designer's moving marker; Prune's fade animation; per-step logs in the Q-learner in the TD-stepper format; moving the remaining labs (other than Dice, Q-learner, sampler, compute budget, alignment) onto `LabShell`; the cross-cutting ideas for labs added after the review (Modules 8–11, 17, 18).
+- **Next:** if continuing the lab work, move more labs onto `LabShell` (pattern: `statistics/Widgets.tsx` DiceWorkshop) and give the post-review labs the same treatment (job line, history card, answer gating).
+
+### Earlier sessions
 
 Session 3 (owner's order): first a **Matrix theme**, then resume "Next steps" with Module 7. Commit and push after every finished lesson; keep this block current. Anything not listed as done has not been started (or only exists as uncommitted scratch).
 
