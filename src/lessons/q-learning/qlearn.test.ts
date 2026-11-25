@@ -107,3 +107,25 @@ describe('Q-learning, Bandits & SARSA engine (q-learning)', () => {
     expect(QLAB_BRIEFS.length).toBe(3);
   });
 });
+
+describe('Q-learner lab machinery', () => {
+  it('the learning curves are the same runs the score averages', async () => {
+    const { evaluateQLabConfig: ev, qlabLayout, qlabGreedyPath } = await import('./qlearn');
+    const cfg = { algo: 'sarsa' as const, alpha: 0.3, epsSchedule: 'const-0.15' as const, qInit: 0 };
+    for (const id of ['safe-cliff', 'shifting-goal'] as const) {
+      const e = ev(id, cfg);
+      const L = qlabLayout(id);
+      expect(e.curves.length).toBe(10);
+      expect(e.curves[0].length).toBe(L.episodes);
+      let sum = 0;
+      for (const c of e.curves) sum += c.slice(L.window[0], L.window[1]).reduce((a, b) => a + b, 0) / (L.window[1] - L.window[0]);
+      expect(sum / 10).toBeCloseTo(e.score, 9);
+    }
+    const fast = ev('fast-maze', { algo: 'qlearning', alpha: 0.6, epsSchedule: 'const-0.02', qInit: 0 });
+    expect(fast.curves.length).toBe(10);
+    expect(fast.curves[0].length).toBe(25);
+    const p = qlabGreedyPath(qlabLayout('fast-maze'), fast.seedQ);
+    expect(p.outcome).toBe('goal');
+    expect(p.path[p.path.length - 1]).toEqual([0, 4]);
+  });
+});

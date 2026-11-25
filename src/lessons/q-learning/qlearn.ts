@@ -628,6 +628,10 @@ export type QLabEval = {
   secondaryLabel: string;
   secondaryValue: string;
   passed: boolean;
+  /** Online return of every training episode, one array per seed (10 seeds). */
+  curves: number[][];
+  /** Seed 1's final Q-table, [state][action], for the maze replay. */
+  seedQ: number[][];
 };
 
 export function evaluateQLabConfig(briefId: QLabBriefId, cfg: QLabConfig): QLabEval {
@@ -636,18 +640,22 @@ export function evaluateQLabConfig(briefId: QLabBriefId, cfg: QLabConfig): QLabE
   if (briefId === 'fast-maze') {
     let evalSum = 0;
     let solvedCount = 0;
+    const curves: number[][] = [];
+    let seedQ: number[][] = [];
     const grid = Q_MAZE_GRID;
     const n = grid.rows * grid.cols;
 
     for (let seed = 1; seed <= numSeeds; seed++) {
       const rng = createRng(seed * 4127 + 9);
       const Q = Array.from({ length: n }, () => [cfg.qInit, cfg.qInit, cfg.qInit, cfg.qInit]);
+      const curve: number[] = [];
       for (let ep = 0; ep < 25; ep++) {
         const eps = epsForSchedule(cfg.epsSchedule, ep);
         let r = grid.start[0];
         let c = grid.start[1];
         let sIdx = qIdx(grid, r, c);
         let a = chooseEpsGreedy(Q[sIdx], eps, rng).action;
+        let epRet = 0;
 
         for (let step = 0; step < 60; step++) {
           let nr = r + DR[a];
@@ -666,13 +674,17 @@ export function evaluateQLabConfig(briefId: QLabBriefId, cfg: QLabConfig): QLabE
               ? Math.max(Q[nIdx][0], Q[nIdx][1], Q[nIdx][2], Q[nIdx][3])
               : Q[nIdx][nextA];
           Q[sIdx][a] += cfg.alpha * (cell.reward + grid.gamma * boot - Q[sIdx][a]);
+          epRet += cell.reward;
           r = nr;
           c = nc;
           sIdx = nIdx;
           a = nextA;
           if (done) break;
         }
+        curve.push(epRet);
       }
+      curves.push(curve);
+      if (seed === 1) seedQ = Q.map((row) => [...row]);
       const ev = evaluateGreedyMazeReturn(grid, Q);
       evalSum += ev.discountedReturn;
       if (ev.reachedGoal) solvedCount++;
@@ -683,12 +695,16 @@ export function evaluateQLabConfig(briefId: QLabBriefId, cfg: QLabConfig): QLabE
       secondaryLabel: 'Seeds reaching Goal',
       secondaryValue: `${solvedCount}/${numSeeds}`,
       passed: score >= 4.3,
+      curves,
+      seedQ,
     };
   }
 
   if (briefId === 'safe-cliff') {
     let lateSum = 0;
     let greedySum = 0;
+    const curves: number[][] = [];
+    let seedQ: number[][] = [];
     for (let seed = 1; seed <= numSeeds; seed++) {
       const rng = createRng(seed * 2897 + 5);
       // Enforced minimum exploration 0.10 on this safety brief
@@ -698,6 +714,8 @@ export function evaluateQLabConfig(briefId: QLabBriefId, cfg: QLabConfig): QLabE
       for (let ep = 100; ep < 250; ep++) s += res.epReturns[ep];
       lateSum += s / 150;
       greedySum += res.greedyReturn;
+      curves.push(res.epReturns);
+      if (seed === 1) seedQ = res.Q.map((row) => [...row]);
     }
     const score = lateSum / numSeeds;
     return {
@@ -705,18 +723,23 @@ export function evaluateQLabConfig(briefId: QLabBriefId, cfg: QLabConfig): QLabE
       secondaryLabel: 'Greedy path return',
       secondaryValue: (greedySum / numSeeds).toFixed(1),
       passed: score >= -17.0,
+      curves,
+      seedQ,
     };
   }
 
   // Brief 3: Shifting Goal (at ep 100, old Goal (0,4) shrinks +10 -> +2 and new +10 opens at (3,4))
   let postSum = 0;
   let preSum = 0;
+  const curves: number[][] = [];
+  let seedQ: number[][] = [];
   const rows = 4;
   const cols = 5;
   const n = rows * cols;
   for (let seed = 1; seed <= numSeeds; seed++) {
     const rng = createRng(seed * 5381 + 21);
     const Q = Array.from({ length: n }, () => [cfg.qInit, cfg.qInit, cfg.qInit, cfg.qInit]);
+    const curve: number[] = [];
     for (let ep = 0; ep < 220; ep++) {
       const shifted = ep >= 100;
       const eps = epsForSchedule(cfg.epsSchedule, ep);
@@ -755,7 +778,10 @@ export function evaluateQLabConfig(briefId: QLabBriefId, cfg: QLabConfig): QLabE
       }
       if (ep >= 60 && ep < 100) preSum += epRet / 40;
       if (ep >= 140 && ep < 220) postSum += epRet / 80;
+      curve.push(epRet);
     }
+    curves.push(curve);
+    if (seed === 1) seedQ = Q.map((row) => [...row]);
   }
   const score = postSum / numSeeds;
   return {
@@ -763,6 +789,8 @@ export function evaluateQLabConfig(briefId: QLabBriefId, cfg: QLabConfig): QLabE
     secondaryLabel: 'Pre-shift return (ep 61–100)',
     secondaryValue: (preSum / numSeeds).toFixed(2),
     passed: score >= 5.5,
+    curves,
+    seedQ,
   };
 }
 
@@ -798,4 +826,69 @@ export function solveQLabBriefExhaustive(briefId: QLabBriefId): QLabGridSummary 
   }
 
   return { totalConfigs, passingCount, bestConfig, bestScore };
+}
+
+// ------------------------------------------------------------------ Lab machinery: the grid each brief runs on
+
+export type QLabCell = { kind: 'empty' | 'wall' | 'goal' | 'hazard'; reward: number; label?: string };
+export type QLabLayout = { rows: number; cols: number; start: [number, number]; cells: QLabCell[][]; episodes: number; window: [number, number]; shiftAt?: number };
+
+/**
+ * The world each brief trains in, as drawn under the lab (for Shifting Goal,
+ * the world after the shift). `window` is the range of episodes (0-based,
+ * end exclusive) the brief's score averages; Fast Maze is scored by a greedy
+ * run after training instead, so its window is empty.
+ */
+export function qlabLayout(briefId: QLabBriefId): QLabLayout {
+  if (briefId === 'fast-maze') {
+    return { rows: Q_MAZE_GRID.rows, cols: Q_MAZE_GRID.cols, start: Q_MAZE_GRID.start, cells: Q_MAZE_GRID.cells.map((row) => row.map((c) => ({ ...c }))), episodes: 25, window: [25, 25] };
+  }
+  if (briefId === 'safe-cliff') {
+    const cells: QLabCell[][] = Array.from({ length: CLIFF_ROWS }, (_, r) =>
+      Array.from({ length: CLIFF_COLS }, (_, c) =>
+        isCliffCell(r, c) ? { kind: 'hazard', reward: -50, label: 'Cliff' } : r === CLIFF_GOAL[0] && c === CLIFF_GOAL[1] ? { kind: 'goal', reward: 0, label: 'Goal' } : { kind: 'empty', reward: -1 },
+      ),
+    );
+    return { rows: CLIFF_ROWS, cols: CLIFF_COLS, start: CLIFF_START, cells, episodes: 250, window: [100, 250] };
+  }
+  const cells: QLabCell[][] = Array.from({ length: 4 }, () => Array.from({ length: 5 }, () => ({ kind: 'empty' as const, reward: -0.1 })));
+  cells[1][2] = { kind: 'wall', reward: 0 };
+  cells[2][2] = { kind: 'wall', reward: 0 };
+  cells[0][4] = { kind: 'goal', reward: 2, label: 'Old +2' };
+  cells[3][4] = { kind: 'goal', reward: 10, label: 'New +10' };
+  return { rows: 4, cols: 5, start: [3, 0], cells, episodes: 220, window: [140, 220], shiftAt: 100 };
+}
+
+/**
+ * Follow the greedy policy of a Q-table from the start, as the lab's replay
+ * draws it. Falling off the cliff sends the agent back to the start (as in
+ * training); a revisited square means the policy loops.
+ */
+export function qlabGreedyPath(L: QLabLayout, Q: number[][], maxSteps = 40): { path: [number, number][]; outcome: 'goal' | 'hazard' | 'loop' | 'timeout'; reward: number } {
+  let [r, c] = L.start;
+  const path: [number, number][] = [[r, c]];
+  const seen = new Set([r * L.cols + c]);
+  let reward = 0;
+  for (let s = 0; s < maxSteps; s++) {
+    const q = Q[r * L.cols + c];
+    let a = 0;
+    for (let k = 1; k < 4; k++) if (q[k] > q[a]) a = k;
+    let nr = r + DR[a];
+    let nc = c + DC[a];
+    if (nr < 0 || nr >= L.rows || nc < 0 || nc >= L.cols || L.cells[nr][nc].kind === 'wall') {
+      nr = r;
+      nc = c;
+    }
+    const cell = L.cells[nr][nc];
+    reward += cell.reward;
+    path.push([nr, nc]);
+    if (cell.kind === 'goal') return { path, outcome: 'goal', reward };
+    if (cell.kind === 'hazard') return { path, outcome: 'hazard', reward };
+    const k = nr * L.cols + nc;
+    if (seen.has(k)) return { path, outcome: 'loop', reward };
+    seen.add(k);
+    r = nr;
+    c = nc;
+  }
+  return { path, outcome: 'timeout', reward };
 }

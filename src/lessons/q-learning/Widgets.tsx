@@ -1,8 +1,9 @@
 // authored-by: Gemini Antigravity
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Widget } from '../../components/Widget';
 import { LabShell, useLabProgress } from '../../components/LabShell';
 import { useMachineLog } from '../../components/MachineLog';
+import { useFramePlayer } from '../../components/motion';
 import { Segmented, Slider } from '../../components/controls';
 import { createRng } from '../../lib/rng';
 import {
@@ -32,6 +33,9 @@ import {
   type Action,
   type LabEpsSchedule,
   type QLabConfig,
+  type QLabLayout,
+  qlabGreedyPath,
+  qlabLayout,
   type TdAlgo,
 } from './qlearn';
 
@@ -716,6 +720,109 @@ function loadQLabConfigs(): Record<string, QLabConfig> {
 const fmtQ = (v: number) => (v >= 0 ? `+${v.toFixed(2)}` : v.toFixed(2));
 const cfgLabel = (c: QLabConfig) =>
   `${c.algo === 'qlearning' ? 'Q-learning' : 'SARSA'}, α ${c.alpha}, ε ${c.epsSchedule === 'decay' ? 'decaying' : c.epsSchedule.replace('const-', '')}, Q₀ ${c.qInit}`;
+const cfgKey = (c: QLabConfig) => `${c.algo}|${c.alpha}|${c.epsSchedule}|${c.qInit}`;
+const CURVE_FRAMES = 30;
+
+/** The brief's world with seed 1's greedy arrows, and the agent walking its greedy path. */
+function QLabMaze({ layout, Q, path, step }: { layout: QLabLayout; Q: number[][]; path: [number, number][]; step: number }) {
+  const cw = 46;
+  const pad = 3;
+  const W = layout.cols * cw + 2 * pad;
+  const H = layout.rows * cw + 2 * pad;
+  const shown = path.slice(0, Math.max(1, step + 1));
+  const [ar, ac] = shown[shown.length - 1];
+  const pts = shown.map(([r, c]) => `${pad + c * cw + cw / 2},${pad + r * cw + cw / 2}`).join(' ');
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: layout.cols * 52, height: 'auto', display: 'block' }} role="img" aria-label="The brief's grid with the learned greedy policy">
+      {layout.cells.map((row, r) =>
+        row.map((cell, c) => {
+          const q = Q[r * layout.cols + c] ?? [0, 0, 0, 0];
+          let best = 0;
+          for (let k = 1; k < 4; k++) if (q[k] > q[best]) best = k;
+          const x = pad + c * cw;
+          const y = pad + r * cw;
+          const isStart = r === layout.start[0] && c === layout.start[1];
+          const fill =
+            cell.kind === 'wall'
+              ? 'var(--text-faint)'
+              : cell.kind === 'hazard'
+                ? 'color-mix(in srgb, var(--c-bad) 24%, var(--bg))'
+                : cell.kind === 'goal'
+                  ? 'color-mix(in srgb, var(--c-good) 24%, var(--bg))'
+                  : 'var(--bg-sunken)';
+          return (
+            <g key={`${r}-${c}`}>
+              <rect x={x + 1} y={y + 1} width={cw - 2} height={cw - 2} rx={5} fill={fill} stroke="var(--border)" />
+              {cell.kind === 'empty' && (
+                <text x={x + cw / 2} y={y + cw / 2 + 5} textAnchor="middle" fontSize={15} fill="var(--text-muted)" fontFamily="var(--font-mono)">
+                  {isStart ? 'S' : ACTION_ARROWS[best]}
+                </text>
+              )}
+              {(cell.kind === 'goal' || cell.kind === 'hazard') && (
+                <text x={x + cw / 2} y={y + cw / 2 + 4} textAnchor="middle" fontSize={9.5} fontWeight={700} fill={cell.kind === 'goal' ? 'var(--c-good)' : 'var(--c-bad)'} fontFamily="var(--font-mono)">
+                  {cell.reward > 0 ? `+${cell.reward}` : cell.reward}
+                </text>
+              )}
+            </g>
+          );
+        }),
+      )}
+      {shown.length > 1 && <polyline points={pts} fill="none" stroke="var(--accent)" strokeWidth={2.5} strokeOpacity={0.6} strokeLinejoin="round" />}
+      <circle cx={pad + ac * cw + cw / 2} cy={pad + ar * cw + cw / 2} r={8} fill="var(--accent)" stroke="var(--bg)" strokeWidth={2} />
+    </svg>
+  );
+}
+
+/** Ten seeds' online return per episode (faint), their average (bold), the scored window and the target. */
+function QLabCurves({ curves, layout, upto, target, smooth }: { curves: number[][]; layout: QLabLayout; upto: number; target?: number; smooth: number }) {
+  const E = layout.episodes;
+  const sm = (c: number[]) => c.map((_, i) => {
+    const lo = Math.max(0, i - smooth + 1);
+    let t = 0;
+    for (let k = lo; k <= i; k++) t += c[k];
+    return t / (i - lo + 1);
+  });
+  const lines = curves.map(sm);
+  const mean = lines[0].map((_, i) => lines.reduce((a, l) => a + l[i], 0) / lines.length);
+  // Scale to the later episodes (the first few, before anything is learned, can be ten times worse) and clip the rest.
+  const from = Math.min(E - 1, Math.ceil(E * 0.12));
+  const late = lines.flatMap((l) => l.slice(from));
+  const lo = Math.min(...late, target ?? Infinity);
+  const hi = Math.max(...late, target ?? -Infinity);
+  const W = 420;
+  const H = 170;
+  const L = 34;
+  const B = 18;
+  const x = (i: number) => L + ((W - L - 6) * i) / Math.max(1, E - 1);
+  const y = (v: number) => 6 + ((H - B - 6) * (hi - Math.max(lo, Math.min(hi, v)))) / Math.max(1e-9, hi - lo);
+  const path = (l: number[]) => l.slice(0, upto).map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('');
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }} role="img" aria-label="Learning curves for ten seeds">
+      {layout.window[1] > layout.window[0] && (
+        <rect x={x(layout.window[0])} y={6} width={x(layout.window[1] - 1) - x(layout.window[0])} height={H - B - 6} fill="var(--accent-soft)" />
+      )}
+      {layout.shiftAt !== undefined && (
+        <>
+          <line x1={x(layout.shiftAt)} x2={x(layout.shiftAt)} y1={6} y2={H - B} stroke="var(--c-warn)" strokeDasharray="3 3" />
+          <text x={x(layout.shiftAt) + 4} y={16} fontSize={9.5} fill="var(--c-warn)">goal moves</text>
+        </>
+      )}
+      {target !== undefined && <line x1={L} x2={W - 6} y1={y(target)} y2={y(target)} stroke="var(--c-good)" strokeDasharray="5 3" />}
+      {lines.map((l, i) => (
+        <path key={i} d={path(l)} fill="none" stroke="var(--text-faint)" strokeWidth={1} opacity={0.55} />
+      ))}
+      <path d={path(mean)} fill="none" stroke="var(--accent)" strokeWidth={2.4} />
+      <line x1={L} x2={W - 6} y1={H - B} y2={H - B} stroke="var(--border)" />
+      <text x={L - 4} y={y(hi) + 4} fontSize={9} textAnchor="end" className="plot-tick">{hi.toFixed(0)}</text>
+      <text x={L - 4} y={y(lo)} fontSize={9} textAnchor="end" className="plot-tick">{lo.toFixed(0)}</text>
+      {target !== undefined && (
+        <text x={W - 8} y={y(target) - 4} fontSize={9} textAnchor="end" fill="var(--c-good)">target {target}</text>
+      )}
+      <text x={L} y={H - 4} fontSize={9} className="plot-tick">episode 1</text>
+      <text x={W - 6} y={H - 4} fontSize={9} textAnchor="end" className="plot-tick">{E}</text>
+    </svg>
+  );
+}
 
 export function QLearnerLab() {
   const [briefIdx, setBriefIdx] = useState(0);
@@ -725,23 +832,30 @@ export function QLearnerLab() {
     solved: Object.fromEntries(QLAB_BRIEFS.map((b) => [b.id, evaluateQLabConfig(b.id, configs[b.id] ?? DEFAULT_CFG).passed])),
   }));
   const log = useMachineLog();
+  const [runs, setRuns] = useState<Record<string, { key: string; predicted: 'pass' | 'fail' }>>({});
+  const [frame, setFrame] = useState(0);
+  const trainCount = useRef(0);
 
   const brief = QLAB_BRIEFS[briefIdx];
   const cfg = configs[brief.id] ?? DEFAULT_CFG;
+  const layout = useMemo(() => qlabLayout(brief.id), [brief.id]);
 
   const curOpt = useMemo(() => solveQLabBriefExhaustive(brief.id), [brief.id]);
   const curEval = useMemo(() => evaluateQLabConfig(brief.id, cfg), [brief.id, cfg]);
-  const isOpt = curEval.passed && curEval.score >= curOpt.bestScore - 0.01;
+  const greedy = useMemo(() => qlabGreedyPath(layout, curEval.seedQ), [layout, curEval]);
+  const run = runs[brief.id];
+  const trained = run?.key === cfgKey(cfg);
+  const passing = trained && curEval.passed;
+  const isOpt = passing && curEval.score >= curOpt.bestScore - 0.01;
+
+  const player = useFramePlayer(CURVE_FRAMES + greedy.path.length - 1, 55, setFrame);
+  const upto = Math.min(layout.episodes, Math.round((layout.episodes * Math.min(frame, CURVE_FRAMES)) / CURVE_FRAMES));
+  const agentStep = Math.max(0, frame - CURVE_FRAMES);
 
   const updateCfg = (patch: Partial<QLabConfig>) => {
     const nextCfg = { ...cfg, ...patch };
     const next = { ...configs, [brief.id]: nextCfg };
     setConfigs(next);
-    const ev = evaluateQLabConfig(brief.id, nextCfg);
-    log.push(
-      `${brief.title.split(' · ')[0]} · ${cfgLabel(nextCfg)} → ${brief.metricLabel} ${fmtQ(ev.score)} (was ${fmtQ(curEval.score)}) · ${ev.secondaryLabel.toLowerCase()} ${ev.secondaryValue}${ev.passed ? ' · passes' : ''}`,
-      ev.passed ? 'good' : ev.score < curEval.score ? 'bad' : 'info',
-    );
     try {
       localStorage.setItem(QLAB_STORAGE_KEY, JSON.stringify(next));
     } catch {
@@ -749,26 +863,44 @@ export function QLearnerLab() {
     }
   };
 
+  const train = (predicted: 'pass' | 'fail') => {
+    setRuns({ ...runs, [brief.id]: { key: cfgKey(cfg), predicted } });
+    setFrame(0);
+    player.start();
+    const right = (predicted === 'pass') === curEval.passed;
+    trainCount.current++;
+    log.push(
+      `train #${trainCount.current} · ${brief.title.split(' · ')[0]} · ${cfgLabel(cfg)} · you predicted ${predicted === 'pass' ? 'a pass' : 'a fail'} → ${brief.metricLabel} ${fmtQ(curEval.score)} (target ${fmtQ(brief.target)}): ${curEval.passed ? 'passes' : 'fails'} · ${right ? 'prediction right' : 'prediction wrong'}`,
+      curEval.passed ? 'good' : 'bad',
+    );
+    log.push(`   seed 1 greedy walk: ${greedy.path.length - 1} steps, ${greedy.outcome === 'goal' ? 'reaches the goal' : greedy.outcome === 'hazard' ? 'falls in' : greedy.outcome === 'loop' ? 'loops forever' : 'runs out of steps'}`);
+  };
+
   return (
     <LabShell
       title="Lab: Tune the Q-Learner"
       caption={
         <>
-          Configure algorithm, learning rate <code>α</code>, exploration schedule <code>ε</code>, and initial optimism <code>Q₀</code> across three realistic briefs. Every setting is averaged over 10 fixed seeds; the optional goal is the best of all <strong>36 grid combinations</strong>, found by trying every one. Progress saves automatically.
+          Configure algorithm, learning rate <code>α</code>, exploration schedule <code>ε</code>, and initial optimism <code>Q₀</code>, then predict whether it will pass and press <strong>Train</strong>. Each run is averaged over 10 fixed seeds; the chart shows all ten learning curves (faint) and their average (bold), and the grid shows what seed 1 learned, walked greedily. The optional goal is the best of all <strong>36 settings</strong>, found by trying every one. Progress saves automatically.
         </>
       }
       briefs={QLAB_BRIEFS.map((b) => ({ id: b.id, tab: b.title.split(' · ')[1] ?? b.title, title: b.title, text: b.description }))}
       active={briefIdx}
-      onSelect={setBriefIdx}
+      onSelect={(i) => {
+        setBriefIdx(i);
+        setFrame(CURVE_FRAMES + 1000);
+      }}
       progress={progress}
-      passing={curEval.passed}
+      passing={passing}
       optimal={isOpt}
       status={
-        isOpt
-          ? `Exhaustive grid optimum matched (${fmtQ(curEval.score)})! Out of all 36 combinations, ${curOpt.passingCount} pass and yours ties the top score.`
-          : curEval.passed
-            ? `Brief passed (${fmtQ(curEval.score)} vs target ${fmtQ(brief.target)})! Optional challenge: can you reach the exhaustive grid best of ${fmtQ(curOpt.bestScore)}?`
-            : `Not quite yet (${fmtQ(curEval.score)} vs target ${fmtQ(brief.target)}). Read the two numbers above: they say which failure you are looking at.`
+        !trained
+          ? 'Settings changed. Before you train: will this setting pass the brief? Make your call with one of the two Train buttons.'
+          : isOpt
+            ? `Exhaustive grid optimum matched (${fmtQ(curEval.score)})! Out of all 36 combinations, ${curOpt.passingCount} pass and yours ties the top score.`
+            : curEval.passed
+              ? `Brief passed (${fmtQ(curEval.score)} vs target ${fmtQ(brief.target)}), as ${run.predicted === 'pass' ? 'you predicted' : 'you did not expect'}. Optional challenge: can you reach the exhaustive grid best of ${fmtQ(curOpt.bestScore)}?`
+              : `Not quite yet (${fmtQ(curEval.score)} vs target ${fmtQ(brief.target)}), as ${run.predicted === 'fail' ? 'you predicted' : 'you did not expect'}. Look at the curves and the grid: they show which failure you are looking at.`
       }
       hint={brief.hint}
       actions={
@@ -784,7 +916,7 @@ export function QLearnerLab() {
           </>
         ),
       }}
-      log={{ lines: log.lines, onClear: log.clear, empty: 'Change a setting: each 10-seed result is logged here, so you can compare what you tried.' }}
+      log={{ lines: log.lines, onClear: log.clear, empty: 'Predict and train: each run, your prediction and the result are logged here.' }}
     >
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px, 100%), 1fr))', gap: 12 }}>
         <div style={{ background: 'var(--bg-sunken)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -815,32 +947,72 @@ export function QLearnerLab() {
             onChange={(qInit) => updateCfg({ qInit })}
             options={QLAB_QINITS.map((q) => ({ value: q, label: q === 0 ? 'Neutral (Q₀=0)' : 'Optimistic (Q₀=+5)' }))}
           />
+          <div className="btn-row">
+            <button type="button" className="btn primary" disabled={player.running} onClick={() => train('pass')}>
+              Train · I predict it passes
+            </button>
+            <button type="button" className="btn" disabled={player.running} onClick={() => train('fail')}>
+              Train · I predict it fails
+            </button>
+          </div>
         </div>
 
         <div style={{ background: 'var(--bg-sunken)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{brief.metricLabel}</div>
-              <div className="mono" style={{ fontSize: 19, fontWeight: 700, color: curEval.passed ? 'var(--c-good)' : 'var(--c-bad)' }}>{fmtQ(curEval.score)}</div>
-              <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-faint)' }}>target ≥ {fmtQ(brief.target)}</div>
+          {trained ? (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{brief.metricLabel}</div>
+                  <div className="mono" style={{ fontSize: 19, fontWeight: 700, color: curEval.passed ? 'var(--c-good)' : 'var(--c-bad)' }}>{fmtQ(curEval.score)}</div>
+                  <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-faint)' }}>target ≥ {fmtQ(brief.target)}</div>
+                </div>
+                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{curEval.secondaryLabel}</div>
+                  <div className="mono" style={{ fontSize: 19, fontWeight: 700, color: 'var(--c-a)' }}>{curEval.secondaryValue}</div>
+                  <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-faint)' }}>10-seed average</div>
+                </div>
+              </div>
+              <div className="mono" style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+                you predicted {run.predicted === 'pass' ? 'a pass' : 'a fail'} · result: {curEval.passed ? 'pass' : 'fail'} {(run.predicted === 'pass') === curEval.passed ? '✓' : '✗'}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {curEval.passed ? (
+                  <>
+                    Optional goal: the best of all 36 settings scores <strong>{fmtQ(curOpt.bestScore)}</strong>.
+                  </>
+                ) : (
+                  <>{curOpt.passingCount} of the 36 settings pass this brief.</>
+                )}
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: 13.5, color: 'var(--text-muted)' }}>
+              Not trained with these settings yet. With 36 possible settings, it pays to reason first: which failure does this brief set up, and does your setting avoid it?
             </div>
-            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{curEval.secondaryLabel}</div>
-              <div className="mono" style={{ fontSize: 19, fontWeight: 700, color: 'var(--c-a)' }}>{curEval.secondaryValue}</div>
-              <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-faint)' }}>10-seed average</div>
-            </div>
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            {curEval.passed ? (
-              <>
-                Optional goal: the best of all 36 settings scores <strong>{fmtQ(curOpt.bestScore)}</strong>.
-              </>
-            ) : (
-              <>{curOpt.passingCount} of the 36 settings pass this brief.</>
-            )}
-          </div>
+          )}
         </div>
       </div>
+      {trained && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 12, marginTop: 12, alignItems: 'start' }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+              Online return per episode{layout.episodes > 25 ? ' (10-episode moving average)' : ''}
+            </div>
+            <QLabCurves curves={curEval.curves} layout={layout} upto={upto} target={brief.id === 'fast-maze' ? undefined : brief.target} smooth={layout.episodes > 25 ? 10 : 1} />
+            <div className="muted" style={{ fontSize: 12 }}>
+              {brief.id === 'fast-maze'
+                ? 'This brief is scored after training, by one greedy run from the start; the curves show how training went.'
+                : 'The shaded band is the stretch the score averages; the dashed line is the target.'}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+              What seed 1 learned: greedy arrows, and the walk from S ({greedy.outcome === 'goal' ? 'reaches a goal' : greedy.outcome === 'hazard' ? 'falls in' : greedy.outcome === 'loop' ? 'loops' : 'runs out of steps'})
+            </div>
+            <QLabMaze layout={layout} Q={curEval.seedQ} path={greedy.path} step={agentStep} />
+          </div>
+        </div>
+      )}
     </LabShell>
   );
 }
