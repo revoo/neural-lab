@@ -1,6 +1,8 @@
 <!-- authored-by: Claude Opus 5.5 -->
 # Curriculum Audit: Order, Jargon, History and the Human Story
 
+> **Implemented via `docs/CURRICULUM_PLAN.md`; see `docs/ROADMAP.md` for status.**
+
 > **Revised in the implementation plan (`docs/CURRICULUM_PLAN.md`, §1).** Checking dependencies changed two recommendations. (1) The maths stays as a section at the front, because `neuron` already uses nearly all of it. It is trimmed to 9 lessons, each with a lab and an explicit bridge to the AI lesson that uses it; `statistics` and `high-dimensions` move to where they are used. (2) `tokenization` stays at the end of the transformers module, because it is written as the door into the transformer; the embeddings and attention lessons get a short note instead.
 
 _Written November 2026, at the owner's request. It covers all 66 registered lessons in `src/curriculum.ts`, the brief in `docs/VISION.md`, the history data in `src/history.ts` and the timeline page. Recommendations only: no lesson has been moved yet._

@@ -43,6 +43,8 @@ An experienced software engineer and lifelong learner — *not* a university stu
 
 8. **Proportionate checking (November 2026).** This is a static educational site: keep correctness strict (every number a learner reads is computed, lab optimums are searched, history is sourced), but keep process light. Tests and build before each commit; the full page checker once per lesson or work package; screenshots in every theme only for new widgets; no tests for arithmetic a reader can check in their head.
 
+9. **3Blue1Brown-style maths labs and history in the main text (November 2026).** The maths toolkit at the front should feel like 3Blue1Brown, with Zachtronics-style labs of its own, explicit "Why this, and not something else?" comparisons, and clear bridges to the AI lessons that use each idea. History and "the struggle" (dead ends, winters, disputes, ideas waiting decades for data and hardware) belong in the main text — opening hooks, era interludes, a prologue and epilogue, and "You are standing where they stood" lab notes — not tucked away only in collapsed cards.
+
 ## Lesson methodology
 
 Ideally each major lesson: (1) explain the problem, (2) build an intuitive mental model, (3) interactive visualisation, (4) let the learner manipulate variables, (5) explain the maths, (6) show code, (7) test understanding, (8) a challenging experiment exposing an edge case or limitation, (9) summarise transferable principles, (10) connect to real-world AI.

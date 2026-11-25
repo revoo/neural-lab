@@ -2,11 +2,11 @@
 
 You're picking up **Neural Lab**, an interactive website that teaches AI from first principles: Feynman-style explanation, 3Blue1Brown-style visuals, Zachtronics-style labs. This file is the onboarding procedure. Follow it in order. (Agent rules in brief: `AGENTS.md` / `CLAUDE.md`.)
 
-## 0. Resume here: curriculum plan, WP8 complete, next WP9
+## 0. Resume here: curriculum plan complete (WP0–WP9)
 
-The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented step by step (WP0 → WP9). WP0 to WP8 are done and pushed on `claude/cool-feynman-4hci4d`: Claude Opus 5.5 did WP0–WP1.7, Labs 1–2, WP1.10, WP1.9 and WP2–WP5; Codex Meridian 6 did Labs 3–9; Gemini Antigravity is finishing WP6–WP9 without pausing.
+`docs/CURRICULUM_PLAN.md` (WP0 → WP9) is **complete** and pushed on `claude/cool-feynman-4hci4d`: Claude Opus 5.5 did WP0–WP1.7, Labs 1–2, WP1.10, WP1.9 and WP2–WP5; Codex Meridian 6 did Labs 3–9; Gemini Antigravity completed WP6–WP9. The site now has **20 modules (0–19) and 75 lessons**, 57 sourced history cards, 12 sourced timeline milestones, and 150 passing test files (644 tests).
 
-**Read first, in this order:** `AGENTS.md`, this file (especially "Owner's standing instructions" and "Curriculum plan: progress" at the end), `docs/CURRICULUM_PLAN.md` §0 and §1 and the section for your step, and the "Current state" block at the top of `docs/ROADMAP.md`.
+**Read first, in this order:** `AGENTS.md`, this file (especially "Owner's standing instructions" and "Gotchas"), and the "Current state" block at the top of `docs/ROADMAP.md` (which includes "Open questions for the owner").
 
 **Your name for the authorship watermark.** Follow the owner's rule in "Owner's standing instructions": if your model already has a name ("Neon High", "Gemini Antigravity", "Claude Opus 5.5", "Codex Meridian 6"), reuse it exactly; otherwise pick a new, unique `<MODEL_NAME>`. Use it in file headers, the `Authored-by:` commit trailer and roadmap entries. After `npm run build`, `rg "<MODEL_NAME>" dist/` must find nothing. (An earlier note here said not to reuse "Claude Opus 5.5"; that conflicted with the owner's rule and is recorded as an open question in `docs/ROADMAP.md`.)
 
@@ -16,7 +16,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented step by step (WP
 |---|---|
 | WP0.1 | `ModuleRef` (renders the live module number, linked) in `src/components/Term.tsx`; `Src` (source link) in `src/components/Src.tsx`; both registered in `src/mdxComponents.tsx`. Test: `src/components/moduleRef.test.ts`. |
 | WP0.2–0.3 | No lesson prose types "Module N" or "last/next/previous lesson/module" any more: they're `ModuleRef` / `LessonLink`. |
-| WP0.4 | `src/curriculum.test.ts` enforces the above, checks every `LessonLink`/`ModuleRef` target, consecutive module numbers and one registration per lesson folder, and (test 6, added in WP1.4) that every toolkit lesson has a `<Bridge to>` a later module. The plain-summary test is `it.todo` until WP2.4. `node scripts/forward-links.cjs` prints links that point later in the course; read it after any reorder. |
+| WP0.4 | `src/curriculum.test.ts` enforces the above, checks every `LessonLink`/`ModuleRef` target, consecutive module numbers and one registration per lesson folder, and (test 6, added in WP1.4) that every toolkit lesson has a `<Bridge to>` a later module. The plain-summary test is live (WP2.4). `node scripts/forward-links.cjs` prints links that point later in the course; read it after any reorder. |
 | WP1.1 | Module 1 is "The Maths Toolkit" (9 lessons). `statistics` sits between `loss-functions` and `sgd-minibatch`; `high-dimensions` opens Module 8 (`classical`). Their prose was re-tensed to fit. |
 | WP1.2 | `src/components/MachineMap.tsx` (+ `machineMap.test.ts`): SVG of the learning machine; two-column layout under 560px. |
 | WP1.3 | A `<MachineMap highlight="…" />` plus a "**Where this is going.**" paragraph before the second `##` of each toolkit lesson. |
@@ -39,10 +39,11 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented step by step (WP
 | WP8.1 | `src/lessons/svm/` in `classical` after `linear-regression`: exact 2D hard-margin solver, SMO soft-margin, 3D paraboloid lift, `WidenTheStreetLab` (4 briefs), history `svm` (56 entries), glossary `svm`, `support-vector`, `margin`, `kernel-trick`. |
 | WP8.2 | `src/lessons/gans/` in `generative` after `autoencoders`: live 1D GAN on 3-mode Gaussian (`gan.ts`, exact finite-diff checked backprop), `GanDuelWidget`, `DuelBalanceLab` (30-setting × 5-seed search in `search.run.ts`/`results.ts`), history `gans` (57 entries), glossary `gan`, `mode-collapse`, `minimax-game`. |
 | WP8.3 | Module 19 `epilogue` (`era: '2018 to today'`) and `src/lessons/open-questions/` ("What Nobody Understands Yet"): minimum-norm random Fourier features double-descent engine & `RandomFeaturesWidget` (peak pinned at $p = n = 24$), grokking, superposition, both sides of emergence, scaling laws, closing link to `prologue`, 3-question quiz. |
+| WP9 | Final documentation updated across `docs/ROADMAP.md`, `HANDOFF.md`, `docs/VISION.md`, and `docs/CURRICULUM_AUDIT.md`. |
 
-### What to do next, in order
+### What to do next
 
-1. **WP9:** Final documentation across `ROADMAP.md`, `HANDOFF.md`, `VISION.md`, and `CURRICULUM_AUDIT.md`.
+- **Curriculum plan complete.** Check "Open questions for the owner" and "Next steps" in `docs/ROADMAP.md` before starting any new work.
 
 ### How each maths lab was built (copy this)
 
@@ -77,6 +78,12 @@ Before every commit: `npm test` → `npm run build` → `rg "<MODEL_NAME>" dist/
 - **`.tsx` imports and the TS runner.** `node --experimental-strip-types --import ./scripts/ts-hooks.mjs` can't load a `.tsx` file, so a scratch script that imports lesson data from a widget fails with `ERR_UNKNOWN_FILE_EXTENSION`. Explore through a throwaway Vitest file instead (`npx vitest run <file> --silent=false` prints `console.log`).
 - **`Plot` draws its axes through the origin.** For a chart whose domain excludes 0 (log scales, say), pass `axes={false}` and draw the axes and tick labels yourself (`SensitivityLab.tsx` shows how), or they land at a corner.
 - **Render-time computation.** `rivals()` in each toolkit lesson runs when the page renders; keep it cheap. `gradients/rivals.ts` stores its grid-searched step sizes in `BIG_BEST` and its test re-runs the search.
+- **Never type module numbers or 'next lesson' in prose; use `ModuleRef`/`LessonLink`, and `src/curriculum.test.ts` enforces it.**
+- **Every Module 1 lesson needs a `Bridge` to a later module** (and a `## Why this, and not something else?` section before its lab; enforced by `src/curriculum.test.ts`).
+- **Module `era` strings in `src/curriculum.ts`** must match `YYYY[s] to YYYY[s]|today` (segments separated by `, then `), and every history card in the module must fall inside its era (`src/curriculum.test.ts`).
+- **`.row` in `global.css` does not set `display: flex`** — use explicit inline flex (`display: 'flex', gap: 18, alignItems: 'flex-start', flexWrap: 'wrap'`) for responsive two-column widget layouts so they stack cleanly at 390px.
+- **Fetching Wikipedia raw pages** in cloud containers can require IPv4 and a User-Agent header: `curl -4 -sL -A "NeuralLabEducationalBot/1.0 (https://github.com/revoo/neural-lab)" "https://en.wikipedia.org/w/index.php?title=<Page>&action=raw"`.
+- **Slow 2-core VMs and `bpe.test.ts`:** run the full Vitest suite with `npm test -- --testTimeout=20000 --no-isolate` (and never concurrently with Playwright) so `bpe.test.ts` does not time out at 5s.
 - **Lessons on the other agent's list** (unticked in "Next task" below): make only minimal line edits there; never reformat them.
 
 ## 1. Get oriented (≈10 minutes)
@@ -120,10 +127,11 @@ Take the first item under **"Next steps"** in `docs/ROADMAP.md` unless the owner
 ### Checklist: adding a lesson
 
 1. Create `src/lessons/<id>/` with `index.mdx`, widget component(s), and `quiz.ts`.
-2. Register it in `src/curriculum.ts` (and remove it from that module's `planned` list).
+2. Register it in `src/curriculum.ts` (and remove it from that module's `planned` list). Keep the `summary` plain: **at most 30 words and no symbols** (enforced by `src/curriculum.test.ts`).
 3. Add any new terms to `src/glossary.ts`; use `<Term id="…">` on first mention.
 4. Put non-trivial lesson logic in a plain `.ts` module with a `*.test.ts` beside it.
-5. Follow the lesson arc: problem → analogy → hands-on widget (with a `<Predict>` where something surprises) → "Writing it down" with `<Eq>` blocks → code → `<Misconception>` → `<Quiz>` → `<Takeaways>` → `<InTheWild>` → a one-line bridge to the next lesson.
+5. Every historical sentence carries a `<Src href="…" />` verified on the source page itself; use `<ModuleRef>` / `<LessonLink>` instead of typing module numbers or "next lesson".
+6. Follow the lesson arc: problem → analogy → hands-on widget (with a `<Predict>` where something surprises) → "Writing it down" with `<Eq>` blocks → code → `<Misconception>` → `<Quiz>` → `<Takeaways>` → `<InTheWild>` → a one-line bridge to the next lesson.
 
 ### Definition of done for a lesson
 
@@ -339,9 +347,9 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 �
 - [x] WP8.1 `svm`
 - [x] WP8.2 `gans`
 - [x] WP8.3 `open-questions`
-- [ ] WP9 Final documentation
+- [x] WP9 Final documentation
 
-Notes for whoever continues: WP0–WP5 are complete (WP1.10 was done before WP1.9, which re-reads everything). WP6 waits for the owner.
+Notes for whoever continues: **WP0–WP9 are complete.** All items in `docs/CURRICULUM_PLAN.md` have been implemented, verified, and pushed to `claude/cool-feynman-4hci4d`. See `docs/ROADMAP.md` for the full summary, deviations, dropped claims, and open questions for the owner.
 - Labs follow one pattern: logic and solver in `src/lessons/<id>/<name>Lab.ts` with a test written first; tune the level data (a scratch random-search script works well) until the test shows "solvable, more than one answer, a random setting usually fails"; then the UI on `LabShell`; then `## Lab: …` before "## In code" with `LabJob`, a spoiler `Deeper` debrief, `ForReal`, `HistoryCard`, and a "You've just…" line. Bump the count in `src/history.test.ts` for each new history entry.
 - Draw 2D lab plots with both axes on the same scale when distance matters (`equalScale` in `src/lessons/vectors/FeatureLab.tsx`): otherwise the picture lies about which points are close.
 - Writing scripts: heredocs containing `${…}` are refused by the command-safety check; write Python/TS helpers into `scratch/` with the file tool. A `<Predict>` placed between list items breaks the MDX parse: put it before or after the list.
