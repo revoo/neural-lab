@@ -145,7 +145,16 @@ export const MODULES: ModuleMeta[] = [
       { id: 'contrastive-learning', title: 'Contrastive Learning & Representation Spaces', summary: 'How InfoNCE pulls positive pairs together and pushes in-batch negatives apart on the unit hypersphere, temperature τ hard-negative focus, why alignment without negatives collapses to one point — and Lab: Tune the Contrastive Objective.', minutes: 35, load: () => import('./lessons/contrastive-learning/index.mdx') },
     ],
   },
-  { id: 'sequences', number: 11, title: 'Sequence Models', blurb: 'RNNs, LSTMs, and the bottleneck that motivated attention.', lessons: [], planned: ['Recurrent networks', 'LSTMs and GRUs', 'Encoder–decoder and early attention'] },
+  {
+    id: 'sequences',
+    number: 11,
+    title: 'Sequence Models',
+    blurb: 'RNNs, LSTMs, and the bottleneck that motivated attention.',
+    lessons: [
+      { id: 'rnns', title: 'Recurrent Neural Networks & BPTT', summary: 'Weight sharing across time, unrolling BPTT step-by-step, the ρᵏ vanishing/exploding Jacobian law, Pascanu’s exploding cliff rescued by gradient clipping, long-lag memory decay — and Lab: Tame BPTT.', minutes: 35, load: () => import('./lessons/rnns/index.mdx') },
+    ],
+    planned: ['LSTMs and GRUs', 'Encoder–decoder and early attention'],
+  },
   {
     id: 'transformers',
     number: 12,
