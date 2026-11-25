@@ -117,8 +117,9 @@ export const MODULES: ModuleMeta[] = [
     lessons: [
       { id: 'linear-regression', title: 'Linear and Logistic Regression', summary: 'Exact normal equations and the collinearity trap, why OLS breaks on classification, calibrated log-odds, precision/recall & ROC AUC — and a feature-engineering lab.', minutes: 35, load: () => import('./lessons/linear-regression/index.mdx') },
       { id: 'knn', title: 'k-Nearest Neighbours', summary: 'Zero-training lazy learning, clickable neighbour voting and the bias–variance dial k, the feature-scaling disaster, curse of dimensionality — and Lab: Rescue the kNN Classifier.', minutes: 30, load: () => import('./lessons/knn/index.mdx') },
+      { id: 'decision-trees', title: 'Decision Trees and Random Forests', summary: 'Gini impurity splits, scale invariance, how Random Forests average variance away, how Gradient Boosted Trees fit residuals — and Lab: Build the Tabular Ensemble.', minutes: 35, load: () => import('./lessons/decision-trees/index.mdx') },
     ],
-    planned: ['Decision trees and forests', 'k-means and PCA'],
+    planned: ['k-means and PCA'],
   },
   { id: 'vision', number: 9, title: 'Computer Vision', blurb: 'From pixels to convolutions to object detectors.', lessons: [], planned: ['Images as tensors', 'Convolution and kernels', 'CNNs and feature maps', 'Object detection'] },
   { id: 'embeddings', number: 10, title: 'Embeddings & Representations', blurb: 'Meaning as geometry: learned spaces where similar things sit close together.', lessons: [], planned: ['One-hot vs dense vectors', 'Word embeddings', 'Similarity search', 'Autoencoders'] },

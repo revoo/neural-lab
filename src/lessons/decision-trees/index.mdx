@@ -1,0 +1,173 @@
+{/* authored-by: Gemini Antigravity */}
+import { GiniSplitWidget, TreeVsForestWidget, BoostingBenchWidget, TreeEnsembleLab } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: messy tables break distance-based models
+
+In the last lesson, k-nearest neighbours fell apart twice: first when one column was measured in euros and another in years, and again when we added irrelevant noise columns. Real business tables look like that *every day* — mixed units, skewed distributions, dozens of useless columns, and non-linear threshold rules ("flag if temperature > 5.5°C AND RPM > 4,200").
+
+Enter the undisputed workhorse of tabular machine learning: **<Term id="decision-tree">decision trees</Term>** — and the two ensemble families built out of them, **<Term id="random-forest">Random Forests</Term>** and **<Term id="gradient-boosting">Gradient Boosted Trees</Term>** (XGBoost, LightGBM, CatBoost).
+
+A decision tree plays Twenty Questions. At each node it asks one axis-aligned yes/no question ("is $x_1 \le 5.19$?"), splits the rows into a left bucket and a right bucket, and repeats until the buckets are pure or a depth limit stops it. Notice two superpowers that fall out for free:
+
+- **Scale invariance:** multiply a column by 1,000, and every threshold simply multiplies by 1,000. The splits and predictions are identical to the last decimal place.
+- **Built-in feature selection:** if a column is pure random noise, splitting on it barely improves bucket purity, so the greedy search skips it.
+
+## Choosing the best question: Gini impurity
+
+How does the tree decide *which* feature and threshold to split on? It measures how mixed each bucket is using **<Term id="gini-impurity">Gini impurity</Term>** — the probability that two points picked at random from the bucket have different labels:
+
+<Eq
+  words="\cc{\text{Gini impurity}} = 2 \times \ca{\text{share of class } 1} \times (1 - \ca{\text{share of class } 1}), \qquad \cp{\text{gain}} = G_{\text{parent}} - \Big(\frac{n_L}{n} G_L + \frac{n_R}{n} G_R\Big)"
+  tex="\cc{G} = 2\,\ca{p}(1 - \ca{p}), \qquad \cp{\Delta G} = G_{\text{parent}} - \left(\frac{n_L}{n} G_L + \frac{n_R}{n} G_R\right)"
+>
+
+- $\ca{p}$ — fraction of class-1 examples in a bucket ($0$ or $1$ gives $G = 0$, completely pure; $0.5$ gives $G = 0.5$, maximally mixed)
+- $n_L, n_R$ — number of rows sent to the left and right child buckets ($n_L + n_R = n$)
+- $\cp{\Delta G}$ — **impurity reduction (gain)**: the greedy CART algorithm scans every candidate threshold on every feature and picks the split with the largest $\Delta G$
+
+</Eq>
+
+Slide the split line yourself on 60 points below, then snap to the exact CART split:
+
+<GiniSplitWidget />
+
+The greedy optimum `x₁ ≤ 5.19` drops impurity from **0.486** down to a weighted average of **0.248** (gain **0.238**), sending 29 of 32 left points to orange and 22 of 28 right points to blue. Then the tree runs the exact same greedy scan recursively on the left bucket and the right bucket.
+
+## One deep tree memorises — a Random Forest averages the variance away
+
+Greedy trees have one glaring flaw: **high variance**. Let a single tree grow to depth 10 on noisy data, and it will happily carve tiny custom boxes around every single mislabelled training point! Worse, change 5% of the training rows and the very first root split can flip, changing the entire tree underneath it.
+
+<Predict
+  question="On a noisy sine-wave dataset where 12% of training labels were randomly flipped, a single depth-10 tree gets 99.3% on training data and 84.8% on clean test data. If we instead train 40 deep trees — each on a different random bootstrap resample of the training rows, considering only 1 random feature per split — and average their probabilities, what happens to clean test accuracy?"
+  options={[
+    'It drops further — 40 overfitting trees overfit 40 times harder',
+    'It stays near 85% — averaging equal models cannot beat one model',
+    'It jumps well above 95% — random noise boxes cancel out while the true curve reinforces',
+  ]}
+  answer={2}
+>
+
+Each flipped label lands in only ~63% of bootstrap samples and gets boxed differently by every tree, so its errors cancel when averaged — while the true sine boundary shows up in *every* tree! Clean test accuracy leaps from **84.8%** (single depth-10 tree) to **98.8%** (40-tree Random Forest)!
+
+</Predict>
+
+Watch the jagged single-tree boxes melt into a smooth probabilistic boundary:
+
+<TreeVsForestWidget />
+
+That trick — **B**ootstrap **AGG**regat**ING** (**bagging**) plus random feature subsets at every split — is a **Random Forest**. In bias–variance language from Module 7: each deep tree has low bias and huge variance; averaging $B$ decorrelated trees leaves the bias untouched while slashing variance!
+
+## Gradient Boosted Trees: fixing mistakes sequentially
+
+Random Forests build many deep trees **in parallel** to cancel variance. **Gradient Boosted Trees (GBT)** take the opposite strategy: start with a tiny, high-bias tree (depth 1–3) and add new shallow trees **one by one**, where each new tree predicts the **residuals** (errors) left behind by the ensemble so far:
+
+<Eq
+  words="\cc{\text{new score}} = \ca{\text{previous score}} + \cp{\eta} \times \cb{\text{small tree fitted to remaining errors}}"
+  tex="\cc{F_m(\mathbf{x})} = \ca{F_{m-1}(\mathbf{x})} + \cp{\eta}\,\cb{h_m(\mathbf{x})}, \qquad r_i = y_i - \sigma\!\big(\ca{F_{m-1}(\mathbf{x}_i)}\big)"
+>
+
+- $\ca{F_{m-1}(\mathbf{x})}$ — the ensemble's log-odds prediction after $m - 1$ rounds
+- $r_i = y_i - \sigma(F_{m-1}(\mathbf{x}_i))$ — the **residual** (negative gradient of log-loss) on example $i$: large where the current ensemble is still wrong, near zero where it is already confident and right
+- $\cb{h_m(\mathbf{x})}$ — a fresh shallow regression tree fitted to those residuals (XGBoost and LightGBM compute exact second-order Newton leaf weights $\gamma = \sum r_i / (\sum p_i(1-p_i) + \lambda)$)
+- $\cp{\eta}$ — the shrinkage **learning rate** (e.g. 0.05–0.3) that keeps each tree from over-correcting
+
+</Eq>
+
+Now watch all five classical models race on our **messy 8-column industrial table** (Temp `0..10`, RPM `0..10,000` — 1,000× scale mismatch! — plus **6 pure random noise columns** and 6% label flips):
+
+<BoostingBenchWidget />
+
+Look at two honest findings in the numbers above:
+1. **Trees crush kNN on messy tables with zero preprocessing:** raw kNN scores **70.0%** (destroyed by the 1,000× scale mismatch), scaled kNN improves to **81.2%** (still dragged down by 6 noise columns), while a single tree hits **91.2%**, Random Forest hits **91.9%**, and depth-2 GBT hits **93.1%** at round 5!
+2. **Bagging resists overfitting; boosting *can* overfit.** Watch GBT's test accuracy as you step past round 5: it peaks at **93.1%** (round 5) and drifts down to **89.2%** by round 30 as training accuracy climbs! Once the true rule is learned, the only large residuals left are the 6% flipped training labels — so later boosting rounds start memorising label noise. That's why real GBT workflows rely on small learning rates, shallow trees, and **early stopping** on a validation set.
+
+<Misconception>
+
+"Random Forests and Gradient Boosted Trees never overfit as you add more trees." Random Forests (bagging) are remarkably resistant to adding more trees because averaging independent noisy predictors only shrinks variance. **Gradient Boosting is different:** each new tree actively fits the remaining training residuals, so running too many boosting rounds on noisy data *will* overfit! Always watch a validation curve to pick the number of boosting rounds.
+
+</Misconception>
+
+## In code
+
+Finding the exact greedy Gini split — and verifying its 100% invariance to a 1,000× column rescaling — takes twenty-five lines of NumPy:
+
+```python
+import numpy as np
+
+def gini(y):
+    if len(y) == 0:
+        return 0.0
+    p = np.mean(y == 1)
+    return 2.0 * p * (1.0 - p)
+
+def best_split(X, y):
+    n, d = X.shape
+    parent = gini(y)
+    best = (0.0, None, None)  # (gain, feature, threshold)
+    for f in range(d):
+        vals = np.unique(X[:, f])
+        for t in (vals[:-1] + vals[1:]) / 2:
+            left = y[X[:, f] <= t]
+            right = y[X[:, f] > t]
+            weighted = (len(left) * gini(left) + len(right) * gini(right)) / n
+            gain = parent - weighted
+            if gain > best[0]:
+                best = (gain, f, float(t))
+    return best
+
+rng = np.random.default_rng(19)
+X = rng.uniform(0, 10, size=(60, 2))
+y = ((X[:, 0] > 5.0) & (X[:, 1] > 3.5)).astype(int)
+
+gain, feat, thresh = best_split(X, y)
+print(f"Best greedy split: x{feat+1} <= {thresh:.2f} (Gini gain = {gain:.3f})")
+
+# Multiply feature 2 by 1,000: identical gain, scaled threshold!
+X_scaled = X.copy()
+X_scaled[:, 1] *= 1000
+gain2, feat2, thresh2 = best_split(X_scaled, y)
+print(f"After 1000x rescale: x{feat2+1} <= {thresh2:.2f} (Gini gain = {gain2:.3f})")
+```
+
+Running it prints:
+
+```text
+Best greedy split: x1 <= 7.13 (Gini gain = 0.259)
+After 1000x rescale: x1 <= 7.13 (Gini gain = 0.259)
+```
+
+## Lab: Build the Tabular Ensemble
+
+Three distinct tabular datasets, three tree families (**Single Tree**, **Random Forest**, **Gradient Boosting**). Meet each brief's held-out accuracy target — and optionally, minimise **total leaves** (smaller model footprint, faster serving). All 35 configurations per brief are trained and scored exhaustively.
+
+<TreeEnsembleLab />
+
+<Deeper title="Debrief: one winning tree family per brief" tag="Spoiler">
+
+Each tree family wins one brief — for its exact mathematical strength:
+
+- **Brief 1 (Clean Axis-Aligned Alert Rules, ≥ 96%):** 26 of 35 pass. The smallest winner is a **Single Tree (depth 2)** with just **3 leaves**, hitting **99.6%**! When the underlying rule is clean and rectangular, an ensemble adds leaves without adding accuracy.
+- **Brief 2 (Messy 8-Column Table, ≥ 98.0%):** Only **2 of 35** configs pass — and both are **Gradient Boosted Trees**! Fewest leaves: **GBT depth 3, 5 rounds (40 leaves)** at **98.8%**. Why did Random Forest fall short (max 91.9%)? Because with 6 pure noise columns out of 8, sampling only $\sqrt{8} \approx 3$ random features per split frequently forces RF nodes to split on pure noise! GBT scans all 8 columns greedily and stops at 5 rounds before memorising the 6% label flips.
+- **Brief 3 (Noisy Curved Boundary with 12% Label Flips, ≥ 97.0%):** **6 of 35** configs pass — and **all 6 are Random Forests**! Fewest leaves: **Random Forest depth 1, 15 trees (30 leaves)** at **97.6%** (and depth 8, 30 trees reaches 98.4%). Single trees top out at 90.8%, and Gradient Boosting tops out at 96.0% because it chases the 12% flipped labels while bagging averages them away.
+
+</Deeper>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- **Decision trees** partition feature space with axis-aligned splits chosen greedily by **Gini impurity reduction** (or entropy gain). They are **100% invariant to monotone feature scaling** and naturally skip irrelevant columns.
+- **Single deep trees overfit** (high variance — 99.3% train / 84.8% test on noisy data).
+- **Random Forests (bagging)** average many bootstrap trees built with random feature subsets, slashing variance and shrugging off heavy label noise — though heavy feature subsampling can get diluted when most columns are pure noise.
+- **Gradient Boosted Trees (boosting)** add shallow trees sequentially to fit remaining residuals (reducing bias). They dominate structured tabular benchmarks, *provided* you control depth, shrinkage and early stopping so they don't chase label noise.
+
+</Takeaways>
+
+<InTheWild>
+
+On structured tabular datasets (credit risk, fraud detection, ad click prediction, churn, demand forecasting, Kaggle tabular competitions), **Gradient Boosted Decision Trees** — specifically **XGBoost**, **LightGBM** and **CatBoost** — routinely match or beat deep neural networks while training 100× faster and handling missing values, mixed numeric scales and uninformative columns out of the box. Neural networks win on perceptual and sequential modalities (images, audio, text); tree ensembles still rule spreadsheets and SQL tables.
+
+</InTheWild>
+
+Every algorithm in Module 8 so far needed **labels** $y$ to tell it what was right or wrong. What can you discover when you have a pile of data and **no labels at all**? Next: **k-Means and PCA**.
