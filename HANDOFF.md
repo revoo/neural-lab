@@ -63,8 +63,34 @@ Take the first item under **"Next steps"** in `docs/ROADMAP.md` unless the owner
 Assume the session can disconnect at any moment and someone else will continue from the repository alone:
 
 1. Commit and push (`git push -u origin <branch>`).
-2. Update `docs/ROADMAP.md`: the **Current state** block at the top (what's done, what's next), the status table, and **Next steps** (with enough of a plan that the next lesson can be started cold).
+2. Update `docs/ROADMAP.md`: the **Current state** block at the top (what's done, what's next), the status table, **Next steps** (with enough of a plan that the next lesson can be started cold), and **Labs built so far**. Roadmap entries use `- **Done [<MODEL_NAME>]:** …` (see the owner's standing instructions below).
 3. If you changed the procedure or found a new gotcha, update this file.
+
+## Owner's standing instructions (from the session prompts; follow every session)
+
+**Branch and pull requests.** Work on, commit to and push to `claude/cool-feynman-4hci4d`. It is the repository's default branch and there is no `main`: don't open a pull request and don't create other branches. If a push is rejected because the remote moved, `git fetch origin claude/cool-feynman-4hci4d && git merge --no-edit FETCH_HEAD`, then push again (another agent or the owner may have pushed in between).
+
+**Work autonomously** from "Next steps" in `docs/ROADMAP.md`. When a lesson meets the definition of done, move straight on to the next one.
+
+**Invisible authorship watermark** (the owner compares quality across models). It must never be visible on the rendered site or inside `dist/`.
+- Use an exact `<MODEL_NAME>` identifying your model. Names already in use: "Neon High", "Gemini Antigravity", "Claude Opus 5.5". If you are one of those models, reuse its name exactly. Otherwise pick a new, unique name that doesn't appear in any lesson text in `dist/`.
+- Top of every new `.mdx` file: `{/* authored-by: <MODEL_NAME> */}`
+- Top of every new `.ts`/`.tsx` file: `// authored-by: <MODEL_NAME>`
+- Git commit trailer on every commit: `Authored-by: <MODEL_NAME>`
+- Roadmap entries: `- **Done [<MODEL_NAME>]:** …`
+- After `npm run build`, check that `rg "<MODEL_NAME>" dist/` returns 0 matches.
+
+**Non-negotiables, as the owner phrased them** (details in `docs/STYLE_GUIDE.md`):
+- Concept before equation. Key equations use `<Eq words="…" tex="…">` with prose words wrapped in `\text{…}`, colour-matched with `\ca \cb \cc \cg \cp \cv` (never `\cr`), and a plain-English symbol legend passed as MDX children, not a `legend` prop. `<Predict>` also takes its revealed explanation as MDX children, not an `explain` prop.
+- Conversational, warm, precise prose (British spelling); structural analogies; predict before reveal; let the learner feel the problem first; address real misconceptions.
+- Every widget computes real numbers and colours only through CSS variables (never hard-coded hex; use `--c-good`/`--c-bad`, not `--good`/`--bad`). Labs give primitives, a clear objective, automatic checking, `localStorage` persistence and multiple valid solutions. Optimums are computed exhaustively, or labelled "best found by searching <stated space>" and produced by a committed script re-verified by a test.
+- Compare competing methods fairly (each at its own searched best, averaged over fixed seeds) and report honestly when results don't match the textbook story.
+- Verify every quoted number by running it and pin it with a Vitest test. Check every hand-written gradient against central finite differences. Run every code snippet you put in a lesson.
+- Visually inspect every new widget in a real browser in light, dark and matrix themes and at 390px (`scripts/shoot-widgets.cjs`, `scripts/drive-widget.cjs`).
+
+**Environment tips.**
+- The dev server can stop between runs. If `check-pages` fails with `ERR_CONNECTION_REFUSED`, restart `npm run dev`; that isn't a page failure.
+- If Playwright isn't in local `node_modules` and `require('playwright')` fails, run `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install -g playwright` and invoke scripts as `NODE_PATH=$(npm root -g) node scripts/...`.
 
 ## 4. Before you end the session
 
