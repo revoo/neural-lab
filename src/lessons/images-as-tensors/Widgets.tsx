@@ -1,6 +1,10 @@
 // authored-by: Gemini Antigravity
 import { useEffect, useMemo, useState } from 'react';
 import { Widget } from '../../components/Widget';
+import { LabShell, useLabProgress } from '../../components/LabShell';
+import { LiveCode } from '../../components/LabJob';
+import { useMachineLog } from '../../components/MachineLog';
+import { useTweened } from '../../components/motion';
 import { Segmented, Slider } from '../../components/controls';
 import {
   ALIAS_METHODS,
@@ -21,6 +25,7 @@ import {
   rgbToHsv,
   tensorBytes,
   visionLabExhaustive,
+  visionLabHint,
   type AliasMethod,
   type ColorRep,
   type PatternId,
@@ -30,6 +35,7 @@ import {
   type TensorNorm,
   type VisionBriefId,
 } from './vision';
+import { visionCodeLines } from './realCode';
 
 const fmtBytes = (b: number) => {
   if (b < 1024) return `${b} B`;
@@ -435,10 +441,22 @@ function loadVLab(): VLabState {
   }
 }
 
+function seedVLabProgress() {
+  const old = loadVLab();
+  const solved: Record<string, boolean> = {};
+  for (const b of LAB_BRIEFS) {
+    if (old.solved[b.id]) solved[b.id] = true;
+  }
+  return { solved, optimal: {} };
+}
+
+const SIGNAL_NAMES = ['Red', 'Amber', 'Green'] as const;
+
 export function VisionPreprocessorLab() {
-  const [briefId, setBriefId] = useState<VisionBriefId>('lighting');
+  const [briefIdx, setBriefIdx] = useState(0);
   const [st, setSt] = useState<VLabState>(loadVLab);
-  const [showOpt, setShowOpt] = useState(false);
+  const progress = useLabProgress('nl-img-lab-v1-shell', seedVLabProgress);
+  const log = useMachineLog();
 
   useEffect(() => {
     try {
@@ -448,12 +466,19 @@ export function VisionPreprocessorLab() {
     }
   }, [st]);
 
+  const brief = LAB_BRIEFS[briefIdx];
+  const briefId = brief.id;
+
   const r1 = useMemo(() => evalVisionBrief1(st.rep), [st.rep]);
   const r2 = useMemo(() => evalVisionBrief2(st.alias), [st.alias]);
   const r3 = useMemo(() => evalVisionBrief3(st.layout, st.dtype, st.norm), [st.layout, st.dtype, st.norm]);
   const exhaust = useMemo(() => visionLabExhaustive(briefId), [briefId]);
 
   const curPass = briefId === 'lighting' ? r1.pass : briefId === 'aliasing' ? r2.pass : r3.pass;
+  const curOpt =
+    curPass && (briefId === 'lighting' ? r1.acc >= 1 - 1e-9 : true);
+
+  const shownMib = useTweened(r3.mib, 240);
 
   useEffect(() => {
     if (curPass && !st.solved[briefId]) {
@@ -461,49 +486,135 @@ export function VisionPreprocessorLab() {
     }
   }, [curPass, briefId, st.solved]);
 
-  const brief = LAB_BRIEFS.find((b) => b.id === briefId)!;
-  const solvedCount = Object.values(st.solved).filter(Boolean).length;
+  const updateState = (patch: Partial<VLabState>) => {
+    const next = { ...st, ...patch };
+    setSt(next);
+    if (briefId === 'lighting') {
+      const r = evalVisionBrief1(next.rep);
+      log.push(
+        `colour=${next.rep} → day ${(100 * r.dayAcc).toFixed(1)}% · shadow ${(100 * r.shadowAcc).toFixed(1)}% · overall ${(100 * r.acc).toFixed(1)}% ${r.pass ? '✓' : '✗'}`,
+        r.pass ? 'good' : 'info',
+      );
+    } else if (briefId === 'aliasing') {
+      const r = evalVisionBrief2(next.alias);
+      log.push(
+        `downsample=${next.alias} → mean err ${r.meanErr.toFixed(1)} · block RMSE ${r.rmse.toFixed(1)} ${r.pass ? '✓' : '✗'}`,
+        r.pass ? 'good' : 'info',
+      );
+    } else {
+      const r = evalVisionBrief3(next.layout, next.dtype, next.norm);
+      log.push(
+        `batch ${next.layout} ${next.dtype.toUpperCase()} norm=${next.norm} → ${r.mib.toFixed(3)} MiB · μ=${r.outMean.toFixed(2)} σ=${r.outStd.toFixed(2)} ${r.pass ? '✓' : '✗'}`,
+        r.pass ? 'good' : 'info',
+      );
+    }
+  };
+
+  const resetBrief = () => {
+    if (briefId === 'lighting') updateState({ rep: 'raw-rgb' });
+    else if (briefId === 'aliasing') updateState({ alias: 'stride-0' });
+    else updateState({ layout: 'NHWC', dtype: 'fp32', norm: 'none' });
+  };
+
+  const liveCode = useMemo(() => visionCodeLines(briefId, st), [briefId, st]);
+  const shellBriefs = useMemo(
+    () => LAB_BRIEFS.map((b, i) => ({ id: b.id, tab: `Brief ${i + 1}`, title: b.title, text: b.story })),
+    [],
+  );
+
+  const statusNode =
+    briefId === 'lighting' ? (
+      r1.pass ? (
+        <>
+          <strong>Optimal — 100.0% across both daylight and heavy shadow!</strong> All 90 road-camera frames match their daylight reference cleanly.
+        </>
+      ) : (
+        <>
+          <strong>Not yet.</strong> Overall {(100 * r1.acc).toFixed(1)}% (need ≥ 95.0%) · daylight {(100 * r1.dayAcc).toFixed(1)}%, shadow <strong>{(100 * r1.shadowAcc).toFixed(1)}%</strong>. Look at which shadowed frames below get mislabelled.
+        </>
+      )
+    ) : briefId === 'aliasing' ? (
+      r2.pass ? (
+        <>
+          <strong>Unique anti-aliased winner!</strong> Mean brightness error <strong>{r2.meanErr.toFixed(1)}</strong> · block RMSE <strong>{r2.rmse.toFixed(1)}</strong> (exact match to true area average).
+        </>
+      ) : (
+        <>
+          <strong>Not yet — aliased!</strong> Mean error {r2.meanErr.toFixed(1)} (need ≤ 5.0) · block RMSE {r2.rmse.toFixed(1)} (need ≤ 15.0). Compare your 4×4 thumbnail to the true reference on the right.
+        </>
+      )
+    ) : r3.pass ? (
+      <>
+        <strong>Unique passing PyTorch batch!</strong> <code>(64, 3, 224, 224)</code> FP16 z-scored fits in <strong>{r3.mib.toFixed(3)} MiB</strong> (under 24 MiB) with μ = 0.00, σ = 1.00.
+      </>
+    ) : (
+      <>
+        <strong>Not yet.</strong> {r3.mib.toFixed(3)} MiB ({r3.memOk ? 'fits ≤ 24 MiB' : 'over 24 MiB!'}) · layout {r3.layoutOk ? 'NCHW ✓' : 'NHWC ✗'} · normalisation {r3.normOk ? 'centred ✓' : st.dtype === 'uint8' && st.norm === 'zscore' ? 'uint8 clips negatives to 0!' : 'not centred'}.
+      </>
+    );
+
+  // Brief 3 channel-distribution bins (12 buckets)
+  const distBins = useMemo(() => {
+    const vals = r3.rVals;
+    const minV = st.norm === 'none' ? 0 : st.norm === 'div255' ? 0 : -2.5;
+    const maxV = st.norm === 'none' ? 255 : st.norm === 'div255' ? 1 : 2.5;
+    const nBins = 12;
+    const counts = new Array<number>(nBins).fill(0);
+    let negClipped = 0;
+    for (const v of vals) {
+      if (st.dtype === 'uint8' && st.norm === 'zscore' && v === 0) negClipped++;
+      const t = (v - minV) / Math.max(1e-9, maxV - minV);
+      const b = Math.max(0, Math.min(nBins - 1, Math.floor(t * nBins)));
+      counts[b]++;
+    }
+    const maxC = Math.max(1, ...counts);
+    return { counts, maxC, minV, maxV, negClipped };
+  }, [r3.rVals, st.norm, st.dtype]);
 
   return (
-    <Widget
+    <LabShell
       title="Lab: Build the Vision Preprocessor"
-      wide
       caption={
         <>
-          Three real computer-vision input pipelines checked exhaustively across all menu combinations. Solved: <strong>{solvedCount}/3</strong>.
+          Three real computer-vision input pipelines checked exhaustively. Inspect the live traffic-light frames (Brief 1), the 16×16 blueprint grid vs 4×4 thumbnail (Brief 2), and the batch VRAM bar + channel value histogram (Brief 3).
         </>
       }
+      briefs={shellBriefs}
+      active={briefIdx}
+      onSelect={(i) => setBriefIdx(i)}
+      progress={progress}
+      passing={curPass}
+      optimal={curOpt}
+      status={statusNode}
+      statusTone={curPass ? 'good' : 'neutral'}
+      hint={visionLabHint(briefId, st)}
+      reveal={{
+        label: `the exhaustive search (${exhaust.total} configs)`,
+        content: (
+          <div style={{ fontSize: 13.5, lineHeight: 1.55 }}>
+            All <strong>{exhaust.total}</strong> configurations were checked exhaustively: <strong>{exhaust.passing}</strong> pass. {exhaust.summary}.
+          </div>
+        ),
+      }}
+      log={{
+        lines: log.lines,
+        onClear: log.clear,
+        title: 'Vision preprocessor log',
+        empty: 'Change representation, downsampling or tensor settings to record a run.',
+      }}
+      actions={
+        <button type="button" className="btn small" onClick={resetBrief}>
+          Reset brief
+        </button>
+      }
     >
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-        {LAB_BRIEFS.map((b, i) => (
-          <button
-            key={b.id}
-            type="button"
-            className="btn"
-            style={{
-              borderColor: briefId === b.id ? 'var(--accent)' : 'var(--border)',
-              background: briefId === b.id ? 'var(--bg-sunken)' : 'transparent',
-              fontWeight: briefId === b.id ? 600 : 400,
-            }}
-            onClick={() => {
-              setBriefId(b.id);
-              setShowOpt(false);
-            }}
-          >
-            {st.solved[b.id] ? '✓ ' : ''}Brief {i + 1}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{brief.title}</div>
-      <p style={{ fontSize: 13.5, color: 'var(--text-muted)', marginTop: 0, marginBottom: 12, lineHeight: 1.5 }}>{brief.story}</p>
-
+      {/* Brief 1: Live Traffic Light Frames (Daylight vs Tunnel Shadow) + Confusion Matrix */}
       {briefId === 'lighting' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'grid', gap: 12 }}>
           <Segmented
             label="Colour representation"
             value={st.rep}
-            onChange={(v) => setSt((p) => ({ ...p, rep: v }))}
+            onChange={(v) => updateState({ rep: v })}
             options={COLOR_REPS}
           />
           <div className="readouts" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: 8, margin: 0 }}>
@@ -520,19 +631,109 @@ export function VisionPreprocessorLab() {
             <div className="readout">
               <div className="readout-label">Overall (≥ 95%)</div>
               <div className="readout-value" style={{ color: r1.pass ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                {(100 * r1.acc).toFixed(1)}% {r1.pass ? 'PASS' : 'FAIL'}
+                {(100 * r1.acc).toFixed(1)}%
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px, 100%), 1fr))', gap: 12, alignItems: 'start' }}>
+            {/* Live sample frames */}
+            <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-sunken)', border: '1px solid var(--border)', display: 'grid', gap: 8 }}>
+              <div className="field-label" style={{ margin: 0 }}>Live road-camera crops (top: sunny · bottom: tunnel shadow)</div>
+              {[false, true].map((shadowRow) => (
+                <div key={String(shadowRow)} style={{ display: 'grid', gap: 4 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }} className="mono">
+                    {shadowRow ? 'Tunnel shadow (~25% brightness)' : 'Sunny daylight (~100% brightness)'}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 5 }}>
+                    {r1.preview
+                      .filter((f) => f.isShadow === shadowRow)
+                      .map((f, idx) => {
+                        const ok = f.pred === f.truth;
+                        return (
+                          <div
+                            key={idx}
+                            title={`True ${SIGNAL_NAMES[f.truth]} · RGB(${f.rgb.join(', ')}) · Predicted ${SIGNAL_NAMES[f.pred]}`}
+                            style={{
+                              borderRadius: 6,
+                              padding: 4,
+                              border: `2px solid ${ok ? 'var(--c-good)' : 'var(--c-bad)'}`,
+                              background: 'var(--bg)',
+                              display: 'grid',
+                              gap: 3,
+                              justifyItems: 'center',
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: 22,
+                                height: 22,
+                                borderRadius: '50%',
+                                background: `rgb(${f.rgb[0]},${f.rgb[1]},${f.rgb[2]})`,
+                                border: '1px solid var(--border)',
+                              }}
+                            />
+                            <div className="mono" style={{ fontSize: 10, color: ok ? 'var(--c-good)' : 'var(--c-bad)', fontWeight: 700 }}>
+                              {SIGNAL_NAMES[f.pred][0]} {ok ? '✓' : '✗'}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 3x3 confusion matrix */}
+            <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-sunken)', border: '1px solid var(--border)', display: 'grid', gap: 6 }}>
+              <div className="field-label" style={{ margin: 0 }}>90-frame confusion matrix (rows: true · cols: predicted)</div>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="num-table" style={{ width: '100%', fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      <th>True \ Pred</th>
+                      <th>Red</th>
+                      <th>Amber</th>
+                      <th>Green</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {SIGNAL_NAMES.map((name, rIdx) => (
+                      <tr key={name}>
+                        <td style={{ fontWeight: 600 }}>{name}</td>
+                        {[0, 1, 2].map((cIdx) => {
+                          const v = r1.confusion[rIdx][cIdx];
+                          const diag = rIdx === cIdx;
+                          return (
+                            <td
+                              key={cIdx}
+                              className="mono"
+                              style={{
+                                fontWeight: diag ? 700 : v > 0 ? 600 : 400,
+                                color: diag ? 'var(--c-good)' : v > 0 ? 'var(--c-bad)' : 'var(--text-muted)',
+                              }}
+                            >
+                              {v}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
         </div>
       )}
 
+      {/* Brief 2: Live 16x16 Blueprint Source -> Your 4x4 Thumbnail vs True Reference */}
       {briefId === 'aliasing' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'grid', gap: 12 }}>
           <Segmented
             label="Downsampling method"
             value={st.alias}
-            onChange={(v) => setSt((p) => ({ ...p, alias: v }))}
+            onChange={(v) => updateState({ alias: v })}
             options={ALIAS_METHODS}
           />
           <div className="readouts" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: 8, margin: 0 }}>
@@ -549,22 +750,92 @@ export function VisionPreprocessorLab() {
               </div>
             </div>
             <div className="readout">
-              <div className="readout-label">Status</div>
-              <div className="readout-value" style={{ color: r2.pass ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                {r2.pass ? 'PASS (Unique!)' : 'FAIL'}
+              <div className="readout-label">Output mean (true 125.0)</div>
+              <div className="readout-value">{gridMean(r2.out).toFixed(1)}</div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: 12, alignItems: 'center', padding: '10px 12px', borderRadius: 8, background: 'var(--bg-sunken)', border: '1px solid var(--border)' }}>
+            {/* Source 16x16 grid with sampled pixels marked */}
+            <div style={{ display: 'grid', gap: 4, justifyItems: 'center' }}>
+              <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text-muted)' }}>16×16 blueprint (sampled px ringed)</div>
+              <svg viewBox="0 0 160 160" width={156} height={156} style={{ maxWidth: '100%', borderRadius: 6, border: '1px solid var(--border)' }}>
+                {r2.src.map((row, r) =>
+                  row.map((v, c) => {
+                    const g = Math.round(v);
+                    const hit =
+                      (st.alias === 'stride-0' && r % 4 === 0 && c % 4 === 0) ||
+                      (st.alias === 'stride-1' && r % 4 === 1 && c % 4 === 1);
+                    return (
+                      <g key={`${r}-${c}`}>
+                        <rect x={c * 10} y={r * 10} width={10} height={10} fill={`rgb(${g},${g},${g})`} />
+                        {hit && <circle cx={c * 10 + 5} cy={r * 10 + 5} r={3.2} fill="none" stroke="var(--accent)" strokeWidth={1.6} />}
+                      </g>
+                    );
+                  }),
+                )}
+                {[40, 80, 120].map((p) => (
+                  <g key={p}>
+                    <line x1={p} x2={p} y1={0} y2={160} stroke="var(--accent)" strokeOpacity={0.45} strokeDasharray="2 2" />
+                    <line x1={0} x2={160} y1={p} y2={p} stroke="var(--accent)" strokeOpacity={0.45} strokeDasharray="2 2" />
+                  </g>
+                ))}
+              </svg>
+            </div>
+
+            {/* Learner's 4x4 output */}
+            <div style={{ display: 'grid', gap: 4, justifyItems: 'center' }}>
+              <div style={{ fontSize: 11.5, fontWeight: 600, color: r2.pass ? 'var(--c-good)' : 'var(--c-bad)' }}>
+                Your 4×4 output ({st.alias})
               </div>
+              <svg viewBox="0 0 120 120" width={120} height={120} style={{ borderRadius: 6, border: `2px solid ${r2.pass ? 'var(--c-good)' : 'var(--c-bad)'}` }}>
+                {r2.out.map((row, r) =>
+                  row.map((v, c) => {
+                    const g = Math.round(v);
+                    return (
+                      <g key={`${r}-${c}`}>
+                        <rect x={c * 30} y={r * 30} width={30} height={30} fill={`rgb(${g},${g},${g})`} />
+                        <text x={c * 30 + 15} y={r * 30 + 18} textAnchor="middle" fontSize={9.5} fill={g > 130 ? 'rgb(18,18,18)' : 'rgb(242,242,242)'} fontFamily="monospace">
+                          {g}
+                        </text>
+                      </g>
+                    );
+                  }),
+                )}
+              </svg>
+            </div>
+
+            {/* True area-averaged 4x4 reference */}
+            <div style={{ display: 'grid', gap: 4, justifyItems: 'center' }}>
+              <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text-muted)' }}>True 4×4 area average</div>
+              <svg viewBox="0 0 120 120" width={120} height={120} style={{ borderRadius: 6, border: '1px solid var(--border)' }}>
+                {r2.truth.map((row, r) =>
+                  row.map((v, c) => {
+                    const g = Math.round(v);
+                    return (
+                      <g key={`${r}-${c}`}>
+                        <rect x={c * 30} y={r * 30} width={30} height={30} fill={`rgb(${g},${g},${g})`} />
+                        <text x={c * 30 + 15} y={r * 30 + 18} textAnchor="middle" fontSize={9.5} fill={g > 130 ? 'rgb(18,18,18)' : 'rgb(242,242,242)'} fontFamily="monospace">
+                          {g}
+                        </text>
+                      </g>
+                    );
+                  }),
+                )}
+              </svg>
             </div>
           </div>
         </div>
       )}
 
+      {/* Brief 3: VRAM Budget Bar + Pixel Distribution Clipping X-Ray */}
       {briefId === 'vram' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'grid', gap: 12 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
             <Segmented
               label="Axis layout"
               value={st.layout}
-              onChange={(v) => setSt((p) => ({ ...p, layout: v }))}
+              onChange={(v) => updateState({ layout: v })}
               options={[
                 { value: 'NHWC', label: 'NHWC (channels last)' },
                 { value: 'NCHW', label: 'NCHW (PyTorch)' },
@@ -573,7 +844,7 @@ export function VisionPreprocessorLab() {
             <Segmented
               label="Data type"
               value={st.dtype}
-              onChange={(v) => setSt((p) => ({ ...p, dtype: v }))}
+              onChange={(v) => updateState({ dtype: v })}
               options={[
                 { value: 'uint8', label: 'uint8 (1 B)' },
                 { value: 'fp16', label: 'FP16 (2 B)' },
@@ -583,7 +854,7 @@ export function VisionPreprocessorLab() {
             <Segmented
               label="Normalisation"
               value={st.norm}
-              onChange={(v) => setSt((p) => ({ ...p, norm: v }))}
+              onChange={(v) => updateState({ norm: v })}
               options={[
                 { value: 'none', label: 'Raw 0..255' },
                 { value: 'div255', label: 'Divide by 255' },
@@ -591,45 +862,75 @@ export function VisionPreprocessorLab() {
               ]}
             />
           </div>
-          <div className="readouts" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: 8, margin: 0 }}>
-            <div className="readout">
-              <div className="readout-label">Batch VRAM (≤ 24 MiB)</div>
-              <div className="readout-value" style={{ color: r3.memOk ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                {r3.mib.toFixed(3)} MiB
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px, 100%), 1fr))', gap: 12 }}>
+            {/* Animated VRAM bar + shape readout */}
+            <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-sunken)', border: '1px solid var(--border)', display: 'grid', gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span className="field-label" style={{ margin: 0 }}>Batch VRAM vs 24 MiB ceiling</span>
+                <span className="mono" style={{ fontSize: 12.5, fontWeight: 700, color: r3.memOk ? 'var(--c-good)' : 'var(--c-bad)' }}>
+                  {shownMib.toFixed(2)} / 24.0 MiB
+                </span>
+              </div>
+              <div style={{ position: 'relative', height: 18, borderRadius: 6, background: 'var(--bg)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                <div
+                  style={{
+                    width: `${Math.min(100, (shownMib / 40) * 100)}%`,
+                    height: '100%',
+                    background: r3.memOk ? 'var(--c-good)' : 'var(--c-bad)',
+                    opacity: 0.85,
+                  }}
+                />
+                <div
+                  title="24 MiB budget ceiling"
+                  style={{
+                    position: 'absolute',
+                    left: `${(24 / 40) * 100}%`,
+                    top: 0,
+                    bottom: 0,
+                    width: 2,
+                    background: 'var(--text)',
+                  }}
+                />
+              </div>
+              <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                shape: <strong>{st.layout === 'NCHW' ? '(64, 3, 224, 224)' : '(64, 224, 224, 3)'}</strong>{' '}
+                {r3.layoutOk ? '✓' : '✗ PyTorch expects NCHW'}
               </div>
             </div>
-            <div className="readout">
-              <div className="readout-label">Layout</div>
-              <div className="readout-value" style={{ color: r3.layoutOk ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                {r3.layoutOk ? 'NCHW ✓' : 'Wrong axis'}
+
+            {/* Channel value distribution showing uint8 negative clipping! */}
+            <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-sunken)', border: '1px solid var(--border)', display: 'grid', gap: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span className="field-label" style={{ margin: 0 }}>R-channel value distribution</span>
+                <span className="mono" style={{ fontSize: 11.5, color: r3.normOk ? 'var(--c-good)' : 'var(--c-bad)', fontWeight: 600 }}>
+                  {r3.normOk ? 'μ=0.00, σ=1.00 ✓' : st.dtype === 'uint8' && st.norm === 'zscore' ? `${distBins.negClipped} px clipped to 0!` : `μ=${r3.outMean.toFixed(1)}, σ=${r3.outStd.toFixed(1)}`}
+                </span>
               </div>
-            </div>
-            <div className="readout">
-              <div className="readout-label">Normalised?</div>
-              <div className="readout-value" style={{ color: r3.normOk ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                {r3.normOk ? 'μ=0, σ=1 ✓' : st.dtype === 'uint8' && st.norm === 'zscore' ? 'uint8 clips <0!' : 'Not centred'}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 3, alignItems: 'end', height: 52 }}>
+                {distBins.counts.map((c, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      height: `${Math.max(4, (c / distBins.maxC) * 100)}%`,
+                      borderRadius: '3px 3px 0 0',
+                      background: r3.normOk ? 'var(--c-good)' : st.dtype === 'uint8' && st.norm === 'zscore' && idx === 6 ? 'var(--c-bad)' : 'var(--c-a)',
+                      opacity: 0.85,
+                    }}
+                  />
+                ))}
               </div>
-            </div>
-            <div className="readout">
-              <div className="readout-label">Status</div>
-              <div className="readout-value" style={{ color: r3.pass ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                {r3.pass ? 'PASS (Unique!)' : 'FAIL'}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, color: 'var(--text-muted)' }} className="mono">
+                <span>{distBins.minV}</span>
+                <span>{((distBins.minV + distBins.maxV) / 2).toFixed(1)}</span>
+                <span>{distBins.maxV}</span>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
-        <button type="button" className="btn" onClick={() => setShowOpt((v) => !v)}>
-          {showOpt ? 'Hide exhaustive check' : `Reveal exhaustive search (${exhaust.total} configs)`}
-        </button>
-        {showOpt && (
-          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            <strong>{exhaust.passing}/{exhaust.total}</strong> pass · {exhaust.summary}
-          </div>
-        )}
-      </div>
-    </Widget>
+      <LiveCode code={liveCode} note="NumPy / PyTorch preprocessing pipeline" />
+    </LabShell>
   );
 }

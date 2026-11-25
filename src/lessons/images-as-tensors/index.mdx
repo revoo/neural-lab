@@ -90,7 +90,9 @@ That catastrophic failure is **<Term id="aliasing">spatial aliasing</Term>**. Wh
 
 ## 4. Lab: Build the Vision Preprocessor
 
-Configure three real vision input pipelines. Every brief is checked exhaustively over all combinations so you can see exactly why each choice passes or fails.
+<LabJob>Before a single convolution runs, a buggy image preprocessor silently ruins models — mistaking shadowed traffic lights, turning fine blueprints into solid black/white blocks, or overflowing batch VRAM. Fix all three input pipelines.</LabJob>
+
+Configure three real vision input pipelines. Watch the live road-camera crops and confusion matrix, the 16×16 blueprint vs 4×4 thumbnail comparison, and the animated VRAM budget bar + pixel value distribution. Every brief is checked exhaustively over all combinations.
 
 <VisionPreprocessorLab />
 
@@ -99,6 +101,14 @@ Configure three real vision input pipelines. Every brief is checked exhaustively
   - **Brief 2 (Anti-aliased thumbnailer):** On the thin 1-px blueprint grid (true mean `125.0`), strided `[::4, ::4]` lands in dark gaps (mean error **96.3**, RMSE **100.9**), while `[1::4, 1::4]` and `4×4 Max Pool` land on bright grid lines (mean error **115.0**, RMSE **116.0**). Only **4×4 Box Average** preserves the true block brightness (`1/4` pass, error `0.0`).
   - **Brief 3 (PyTorch batch under 24 MiB):** `FP32` blows the budget (**36.750 MiB**), `uint8` fits in **9.188 MiB** but cannot represent negative z-scores, and `NHWC` fails PyTorch’s channels-first convention. Out of 18 configurations, **`NCHW` + `FP16` + channel z-score** (**18.375 MiB**) is the unique winner.
 </Deeper>
+
+<ForReal>
+
+Real vision bugs hide right here before the model even executes: OpenCV loads images in **BGR** instead of **RGB**; Pillow defaults to **NHWC `uint8`** while PyTorch expects **NCHW float**; and PyTorch `torchvision.transforms.Resize` had to introduce `antialias=True` as the default after researchers discovered that un-filtered bilinear/nearest downsampling silently degraded ImageNet and FID scores via aliasing. Getting colour space, antialiasing, dtype and layout right is half of production computer vision.
+
+</ForReal>
+
+<HistoryCard id="images-as-tensors" />
 
 ---
 

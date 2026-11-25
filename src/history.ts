@@ -537,6 +537,24 @@ export const HISTORY: HistoryEntry[] = [
       after: { text: 'Together they anchor modern unsupervised pipelines — from denoising genomics tables to building Voronoi IVF cells in billion-scale vector databases.', source: WP('Principal_component_analysis') },
     },
   },
+  {
+    id: 'images-as-tensors',
+    lessonId: 'images-as-tensors',
+    lab: 'Build the Vision Preprocessor',
+    idea: 'Digital pixels, sampling and colour spaces',
+    years: [1949, 1957, 1978, 1993],
+    when: '1949 · 1957 · 1978 · 1993',
+    who: [
+      { text: 'Claude Shannon publishes the sampling theorem in Proceedings of the IRE (1949), formalising the Nyquist rate that prevents aliasing.', source: WP('Nyquist%E2%80%93Shannon_sampling_theorem') },
+      { text: 'Russell Kirsch and his team at the National Bureau of Standards scan the first digital photograph in 1957 — a 176×176, 1-bit image of his infant son on the SEAC computer.', source: WP('Russell_Kirsch') },
+      { text: 'Alvy Ray Smith formally describes the HSV colour model at NYIT in 1978; ITU-R publishes the Rec. 709 HDTV standard (1993).', source: WP('HSL_and_HSV') },
+    ],
+    story: {
+      before: { text: 'Computers had no way to ingest photographs at all; signals were continuous film or analogue voltage.', source: WP('Russell_Kirsch') },
+      this: { text: 'Kirsch turned a photograph into an array of numbers (pixels), Shannon\'s sampling theorem explained why downsampling without filtering creates aliasing, and HSV separated hue from brightness.', source: WP('Nyquist%E2%80%93Shannon_sampling_theorem') },
+      after: { text: 'Modern vision frameworks pack RGB frames into standardised FP16/FP32 NCHW tensors — still obeying the same sampling and colour-space rules.', source: WP('Rec._709') },
+    },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */
