@@ -177,8 +177,8 @@ export const MODULES: ModuleMeta[] = [
     lessons: [
       { id: 'autoencoders', title: 'Autoencoders and VAEs', summary: 'Why averaging two faces makes a ghost, how a bottleneck discovers the knobs behind the data, why a plain autoencoder can’t generate, the VAE’s smudges and KL pull, posterior collapse — and Lab: The Face Printer.', minutes: 40, load: () => import('./lessons/autoencoders/index.mdx') },
       { id: 'diffusion', title: 'Diffusion: Adding and Removing Noise', summary: 'Dissolve data into noise exactly, meet the perfect denoiser and its blurry best guesses, run DDIM and DDPM backwards, train a denoiser — and Lab: Spend the Step Budget.', minutes: 40, load: () => import('./lessons/diffusion/index.mdx') },
+      { id: 'guidance', title: 'Guidance and Conditioning', summary: 'Give the denoiser a label, split its push into “towards data” plus “towards looking like the class”, turn that up with classifier-free guidance and watch variety drain away — and Lab: Tune the Guidance.', minutes: 35, load: () => import('./lessons/guidance/index.mdx') },
     ],
-    planned: ['Guidance and conditioning'],
   },
   { id: 'systems', number: 18, title: 'AI Systems Engineering', blurb: 'RAG, tools, agents and evaluation: models inside real software.', lessons: [], planned: ['Retrieval-augmented generation', 'Tool calling and agents', 'Evaluation'] },
 ];

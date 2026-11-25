@@ -1,0 +1,190 @@
+{/* authored-by: Claude Opus 5.5 */}
+import { AskForClass, TwoPushes, GuidanceDial, GuidanceLab } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: "a cat in a hat", not just any picture
+
+The diffusion model from the last lesson makes *some* plausible sample, chosen by its random starting noise. Useful, but not what anyone types into an image generator. People ask for something: a class ("a dog"), a sentence ("a watercolour of a lighthouse at dusk"), a sketch to follow. The model has to be **steered**.
+
+There are two ideas here, and the second is the one that made text-to-image generation look as good as it does. The first, **<Term id="conditioning">conditioning</Term>**, gives the denoiser the request as an extra input. The second, **<Term id="classifier-free-guidance">guidance</Term>**, exaggerates the effect of that input. Guidance has a price, and in our small world we can measure exactly what it is.
+
+Our data this time is six blobs in two classes: three **blue** on the left, three **orange** on the right. Think of them as two kinds of picture, cats and dogs. The innermost blob of each class sits close to the other class: the blue that looks a little orange, the cat that could almost be a dog.
+
+## Conditioning: a denoiser that reads the label
+
+The denoiser's job was to return the best guess of the clean point: the average of every clean point that could have produced the noisy one. Tell it the label, and the job changes in one obvious way: average only over clean points *with that label*. For our blobs, that means ignoring the other class's blobs entirely.
+
+<AskForClass />
+
+Ask for blue and 99.4% of samples land on a blue blob, split fairly between all three (31.9%, 34.4% and 33.7%), including the inner one next to the orange class. With no label you get the unconditional mix: 48.6% blue, 50.3% orange. Show the paths and you can see the label at work from the very first step: from pure noise the conditional best guess is the average of the *blue* data, so every sample starts drifting left.
+
+In a real image model, the label is usually a sentence. The prompt is turned into a sequence of vectors by a text encoder, and the denoiser reads them through cross-attention (a query from each patch of the image, keys and values from the words: the same mechanism as the transformer lessons). The principle is the same as ours: the network learns the best guess *given the prompt*.
+
+## Two pushes: what the label adds
+
+Bayes' rule splits "how likely is this point, given that it's blue?" into two parts: how likely the point is at all, and how likely a point *there* is to be blue. So the push towards blue data is the ordinary push towards data, plus an extra push from a **classifier**: towards wherever the point would look more blue. Drag a point around and see where that extra push is strong:
+
+<TwoPushes />
+
+The label's push is large exactly where the classifier is unsure, and nearly zero where it's already sure. That changes with the noise level. At step 200, a noisy point near the inner blue blob looks only about 70% blue to the classifier, while one near the outer blob looks 99% blue. By step 600, everything is about 50-50: there's too much noise to tell. Remember this asymmetry; it's about to matter.
+
+<Eq
+  words="\cc{\text{push towards blue data}} = \text{push towards any data} + \cv{\text{push towards looking blue}}"
+  tex="\cc{\nabla_x \log p(x \mid \text{blue})} = \nabla_x \log p(x) + \cv{\nabla_x \log p(\text{blue} \mid x)}"
+>
+
+- $p(x)$ — how likely the noisy point $x$ is, ignoring labels; its gradient $\nabla_x \log p(x)$ points towards likelier data (the "score" from the last lesson's deeper note, which the denoiser's best guess is equivalent to)
+- $\cc{p(x \mid \text{blue})}$ — how likely $x$ is among blue data only: what a **conditional** denoiser follows
+- $\cv{p(\text{blue} \mid x)}$ — a **classifier**'s confidence that the noisy point is blue. Its gradient points the way the point should move to look more blue
+- The equation is Bayes' rule, $p(x \mid \text{blue}) = p(x)\, p(\text{blue} \mid x) / p(\text{blue})$, after taking logs and gradients (the constant $p(\text{blue})$ disappears)
+
+</Eq>
+
+## Guidance: turning up the label
+
+Here's the trick that every modern image generator uses. If the label's push helps, why not push *harder*? Take the unconditional guess, find the difference the label makes, and move $w$ times that difference:
+
+<Eq
+  words="\cp{\text{guided guess}} = \text{unlabelled guess} + \cg{w} \times \big(\cc{\text{labelled guess}} - \text{unlabelled guess}\big)"
+  tex="\cp{\tilde\varepsilon} = \hat\varepsilon(x_t) + \cg{w}\,\big(\cc{\hat\varepsilon(x_t, \text{blue})} - \hat\varepsilon(x_t)\big)"
+>
+
+- $\hat\varepsilon(x_t)$ — the denoiser's noise prediction **without** the label (guessing the noise and guessing the clean point are interchangeable, as in the last lesson)
+- $\cc{\hat\varepsilon(x_t, \text{blue})}$ — its prediction **with** the label
+- $\cg{w}$ — the **guidance scale**: $w = 0$ ignores the label, $w = 1$ is plain conditioning, $w > 1$ exaggerates the label
+- $\cp{\tilde\varepsilon}$ — the **guided** prediction, used in place of the ordinary one at every sampling step
+
+</Eq>
+
+This is **classifier-free guidance** (Ho and Salimans, 2021). It needs no separate classifier: the difference between the labelled and unlabelled predictions *is* the classifier's push, scaled. One network provides both, because during training the label is hidden some of the time (typically 10 to 20% of examples), so the same network learns to denoise with and without it. An earlier method, **classifier guidance** (Dhariwal and Nichol, 2021), trained a separate classifier on noisy images and added $w$ times its gradient; the free version largely replaced it because it needs no extra model and works at least as well.
+
+<Predict
+  question="With the exact denoiser and 50 steps, plain conditioning (w = 1) puts a third of the blue samples on each blue blob. What happens to those shares at w = 5?"
+  options={[
+    'Nothing: the samples were already on blue blobs, so there is nothing more to push',
+    'The outer blob, furthest from orange, takes almost everything; the inner blob gets nothing',
+    'The inner blob gains, because guidance pushes harder where the classifier is unsure',
+  ]}
+  answer={1}
+>
+
+At $w = 5$ the outer blob gets 91.7% of the blue samples and the inner blob 0.0%. The guidance pushes every sample away from anything that looks orange, and at the noise levels where samples choose their blob, the inner blob is the one that looks most orange. Try it below.
+
+</Predict>
+
+<GuidanceDial />
+
+Here is the honest summary of what guidance did in our world.
+
+**With a perfect denoiser and enough steps, guidance only distorts.** Plain conditioning was already right (99.4% on blue, fair shares). Raising $w$ to 2 left the inner blob with 11.8%; at 3 it had 1.8%. At 8, samples start overshooting: 8.9% are pushed right past the blobs into empty space. Guidance turns "a blue thing" into "the most stereotypically blue thing": the samples become more *typical* and less *varied*.
+
+**With few steps, guidance also helps.** At 3 steps, plain conditioning strands 26.5% of samples between blobs. At $w = 3$, 92.2% land on a blue blob, because the exaggerated push commits samples to one place sooner. But 96.0% of them land on the outer blob.
+
+That's the trade every image generator makes. Real denoisers are far from perfect and real samplers take few steps, so plain conditioning produces images that follow the prompt loosely and look a bit muddled. Guidance makes them crisp and on-prompt, at the cost of variety. That's why Stable Diffusion's default scale is 7.5, why images at high scales look oversaturated and samey, and why "lower the guidance scale" is the standard advice for more varied results.
+
+<Deeper title="Guidance doesn't sample what you might think" tag="Honesty">
+
+A natural guess is that guidance samples a sharpened version of the data: $p(x \mid \text{blue}) \cdot p(\text{blue} \mid x)^{w-1}$, favouring points that are *very* blue. We can check that directly. On the clean blobs the classifier is certain (each blob is far enough from the other class), so that sharpened distribution keeps the three blue blobs at a third each, for any $w$. Yet guided sampling at $w = 5$ gives 91.7% to one blob.
+
+The difference comes from *when* the push is applied. Guidance uses the classifier at every noise level along the way, and at intermediate noise the classifier really is unsure about the inner blob (about 70% blue at step 200, against 99% for the outer one). That doubt gets exaggerated $w$ times, early, while samples are still choosing where to go. Researchers have noticed the same thing in real models; one proposed remedy is to apply guidance only in a limited range of noise levels (Kynkäänniemi et al., 2024). In our toy that didn't come free: the early steps are where guidance both fixes stranded samples and starves the inner blob, so switching it off there gave back the variety and the stranding together.
+
+</Deeper>
+
+<Misconception>
+
+"A higher guidance scale means the model understands the prompt better." Guidance doesn't add any understanding: it can only exaggerate what the denoiser already does with the prompt, and the price is diversity. In our world, plain conditioning followed the label perfectly; guidance made the samples *more stereotypical*, not more correct. With a strong enough denoiser and enough steps, the best guidance scale for faithfulness is 1.
+
+</Misconception>
+
+**Negative prompts** fall out of the same equation. Instead of the unlabelled prediction, use the prediction for something you *don't* want ("blurry, extra fingers"): the guided step then pushes towards the prompt and away from the negative one.
+
+## In code
+
+Guidance is one line in the sampling loop: mix the two best guesses before taking the step. This samples "blue" at three guidance scales, using the exact denoiser and 50 steps:
+
+```python
+import numpy as np
+
+# six blobs, two classes: 0 = blue (left), 1 = orange (right)
+centres = np.array([[-1.7, 0.35], [-1.0, -0.55], [-0.3, 0.4], [0.3, -0.4], [1.0, 0.55], [1.7, -0.35]])
+label = np.array([0, 0, 0, 1, 1, 1])
+s = 0.1
+
+def best_guess(x, a, cls=None):
+    """Perfect denoiser E[clean | noisy x], optionally given the class (equal-weight round blobs)."""
+    keep = centres if cls is None else centres[label == cls]
+    v = a * s**2 + 1 - a
+    d2 = ((x[:, None, :] - np.sqrt(a) * keep) ** 2).sum(-1)
+    resp = np.exp(-(d2 - d2.min(1, keepdims=True)) / (2 * v))
+    resp /= resp.sum(1, keepdims=True)
+    within = keep + (np.sqrt(a) * s**2 / v) * (x[:, None, :] - np.sqrt(a) * keep)
+    return (resp[..., None] * within).sum(1)
+
+def sample(cls, w, n_steps=50, n=2000, seed=0):
+    x = np.random.default_rng(seed).standard_normal((n, 2))
+    levels = [1 - (1 - i / n_steps) ** 2 for i in range(n_steps)] + [1.0]   # stops bunched near clean
+    for a, a_next in zip(levels[:-1], levels[1:]):
+        uncond, cond = best_guess(x, a), best_guess(x, a, cls)
+        x0 = uncond + w * (cond - uncond)                       # classifier-free guidance
+        eps = (x - np.sqrt(a) * x0) / np.sqrt(1 - a)
+        x = np.sqrt(a_next) * x0 + np.sqrt(1 - a_next) * eps
+    return x
+
+for w in [1, 3, 5]:
+    x = sample(cls=0, w=w)
+    d = np.linalg.norm(x[:, None, :] - centres, axis=-1)
+    nearest, on = d.argmin(1), d.min(1) < 3 * s
+    shares = [np.mean(nearest[on] == k) for k in range(3)]
+    print(f"w = {w}: {on.mean():.1%} on a blob; blue blobs outer/middle/inner:",
+          " / ".join(f"{v:.0%}" for v in shares))
+```
+
+Running it prints:
+
+```text
+w = 1: 99.2% on a blob; blue blobs outer/middle/inner: 34% / 33% / 33%
+w = 3: 99.2% on a blob; blue blobs outer/middle/inner: 77% / 22% / 1%
+w = 5: 97.6% on a blob; blue blobs outer/middle/inner: 92% / 8% / 0%
+```
+
+Mixing the guesses is the same as mixing the noise predictions, because each is a straight-line function of the other. A real pipeline makes two passes through the network per step (or one pass on a batch of two), which is why guidance doubles the cost of every step.
+
+## Lab: Tune the Guidance
+
+Now you're the one shipping the generator. You control two dials: the number of steps (each one is a full pass through the network, so fewer is faster) and the guidance scale. The denoiser is exact, so only your settings matter. Each brief asks for a different balance of accuracy and variety; the optional goal is the fewest steps.
+
+<GuidanceLab />
+
+<Deeper title="Debrief: the three briefs" tag="Spoiler">
+
+All 102 settings (6 step counts × 17 guidance scales from 0 to 4) were tried for each brief.
+
+**The catalogue needs 5 steps, with w = 1 or 1.25.** Variety rules out strong guidance, and without it, fewer than 5 steps strands too many samples between blobs. 7 settings work.
+
+**The poster needs only 2 steps, with w = 3 or more.** If variety doesn't matter, guidance buys speed: at 2 steps and $w = 3$, 95.3% of samples land on a blue blob, nearly all of them on the outer blob. 46 settings work. This is the real-world logic of fast generators that run very few steps at high guidance: crisp, on-prompt, and samey.
+
+**Both needs 6 steps, with w between 1 and 1.75.** A band of mild guidance keeps enough of the inner blob (at least 10%) while committing enough samples (at least 95%). 9 settings work.
+
+We re-ran the search from two other sets of starting noise: the fewest steps came out the same (5, 2 and 6) every time, though which values of $w$ work at that step count shifted slightly.
+
+</Deeper>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- **Conditioning** gives the denoiser the request (a class, or a prompt read through cross-attention), so its best guess averages only over matching data. With a perfect denoiser, that alone samples the class faithfully.
+- By Bayes' rule, the conditional push is the unconditional push plus a **classifier's** push towards looking like the class. That extra push is strongest where the classifier is unsure, which is mostly at high noise.
+- **Classifier-free guidance** moves $w$ times the label's extra push: guided = unlabelled + $w$ × (labelled − unlabelled). One network provides both predictions because labels are dropped during training.
+- Guidance trades **variety for typicality**. In our world $w = 5$ gave 91.7% of samples to the most stereotypically blue blob and none to the inner one; at very high $w$ samples overshoot the data.
+- It earns its keep because real denoisers are imperfect and samplers take few steps: at 3 steps, guidance raised the share of samples that landed on a blob from 73.5% to 92.2%.
+
+</Takeaways>
+
+<InTheWild>
+
+Classifier-free guidance is in practically every text-to-image and text-to-video system: Stable Diffusion exposes it as the "CFG scale" (default 7.5), and it was central to the image quality of GLIDE, DALL·E 2 and Imagen. Its costs are well known to practitioners: two network evaluations per step, oversaturated colours and reduced diversity at high scales, and the "same face" look. Much recent work tries to keep the benefit and pay less: applying guidance only in a middle range of noise levels, rescaling the guided prediction to avoid oversaturation, or distilling a guided model into a student that produces the guided result in one pass and a few steps. The same idea crossed over to language models too, where classifier-free guidance on prompts has been used to make generation follow instructions more closely.
+
+</InTheWild>
+
+That completes the generative toolkit: VAEs that generate in one shot from a well-organised latent space, diffusion models that build samples out of noise one best guess at a time, and guidance to steer them. The last module puts models to work inside real software: **AI systems engineering**.
