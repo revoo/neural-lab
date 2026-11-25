@@ -40,3 +40,25 @@ describe('the positions lesson', () => {
     expect(previousWordWeights([4, 36], 64)[1]).toBeGreaterThanOrEqual(0.6);
   });
 });
+
+describe('post-solve speed maps', () => {
+  it('the strip and the pair map agree with the exhaustive solver', async () => {
+    const { speedStrip, speedPairMap, SPEEDS } = await import('./positions');
+    const [short, long, two] = LEVELS.map(solveLevel);
+    expect(speedStrip(LEVELS[0]).filter((v) => v >= 0.6).length).toBe(short.solutions.length);
+    expect(Math.max(...speedStrip(LEVELS[1]))).toBeCloseTo(long.best.weight, 12);
+    const m = speedPairMap(LEVELS[2]);
+    let passUpper = 0;
+    for (let a = 0; a < SPEEDS.length; a++) for (let b = a; b < SPEEDS.length; b++) if (m[a * SPEEDS.length + b] >= 0.6) passUpper++;
+    expect(passUpper).toBe(two.solutions.length);
+    // quoted in the strip's caption
+    const strip = speedStrip(LEVELS[0]);
+    const pass = SPEEDS.filter((_, i) => strip[i] >= 0.6);
+    expect(Math.min(...pass)).toBe(31);
+    for (const gap of [60, 72, 90, 120, 144]) expect(strip[gap - 1]).toBeLessThan(0.6);
+  });
+  it('the one-hand strip is mirror-symmetric about 180°: speed s and 360 − s look the same', async () => {
+    const { previousWordWeights: pw } = await import('./positions');
+    expect(pw([100], 8)[1]).toBeCloseTo(pw([260], 8)[1], 12);
+  });
+});

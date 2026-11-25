@@ -1,8 +1,8 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Widget } from '../../components/Widget';
 import { Slider, Toggle } from '../../components/controls';
 import { Arrow, Label, Plot } from '../../components/plot';
-import { LEVELS, previousWordWeights, rotate, ropeScore, selfAttention, sinusoid, solveLevel } from './positions';
+import { LEVELS, SPEEDS, previousWordWeights, rotate, ropeScore, selfAttention, sinusoid, solveLevel, speedPairMap, speedStrip, type Level } from './positions';
 
 const f3 = (v: number) => v.toFixed(3);
 const pct = (v: number) => `${(v * 100).toFixed(0)}%`;
@@ -249,6 +249,105 @@ const load = (): Saved => {
   }
 };
 
+
+/** After a solve: the previous-word share for every whole-degree speed (one hand) or speed pair (two hands). */
+function SpeedMap({ L, sp }: { L: Level; sp: number[] }) {
+  if (L.hands === 1) return <SpeedStrip L={L} speed={sp[0]} />;
+  return <SpeedPairCanvas L={L} sp={sp} />;
+}
+
+function SpeedStrip({ L, speed }: { L: Level; speed: number }) {
+  const shares = useMemo(() => speedStrip(L), [L]);
+  const H = 90;
+  const bw = 3;
+  const passing = shares.filter((v) => v >= L.target).length;
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ overflowX: 'auto' }}>
+        <svg viewBox={`0 0 ${SPEEDS.length * bw} ${H + 22}`} width="100%" style={{ minWidth: 360, display: 'block' }} role="img" aria-label="Previous-word share for every speed">
+          <line x1={0} x2={SPEEDS.length * bw} y1={H - L.target * H} y2={H - L.target * H} stroke="var(--c-good)" strokeDasharray="4 3" strokeWidth={1} />
+          {shares.map((v, i) => (
+            <rect key={i} x={i * bw + 0.3} width={bw - 0.6} y={H - v * H} height={Math.max(0.6, v * H)} fill={v >= L.target ? 'var(--c-good)' : 'var(--text-faint)'} />
+          ))}
+          <polygon points={`${(speed - 0.5) * bw},${H + 2} ${(speed - 0.5) * bw - 4},${H + 9} ${(speed - 0.5) * bw + 4},${H + 9}`} fill="var(--text)" />
+          {[1, 45, 90, 135, 180].map((t) => (
+            <text key={t} x={t === 1 ? 0 : t === 180 ? SPEEDS.length * bw : (t - 0.5) * bw} y={H + 20} fontSize={8} textAnchor={t === 1 ? 'start' : t === 180 ? 'end' : 'middle'} className="plot-tick">
+              {t}°
+            </text>
+          ))}
+        </svg>
+      </div>
+      <p className="muted" style={{ fontSize: 13, margin: '6px 0 0' }}>
+        Every whole-degree speed, 1° to 180°: bar height is the previous word's share, green bars reach the {pct(L.target)} goal (dashed line) — {passing} of 180. The
+        triangle is your speed.{' '}
+        {L.length <= 8
+          ? 'Nothing below 31° passes: a slow hand can’t tell neighbours apart. The gaps above it sit at speeds such as 60°, 72°, 90°, 120° and 144°, where a word a few places further back lands on exactly the previous word’s angle (the speed times the extra steps is a whole number of turns).'
+          : 'No bar reaches the line. Slow hands (left) can’t tell neighbours apart; fast hands (right) come round again and again inside 64 words, so a far-off word ties with the previous one.'}
+      </p>
+    </div>
+  );
+}
+
+function SpeedPairCanvas({ L, sp }: { L: Level; sp: number[] }) {
+  const map = useMemo(() => speedPairMap(L), [L]);
+  const ref = useRef<HTMLCanvasElement>(null);
+  const [theme, setTheme] = useState(() => document.documentElement.dataset.theme ?? '');
+  useEffect(() => {
+    const obs = new MutationObserver(() => setTheme(document.documentElement.dataset.theme ?? ''));
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => obs.disconnect();
+  }, []);
+  const n = SPEEDS.length;
+  useEffect(() => {
+    const c = ref.current;
+    const ctx = c?.getContext('2d');
+    if (!c || !ctx) return;
+    const css = getComputedStyle(c);
+    const good = css.getPropertyValue('--c-good').trim() || 'green';
+    const faint = css.getPropertyValue('--text-faint').trim() || 'gray';
+    ctx.clearRect(0, 0, n, n);
+    for (let a = 0; a < n; a++)
+      for (let b = 0; b < n; b++) {
+        const v = map[a * n + b];
+        ctx.globalAlpha = v >= L.target ? 0.9 : 0.08 + 0.5 * v;
+        ctx.fillStyle = v >= L.target ? good : faint;
+        ctx.fillRect(b, n - 1 - a, 1, 1);
+      }
+    ctx.globalAlpha = 1;
+  }, [map, L.target, n, theme]);
+  const passing = useMemo(() => {
+    let k = 0;
+    for (let a = 0; a < n; a++) for (let b = a; b < n; b++) if (map[a * n + b] >= L.target) k++;
+    return k;
+  }, [map, n, L.target]);
+  const [h1, h2] = sp;
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ position: 'relative', width: 'min(100%, 320px)', aspectRatio: '1' }}>
+        <canvas ref={ref} width={n} height={n} style={{ width: '100%', height: '100%', imageRendering: 'pixelated', border: '1px solid var(--border)', borderRadius: 4 }} aria-label="Previous-word share for every pair of speeds" />
+        <div
+          style={{
+            position: 'absolute',
+            left: `${((h2 - 0.5) / n) * 100}%`,
+            top: `${((n - h1 + 0.5) / n) * 100}%`,
+            width: 12,
+            height: 12,
+            marginLeft: -6,
+            marginTop: -6,
+            borderRadius: '50%',
+            border: '2px solid var(--text)',
+          }}
+        />
+      </div>
+      <p className="muted" style={{ fontSize: 13, margin: '6px 0 0' }}>
+        Every pair of whole-degree speeds: hand 2 runs left to right (1° to 180°), hand 1 bottom to top. Green pixels reach the goal ({passing.toLocaleString()} of{' '}
+        {((n * (n + 1)) / 2).toLocaleString()} distinct pairs); the map is symmetric because swapping the hands changes nothing. The ring is your pair. A pair wins when its two hands
+        come back round at different places, so no far-off word matches the previous word on both at once: the same reason real rotary embeddings use many speeds.
+      </p>
+    </div>
+  );
+}
+
 export function PreviousWordLab() {
   const [idx, setIdx] = useState(0);
   const [speeds, setSpeeds] = useState<Record<string, number[]>>({ short: [20], long: [20], two: [3, 20] });
@@ -275,6 +374,8 @@ export function PreviousWordLab() {
     if (s2 >= L.target && s2 > (rec.best ?? 0)) store({ ...saved, [L.id]: { ...rec, solved: true, best: s2 } });
   };
   const barW = Math.max(4, Math.floor(560 / L.length));
+  const [showMap, setShowMap] = useState(false);
+  const mapUnlocked = !!(rec.solved || rec.impossible);
   // which offset is the biggest rival?
   const rival = w.reduce((b, v, o) => (o !== 1 && v > w[b] ? o : b), 0);
 
@@ -349,6 +450,12 @@ export function PreviousWordLab() {
       <div className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>
         {sol.solutions.length} of the {sol.tried} whole-degree settings for this level reach the goal.
       </div>
+      {mapUnlocked && (
+        <button className="btn" style={{ marginTop: 8 }} onClick={() => setShowMap((m) => !m)}>
+          {showMap ? 'Hide' : 'Show'} every {L.hands === 1 ? 'speed' : 'pair of speeds'}
+        </button>
+      )}
+      {mapUnlocked && showMap && <SpeedMap L={L} sp={sp} />}
     </Widget>
   );
 }

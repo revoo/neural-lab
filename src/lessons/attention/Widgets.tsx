@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Widget } from '../../components/Widget';
 import { Segmented } from '../../components/controls';
 import { Arrow, Handle, Label, Plot } from '../../components/plot';
-import { FEATURES, GRID, PUZZLES, WORDS, attend, maxWeightStudy, sentenceAttention, solve, weightsFor, type Vec } from './attention';
+import { FEATURES, GRID, PUZZLES, WORDS, attend, maxWeightStudy, queryMap, sentenceAttention, solve, weightsFor, type Puzzle, type Vec } from './attention';
 
 const pct = (v: number) => `${(v * 100).toFixed(0)}%`;
 const f2 = (v: number) => v.toFixed(2);
@@ -268,6 +268,62 @@ const load = (): Saved => {
 };
 const KEY_COLORS = ['var(--accent)', 'var(--c-b)', 'var(--c-a)', 'var(--c-c)'];
 
+
+/** After a solve: every grid query, coloured by pass/fail (or, for the impossible puzzle, by which key wins). */
+function QueryMap({ p, q }: { p: Puzzle; q: Vec }) {
+  const cells = useMemo(() => queryMap(p), [p]);
+  const cell = 20;
+  const pad = 14;
+  const size = (2 * GRID + 1) * cell;
+  const cx = (a: number) => pad + (a + GRID) * cell + cell / 2;
+  const cy = (b: number) => pad + (GRID - b) * cell + cell / 2;
+  const anyPass = cells.some((c) => c.pass);
+  const hidden = p.id === 'hidden';
+  const left = p.keys.find((k) => k.name === 'left')?.k;
+  const right = p.keys.find((k) => k.name === 'right')?.k;
+  return (
+    <div style={{ marginTop: 12 }}>
+      <svg viewBox={`0 0 ${size + 2 * pad} ${size + 2 * pad}`} width="100%" style={{ maxWidth: 300, display: 'block' }} role="img" aria-label="Map of every query on the grid">
+        {cells.map((c) => (
+          <rect
+            key={`${c.q[0]},${c.q[1]}`}
+            x={cx(c.q[0]) - cell / 2 + 1}
+            y={cy(c.q[1]) - cell / 2 + 1}
+            width={cell - 2}
+            height={cell - 2}
+            rx={3}
+            fill={anyPass ? (c.pass ? 'var(--c-good)' : 'var(--text-faint)') : c.tie ? 'var(--text-faint)' : KEY_COLORS[c.winner]}
+            opacity={anyPass ? (c.pass ? 0.75 : 0.15) : c.tie ? 0.35 : 0.25 + 0.6 * c.weights[c.winner]}
+          />
+        ))}
+        {hidden && left && right && (
+          <line x1={cx(left[0])} y1={cy(left[1])} x2={cx(right[0])} y2={cy(right[1])} stroke="var(--text)" strokeWidth={1.5} strokeDasharray="4 3" />
+        )}
+        {p.keys.map((k, i) => (
+          <g key={k.name}>
+            <circle cx={cx(k.k[0])} cy={cy(k.k[1])} r={4.5} fill={KEY_COLORS[i]} stroke="var(--bg)" strokeWidth={1.5} />
+          </g>
+        ))}
+        <circle cx={cx(q[0])} cy={cy(q[1])} r={8} fill="none" stroke="var(--text)" strokeWidth={2} />
+      </svg>
+      <p className="muted" style={{ fontSize: 13, margin: '6px 0 0' }}>
+        {hidden ? (
+          <>
+            Each square is a query, coloured by the key that wins it (stronger colour = bigger share); grey squares are ties. No square is ever "middle"'s colour:
+            middle sits on the dashed line between left and right, so its score is always their average and at best it ties with both. Dots mark the keys; the ring is your query.
+          </>
+        ) : (
+          <>
+            Each square is a query on the grid: green squares pass ({cells.filter((c) => c.pass).length} of {cells.length}). Dots mark the keys; the ring is your
+            query. Passing queries are the directions where the dot products line up the way the goal asks, and long enough that softmax turns those
+            margins into the right shares.
+          </>
+        )}
+      </p>
+    </div>
+  );
+}
+
 export function AttentionPuzzles() {
   const [idx, setIdx] = useState(0);
   const [saved, setSaved] = useState<Saved>(load);
@@ -295,6 +351,8 @@ export function AttentionPuzzles() {
     }
   };
   const impossible = p.id === 'hidden';
+  const [showMap, setShowMap] = useState(false);
+  const mapUnlocked = !!(rec.solved || rec.impossible);
 
   return (
     <Widget
@@ -380,6 +438,12 @@ export function AttentionPuzzles() {
               I think this is impossible
             </button>
           )}
+          {mapUnlocked && (
+            <button className="btn" style={{ marginTop: 8, marginLeft: impossible && !rec.impossible ? 8 : 0 }} onClick={() => setShowMap((m) => !m)}>
+              {showMap ? 'Hide' : 'Show'} the map of every query
+            </button>
+          )}
+          {mapUnlocked && showMap && <QueryMap p={p} q={q} />}
         </div>
       </div>
     </Widget>

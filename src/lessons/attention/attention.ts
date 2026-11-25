@@ -186,3 +186,24 @@ export function solve(p: Puzzle) {
   const bestFirst = Math.max(...qs.map((q) => weightsFor(p, q)[0]));
   return { solutions, smallest, bestFirst, total: qs.length };
 }
+
+/** `tie`: the top share is held by two or more keys (to 1e-9). */
+export type MapCell = { q: Vec; pass: boolean; winner: number; tie: boolean; weights: number[] };
+
+/**
+ * The solution map: every query on the 11×11 grid, whether it passes, and
+ * which key wins (gets the most attention). Shown after a puzzle is solved.
+ */
+export function queryMap(p: Puzzle): MapCell[] {
+  const cells: MapCell[] = [];
+  for (let b = GRID; b >= -GRID; b--)
+    for (let a = -GRID; a <= GRID; a++) {
+      const q = [a, b];
+      const w = weightsFor(p, q);
+      let winner = 0;
+      for (let i = 1; i < w.length; i++) if (w[i] > w[winner] + 1e-12) winner = i;
+      const tie = w.some((v, i) => i !== winner && Math.abs(v - w[winner]) < 1e-9);
+      cells.push({ q, pass: p.goal(w), winner, tie, weights: w });
+    }
+  return cells;
+}

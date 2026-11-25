@@ -95,3 +95,21 @@ export function solveLevel(L: Level) {
   else for (const a of SPEEDS) for (const b of SPEEDS) if (b >= a) consider([a, b]);
   return { solutions: sols, best, tried: L.hands === 1 ? SPEEDS.length : (SPEEDS.length * (SPEEDS.length + 1)) / 2 };
 }
+
+/** Previous-word share for every one-hand speed (index = speed − 1): the post-solve strip. */
+export function speedStrip(L: Level): number[] {
+  return SPEEDS.map((s) => previousWordWeights([s], L.length)[1]);
+}
+
+/** Previous-word share for every pair of speeds, share[a − 1][b − 1] (symmetric), for the two-hand map. */
+export function speedPairMap(L: Level): Float64Array {
+  const n = SPEEDS.length;
+  const out = new Float64Array(n * n);
+  for (let a = 1; a <= n; a++)
+    for (let b = a; b <= n; b++) {
+      const v = previousWordWeights([a, b], L.length)[1];
+      out[(a - 1) * n + (b - 1)] = v;
+      out[(b - 1) * n + (a - 1)] = v;
+    }
+  return out;
+}

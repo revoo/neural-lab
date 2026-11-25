@@ -51,3 +51,22 @@ describe('the attention lesson', () => {
     expect(k.middle).toEqual([(k.left[0] + k.right[0]) / 2, (k.left[1] + k.right[1]) / 2]);
   });
 });
+
+describe('solution maps', () => {
+  it('the map has 121 cells and its passes are exactly the solutions', async () => {
+    const { queryMap } = await import('./attention');
+    for (const p of PUZZLES) {
+      const m = queryMap(p);
+      expect(m.length).toBe(121);
+      expect(m.filter((c) => c.pass).length).toBe(solve(p).solutions.length);
+    }
+  });
+  it('"middle" never strictly wins any query: no cell has it as the clear top key', async () => {
+    const { queryMap } = await import('./attention');
+    const m = queryMap(PUZZLES.find((p) => p.id === 'hidden')!);
+    const clearWins = m.filter((c) => c.weights[0] > Math.max(...c.weights.slice(1)) + 1e-9);
+    expect(clearWins.length).toBe(0);
+    expect(m.filter((c) => !c.tie && c.winner === 0).length).toBe(0);
+    expect(m.filter((c) => c.tie).length).toBeGreaterThan(0);
+  });
+});
