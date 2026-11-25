@@ -4,6 +4,7 @@ import { LiveCode } from '../../components/LabJob';
 import { vllmServeLines } from './realCode';
 import { Widget } from '../../components/Widget';
 import { AnswerReveal } from '../../components/AnswerReveal';
+import { MachineLog, useMachineLog } from '../../components/MachineLog';
 import { Segmented, Slider } from '../../components/controls';
 import {
   DEMO_TOKENS,
@@ -778,6 +779,47 @@ function loadLabState(): SavedLabState {
   }
 }
 
+
+/**
+ * Where this configuration sits on the GPU's roofline during decoding: each
+ * step must read every weight and the whole KV cache, so arithmetic intensity
+ * (FLOPs per byte) is low and the dot sits on the sloped, memory-bound part.
+ */
+function RooflineDot({ gpu, intensity, achieved, label }: { gpu: { peakTflops: number; bwTBps: number; name: string }; intensity: number; achieved: number; label: string }) {
+  const W = 340;
+  const H = 170;
+  const L = 44;
+  const B = 26;
+  const xMin = -1;
+  const xMax = 4; // log10 FLOPs/byte
+  const yMax = Math.log10(gpu.peakTflops) + 0.4;
+  const yMin = yMax - 4.2;
+  const x = (lv: number) => L + ((W - L - 8) * (lv - xMin)) / (xMax - xMin);
+  const y = (lv: number) => 8 + ((H - B - 8) * (yMax - lv)) / (yMax - yMin);
+  const ridge = gpu.peakTflops / gpu.bwTBps;
+  const roofAt = (lv: number) => Math.log10(Math.min(gpu.peakTflops, gpu.bwTBps * 10 ** lv));
+  const pts = [xMin, Math.log10(ridge), xMax].map((lv) => `${x(lv).toFixed(1)},${y(roofAt(lv)).toFixed(1)}`).join(' ');
+  const ix = Math.log10(Math.max(10 ** xMin, Math.min(10 ** xMax, intensity)));
+  const iy = Math.log10(Math.max(10 ** yMin, achieved));
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: 380, height: 'auto', display: 'block' }} role="img" aria-label={`Roofline of the ${gpu.name} with this configuration's decode step`}>
+      <line x1={L} x2={W - 8} y1={H - B} y2={H - B} stroke="var(--border)" />
+      <line x1={L} x2={L} y1={8} y2={H - B} stroke="var(--border)" />
+      <polyline points={pts} fill="none" stroke="var(--text-muted)" strokeWidth={2} />
+      <line x1={x(Math.log10(ridge))} x2={x(Math.log10(ridge))} y1={y(roofAt(Math.log10(ridge)))} y2={H - B} stroke="var(--text-faint)" strokeDasharray="3 3" />
+      <text x={x(Math.log10(ridge)) + 4} y={H - B - 6} fontSize={9.5} className="plot-tick">ridge {ridge.toFixed(0)}</text>
+      <text x={x(xMax) - 2} y={y(roofAt(xMax)) - 5} fontSize={9.5} textAnchor="end" className="plot-tick">peak {gpu.peakTflops} TFLOP/s</text>
+      <circle cx={x(ix)} cy={y(iy)} r={6} fill="var(--accent)" stroke="var(--bg)" strokeWidth={1.5} />
+      <text x={x(ix) + 9} y={y(iy) + 4} fontSize={10.5} fill="var(--accent-text)" fontWeight={700}>{label}</text>
+      {[0, 1, 2, 3].map((lv) => (
+        <text key={lv} x={x(lv)} y={H - B + 13} fontSize={9.5} textAnchor="middle" className="plot-tick">{10 ** lv}</text>
+      ))}
+      <text x={(L + W) / 2} y={H - 2} fontSize={9.5} textAnchor="middle" className="plot-tick">FLOPs per byte read (log)</text>
+      <text x={10} y={y(Math.log10(gpu.peakTflops))} fontSize={9.5} className="plot-tick" transform={`rotate(-90 10 ${y(Math.log10(gpu.peakTflops))})`} textAnchor="end">TFLOP/s</text>
+    </svg>
+  );
+}
+
 export function VramTetrisLab() {
   const [briefIdx, setBriefIdx] = useState(0);
   const [state, setState] = useState<SavedLabState>(() => loadLabState());
@@ -804,11 +846,18 @@ export function VramTetrisLab() {
     }
   }, [state]);
 
+  const log = useMachineLog();
   const updateCfg = (patch: Partial<TetrisConfig>) => {
+    const next = { ...cfg, ...patch };
     setState((prev) => ({
       ...prev,
-      configs: { ...prev.configs, [brief.id]: { ...cfg, ...patch } },
+      configs: { ...prev.configs, [brief.id]: next },
     }));
+    const e = evaluateTetris(brief, next);
+    log.push(
+      `${next.weightFmt.toUpperCase()} weights + ${next.kvFmt.toUpperCase()} KV, batch ${next.batchSize}, ctx ${fmtCtx(next.ctxLen)}: ${e.wGiB.toFixed(2)} + ${e.kvGiB.toFixed(2)} + ${e.overheadGiB.toFixed(1)} = ${e.totalGiB.toFixed(2)} GiB of ${gpu.vramGiB}${e.fitsVram ? '' : ' (out of memory)'} · ${e.roofline.tokensPerSecPerUser.toFixed(1)} tok/s per user, ${e.roofline.totalTokensPerSec.toFixed(0)} total${e.passes ? ' · passes' : ''}`,
+      e.passes ? 'good' : e.fitsVram ? 'info' : 'bad',
+    );
   };
 
   const metricVal = (e: typeof ev) =>
@@ -887,9 +936,10 @@ export function VramTetrisLab() {
             display: 'flex',
           }}
         >
-          <div style={{ width: `${wPct}%`, background: 'var(--c-a)', opacity: 0.85, transition: 'width 160ms ease' }} />
-          <div style={{ width: `${kvPct}%`, background: ev.fitsVram ? 'var(--accent)' : 'var(--c-bad)', opacity: 0.9, transition: 'width 160ms ease' }} />
-          <div style={{ width: `${ohPct}%`, background: 'var(--text-faint)', opacity: 0.45, transition: 'width 160ms ease' }} />
+          {/* Tetris pieces: each block drops into place whenever its size changes (instant under reduced motion). */}
+          <div key={`w${ev.wGiB.toFixed(3)}`} className="tetris-drop" style={{ width: `${wPct}%`, background: 'var(--c-a)', opacity: 0.85, transition: 'width 160ms ease' }} />
+          <div key={`k${ev.kvGiB.toFixed(3)}`} className="tetris-drop" style={{ width: `${kvPct}%`, background: ev.fitsVram ? 'var(--accent)' : 'var(--c-bad)', opacity: 0.9, transition: 'width 160ms ease', animationDelay: '90ms' }} />
+          <div className="tetris-drop" style={{ width: `${ohPct}%`, background: 'var(--text-faint)', opacity: 0.45, transition: 'width 160ms ease', animationDelay: '180ms' }} />
           {/* VRAM wall */}
           <div
             style={{
@@ -981,6 +1031,14 @@ export function VramTetrisLab() {
         ))}
       </div>
 
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 12, alignItems: 'center', marginBottom: 4 }}>
+        <RooflineDot gpu={gpu} intensity={ev.roofline.arithmeticIntensity} achieved={ev.roofline.achievedTflops} label={`${ev.roofline.achievedTflops.toFixed(1)} TFLOP/s`} />
+        <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+          Each decode step reads every weight and the whole KV cache ({(ev.roofline.bytes / 1e9).toFixed(1)} GB) to produce {cfg.batchSize} token{cfg.batchSize === 1 ? '' : 's'}: {ev.roofline.arithmeticIntensity.toFixed(1)} FLOPs per byte, {ev.roofline.arithmeticIntensity < ev.roofline.ridge ? 'far left of the ridge, so memory bandwidth sets the speed' : 'past the ridge, so arithmetic sets the speed'}. That is why
+          smaller weights and a smaller cache make every user faster, and why a bigger batch raises total throughput cheaply while its cache is small next to the weights.
+        </div>
+      </div>
+
       <LiveCode code={vllmServeLines(brief.modelId, cfg)} note="vLLM" />
 
       {/* Status + optional exhaustive optimum */}
@@ -1034,6 +1092,7 @@ export function VramTetrisLab() {
           {sol.bestEval.roofline.totalTokensPerSec.toFixed(1)} tok/s total.
         </div>
       </AnswerReveal>
+      <MachineLog lines={log.lines} onClear={log.clear} empty="Each configuration is logged here: the memory sum and the speed it buys." />
     </Widget>
   );
 }
