@@ -1,10 +1,10 @@
 # Roadmap & Progress
 
-_Last updated: lab-improvement treatment completed for all 21 post-review labs (46 sourced history entries total); all 18 curriculum modules complete._
+_Last updated after WP1.8. All nine Maths Toolkit labs are implemented._
 
 ## Current state (read this first if you're picking up mid-session)
 
-**Curriculum plan implementation, IN PROGRESS [Claude Opus 5.5]** (owner's request: implement `docs/CURRICULUM_PLAN.md`, WP0 → WP9, one step per commit; progress checklist in `HANDOFF.md`, "Curriculum plan: progress"). The owner asked the session to stop after WP1.8 Lab 2.
+**Curriculum plan implementation, paused after WP1.8** (owner's request: implement `docs/CURRICULUM_PLAN.md`, WP0 → WP9, one step per commit; progress checklist in `HANDOFF.md`, "Curriculum plan: progress"). The owner requested a handoff before WP1.10 and WP1.9. WP2 remains paused.
 
 - **Done [Claude Opus 5.5]:** WP0 guard rails. `ModuleRef` (live module number, linked) and `Src` (source link) in `src/components/`, registered for MDX. No lesson prose types "Module N" or "last/next lesson"; `src/curriculum.test.ts` enforces that, checks every `LessonLink`/`ModuleRef` target, consecutive module numbers, one registration per lesson folder, and (test 6) that every toolkit lesson has a `Bridge` to a later module. The plain-summary test is `it.todo` until WP2.4. `node scripts/forward-links.cjs` reports links that point later in the course.
 - **Done [Claude Opus 5.5]:** WP1.1–WP1.7. Module 1 is "The Maths Toolkit" (9 lessons; `statistics` now before `sgd-minibatch`, `high-dimensions` opens Module 8, prose re-tensed). `MachineMap` component (`src/components/MachineMap.tsx`) with "Where this is going" openers in all nine lessons; `Bridge` cards (`src/components/Bridge.tsx`) after `InTheWild` in all nine; 16 new `<Predict>`s (numbers pinned in `src/lessons/derivatives/predicts.test.ts`); KL divergence section, `KLExplorer` and quiz in `information` (`klDivergence` in `src/lib/prob.ts`); "Play" animations in TangentExplorer, DotExplorer, ChainExplorer and CompositionDemo (frame values pinned in `src/lessons/chain-rule/motion.test.ts`).
@@ -19,7 +19,9 @@ _Last updated: lab-improvement treatment completed for all 21 post-review labs (
 - **Done [Codex Meridian 6]:** WP1.8 Lab 7, Find the Slipping Gear (`chain-rule`).
 - **History placement:** The calculus dispute is anchored in 1710–1716 and the chain-rule card in 1970 to fit the timeline. Both cards still give the sourced seventeenth-century events in their text.
 - **Done [Codex Meridian 6]:** WP1.8 Lab 8, Calibrate the Forecaster (`probability`).
-- **Next:** WP1.8 Lab 9, Twenty Questions Compressor.
+- **Done [Codex Meridian 6]:** WP1.8 Lab 9, Twenty Questions Compressor (`information`).
+- **Lab 9 check:** The wrong-beliefs brief is a prediction on a locked balanced tree. The other briefs accept multiple optimal trees.
+- **Next:** WP1.10, then WP1.9.
 - **Deviations from the plan (recorded):** WP1.3's vectors opener quotes the neuron lesson's real example `[4 links, 5 exclamation marks, 0 mentions of your name]` (the plan said `[3, 6]`). WP1.5 skipped the plan's "rotate then shear" Predict: `matrix-multiplication` already asks exactly that. Lab 1's data was re-tuned by random search (the first draft had 227/375 perfect settings), and brief 4's text became "find a second route" because links turned out not to be the easy route. Lab 2's data: two real emails were moved off the spam's angular range so brief 4 (cosine) is solvable. WP1.7 colour audit: Eqs and widgets already agree; `probability`'s SoftmaxLab colours by class rather than by role and was left alone.
 - **Known follow-ups:** `similarity-search` says "In the RAG lesson we searched…" although RAG comes later (fix in WP2.2); `scaling-laws` ends "Next: Inference & Hardware" (fix in WP2.1, when RL moves in between); the vectors lesson's "A trap hiding in plain sight" section now overlaps Lab 1's brief 3 (trim in WP1.9).
 - **Open questions for the owner:** none so far.
@@ -93,7 +95,7 @@ Session 3 (owner's order): first a **Matrix theme**, then resume "Next steps" wi
 
 | # | Module | Status |
 | --- | --- | --- |
-| 1 | The Maths Toolkit | Nine lessons. The first three now include curriculum-plan labs for vectors, dot products and matrices. |
+| 1 | The Maths Toolkit | Nine lessons, each with a curriculum-plan lab. WP1.10 comparisons and the WP1.9 learner review are pending. |
 | 2 | The Artificial Neuron | **3 lessons done (module complete)**: the neuron, activation functions (with live XOR training), Lab: Wiring Logic by Hand |
 | 3 | Network Architecture | **3 lessons done (module complete)**: layers and the forward pass (step-through of a hand-built 2→6→2→1 "two islands" network; per-neuron response thumbnails with a break-a-neuron experiment); the network playground (build/train/inspect any small MLP: per-neuron maps, contribution bars, ablation importance, every tensor at a probe point, parameter breakdown, pruning challenge with an exhaustively computed optimum); depth vs width (parameter calculator with ×2 width/depth buttons; exact linear-piece counting for 1D ReLU nets — folding layers give 2^L pieces vs n+1 for one wide layer, with honest fragility and random-network experiments) |
 | 4 | Loss & Optimization | **5 lessons done (module complete)**: gradient descent (fog walker + descent-golf puzzle with computed par); loss functions (tug of war: springs vs ropes → mean vs median; exact L2 vs L1 line fits with a draggable glitch; "stuck when wrong": squared error through a sigmoid vs cross-entropy, steps-to-escape); SGD and mini-batches (polling the gradient: 30 batch estimates around the true gradient with measured vs predicted 1/√B spread; a race on a fixed budget of examples processed, log-scale excess loss); momentum/RMSProp/Adam (race on valley/plateau/banana with each optimizer at its grid-searched best step size, finish-line stops, play/step/reset; optimizer golf on the banana with par from a 2,340-run search); learning-rate schedules (fast-or-precise jitter clouds; four schedules each at its searched best peak, averaged over 20 seeds; schedule-designer puzzle with five draggable knots, goal = beat every constant step size, optional = beat the best cosine, with a brute-force knot search as reference) |
@@ -149,9 +151,11 @@ Session 3 (owner's order): first a **Matrix theme**, then resume "Next steps" wi
 
 ## Next steps (in order)
 
-1. Resume the curriculum plan at WP1.8 Lab 9, Twenty Questions Compressor. Use the progress checklist in `HANDOFF.md` and the lab specifications in `docs/CURRICULUM_PLAN.md`.
+1. Continue the curriculum plan with WP1.10 and then WP1.9. Use the progress checklist in `HANDOFF.md` and the lab specifications in `docs/CURRICULUM_PLAN.md`.
 
 ## Labs built so far
+
+- **Twenty Questions Compressor** (information).
 
 - **Calibrate the Forecaster** (probability).
 

@@ -2,9 +2,9 @@
 
 You're picking up **Neural Lab**, an interactive website that teaches AI from first principles: Feynman-style explanation, 3Blue1Brown-style visuals, Zachtronics-style labs. This file is the onboarding procedure. Follow it in order. (Agent rules in brief: `AGENTS.md` / `CLAUDE.md`.)
 
-## 0. Resume here: curriculum plan, WP1.8 Lab 8 complete
+## 0. Resume here: curriculum plan, WP1.8 Lab 9 complete
 
-The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented step by step (WP0 → WP9), and for **WP0 through WP2** in the current run. The previous agent (Claude Opus 5.5) stopped at the owner's request after WP1.8 Lab 2. Work through Lab 2 was pushed on `claude/cool-feynman-4hci4d`.
+The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented step by step (WP0 → WP9), and asked for a handoff before WP1.10 and WP1.9. WP2 is paused until the owner asks to resume. The previous agent (Claude Opus 5.5) stopped at the owner's request after WP1.8 Lab 2. Work through Lab 2 was pushed on `claude/cool-feynman-4hci4d`.
 
 **Read first, in this order:** `AGENTS.md`, this file (especially "Owner's standing instructions" and "Curriculum plan: progress" at the end), `docs/CURRICULUM_PLAN.md` §0 and §1 and the section for your step, and the "Current state" block at the top of `docs/ROADMAP.md`.
 
@@ -27,14 +27,14 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented step by step (WP
 | WP1.8 Lab 1 | `src/lessons/vectors/featureLab.ts`, `featureLab.test.ts`, `FeatureLab.tsx`; history entry `feature-workbench`. |
 | WP1.8 Lab 2 | `src/lessons/dot-product/spamLab.ts`, `spamLab.test.ts`, `SpamLab.tsx`; history entry `spam-scorer`. This brought the history collection to 48 entries. |
 | WP1.8 Lab 3 | `src/lessons/matrices/untangleLab.ts`, solver tests and `UntangleLab.tsx`. History entry `untangle`. |
+| WP1.8 Labs 4–9 | Build the Pipeline, The Sensitivity Probe, Which Knob, and How Far?, Find the Slipping Gear, Calibrate the Forecaster, and Twenty Questions Compressor. Lab logic, tests and widgets are in their lesson directories. |
 
 ### What to do next, in order
 
-1. **WP1.8 Lab 9:** `information` · Twenty Questions Compressor. Follow `docs/CURRICULUM_PLAN.md` §WP1.8.
-2. **WP1.10** "Why this, and not something else?" in all nine toolkit lessons, and extend `src/curriculum.test.ts` test 6 to require that heading.
-3. **WP1.9** re-read Module 1: remove teasers that duplicate a `Bridge`; trim the vectors lesson's "A trap hiding in plain sight" section, which now overlaps Lab 1's brief 3; add about 15 minutes per lab to `minutes` in `src/curriculum.ts`.
-4. **WP2.1–2.4.** Known fixes that belong there: `scaling-laws` ends "Next: Inference & Hardware", which becomes wrong once RL moves before fine-tuning (WP2.1); `similarity-search` says "In the RAG lesson we searched…" although RAG comes later (WP2.2: reword when it moves next to RAG). WP2.4 switches the summary test from `it.todo` to `it`.
-5. After each work package, update the "Current state" block in `docs/ROADMAP.md`.
+1. **WP1.10** "Why this, and not something else?" in all nine toolkit lessons, and extend `src/curriculum.test.ts` test 6 to require that heading.
+2. **WP1.9** re-read Module 1: remove teasers that duplicate a `Bridge`; trim the vectors lesson's "A trap hiding in plain sight" section, which now overlaps Lab 1's brief 3; add about 15 minutes per lab to `minutes` in `src/curriculum.ts`. During review, check the plot legend on the Sensitivity Probe, the hidden-layer count in Build the Pipeline (a narrow intermediate layer also counts), and the display of tiny positive probabilities in Calibrate the Forecaster.
+3. **WP2.1–2.4, after the owner resumes.** Known fixes that belong there: `scaling-laws` ends "Next: Inference & Hardware", which becomes wrong once RL moves before fine-tuning (WP2.1); `similarity-search` says "In the RAG lesson we searched…" although RAG comes later (WP2.2: reword when it moves next to RAG). WP2.4 switches the summary test from `it.todo` to `it`.
+4. After each work package, update the "Current state" block in `docs/ROADMAP.md`.
 
 ### How each maths lab was built (copy this)
 
@@ -294,7 +294,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 �
 - [x] WP1.5 Predict-first moments
 - [x] WP1.6 KL divergence in `information`
 - [x] WP1.7 Motion: the 3Blue1Brown pass
-- [ ] WP1.8 Nine maths labs (**IN PROGRESS**: Labs 1–8 done; next is Lab 9):
+- [x] WP1.8 Nine maths labs:
   - [x] Lab 1 vectors · The Feature Workbench
   - [x] Lab 2 dot-product · Tune the Spam Scorer
   - [x] Lab 3 matrices · Untangle the Data
@@ -303,7 +303,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 �
   - [x] Lab 6 gradients · Which Knob, and How Far?
   - [x] Lab 7 chain-rule · Find the Slipping Gear
   - [x] Lab 8 probability · Calibrate the Forecaster
-  - [ ] Lab 9 information · Twenty Questions Compressor
+  - [x] Lab 9 information · Twenty Questions Compressor
 - [ ] WP1.10 "Why this, and not something else?"
 - [ ] WP1.9 Re-read Module 1 as a learner
 - [ ] WP2.1 Move RL before fine-tuning

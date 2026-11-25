@@ -36,6 +36,20 @@ const WP = (page: string) => `https://en.wikipedia.org/wiki/${page}`;
 
 export const HISTORY: HistoryEntry[] = [
   {
+    id: "twenty-questions",
+    lessonId: "information",
+    lab: "Twenty Questions Compressor",
+    idea: "Optimal binary prefix codes",
+    years: [1951, 1952],
+    when: "1951 · 1952",
+    who: [{ text: "David Huffman developed his prefix code while a graduate student at MIT.", source: WP("Huffman_coding") }],
+    story: {
+      before: { text: "Robert Fano offered his class a term paper on efficient binary codes as an alternative to a final exam.", source: WP("Huffman_coding") },
+      this: { text: "His 1952 paper built the tree from the bottom up, improving on the top-down Shannon–Fano method.", source: WP("Huffman_coding") },
+      after: { text: "A related idea from the same period is relative entropy, introduced by Solomon Kullback and Richard Leibler in 1951.", source: WP("Kullback–Leibler_divergence") },
+    },
+  },
+  {
     id: "forecaster",
     lessonId: "probability",
     lab: "Calibrate the Forecaster",

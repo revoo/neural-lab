@@ -1,3 +1,4 @@
+import { CompressorLab } from './CompressorLab'
 import { LogExplorer } from './LogExplorer'
 import { EntropyLab } from './EntropyLab'
 import { LossCurves } from './LossCurves'
@@ -210,6 +211,28 @@ With p = 90/10 and q = 50/50, believing 50/50 when the truth is 90/10 costs 0.53
 </Misconception>
 
 This explains something about training. When a model is trained with cross-entropy, the truth $p$ is the data, and its entropy $H(p)$ is a fixed number the model can't change. So driving the cross-entropy down is exactly the same as driving the KL divergence from the data to the model down: training with cross-entropy *is* minimising the extra surprise. KL returns as the leash in <LessonLink to="rlhf-dpo">RLHF</LessonLink>, which stops a fine-tuned model drifting too far from where it started, and as the pull towards the bell curve in <LessonLink to="autoencoders">autoencoders</LessonLink>.
+
+## Lab: Twenty Questions Compressor
+
+Each yes or no is a bit. Putting a common animal near the top saves a question often, while putting an uncommon one deeper costs a question only occasionally. Build the questions by choosing which animals go down each branch.
+
+<LabJob>Design a yes-or-no strategy that identifies a hidden animal in as few questions as possible on average.</LabJob>
+
+<CompressorLab />
+
+<Deeper title="Debrief: whole questions and fractional bits" tag="Spoiler">
+
+Huffman’s method starts with the least common groups and works upwards. The first two distributions allow exact matches to entropy at 1.75 and 1.984375 questions on average. The third needs 1.9 questions on average with whole-number depths, even though its entropy is about 1.8464 bits.
+
+The balanced strategy spends two questions on every animal. Under the first distribution it spends 0.25 extra questions on average. That excess equals the KL divergence because these code lengths come from the uniform probabilities and the true distribution also admits exact bit lengths.
+
+</Deeper>
+
+<ForReal>In a prefix code, a complete sequence of answers names one item. You can start reading the next item as soon as you reach a leaf. Common items can therefore take up fewer bits without a separator.</ForReal>
+
+<HistoryCard id="twenty-questions" />
+
+You've just measured the cost of a model’s beliefs, the quantity that returns in <LessonLink to="loss-functions">loss functions</LessonLink> and <LessonLink to="rlhf-dpo">preference optimisation</LessonLink>.
 
 ## In code
 
