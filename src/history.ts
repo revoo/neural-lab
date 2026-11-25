@@ -630,6 +630,24 @@ export const HISTORY: HistoryEntry[] = [
       after: { text: 'Embedding tables became the universal front door of deep learning — from Word2Vec and recommender SKUs to every modern Transformer tokeniser.', source: WP('Word_embedding') },
     },
   },
+  {
+    id: 'word-embeddings',
+    lessonId: 'word-embeddings',
+    lab: 'Train & Debug Word2Vec',
+    idea: 'Word2Vec, negative sampling, GloVe, and subword vectors',
+    years: [2013, 2014, 2017],
+    when: '2013 · 2014 · 2017',
+    who: [
+      { text: 'Tomas Mikolov and colleagues at Google release Word2Vec (2013), pairing Skip-Gram and CBOW with negative sampling to train dense word vectors on billions of tokens.', source: WP('Word_embedding') },
+      { text: 'Yoav Goldberg and Omer Levy derive the negative-sampling objective (2014), while Jeffrey Pennington, Richard Socher, and Christopher Manning introduce GloVe at Stanford on global co-occurrence counts.', source: WP('GloVe') },
+      { text: 'Piotr Bojanowski, Edouard Grave, Armand Joulin, and Tomas Mikolov publish fastText (2017), composing word vectors from character n-grams so rare and unseen words get embeddings too.', source: WP('Word_embedding') },
+    ],
+    story: {
+      before: { text: 'Earlier neural language models paid a full softmax over the entire vocabulary on every word pair, bottlenecking training on large corpora.', source: WP('Word2Vec') },
+      this: { text: 'Replacing full softmax with a handful of random negative samples turned training into tiny binary dot-product updates — and linear vector analogies emerged from co-occurrence statistics.', source: 'https://arxiv.org/abs/1402.3722' },
+      after: { text: 'Static word vectors eventually gave way to contextual Transformer representations for polysemy, while negative sampling lived on in item recommenders and contrastive learning.', source: WP('Word_embedding') },
+    },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */

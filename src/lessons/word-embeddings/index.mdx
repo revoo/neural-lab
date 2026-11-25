@@ -77,7 +77,9 @@ Test all four analogies directly on our freshly trained 6D SGNS vectors below.
 
 ## 3. Lab: Train & Debug Word2Vec
 
-Fix representation collapse, find the minimal embedding dimension that nails all four analogies, and scale past the softmax wall. Every brief is exhaustively verified.
+<LabJob>You are training domain-specific item and text embeddings from raw clickstreams and corpora using Skip-Gram with Negative Sampling. Diagnose a collapsed training run visually, pack semantic analogies into the leanest vector space, and replace an intractable 100,000-way softmax with negative sampling.</LabJob>
+
+Fix representation collapse, find the minimal embedding dimension that nails all four analogies, and scale past the softmax wall — watching the 2D constellation and analogy scorecards update live.
 
 <Word2VecLab />
 
@@ -86,6 +88,14 @@ Fix representation collapse, find the minimal embedding dimension that nails all
   - **Brief 2 (Minimal dimension for 4/4 analogies):** In **2D** (`d = 2`), **0 of 3** windows pass (max `2/4`): you simply cannot pack independent Royalty, Gender, and Capital/Country directions cleanly onto a flat sheet. At **`d = 3, window = 3`**, SGNS unlocks **`4/4`** analogies (`9/15` configs pass across `d = 3..8`).
   - **Brief 3 (Scaling to `V = 100,000`):** Full Softmax burns `100,000` dot products/pair. **`SGNS K = 5`** takes just **6** dot products/pair — **`16,667×` faster** (`2/6` pass: `K = 5` and `K = 10`).
 </Deeper>
+
+<ForReal>
+
+Even after Transformers replaced static word vectors for NLP, **Skip-Gram with Negative Sampling (`gensim.models.Word2Vec`)** remains a workhorse everywhere discrete sequences appear without labels: Spotify, Airbnb, and e-commerce teams train "Item2Vec" embeddings over playlist, listing, and product-click sessions (`sg=1, negative=5, ns_exponent=0.75`) to power candidate generation in milliseconds. The exact same pull-positives-push-negatives idea also evolved directly into contrastive representation learning (CLIP, SimCLR) and in-batch negatives for modern dense retrievers.
+
+</ForReal>
+
+<HistoryCard id="word-embeddings" />
 
 ---
 

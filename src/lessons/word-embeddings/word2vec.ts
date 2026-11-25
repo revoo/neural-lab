@@ -423,12 +423,29 @@ export type ScaleMode = (typeof LAB_SCALE_MODES)[number];
 
 export function evalW2vBrief1(k: number) {
   const r = trainSgns(6, k, 2, 140, 42);
-  return { k, meanCos: r.meanCos, hits: r.analogyHits, total: r.analogyTotal, pass: r.meanCos < 0.35 && r.analogyHits >= 3 };
+  return {
+    k,
+    meanCos: r.meanCos,
+    hits: r.analogyHits,
+    total: r.analogyTotal,
+    vecs: r.vecs,
+    analogyDetails: r.analogyDetails,
+    pass: r.meanCos < 0.35 && r.analogyHits >= 3,
+  };
 }
 
 export function evalW2vBrief2(dim: number, win: number) {
   const r = trainSgns(dim, 5, win, 140, 42);
-  return { dim, win, hits: r.analogyHits, total: r.analogyTotal, meanCos: r.meanCos, pass: r.analogyHits === r.analogyTotal };
+  return {
+    dim,
+    win,
+    hits: r.analogyHits,
+    total: r.analogyTotal,
+    meanCos: r.meanCos,
+    vecs: r.vecs,
+    analogyDetails: r.analogyDetails,
+    pass: r.analogyHits === r.analogyTotal,
+  };
 }
 
 export function evalW2vBrief3(mode: ScaleMode) {
@@ -438,6 +455,46 @@ export function evalW2vBrief3(mode: ScaleMode) {
   const dotsPerPair = 1 + k;
   const speedup = V / dotsPerPair;
   return { mode, dotsPerPair, k, speedup, pass: dotsPerPair <= 15 && k >= 5 };
+}
+
+/** Evidence-only hint for the Word2Vec Lab (never names winning buttons or exact settings). */
+export function w2vLabHint(
+  id: W2vBriefId,
+  st: { b1K: number; b2Dim: number; b2Win: number; b3Mode: ScaleMode },
+): string {
+  if (id === 'collapse') {
+    const r = evalW2vBrief1(st.b1K);
+    if (r.pass) {
+      return `Collapse cured: mean pairwise cosine dropped to ${r.meanCos.toFixed(3)} (< 0.35) and ${r.hits}/${r.total} analogies pass.`;
+    }
+    return `Mean pairwise cosine is ${r.meanCos.toFixed(3)} (> 0.35) and only ${r.hits}/${r.total} analogies pass. Without repulsive updates pushing random non-neighbours apart, all vectors crowd into one narrow cone.`;
+  }
+  if (id === 'analogies') {
+    const r = evalW2vBrief2(st.b2Dim, st.b2Win);
+    if (r.pass) {
+      return r.dim === 3
+        ? 'All 4/4 analogies solved at the minimum viable dimension (3D)!'
+        : `All 4/4 analogies solved in ${r.dim}D. Try checking whether a lower-dimensional space can still hold all three independent axes cleanly.`;
+    }
+    const missed = r.analogyDetails.filter((d) => !d.ok).map((d) => d.spec.expected).join(', ');
+    if (r.dim <= 2) {
+      return `In ${r.dim}D, ${r.hits}/${r.total} analogies pass (missed: ${missed}). Royalty, gender, and country–capital shifts need more orthogonal directions than a flat 2D plane provides.`;
+    }
+    return `In ${r.dim}D with window ±${r.win}, ${r.hits}/${r.total} analogies pass (missed: ${missed}). Look at how far apart related nouns and descriptors sit inside the corpus sentences — a slightly wider context window captures more co-occurrences.`;
+  }
+  const r = evalW2vBrief3(st.b3Mode);
+  if (r.pass) {
+    return r.k === 5
+      ? `Passed at the fastest qualifying negative-sample budget (${r.dotsPerPair} dot-products/pair, ${Math.round(r.speedup).toLocaleString()}× faster than Full Softmax).`
+      : `Passed at ${r.dotsPerPair} dot-products/pair (≤ 15). Check whether a leaner negative-sample count still satisfies the K ≥ 5 floor.`;
+  }
+  if (r.mode === 'full-softmax') {
+    return 'Full Softmax computes a dot product against all 100,000 vocabulary rows on every single training pair — orders of magnitude above the 15-dot-product budget.';
+  }
+  if (r.k < 5) {
+    return `Compute fits easily (${r.dotsPerPair} ≤ 15 dot-products/pair), but K = ${r.k} falls below the K ≥ 5 gradient-quality floor.`;
+  }
+  return `Negative sampling is strong (K = ${r.k} ≥ 5), but 1 + ${r.k} = ${r.dotsPerPair} dot-products per pair exceeds the 15-dot-product ceiling.`;
 }
 
 export function w2vLabExhaustive(id: W2vBriefId) {

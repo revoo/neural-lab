@@ -205,7 +205,7 @@ The owner asked for this next, in a fresh session. `docs/LAB_IMPROVEMENTS.md` re
 - [x] cnns · Architect the CNN
 - [x] object-detection · Tune the Object Detector
 - [x] one-hot-vs-dense · Choose & Size the Representation
-- [ ] word-embeddings · Train & Debug Word2Vec
+- [x] word-embeddings · Train & Debug Word2Vec
 - [ ] similarity-search · Tune the Vector Index
 - [ ] contrastive-learning · Tune Contrastive Training
 - [ ] rnns · Tame BPTT
