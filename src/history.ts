@@ -36,6 +36,23 @@ const WP = (page: string) => `https://en.wikipedia.org/wiki/${page}`;
 
 export const HISTORY: HistoryEntry[] = [
   {
+    id: 'spam-scorer',
+    lessonId: 'dot-product',
+    lab: 'Tune the Spam Scorer',
+    idea: 'Documents as vectors, compared by cosine',
+    years: [1975],
+    when: '1975',
+    who: [
+      { text: 'Gerard Salton, professor of computer science at Cornell University, called "the father of Information Retrieval".', source: WP('Gerard_Salton') },
+      { text: 'His group at Cornell developed the SMART Information Retrieval System, which he had started at Harvard.', source: WP('Gerard_Salton') },
+    ],
+    story: {
+      before: { text: 'The SMART Information Retrieval System, where the vector space model was first used.', source: WP('Vector_space_model') },
+      this: { text: '"A vector space model for automatic indexing" (1975): documents and queries become vectors of term counts, and their similarity is the cosine between them.', source: WP('Gerard_Salton') },
+      after: { text: 'The vector space model went on to be used in information filtering, information retrieval, indexing and relevance rankings.', source: WP('Vector_space_model') },
+    },
+  },
+  {
     id: 'feature-workbench',
     lessonId: 'vectors',
     lab: 'The Feature Workbench',

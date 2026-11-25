@@ -238,7 +238,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 鈫
 - [x] WP1.7 Motion: the 3Blue1Brown pass
 - [ ] WP1.8 Nine maths labs:
   - [x] Lab 1 vectors 路 The Feature Workbench
-  - [ ] Lab 2 dot-product 路 Tune the Spam Scorer
+  - [x] Lab 2 dot-product 路 Tune the Spam Scorer
   - [ ] Lab 3 matrices 路 Untangle the Data
   - [ ] Lab 4 matrix-multiplication 路 Build the Pipeline
   - [ ] Lab 5 derivatives 路 The Sensitivity Probe
