@@ -245,7 +245,7 @@ export const LAB_BRIEFS: KnnBrief[] = [
   {
     id: 'noisy-cols',
     title: 'Brief 2 · Drowning in Irrelevant Columns',
-    story: 'A 6-column table has 2 real signal features (A, B) buried alongside 4 pure random noise columns (C–F). Drop the dead weight and tune kNN to reach ≥ 91% held-out accuracy using the fewest columns.',
+    story: 'A 6-column table hides 2 real signal features inside 4 pure random noise columns. Drop the dead weight and tune kNN to reach ≥ 91% held-out accuracy using the fewest columns.',
     minAcc: 0.91,
     featureLabels: ['Col A', 'Col B', 'Col C', 'Col D', 'Col E', 'Col F'],
     allowScalingToggle: false,
@@ -344,14 +344,97 @@ export function evaluateKnnLab(b: KnnBrief, cfg: KnnLabConfig) {
     tr = applyScaler(tr, sc);
     te = applyScaler(te, sc);
   }
-  const m = knnMetrics(tr, te, cfg.k, cfg.metric, cfg.weight);
-  return { ...m, colsUsed: cfg.cols.length, train: tr, test: te };
+  let correct = 0;
+  let tp = 0;
+  let fp = 0;
+  let fn = 0;
+  let pos = 0;
+  const ratios: number[] = [];
+  const queries = te.map((s) => {
+    const all = tr.map((t, idx) => ({ idx, dist: dist(t.x, s.x, cfg.metric), y: t.y }));
+    all.sort((a, c) => a.dist - c.dist || a.idx - c.idx);
+    const near = all[0]?.dist ?? 1e-6;
+    const far = all[all.length - 1]?.dist ?? near;
+    ratios.push(far / Math.max(1e-6, near));
+    const neighbors = all.slice(0, Math.min(cfg.k, all.length));
+    let w0 = 0;
+    let w1 = 0;
+    for (const nb of neighbors) {
+      const w = cfg.weight === 'uniform' ? 1 : 1 / (nb.dist + 1e-6);
+      if (nb.y === 1) w1 += w;
+      else w0 += w;
+    }
+    const prob1 = w1 / (w0 + w1);
+    const pred: 0 | 1 = prob1 >= 0.5 ? 1 : 0;
+    if (pred === s.y) correct++;
+    if (s.y === 1) {
+      pos++;
+      if (pred === 1) tp++;
+      else fn++;
+    } else if (pred === 1) {
+      fp++;
+    }
+    return { prob1, pred, neighbors, w0, w1, kthDist: neighbors[neighbors.length - 1]?.dist ?? 0 };
+  });
+  ratios.sort((a, c) => a - c);
+  const farOverNear = ratios[Math.floor(ratios.length / 2)] ?? 1;
+  return {
+    accuracy: correct / te.length,
+    posRecall: pos > 0 ? tp / pos : 0,
+    tp,
+    fp,
+    fn,
+    farOverNear,
+    queries,
+    colsUsed: cfg.cols.length,
+    train: tr,
+    test: te,
+    rawTrain: raw.train,
+    rawTest: raw.test,
+  };
 }
 
 export function briefPasses(b: KnnBrief, r: ReturnType<typeof evaluateKnnLab>): boolean {
   if (r.accuracy < b.minAcc - 1e-9) return false;
   if (b.minPosRecall !== undefined && r.posRecall < b.minPosRecall - 1e-9) return false;
   return true;
+}
+
+/** Curve of accuracy & fault recall across all k values for uniform vs distance weighting under current feature/scaling/metric setup. */
+export function knnLabKCurve(b: KnnBrief, cfg: KnnLabConfig) {
+  return LAB_KS.map((k) => {
+    const u = evaluateKnnLab(b, { ...cfg, k, weight: 'uniform' });
+    const d = evaluateKnnLab(b, { ...cfg, k, weight: 'distance' });
+    return { k, uniformAcc: u.accuracy, distAcc: d.accuracy, uniformRec: u.posRecall, distRec: d.posRecall };
+  });
+}
+
+/**
+ * Evidence-only hint for the kNN lab: points at spoke geometry, distance contrast,
+ * or neighbour vote weights — never names a locked control or spoils column/k answers.
+ */
+export function knnLabHint(b: KnnBrief, cfg: KnnLabConfig, r: ReturnType<typeof evaluateKnnLab>): string {
+  const pass = briefPasses(b, r);
+  if (pass) {
+    if (b.id === 'noisy-cols' && cfg.cols.length > 2) {
+      return `It passes with ${cfg.cols.length} columns — watch the median farthest/nearest ratio as you test dropping one column at a time: removing a pure noise column makes genuine neighbours stand out more sharply.`;
+    }
+    if (b.id === 'pockets' && r.posRecall < 0.999) {
+      return 'It passes! Inspect one of the remaining missed faults on the plot and compare the distances of its closest vs farthest voting neighbours.';
+    }
+    return 'It passes! Check the vote breakdown on borderline points to see whether another neighbour count or weighting sharpens the boundary further.';
+  }
+  if (b.id === 'unscaled') {
+    if (!cfg.scaled) {
+      return 'Look at the neighbour spokes on the plot: they stretch horizontally all the way across the Voltage axis while hugging one thin RPM slice. Check what range each axis spans before computing distance.';
+    }
+    return 'The two axes are now on equal footing — check how many neighbours are voting around noisy training labels.';
+  }
+  if (b.id === 'noisy-cols') {
+    return `Look at the spokes jumping across the plane and the low farthest/nearest ratio (${r.farOverNear.toFixed(2)}×). Toggle individual columns off and watch which removals cause held-out accuracy and distance contrast to jump rather than fall.`;
+  }
+  // Brief 3 (pockets — scaling and columns are locked)
+  return `Click a missed fault point inside one of the two pockets and look at its ${cfg.k} voting neighbours on the right: the closest neighbours are faults, while the outer ring of neighbours belongs to the normal background and currently outvotes them.`;
 }
 
 const LAB_EX_CACHE = new Map<KnnBrief['id'], ReturnType<typeof computeKnnLabExhaustive>>();

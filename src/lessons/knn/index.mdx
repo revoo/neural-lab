@@ -138,7 +138,9 @@ Standardised k=5 accuracy: 89.5%
 
 ## Lab: Rescue the kNN Classifier
 
-Three broken kNN deployments, three different root causes: unscaled telemetry (67.2% raw), irrelevant noise columns (80.0% with all 6 columns), and small minority fault pockets erased by large uniform $k$ (42.9% recall at uniform $k = 25$). Fix all three — and optionally hit each brief's exhaustive optimum.
+<LabJob>You inherited three failing sensor-monitoring classifiers built on kNN — one reading mixed-unit telemetry, one polluted with unused log columns, and one missing rare fault pockets. Diagnose the geometry of each failure and repair the pipeline.</LabJob>
+
+Three broken kNN deployments, three different root causes: unscaled telemetry (67.2% raw), irrelevant noise columns (80.0% with all 6 columns), and small minority fault pockets erased by large uniform $k$ (42.9% recall at uniform $k = 25$). Watch the live neighbour spokes and vote weights to see why each setup fails, fix all three — and optionally hit each brief's exhaustive optimum.
 
 <KnnLab />
 
@@ -149,6 +151,14 @@ Three broken kNN deployments, three different root causes: unscaled telemetry (6
 - **Brief 3 (Small Fault Pockets, ≥ 94% acc & ≥ 85% fault recall):** 19 of 24 pass. Starting at uniform $k = 25$ gets only 42.9% fault recall because the surrounding normal points outvote each small pocket. Switching to **distance weighting ($1/d$)** with `L2, k = 15` hits **96.0% overall accuracy and 100.0% fault recall**!
 
 </Deeper>
+
+<ForReal>
+
+Every bug in this lab shows up in real nearest-neighbour pipelines: forgetting a `StandardScaler` inside a `scikit-learn` pipeline before Euclidean distance lets a millisecond timestamp drown out every other feature; concatenating unvetted metadata columns into a search vector triggers the curse of dimensionality; and uniform top-$k$ voting in anomaly detection or recommendation erases niche clusters unless you weight by similarity (`1/d` or softmax temperature). Modern embedding search (FAISS, HNSW, pgvector) solves the scaling and noise problems upstream by letting a neural encoder learn a unit-norm metric space first.
+
+</ForReal>
+
+<HistoryCard id="knn" />
 
 <Quiz questions={questions} />
 

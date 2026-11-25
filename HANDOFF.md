@@ -197,7 +197,7 @@ The owner asked for this next, in a fresh session. `docs/LAB_IMPROVEMENTS.md` re
 
 **Labs to do** (lesson id · lab):
 - [x] linear-regression · Feature Engineering + Logistic Regression
-- [ ] knn · Rescue the kNN Classifier
+- [x] knn · Rescue the kNN Classifier
 - [ ] decision-trees · Build the Tabular Ensemble
 - [ ] clustering-pca · Compress & Segment
 - [ ] images-as-tensors · Build the Vision Preprocessor

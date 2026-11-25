@@ -1,6 +1,10 @@
 // authored-by: Gemini Antigravity
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Widget } from '../../components/Widget';
+import { LabShell, useLabProgress } from '../../components/LabShell';
+import { LiveCode } from '../../components/LabJob';
+import { useMachineLog } from '../../components/MachineLog';
+import { useTweenedArray } from '../../components/motion';
 import { Segmented } from '../../components/controls';
 import { Plot } from '../../components/plot';
 import { Heatmap, diverging } from '../../components/heatmap';
@@ -15,6 +19,8 @@ import {
   evaluateScalingTrap,
   getMoonsData,
   getNoiseDimCurve,
+  knnLabHint,
+  knnLabKCurve,
   knnMetrics,
   knnQuery,
   labExhaustive,
@@ -23,6 +29,7 @@ import {
   type Metric,
   type Weighting,
 } from './knn';
+import { sklearnKnnLines } from './realCode';
 
 const pct1 = (v: number) => `${(100 * v).toFixed(1)}%`;
 
@@ -425,16 +432,110 @@ function loadLab(): LabState {
   return fresh;
 }
 
+function seedShellProgress() {
+  const old = loadLab();
+  const solved: Record<string, boolean> = {};
+  const optimal: Record<string, boolean> = {};
+  for (const b of LAB_BRIEFS) {
+    if (old[b.id].solved) solved[b.id] = true;
+    const m = old[b.id].bestMetric;
+    if (m !== null) {
+      if (b.id === 'unscaled' && m >= 99.4) optimal[b.id] = true;
+      if (b.id === 'noisy-cols' && m <= 2) optimal[b.id] = true;
+      if (b.id === 'pockets' && m >= 100) optimal[b.id] = true;
+    }
+  }
+  return { solved, optimal };
+}
+
 export function KnnLab() {
   const [lab, setLab] = useState<LabState>(() => loadLab());
   const [briefIdx, setBriefIdx] = useState(0);
-  const [showOpt, setShowOpt] = useState(false);
+  const [probeIdx, setProbeIdx] = useState<number | null>(null);
+  const progress = useLabProgress('nl-knn-lab-v1-shell', seedShellProgress);
+  const log = useMachineLog();
 
   const brief = LAB_BRIEFS[briefIdx];
   const entry = lab[brief.id];
   const res = useMemo(() => evaluateKnnLab(brief, entry.cfg), [brief, entry.cfg]);
   const pass = briefPasses(brief, res);
-  const ex = useMemo(() => (showOpt ? labExhaustive(brief) : null), [showOpt, brief]);
+  const ex = useMemo(() => labExhaustive(brief), [brief]);
+  const kCurve = useMemo(() => knnLabKCurve(brief, entry.cfg), [brief, entry.cfg]);
+
+  const isOpt =
+    pass &&
+    (brief.id === 'unscaled'
+      ? res.accuracy >= ex.bestAcc - 1e-9
+      : brief.id === 'noisy-cols'
+        ? res.colsUsed <= ex.bestCols && res.accuracy >= ex.bestAcc - 1e-9
+        : res.posRecall >= ex.bestRecall - 1e-9 && res.accuracy >= ex.bestAcc - 1e-9);
+
+  // Pick a dramatic default test point to inspect (a missed fault in pockets, or first error, else 0)
+  const activeProbe = useMemo(() => {
+    if (probeIdx !== null && probeIdx < res.rawTest.length) return probeIdx;
+    if (brief.id === 'pockets') {
+      const fnIdx = res.rawTest.findIndex((p, i) => p.y === 1 && res.queries[i].pred === 0);
+      if (fnIdx >= 0) return fnIdx;
+      const anyPos = res.rawTest.findIndex((p) => p.y === 1);
+      if (anyPos >= 0) return anyPos;
+    }
+    const errIdx = res.rawTest.findIndex((p, i) => res.queries[i].pred !== p.y);
+    return errIdx >= 0 ? errIdx : 0;
+  }, [probeIdx, brief.id, res.rawTest, res.queries]);
+
+  const probePt = res.rawTest[activeProbe];
+  const probeQ = res.queries[activeProbe];
+
+  // Animated vote shares [class1Share, class0Share]
+  const voteShares = useTweenedArray([probeQ.prob1 * 100, (1 - probeQ.prob1) * 100], 240);
+
+  // Memoised heatmap for 2D pockets brief (fast: 140 training points)
+  const pocketsHeat = useMemo(() => {
+    if (brief.id !== 'pockets') return null;
+    const { train } = res;
+    const { k, metric, weight } = entry.cfg;
+    return (x1: number, x2: number) => knnQuery(train, [x1, x2], k, metric, weight).prob1;
+  }, [brief.id, res, entry.cfg]);
+
+  // Plot geometry for each brief (always plotted in raw interpretable coordinates so spokes visibly snap!)
+  const plotSpec = useMemo(() => {
+    if (brief.id === 'unscaled') {
+      return {
+        x: [0, 5.2] as [number, number],
+        y: [0, 5200] as [number, number],
+        xLabel: 'Sensor A (Volts)',
+        yLabel: 'Sensor B (RPM)',
+        c0: 0,
+        c1: 1,
+        subtitle: entry.cfg.scaled
+          ? 'Standardised distances: spokes pull from a balanced circle'
+          : 'Raw units: spokes stretch wildly across Volts to hug one RPM band',
+      };
+    }
+    if (brief.id === 'noisy-cols') {
+      const c0 = entry.cfg.cols[0] ?? 0;
+      const c1 = entry.cfg.cols[1] ?? (c0 === 0 ? 1 : 0);
+      const labels = brief.featureLabels!;
+      return {
+        x: [-3.1, 3.1] as [number, number],
+        y: [-3.1, 3.1] as [number, number],
+        xLabel: labels[c0],
+        yLabel: labels[c1],
+        c0,
+        c1,
+        subtitle: `Plotted on (${labels[c0]}, ${labels[c1]}) · spokes found in all ${entry.cfg.cols.length} active dim${entry.cfg.cols.length === 1 ? '' : 's'}`,
+      };
+    }
+    return {
+      x: [-2.4, 2.4] as [number, number],
+      y: [-2.4, 2.4] as [number, number],
+      xLabel: 'x₁',
+      yLabel: 'x₂',
+      c0: 0,
+      c1: 1,
+      subtitle: 'Two rare fault pockets · click any dot to inspect its voting spokes',
+    };
+  }, [brief.id, brief.featureLabels, entry.cfg.scaled, entry.cfg.cols]);
 
   const saved = useRef(lab);
   saved.current = lab;
@@ -446,13 +547,51 @@ export function KnnLab() {
       // ignore storage errors
     }
   };
-  const update = (patch: Partial<KnnLabConfig>) => persist({ ...lab, [brief.id]: { ...entry, cfg: { ...entry.cfg, ...patch } } });
+
+  const logRun = (b: KnnBrief, cfg: KnnLabConfig) => {
+    const r = evaluateKnnLab(b, cfg);
+    const ok = briefPasses(b, r);
+    const extra =
+      b.id === 'unscaled'
+        ? cfg.scaled
+          ? 'z-score'
+          : 'raw'
+        : b.id === 'noisy-cols'
+          ? `${cfg.cols.length} cols [${cfg.cols.map((c) => b.featureLabels![c].replace('Col ', '')).join(',')}]`
+          : `rec ${pct1(r.posRecall)}`;
+    log.push(
+      `k=${cfg.k} ${cfg.metric.toUpperCase()} ${cfg.weight} (${extra}) → far/near ${r.farOverNear.toFixed(2)}× · acc ${pct1(r.accuracy)} ${ok ? '✓' : '✗'}`,
+      ok ? 'good' : 'info',
+    );
+  };
+
+  const update = (patch: Partial<KnnLabConfig>) => {
+    const nextCfg = { ...entry.cfg, ...patch };
+    persist({ ...lab, [brief.id]: { ...entry, cfg: nextCfg } });
+    logRun(brief, nextCfg);
+  };
 
   const toggleCol = (colIdx: number) => {
     const has = entry.cfg.cols.includes(colIdx);
     if (has && entry.cfg.cols.length === 1) return;
     const next = has ? entry.cfg.cols.filter((c) => c !== colIdx) : [...entry.cfg.cols, colIdx].sort((a, b) => a - b);
     update({ cols: next });
+  };
+
+  const resetBrief = () => {
+    const base = defaultCfg(brief.id);
+    persist({ ...lab, [brief.id]: { ...entry, cfg: base } });
+    setProbeIdx(null);
+    logRun(brief, base);
+  };
+
+  const jumpToError = () => {
+    const errors = res.rawTest
+      .map((p, i) => (res.queries[i].pred !== p.y ? i : -1))
+      .filter((i) => i >= 0);
+    if (errors.length === 0) return;
+    const curPos = errors.indexOf(activeProbe);
+    setProbeIdx(errors[(curPos + 1) % errors.length]);
   };
 
   const goalVal = brief.id === 'noisy-cols' ? res.colsUsed : brief.id === 'pockets' ? Math.round(res.posRecall * 1000) / 10 : Math.round(res.accuracy * 1000) / 10;
@@ -470,64 +609,153 @@ export function KnnLab() {
     });
   }, [pass, brief.id, goalVal]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const liveCode = useMemo(() => sklearnKnnLines(brief, entry.cfg), [brief, entry.cfg]);
+
+  const shellBriefs = useMemo(
+    () =>
+      LAB_BRIEFS.map((b, i) => ({
+        id: b.id,
+        tab: `Brief ${i + 1}`,
+        title: b.title,
+        text: b.story,
+      })),
+    [],
+  );
+
+  const statusNode = pass ? (
+    <>
+      <strong>{isOpt ? 'Optimal — matched the exhaustive best!' : 'Meets the brief!'}</strong>{' '}
+      Held-out accuracy {pct1(res.accuracy)}
+      {brief.minPosRecall !== undefined ? ` · fault recall ${pct1(res.posRecall)}` : ''}
+      {brief.featureLabels ? ` · ${res.colsUsed} of ${brief.featureLabels.length} columns` : ''}
+      {!isOpt &&
+        (brief.id === 'noisy-cols'
+          ? ' · Optional: can you drop any remaining dead-weight column and still pass?'
+          : brief.id === 'pockets'
+            ? ' · Optional: can you reach 100.0% fault recall without losing overall accuracy?'
+            : ' · Optional: can you push held-out accuracy even higher?')}
+    </>
+  ) : (
+    <>
+      <strong>Not yet.</strong> Held-out accuracy {pct1(res.accuracy)} (need ≥ {pct1(brief.minAcc)})
+      {brief.minPosRecall !== undefined ? ` · fault recall ${pct1(res.posRecall)} (need ≥ ${pct1(brief.minPosRecall)})` : ''}
+      {' · '}median farthest/nearest ratio <strong>{res.farOverNear.toFixed(2)}×</strong>. Watch the neighbour spokes and the vote breakdown below.
+    </>
+  );
+
+  // Post-solve reveal: exhaustive summary + k bias-variance curve (Uniform vs Distance)
+  const revealContent = (
+    <div style={{ display: 'grid', gap: 10 }}>
+      <div style={{ fontSize: 13.5, lineHeight: 1.55 }}>
+        All <strong>{ex.total.toLocaleString()}</strong> combinations were checked exhaustively: <strong>{ex.passing}</strong> pass. Best found:{' '}
+        <strong>
+          {brief.id === 'noisy-cols'
+            ? `${ex.bestCols} columns (${ex.best[0].cfg.cols.map((c) => brief.featureLabels![c]).join(', ')}) at ${pct1(ex.bestAcc)} accuracy`
+            : brief.id === 'pockets'
+              ? `${pct1(ex.bestRecall)} fault recall & ${pct1(ex.bestAcc)} accuracy (${ex.best[0].cfg.metric.toUpperCase()}, ${ex.best[0].cfg.weight}, k = ${ex.best[0].cfg.k})`
+              : `${pct1(ex.bestAcc)} accuracy (standardised, e.g. ${ex.best[0].cfg.metric.toUpperCase()}, ${ex.best[0].cfg.weight}, k = ${ex.best[0].cfg.k})`}
+        </strong>
+        .
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <Plot
+          width={420}
+          height={180}
+          x={[0, 26]}
+          y={[0.35, 1.04]}
+          pad={36}
+          xLabel="k (neighbours)"
+          yLabel={brief.id === 'pockets' ? 'fault recall' : 'held-out accuracy'}
+          ariaLabel="Uniform versus distance-weighted performance across k"
+        >
+          {({ x, y }) => {
+            const metricU = (r: (typeof kCurve)[number]) => (brief.id === 'pockets' ? r.uniformRec : r.uniformAcc);
+            const metricD = (r: (typeof kCurve)[number]) => (brief.id === 'pockets' ? r.distRec : r.distAcc);
+            const pathOf = (fn: (r: (typeof kCurve)[number]) => number) =>
+              kCurve.map((r, i) => `${i === 0 ? 'M' : 'L'}${x(r.k).toFixed(1)},${y(Math.max(0.36, fn(r))).toFixed(1)}`).join(' ');
+            const targetY = brief.id === 'pockets' ? brief.minPosRecall! : brief.minAcc;
+            const curY = brief.id === 'pockets' ? res.posRecall : res.accuracy;
+            return (
+              <>
+                <line x1={x(0)} x2={x(26)} y1={y(targetY)} y2={y(targetY)} stroke="var(--c-good)" strokeDasharray="4 3" strokeWidth={1.2} />
+                <path d={pathOf(metricU)} fill="none" stroke="var(--c-b)" strokeWidth={2} />
+                <path d={pathOf(metricD)} fill="none" stroke="var(--c-a)" strokeWidth={2} />
+                {kCurve.map((r) => (
+                  <g key={r.k}>
+                    <circle cx={x(r.k)} cy={y(Math.max(0.36, metricU(r)))} r={3} fill="var(--c-b)" />
+                    <circle cx={x(r.k)} cy={y(Math.max(0.36, metricD(r)))} r={3} fill="var(--c-a)" />
+                  </g>
+                ))}
+                <circle cx={x(entry.cfg.k)} cy={y(Math.max(0.36, curY))} r={6} fill="none" stroke="var(--accent)" strokeWidth={2.2} />
+              </>
+            );
+          }}
+        </Plot>
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
+        Under your current columns & scaling: Class-A coloured line = Distance (1/d) weighting, Class-B coloured line = Uniform voting, dashed line = brief target, accent ring = your current setting.
+      </div>
+    </div>
+  );
+
+  const totalVoteW = probeQ.w0 + probeQ.w1;
+  const topNeighbors = probeQ.neighbors.slice(0, 5);
+  const errorCount = res.rawTest.reduce((acc, p, i) => acc + (res.queries[i].pred !== p.y ? 1 : 0), 0);
+
   return (
-    <Widget
+    <LabShell
       title="Lab: Rescue the kNN Classifier"
-      wide
       caption={
         <>
-          Each brief starts with a broken kNN setup. Diagnose what is hurting distance quality — scale mismatch, irrelevant noise columns, or over-smoothed majority voting — and fix it. Every configuration is scored on held-out test data and saved in this browser.
+          Each brief starts with a broken kNN deployment. Inspect the live neighbour spokes on the left and the weighted vote table on the right to see what is corrupting distances, then fix it. Click any test point (or “Next error”) to probe its neighbourhood.
+        </>
+      }
+      briefs={shellBriefs}
+      active={briefIdx}
+      onSelect={(i) => {
+        setBriefIdx(i);
+        setProbeIdx(null);
+      }}
+      progress={progress}
+      passing={pass}
+      optimal={isOpt}
+      status={statusNode}
+      statusTone={pass ? 'good' : 'neutral'}
+      hint={knnLabHint(brief, entry.cfg, res)}
+      reveal={{ label: 'the exhaustive search & k-curve', content: revealContent }}
+      log={{
+        lines: log.lines,
+        onClear: log.clear,
+        title: 'kNN evaluation log',
+        empty: 'Change scaling, columns, k, distance or voting to record a test evaluation.',
+      }}
+      actions={
+        <>
+          <button type="button" className="btn small" onClick={resetBrief}>
+            Reset brief
+          </button>
+          {errorCount > 0 && (
+            <button type="button" className="btn small" onClick={jumpToError}>
+              Next error ({errorCount})
+            </button>
+          )}
         </>
       }
     >
-      <Segmented
-        value={briefIdx}
-        onChange={(i) => {
-          setBriefIdx(i);
-          setShowOpt(false);
-        }}
-        options={LAB_BRIEFS.map((b, i) => ({
-          value: i,
-          label: `${lab[b.id].solved ? '✓ ' : ''}${b.title.split(' · ')[0]}`,
-        }))}
-      />
-
-      <div style={{ margin: '12px 0' }}>
-        <div style={{ fontWeight: 650, marginBottom: 4 }}>{brief.title}</div>
-        <div style={{ fontSize: 14.5, lineHeight: 1.55 }}>{brief.story}</div>
-      </div>
-
-      <div style={{ display: 'grid', gap: 10 }}>
-        {brief.allowScalingToggle && (
-          <Segmented
-            label="Feature scaling"
-            value={entry.cfg.scaled ? 1 : 0}
-            onChange={(v) => update({ scaled: v === 1 })}
-            options={[
-              { value: 0, label: 'Raw units' },
-              { value: 1, label: 'Standardised (z-score)' },
-            ]}
-          />
-        )}
-
-        {brief.featureLabels && (
-          <div>
-            <div className="field-label">Active columns ({entry.cfg.cols.length} of {brief.featureLabels.length})</div>
-            <div className="btn-row" style={{ marginTop: 4 }}>
-              {brief.featureLabels.map((lbl, idx) => {
-                const on = entry.cfg.cols.includes(idx);
-                return (
-                  <button key={lbl} type="button" className={`btn small${on ? ' primary' : ''}`} onClick={() => toggleCol(idx)}>
-                    {on ? '✓ ' : ''}
-                    {lbl}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
+      {/* Controls */}
+      <div style={{ display: 'grid', gap: 10, marginBottom: 12 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'end' }}>
+          {brief.allowScalingToggle && (
+            <Segmented
+              label="Feature scaling"
+              value={entry.cfg.scaled ? 1 : 0}
+              onChange={(v) => update({ scaled: v === 1 })}
+              options={[
+                { value: 0, label: 'Raw units' },
+                { value: 1, label: 'Standardised (z-score)' },
+              ]}
+            />
+          )}
           <Segmented label="Neighbours" value={entry.cfg.k} onChange={(k) => update({ k })} options={LAB_KS.map((v) => ({ value: v as number, label: String(v) }))} />
           <Segmented
             label="Distance"
@@ -548,83 +776,194 @@ export function KnnLab() {
             ]}
           />
         </div>
-      </div>
 
-      <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
-        <div className="btn-row">
-          <span className={`status ${pass ? 'good' : 'bad'}`}>{pass ? 'Meets the brief' : 'Not yet'}</span>
-          {entry.solved && (
-            <span className="status good">
-              Solved
-              {entry.bestMetric !== null
-                ? brief.id === 'noisy-cols'
-                  ? ` · fewest cols: ${entry.bestMetric}`
-                  : brief.id === 'pockets'
-                    ? ` · best recall: ${entry.bestMetric.toFixed(1)}%`
-                    : ` · best acc: ${entry.bestMetric.toFixed(1)}%`
-                : ''}
-            </span>
-          )}
-        </div>
-
-        <div className="readout">
-          <span style={{ color: res.accuracy >= brief.minAcc - 1e-9 ? 'var(--c-good)' : 'var(--c-bad)' }}>
-            {res.accuracy >= brief.minAcc - 1e-9 ? '✓' : '✗'}
-          </span>{' '}
-          <span className="k">held-out accuracy </span>
-          {pct1(res.accuracy)} (need ≥ {pct1(brief.minAcc)})
-          {brief.minPosRecall !== undefined && (
-            <>
-              {'\n'}
-              <span style={{ color: res.posRecall >= brief.minPosRecall - 1e-9 ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                {res.posRecall >= brief.minPosRecall - 1e-9 ? '✓' : '✗'}
-              </span>{' '}
-              <span className="k">fault pocket recall </span>
-              {pct1(res.posRecall)} (need ≥ {pct1(brief.minPosRecall)})
-            </>
-          )}
-          {brief.featureLabels && (
-            <>
-              {'\n'}
-              <span className="k">columns kept </span>
-              {res.colsUsed} of {brief.featureLabels.length}
-            </>
-          )}
-        </div>
-
-        <div className="live-note">
-          {pass
-            ? brief.id === 'noisy-cols'
-              ? `Passing with ${res.colsUsed} column${res.colsUsed === 1 ? '' : 's'} at ${pct1(res.accuracy)}! Optional: can you drop any remaining irrelevant column?`
-              : brief.id === 'pockets'
-                ? `Passing at ${pct1(res.accuracy)} accuracy and ${pct1(res.posRecall)} fault recall! Optional: can you reach 100% fault recall?`
-                : `Passing at ${pct1(res.accuracy)}! Optional: can you tune k and distance to push accuracy even higher?`
-            : brief.id === 'unscaled'
-              ? 'Raw RPM (0–5,000) swamps Voltage (0–5) by 1,000×. Standardise both sensors first, then tune k.'
-              : brief.id === 'noisy-cols'
-                ? 'Four of these six columns are pure random noise drowning out the real distances. Toggle columns off systematically to find which two carry the signal.'
-                : 'Uniform k = 25 lets the surrounding normal background outvote the small fault pockets (recall collapses). Try smaller k or 1/d distance weighting!'}
-        </div>
-
-        {entry.solved && (
+        {brief.featureLabels && (
           <div>
-            <button type="button" className="btn" onClick={() => setShowOpt((s) => !s)}>
-              {showOpt ? 'Hide' : 'Show'} the exhaustive search
-            </button>
-            {showOpt && ex && (
-              <div className="live-note" style={{ marginTop: 10 }}>
-                All {ex.total.toLocaleString()} combinations were checked: <strong>{ex.passing}</strong> pass. Best found:{' '}
-                {brief.id === 'noisy-cols'
-                  ? `${ex.bestCols} columns (${ex.best[0].cfg.cols.map((c) => brief.featureLabels![c]).join(', ')}) at ${pct1(ex.bestAcc)} accuracy`
-                  : brief.id === 'pockets'
-                    ? `${pct1(ex.bestRecall)} fault recall and ${pct1(ex.bestAcc)} accuracy (${ex.best[0].cfg.metric.toUpperCase()}, ${ex.best[0].cfg.weight}, k = ${ex.best[0].cfg.k})`
-                    : `${pct1(ex.bestAcc)} accuracy (standardised, e.g. ${ex.best[0].cfg.metric.toUpperCase()}, ${ex.best[0].cfg.weight}, k = ${ex.best[0].cfg.k})`}
-                .
-              </div>
-            )}
+            <div className="field-label">Active columns ({entry.cfg.cols.length} of {brief.featureLabels.length})</div>
+            <div className="btn-row" style={{ marginTop: 4 }}>
+              {brief.featureLabels.map((lbl, idx) => {
+                const on = entry.cfg.cols.includes(idx);
+                return (
+                  <button key={lbl} type="button" className={`btn small${on ? ' primary' : ''}`} onClick={() => toggleCol(idx)}>
+                    {on ? '✓ ' : ''}
+                    {lbl}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
-    </Widget>
+
+      {/* Main machinery: Live spokes map (left) + Inside the Vote X-ray (right) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(270px, 100%), 1fr))', gap: 14, alignItems: 'start' }}>
+        <div style={{ display: 'grid', gap: 4, justifyItems: 'center' }}>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-muted)', textAlign: 'center' }}>{plotSpec.subtitle}</div>
+          <Plot width={310} height={290} x={plotSpec.x} y={plotSpec.y} pad={34} xLabel={plotSpec.xLabel} yLabel={plotSpec.yLabel} ariaLabel="kNN neighbourhood spokes and test points">
+            {pocketsHeat && <Heatmap f={pocketsHeat} range={[0, 1]} colormap={diverging} resolution={110} opacity={0.42} />}
+            {({ x, y }) => {
+              const px = x(probePt.x[plotSpec.c0]);
+              const py = y(probePt.x[plotSpec.c1]);
+              return (
+                <>
+                  {/* Faint training points */}
+                  {res.rawTrain.map((pt, i) => (
+                    <circle
+                      key={`tr-${i}`}
+                      cx={x(pt.x[plotSpec.c0])}
+                      cy={y(pt.x[plotSpec.c1])}
+                      r={2.2}
+                      fill={pt.y === 1 ? 'var(--c-a)' : 'var(--c-b)'}
+                      opacity={0.32}
+                    />
+                  ))}
+                  {/* Spokes to the k nearest training neighbours */}
+                  {probeQ.neighbors.map((nb) => {
+                    const tPt = res.rawTrain[nb.idx];
+                    return (
+                      <line
+                        key={`sp-${nb.idx}`}
+                        x1={px}
+                        y1={py}
+                        x2={x(tPt.x[plotSpec.c0])}
+                        y2={y(tPt.x[plotSpec.c1])}
+                        stroke={nb.y === 1 ? 'var(--c-a)' : 'var(--c-b)'}
+                        strokeWidth={1.35}
+                        strokeDasharray="3 2"
+                        opacity={0.85}
+                      />
+                    );
+                  })}
+                  {/* Highlighted voting training neighbours */}
+                  {probeQ.neighbors.map((nb) => {
+                    const tPt = res.rawTrain[nb.idx];
+                    return (
+                      <circle
+                        key={`nb-${nb.idx}`}
+                        cx={x(tPt.x[plotSpec.c0])}
+                        cy={y(tPt.x[plotSpec.c1])}
+                        r={3.6}
+                        fill={nb.y === 1 ? 'var(--c-a)' : 'var(--c-b)'}
+                        stroke="var(--bg)"
+                        strokeWidth={0.9}
+                      />
+                    );
+                  })}
+                  {/* Clickable test points (errors ringed) */}
+                  {res.rawTest.map((pt, i) => {
+                    const wrong = res.queries[i].pred !== pt.y;
+                    const isProbe = i === activeProbe;
+                    const cx = x(pt.x[plotSpec.c0]);
+                    const cy = y(pt.x[plotSpec.c1]);
+                    return (
+                      <g key={`te-${i}`} style={{ cursor: 'pointer' }} onClick={() => setProbeIdx(i)}>
+                        {wrong && <circle cx={cx} cy={cy} r={5} fill="none" stroke="var(--c-bad)" strokeWidth={1.2} opacity={0.85} />}
+                        {isProbe && <circle cx={cx} cy={cy} r={7.5} fill="none" stroke="var(--accent)" strokeWidth={2.2} />}
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r={isProbe ? 4.2 : 2.5}
+                          fill={pt.y === 1 ? 'var(--c-a)' : 'var(--c-b)'}
+                          stroke="var(--bg)"
+                          strokeWidth={0.6}
+                          opacity={isProbe ? 1 : 0.78}
+                        />
+                      </g>
+                    );
+                  })}
+                </>
+              );
+            }}
+          </Plot>
+        </div>
+
+        {/* Right panel: metrics + live vote breakdown for probed query */}
+        <div style={{ display: 'grid', gap: 10 }}>
+          <div className="readout" style={{ margin: 0 }}>
+            <span style={{ color: res.accuracy >= brief.minAcc - 1e-9 ? 'var(--c-good)' : 'var(--c-bad)' }}>
+              {res.accuracy >= brief.minAcc - 1e-9 ? '✓' : '✗'}
+            </span>{' '}
+            <span className="k">held-out accuracy </span>
+            <strong>{pct1(res.accuracy)}</strong> (need ≥ {pct1(brief.minAcc)})
+            {brief.minPosRecall !== undefined && (
+              <>
+                {'\n'}
+                <span style={{ color: res.posRecall >= brief.minPosRecall - 1e-9 ? 'var(--c-good)' : 'var(--c-bad)' }}>
+                  {res.posRecall >= brief.minPosRecall - 1e-9 ? '✓' : '✗'}
+                </span>{' '}
+                <span className="k">fault pocket recall </span>
+                <strong>{pct1(res.posRecall)}</strong> (need ≥ {pct1(brief.minPosRecall)})
+              </>
+            )}
+            {'\n'}
+            <span className="k">median farthest / nearest </span>
+            <strong>{res.farOverNear.toFixed(2)}×</strong>
+            {' · '}
+            <span className="k">errors </span>
+            {errorCount} / {res.rawTest.length}
+          </div>
+
+          <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-sunken)', border: '1px solid var(--border)', display: 'grid', gap: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 4 }}>
+              <span className="field-label" style={{ margin: 0 }}>
+                Probe test point #{activeProbe + 1} (true class {probePt.y})
+              </span>
+              <span className="mono" style={{ fontSize: 12, fontWeight: 700, color: probeQ.pred === probePt.y ? 'var(--c-good)' : 'var(--c-bad)' }}>
+                pred {probeQ.pred} {probeQ.pred === probePt.y ? '✓' : '✗ misclassified'}
+              </span>
+            </div>
+
+            {/* Animated weighted vote bar */}
+            <div style={{ display: 'grid', gap: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5 }} className="mono">
+                <span>Class 1 vote: {voteShares[0].toFixed(1)}%</span>
+                <span>Class 0 vote: {voteShares[1].toFixed(1)}%</span>
+              </div>
+              <div style={{ height: 12, borderRadius: 6, overflow: 'hidden', display: 'flex', border: '1px solid var(--border)' }}>
+                <div style={{ width: `${voteShares[0]}%`, background: 'var(--c-a)' }} />
+                <div style={{ width: `${voteShares[1]}%`, background: 'var(--c-b)' }} />
+              </div>
+            </div>
+
+            {/* Top-5 closest neighbours table */}
+            <div style={{ overflowX: 'auto' }}>
+              <table className="num-table" style={{ width: '100%', fontSize: 11.5 }}>
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Class</th>
+                    <th>Distance</th>
+                    <th>Vote share</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topNeighbors.map((nb, idx) => {
+                    const w = entry.cfg.weight === 'uniform' ? 1 : 1 / (nb.dist + 1e-6);
+                    const share = (100 * w) / Math.max(1e-9, totalVoteW);
+                    return (
+                      <tr key={nb.idx}>
+                        <td className="mono">#{idx + 1}</td>
+                        <td className="mono" style={{ color: nb.y === 1 ? 'var(--c-a)' : 'var(--c-b)', fontWeight: 600 }}>
+                          {nb.y === 1 ? 'Class 1' : 'Class 0'}
+                        </td>
+                        <td className="mono">{nb.dist.toFixed(3)}</td>
+                        <td className="mono">{share.toFixed(1)}%</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {entry.cfg.k > 5 && (
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+                Showing closest 5 of {entry.cfg.k} voting neighbours (farthest voter at d = {probeQ.kthDist.toFixed(3)}).
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <LiveCode code={liveCode} note="scikit-learn KNeighborsClassifier" />
+    </LabShell>
   );
 }

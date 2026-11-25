@@ -483,6 +483,24 @@ export const HISTORY: HistoryEntry[] = [
     },
     dispute: { text: 'Legendre published least squares first in 1805, while Gauss claimed in 1809 to have used it since 1795 — sparking a famous priority dispute (though Gauss went further by tying it to the normal distribution).', source: WP('Least_squares') },
   },
+  {
+    id: 'knn',
+    lessonId: 'knn',
+    lab: 'Rescue the kNN Classifier',
+    idea: 'Nearest neighbours and the curse of dimensionality',
+    years: [1951, 1957, 1967],
+    when: '1951 · 1957 · 1967',
+    who: [
+      { text: 'Evelyn Fix and Joseph Hodges develop non-parametric nearest-neighbour discrimination in a 1951 report for the USAF School of Aviation Medicine in Texas.', source: WP('K-nearest_neighbors_algorithm') },
+      { text: 'Richard Bellman coins "the curse of dimensionality" in Dynamic Programming (1957, RAND Corporation).', source: WP('Curse_of_dimensionality') },
+      { text: 'Thomas Cover and Peter Hart publish "Nearest neighbor pattern classification" in IEEE Transactions on Information Theory (1967).', source: WP('K-nearest_neighbors_algorithm') },
+    ],
+    story: {
+      before: { text: 'Classical discriminant analysis assumed each class followed a clean parametric distribution such as a Gaussian.', source: WP('K-nearest_neighbors_algorithm') },
+      this: { text: 'Fix and Hodges classify by majority vote of the k closest stored examples; Cover and Hart prove that even 1-NN asymptotically has an error rate no worse than twice the optimal Bayes error rate.', source: WP('K-nearest_neighbors_algorithm') },
+      after: { text: 'Raw-feature kNN hits Bellman\'s curse of dimensionality when noisy columns accumulate, so modern systems run approximate nearest-neighbour search over learned neural embeddings instead.', source: WP('Curse_of_dimensionality') },
+    },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */
