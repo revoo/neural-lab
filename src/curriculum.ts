@@ -163,8 +163,9 @@ export const MODULES: ModuleMeta[] = [
     blurb: 'Agents that learn from consequences — and exploit badly specified rewards.',
     lessons: [
       { id: 'mdps', title: 'States, Actions, Rewards & Value', summary: 'How discount factor γ controls myopia, how stochastic transitions create cautious detours, Bellman’s dynamic-programming equation — and Lab: Wire the Policy.', minutes: 30, load: () => import('./lessons/mdps/index.mdx') },
+      { id: 'q-learning', title: 'Q-Learning & Exploration', summary: 'Multi-armed bandits and UCB1, model-free TD backups on a live Q-table, Q-learning vs SARSA on Cliff Walking — and Lab: Tune the Q-Learner.', minutes: 35, load: () => import('./lessons/q-learning/index.mdx') },
     ],
-    planned: ['Q-learning', 'Policy gradients', 'Reward hacking'],
+    planned: ['Policy gradients', 'Reward hacking'],
   },
   { id: 'generative', number: 17, title: 'Generative Models & Diffusion', blurb: 'VAEs, GANs and diffusion: how machines learn to create.', lessons: [], planned: ['Autoencoders and VAEs', 'Diffusion: adding and removing noise', 'Guidance and conditioning'] },
   { id: 'systems', number: 18, title: 'AI Systems Engineering', blurb: 'RAG, tools, agents and evaluation: models inside real software.', lessons: [], planned: ['Retrieval-augmented generation', 'Tool calling and agents', 'Evaluation'] },

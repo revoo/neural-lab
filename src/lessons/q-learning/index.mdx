@@ -1,0 +1,210 @@
+{/* authored-by: Gemini Antigravity */}
+import { BanditExplorer, QTableStepper, CliffWalkingRace, QLearnerLab } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: learning without the simulator's source code
+
+Value Iteration from the previous lesson felt almost like magic — give it a grid, and it instantly handed back the exact optimal policy. Yet it had one glaring catch: we had to hand it the entire **transition table** $P(s' \mid s, a)$ and **reward table** $R$ up front.
+
+In real problems, nobody gives you the physics engine. You don't know ahead of time which corridor holds a pit, which ad headline converts best, or how a real robot arm responds to torque on a worn joint. You can only **try an action, watch what happens next, and update your beliefs**.
+
+That creates two interlocking challenges:
+1. **How do you balance trying new things against exploiting what already seems good?**
+2. **How do you learn optimal behaviour from single `(state, action, reward, next state)` transitions — with no transition model $P$ at all?**
+
+## First, the exploration–exploitation dilemma
+
+Before adding a maze, strip the problem down to a single room with five slot machines (a **multi-armed bandit**). Each machine pays a random noisy reward around its own hidden average. You get 200 pulls to collect as much total reward as you can.
+
+<Analogy title="Think of choosing restaurants in a new city">
+
+On your first night in a new city you try a ramen shop and it's pretty good (`8/10`). On night two, you face the classic trade-off:
+- **Exploit:** go straight back to the ramen shop you already know is good.
+- **Explore:** try the taco place down the street, which might be a `4/10` disappointment — or a `10/10` revelation you would otherwise never discover.
+
+Exploit too early and you settle for mediocrity forever. Explore forever and you waste half your nights eating bad food even after you've found the best restaurant in town.
+
+</Analogy>
+
+This is the **<Term id="exploration-exploitation">exploration–exploitation trade-off</Term>**. Four simple strategies capture the main ideas used across all of reinforcement learning:
+
+- **Pure greedy ($\varepsilon = 0$):** always pull whichever machine has the highest sample average so far.
+- **$\varepsilon$-greedy:** with small probability $\varepsilon$, pick a random machine; otherwise pick the current leader. (**Decaying $\varepsilon$** starts high and cools down over time.)
+- **Optimistic initialisation:** start every machine's estimate artificially high (say `Q₀ = +4`). Every time you try a machine, reality disappoints your high expectation and drops its score, automatically driving you to try every untouched machine!
+- **UCB1 (Upper Confidence Bound):** pick the machine maximising $\hat Q(a) + c\sqrt{\ln t / N(a)}$ — sample average *plus* an uncertainty bonus that shrinks as you collect more pulls $N(a)$.
+
+Below, every strategy gets its own grid-searched best hyperparameter across **40 fixed seeds × 200 pulls** — and you can switch tabs to pull the 5 noisy machines by hand for 25 turns yourself.
+
+<BanditExplorer />
+
+Look at the honest gap in cumulative regret (how much reward each strategy left on the table compared to an oracle pulling the best machine every time): **Pure greedy** suffers **`94.9`** regret because it locks onto the true best arm only **29.8%** of the time. Even simple **$\varepsilon$-greedy** cuts regret in half (`47.0`), **decaying $\varepsilon$** (`32.0`) and **optimistic initialisation** (`31.3`) tie tightly, and **UCB1** wins decisively at **`20.2`** regret (**82.5%** optimal pulls) because it focuses its curiosity on genuinely uncertain arms rather than wasting random pulls on obvious losers.
+
+## From states $V(s)$ to state–action pairs $Q(s, a)$
+
+Now bring back the maze. Why couldn't we just learn state values $V(s)$ from experience and act greedily? Look back at Bellman's equation: to choose the best action using $V(s)$, you had to compute $\max_a \sum_{s'} P(s' \mid s, a)[R + \gamma V(s')]$ — which requires knowing $P(s' \mid s, a)$!
+
+The fix is deceptively simple: **cache one value for every `(state, action)` pair**, called the **action-value** $Q(s, a)$ — *"how much total discounted return do I expect if I stand in state $s$, take action $a$ right now, and play optimally afterwards?"*
+
+Once you have a table of $Q(s, a)$ values, picking the best move requires **zero knowledge of the environment's rules**: just pick $\arg\max_a Q(s, a)$.
+
+How do we update $Q(s, a)$ from a single lived transition $(s, a) \to (r, s')$? Suppose your old guess was $Q(s, a)$. After actually taking action $a$, you observe real reward $r$ and land in $s'$, where your best estimate of the future is $\max_{a'} Q(s', a')$. So your improved estimate — the **TD target** — is $r + \gamma \max_{a'} Q(s', a')$. Subtract your old guess to get the **surprise** (the **<Term id="td-learning">Temporal-Difference error</Term>** $\delta$), and nudge $Q(s, a)$ a fraction $\alpha$ of the way toward the target:
+
+<Eq
+  words="\text{new } \ca{Q(s,a)} = \text{old } \ca{Q(s,a)} + \cp{\alpha}\Big(\,\underbrace{\cb{r} + \cp{\gamma}\max_{a'}\ca{Q(s',a')}}_{\text{TD target}} - \ca{Q(s,a)}\,\Big)"
+  tex="\ca{Q(s, a)} \;\leftarrow\; \ca{Q(s, a)} + \cp{\alpha}\Big(\cb{r} + \cp{\gamma}\max_{a'}\ca{Q(s', a')} - \ca{Q(s, a)}\Big)"
+>
+
+- $\ca{Q(s, a)}$ — current estimate of taking action $a$ in state $s$ (the four triangles inside each square below)
+- $\cp{\alpha}$ — **learning rate** in $(0, 1]$: how far to move toward each new observation (high $\alpha$ learns fast, low $\alpha$ averages out noise)
+- $\cb{r}$ — the actual immediate reward observed on this step
+- $\cp{\gamma}\max_{a'}\ca{Q(s', a')}$ — discounted value of the best action available in the *next* state $s'$ (`0` if $s'$ is terminal)
+- $\cb{r} + \cp{\gamma}\max_{a'}\ca{Q(s', a')} - \ca{Q(s, a)}$ — the **TD error** $\delta$: positive if reality beat expectations, negative if it disappointed
+
+</Eq>
+
+That single line of arithmetic is **<Term id="q-learning">Q-learning</Term>** (Christopher Watkins, 1989). Notice what makes it extraordinary: you don't wait for an episode to finish, and you never estimate $P(s' \mid s, a)$. You **bootstrap** — updating a guess using another guess one step ahead — and real rewards slowly anchor the whole chain to the truth.
+
+Step through it live below. Watch the 4 directional triangles inside each square light up from `0.0` as the agent explores our 4×5 maze with zero map knowledge.
+
+<QTableStepper />
+
+## Off-policy vs on-policy: Q-learning meets SARSA on the cliff
+
+Look closely at the $\max_{a'} Q(s', a')$ inside Q-learning's update. While training, the agent is **not** always acting greedily — it is taking random $\varepsilon$-greedy exploration moves! Yet Q-learning updates its table assuming that from $s'$ onward it will act **perfectly greedily** ($\max_{a'}$).
+
+That makes Q-learning **<Term id="off-policy">off-policy</Term>**: the policy it *evaluates* (greedy perfection) differs from the policy it actually *follows* during training ($\varepsilon$-greedy).
+
+Its closest cousin, **<Term id="sarsa">SARSA</Term>** (State–Action–Reward–State–Action), changes **just one term**: instead of $\max_{a'} Q(s', a')$, it plugs in $Q(s', a')$ for the actual $\varepsilon$-greedy next action $a'$ the agent really chose!
+
+<Eq
+  words="\text{SARSA update: replace } \max_{a'} Q(s', a') \text{ with the } \mathbf{actual} \text{ next action } Q(s', a')"
+  tex="\ca{Q(s, a)} \;\leftarrow\; \ca{Q(s, a)} + \cp{\alpha}\Big(\cb{r} + \cp{\gamma}\,\ca{Q(s', a')} - \ca{Q(s, a)}\Big)"
+>
+
+- $\ca{Q(s', a')}$ — value of the action $a'$ the agent *actually* takes next under its $\varepsilon$-greedy behaviour policy (making SARSA **on-policy**)
+
+</Eq>
+
+Does swapping one term actually change how the agent behaves? Test your prediction on Sutton & Barto's famous **Cliff Walking** grid: Start `S` at bottom-left, Goal `G` at bottom-right, `−1` per step, and six cliff squares along the bottom row that hit you with **`−50`** and throw you straight back to Start. Both agents must keep **$\varepsilon = 0.10$** exploration on throughout training.
+
+<Predict
+  question="After 400 training episodes with ε = 0.10 on Cliff Walking, which agent earns higher average ONLINE reward during training, and why?"
+  options={[
+    'Q-learning: it finds the shortest 9-step path along the cliff edge, so it finishes faster and earns more online reward',
+    'SARSA: Q-learning learns the risky cliff-edge path and keeps accidentally slipping into the −50 cliff during ε-exploration, whereas SARSA learns a safer inland detour',
+    'They tie: both converge to the exact same path',
+  ]}
+  answer={1}
+>
+
+**SARSA wins online training by `+5.4` reward per episode (`−14.5` vs `−19.9`)!** Because Q-learning bootstraps with $\max_{a'} Q(s', a')$, it assumes it will never make a random misstep in the future — so it cheerfully learns the 9-step cliff edge. Then its own $\varepsilon = 0.10$ exploration periodically kicks it straight into the `−50` cliff! SARSA sees the actual random steps it takes in $Q(s', a')$, prices in the cost of its own clumsiness, and routes safely inland.
+
+</Predict>
+
+Watch both agents race across 20 fixed seeds (each at its grid-searched best $\alpha = 0.2$):
+
+<CliffWalkingRace />
+
+Notice the nuance — there isn't one universal winner. If you train inside a cheap simulator and switch $\varepsilon$ off (`ε = 0`) at deployment, **Q-learning** hands you the strictly shorter optimal path (**`−8.0`** vs SARSA's **`−10.4`**). If the agent is learning *live* where mistakes cost real money or damage hardware, **SARSA** keeps you safe while exploring (**`−14.5`** vs **`−19.9`**).
+
+## Lab: Tune the Q-Learner
+
+Step into the RL engineer's chair across three realistic deployment briefs:
+1. **Brief 1 · Fast Maze Convergence:** only 25 episodes to solve our 4×5 maze cleanly.
+2. **Brief 2 · Safe Online Cliff Learning:** mandatory $\varepsilon \ge 0.10$ safety floor — keep online return above `−17.0` (0 of 18 Q-learning configs pass!).
+3. **Brief 3 · Shifting Goal (Non-Stationary):** halfway through training (episode 100), the old `+10` Goal shrinks to `+2` while a brand-new `+10` Vault opens in the opposite corner!
+
+Every configuration is averaged across **10 fixed seeds** and checked against the exhaustive optimum over all **36 grid combinations**.
+
+<QLearnerLab />
+
+<Deeper title="Debrief: two surprising ways to beat the Shifting Goal" tag="Spoiler">
+
+In **Brief 3 (Shifting Goal)**, once the old corner `(0,4)` downgrades from `+10` to `+2`, a neutral agent (`Q₀ = 0`) with a cooled-down **decaying $\varepsilon$** (`+3.82`) or tiny **`const 0.02`** (`+1.54`) gets stuck happily harvesting `+2` forever. With `Q₀ = 0`, you need **persistent exploration (`const 0.15`) + fast learning (`α = 0.6`)** to wander south and discover the new `+10` Vault (`+7.02`).
+
+Yet our exhaustive search also surfaced a second valid mechanism: **optimistic initialisation (`Q₀ = +5`)**! Because the unvisited south squares still hold their initial `+5` optimism, the instant the north corner drops to `+2`, the agent's greedy policy pivots south on its own — hitting **`+9.66`**! Real-world non-stationary systems (such as news recommenders) rely on the same two tools: never letting exploration drop to zero, and giving unseen options an optimistic prior.
+
+</Deeper>
+
+## In code
+
+Here is the complete Cliff Walking race in 38 lines of plain Python — notice how Q-learning and SARSA differ by literally one expression on the `boot = ...` line:
+
+```python
+import random
+
+ROWS, COLS = 4, 8
+DIRS = [(-1, 0), (0, 1), (1, 0), (0, -1)]
+
+def step(r, c, a):
+    nr, nc = max(0, min(ROWS - 1, r + DIRS[a][0])), max(0, min(COLS - 1, c + DIRS[a][1]))
+    if nr == 3 and 1 <= nc <= 6:
+        return 3, 0, -50.0, False   # cliff -> reset to Start!
+    if (nr, nc) == (3, 7):
+        return nr, nc, 0.0, True    # Goal!
+    return nr, nc, -1.0, False
+
+def eps_greedy(q_row, eps, rng):
+    if rng.random() < eps:
+        return rng.randrange(4)
+    best = max(q_row)
+    return rng.choice([a for a, v in enumerate(q_row) if v == best])
+
+def train(algo, alpha=0.2, eps=0.1, gamma=0.99, episodes=400, seed=1):
+    rng = random.Random(seed)
+    Q = [[0.0] * 4 for _ in range(ROWS * COLS)]
+    late = []
+    for ep in range(episodes):
+        r, c = 3, 0
+        s, a = r * COLS + c, eps_greedy(Q[r * COLS + c], eps, rng)
+        ep_ret = 0.0
+        for _ in range(120):
+            nr, nc, rew, done = step(r, c, a)
+            ep_ret += rew
+            ns = nr * COLS + nc
+            na = eps_greedy(Q[ns], eps, rng)
+            boot = 0.0 if done else (max(Q[ns]) if algo == "qlearning" else Q[ns][na])
+            Q[s][a] += alpha * (rew + gamma * boot - Q[s][a])
+            r, c, s, a = nr, nc, ns, na
+            if done: break
+        if ep >= 160: late.append(ep_ret)
+    return sum(late) / len(late)
+
+for algo in ("qlearning", "sarsa"):
+    avg = sum(train(algo, seed=s) for s in range(1, 21)) / 20
+    print(f"{algo:10s} -> mean online return (ep 161-400, 20 seeds): {avg:.2f}")
+```
+
+Running it prints:
+
+```text
+qlearning  -> mean online return (ep 161-400, 20 seeds): -20.46
+sarsa      -> mean online return (ep 161-400, 20 seeds): -14.34
+```
+
+<Misconception>
+
+"Q-learning is always better than SARSA because it finds the optimal policy." Only if you care exclusively about the *post-training greedy policy* and exploration mistakes during training are free. Whenever exploration stays active during real-world deployment — or when training failures carry real cost — on-policy SARSA's caution is a feature, not a bug.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- Without a known transition model $P(s' \mid s, a)$, agents must learn from lived `(s, a, r, s')` transitions — and balance **exploration** against **exploitation**.
+- On noisy bandits, **pure greedy** locks onto suboptimal arms (`94.9` regret); **UCB1** uses optimism under uncertainty to cut regret nearly 5× (`20.2`).
+- Learning action values **$Q(s, a)$** instead of $V(s)$ lets an agent act greedily via $\arg\max_a Q(s, a)$ with zero transition model.
+- **Temporal-Difference (TD) learning** bootstraps one step ahead: $Q(s,a) \leftarrow Q(s,a) + \alpha(r + \gamma \max_{a'} Q(s',a') - Q(s,a))$.
+- **Q-learning (off-policy)** targets the optimal greedy policy (wins post-training evaluation), while **SARSA (on-policy)** prices in its own exploration moves (wins safe online training on the cliff).
+- In **non-stationary** worlds where rewards move, cooling $\varepsilon$ to zero can trap an agent on an obsolete reward forever.
+
+</Takeaways>
+
+<InTheWild>
+
+Tabular Q-learning works brilliantly for 32 grid squares — and completely collapses when a state is an Atari video frame (`210 × 160 × 3` pixels) or a 3D robot joint vector. In 2013–2015, DeepMind's **DQN (Deep Q-Network)** replaced the Q-table with a neural network $Q_\theta(s, a)$, stabilising TD bootstrapping with two tricks: an **experience replay buffer** (breaking correlations between consecutive frames) and a slowly updated **target network** (stopping the TD target from chasing its own tail). Yet value-based methods still hit a hard wall whenever actions are *continuous* (like steering angles) or there are 100,000 vocabulary tokens — because you can't easily take $\max_a Q(s, a)$ over an infinite or huge action space.
+
+</InTheWild>
+
+What if we skip the $\max_a Q$ table entirely and train a neural network to output the **policy probabilities $\pi_\theta(a \mid s)$ directly**? Next: **Policy Gradients, Baselines & Actor-Critic**.
