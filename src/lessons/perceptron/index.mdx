@@ -1,0 +1,171 @@
+{/* authored-by: Claude Opus 5.5 */}
+import { PerceptronStepper } from './PerceptronStepper'
+import { MarkILab } from './MarkILab'
+import { timelineHref } from '../../router'
+import { questions } from './quiz'
+
+## The problem: you set every weight by hand
+
+In <LessonLink to="logic-lab">the logic lab</LessonLink> you built AND, OR and XOR out of threshold neurons, and you chose every weight yourself. That works for four inputs. It doesn't work for a photograph, where there are thousands of inputs and nobody knows what the weights should be.
+
+Frank Rosenblatt asked a machine to find them. In 1957, at the Cornell Aeronautical Laboratory, he simulated his **<Term id="perceptron">perceptron</Term>** on an IBM 704 computer. <Src href="https://en.wikipedia.org/wiki/Perceptron" /> His team then built it as hardware, the Mark I Perceptron: a camera of 20 × 20 photocells for its eye, and its weights held in potentiometers, the same kind of knob as a volume control, which electric motors turned as it learned. <Src href="https://en.wikipedia.org/wiki/Perceptron" /> In later experiments it learned to tell a square from a circle printed on paper. <Src href="https://en.wikipedia.org/wiki/Mark_I_Perceptron" />
+
+The interesting part isn't the hardware. It's the rule that decided which way the motors should turn each knob, and that rule fits in one sentence.
+
+## The rule in plain English
+
+Show the machine an example. It computes the same weighted sum as <LessonLink to="neuron">the artificial neuron</LessonLink> and fires (says 1) if the sum is at least zero. Then you tell it the right answer, and:
+
+- **If it was right, do nothing.**
+- **If it should have fired and didn't, add the input to the weights.**
+- **If it fired and shouldn't have, subtract the input from the weights.**
+
+The bias is treated as one more weight whose input is always 1, so it gets the same treatment.
+
+<Analogy title="A tutor who only comments on mistakes">
+
+Picture a tutor marking practice questions who says nothing at all when you get one right. When you get one wrong, they push your thinking in one direction: towards the answer you should have given, by an amount proportional to the question in front of you. They never praise, never say "more confidently next time". Silence or a correction: that's the whole feedback.
+
+</Analogy>
+
+Why does adding the input help? Adding $\mathbf{x}$ to the weights raises the score for that same input by $\mathbf{x}\cdot\mathbf{x}$, which is never negative. So the fix always pushes the score in the right direction for the example that was wrong. It may push other examples the wrong way, and that is where things get interesting.
+
+<PerceptronStepper />
+
+<Predict
+  question="Once you've watched it learn OR, switch to XOR. Will the perceptron ever stop making mistakes on XOR?"
+  options={["Yes, eventually: it just needs more steps", "No, never"]}
+  answer={1}
+>
+Never. No straight line puts (0, 1) and (1, 0) on one side and (0, 0) and (1, 1) on the other, so whatever the weights are, at least one corner is wrong and the rule always has a fix to make. Each fix to one corner breaks another. Keep stepping and the log will tell you the moment the weights come back to a setting they had before, at the same example: from then on the machine repeats the same loop for ever.
+</Predict>
+
+## Writing it down
+
+<Eq
+  words="\text{new weights} = \text{old weights} + \text{step} \times (\text{right answer} - \text{what it said}) \times \text{input}"
+  tex="\cv{\mathbf{w}} \leftarrow \cv{\mathbf{w}} + \cg{\eta}\,(\cc{y} - \cp{\hat{y}})\,\ca{\mathbf{x}}"
+>
+
+- $\cv{\mathbf{w}}$: the weights, including the bias as the last one.
+- $\cg{\eta}$: the step size, how far one correction moves the knobs.
+- $\cc{y}$: the right answer, 0 or 1.
+- $\cp{\hat{y}}$: what the machine said, 0 or 1.
+- $\ca{\mathbf{x}}$: the input, with a 1 on the end for the bias.
+
+</Eq>
+
+The bracket is the whole rule in miniature. When the machine is right, $\cc{y} - \cp{\hat{y}} = 0$ and nothing changes. When it should have said 1 and said 0, the bracket is $+1$ and the input is added. When it said 1 and should have said 0, the bracket is $-1$ and the input is subtracted.
+
+If this looks familiar, it should: the neuron lesson's learning nudge was $-(a - y)\,\mathbf{x}$, the same shape. The difference is that a sigmoid neuron's output $a$ is never exactly right, so it keeps learning a little from every example. The perceptron's step output is either right or wrong, so it learns only from mistakes.
+
+<Deeper title="Why it always works when a line exists">
+
+In 1962 Albert Novikoff proved that if some line separates the two classes, the perceptron rule, started from zero weights, makes only a limited number of mistakes, and then never makes another. <Src href="https://en.wikipedia.org/wiki/Perceptron" />
+
+Write every input with its extra 1 as a point $(x_1, x_2, 1)$. Let $R$ be the distance of the furthest point from the origin, and $\gamma$ (the **margin**) the widest gap you can leave between the best separating plane and the nearest point. Then the number of mistakes is at most
+
+$$\left(\frac{R}{\gamma}\right)^2.$$
+
+The proof tracks two quantities. Every mistake moves the weights at least $\gamma$ further along the best separating direction, so after $k$ mistakes they have gone at least $k\gamma$ that way. But every mistake also grows the squared length of the weights by at most $R^2$, so after $k$ mistakes the length is at most $\sqrt{k}\,R$. Progress grows like $k$; length grows like $\sqrt{k}$. Since you can't make more progress in a direction than your total length, $k\gamma \le \sqrt{k}\,R$, which gives $k \le (R/\gamma)^2$.
+
+For OR, $R = \sqrt{3}$ and the widest margin is $1/3$, so the bound is 27 mistakes. The worst ordering of the four examples, from zero, actually takes 5. The bound is a guarantee, not a prediction: it is often far from tight. The lab's third brief shows the part that is tight: a narrower margin allows more mistakes.
+
+</Deeper>
+
+## Lab: Train the Mark I
+
+<LabJob>You are operating the Mark I. You can choose the order the examples are shown in, where the knobs start, and how far one correction turns them. Teach it four tasks, and find out what makes learning fast, slow, or impossible.</LabJob>
+
+<MarkILab />
+
+<Deeper title="Debrief: what the searches found" tag="Spoiler">
+
+**OR.** The knobs start at $(1, 1, -1.5)$, which computes AND. Every one of the 24 orders × 3 step sizes retrains it to OR, in 1 to 4 mistakes: only the two corners where AND and OR disagree can be wrong at first.
+
+**AND from the factory setting.** All 72 combinations of order and step size learn AND, using between 5 and 25 mistakes. The fewest, 5, needs step 1 and one particular cycle of examples, $(1, 0) \to (1, 1) \to (0, 0) \to (0, 1)$; the two winning orders are that cycle started at different places. Step size matters more than order here, because the knobs have to travel a long way from the factory setting: with step 1 the orders take 5 to 12 mistakes, with step 0.5 they take 7 to 12, and with step 0.1 every one of the 24 orders takes exactly 25.
+
+**The thin margin.** With all eleven points, the machine makes 66 mistakes. K sits just across the line from H, and the gap a separating line must squeeze through is narrow: the bound $(R/\gamma)^2$ is 416. H and K are the two points closest to the best separating line, so removing either one widens the gap: without K the bound drops to 161 and the machine makes 18 mistakes; without H the bound drops further, to 155, yet it makes 27. Removing F also gets under 30 (28 mistakes) although F is nowhere near the gap and the bound stays at 416, and removing E makes things *worse*: 77 mistakes. The bound limits the worst case; within it, the order in which the examples arrive decides the rest.
+
+**XOR.** Every start, order and step size fails. The weights go round in a cycle.
+
+</Deeper>
+
+<ForReal>
+
+The perceptron rule is still in use, mostly as a baseline and a teaching example. scikit-learn ships it as `sklearn.linear_model.Perceptron`, and its documentation notes that `Perceptron()` is the same as `SGDClassifier(loss="perceptron", eta0=1, learning_rate="constant", penalty=None)`: stochastic gradient descent on a loss that is zero for correct answers. That is the modern view of the rule. It is gradient descent, which you'll meet properly in <ModuleRef id="optimization" />, on a loss that only notices mistakes.
+
+</ForReal>
+
+<HistoryCard id="mark-i" />
+
+You've just rediscovered, in an afternoon, what made the perceptron famous and what nearly ended it.
+
+## The wall
+
+Look again at the XOR network you wired by hand in the logic lab. It has hidden neurons, and those make XOR possible. Why not let the perceptron rule train them?
+
+Because the rule needs a right answer for each unit: $\cc{y} - \cp{\hat{y}}$. The data tells you the right answer for the **output**. Nothing tells you what a **hidden** neuron should have said. When the network's final answer is wrong, which hidden neuron is to blame, and should it have said more or less? This is the **<Term id="credit-assignment">credit assignment problem</Term>**.
+
+Minsky and Papert later argued that this, more than their book, is why perceptron research faded in the 1970s: no learning machine of the time could assign credit any better than Rosenblatt's rule. <Src href="https://en.wikipedia.org/wiki/Perceptrons_(book)" /> The way through that the field widely adopted came in 1986, when a paper in *Nature* by Rumelhart, Hinton and Williams popularised **backpropagation**, which gives every hidden weight its share of the blame using derivatives. <Src href="https://en.wikipedia.org/wiki/Backpropagation" /> That needs smooth activations instead of steps, which is one reason modern networks use them. You'll build it yourself in <ModuleRef id="backprop" />.
+
+<Insight title="You are standing where they stood">
+
+In the last few minutes you found the perceptron's power and its limit. The field took decades over the same ground: from the perceptron making headlines (1958), to its limit set out in a book (1969), to a widely adopted way past it (1986). The <a href={timelineHref('logic')}>timeline</a> shows the whole stretch, winter included.
+
+</Insight>
+
+## In code
+
+Here is the whole rule in NumPy, learning OR from zero weights:
+
+```python
+import numpy as np
+
+X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])
+y = np.array([0, 1, 1, 1])          # OR
+w, b = np.zeros(2), 0.0
+
+for sweep in range(10):
+    mistakes = 0
+    for xi, yi in zip(X, y):
+        said = int(w @ xi + b >= 0)  # fire when the score is at least 0
+        if said != yi:               # learn only from mistakes
+            w += (yi - said) * xi
+            b += (yi - said)
+            mistakes += 1
+    print(sweep, w, b, mistakes)
+    if mistakes == 0:
+        break
+```
+
+```
+0 [0. 1.] 0.0 2
+1 [1. 1.] 0.0 2
+2 [1. 1.] -1.0 1
+3 [1. 1.] -1.0 0
+```
+
+Five mistakes, then a clean sweep: $w = (1, 1)$, $b = -1$. That's the same answer the stepper above reaches on OR.
+
+<Misconception>
+
+"The perceptron failed because it was too simple, so it's useless." A single perceptron can only draw one line, and that limit is real. But the rule's idea, *change the weights in proportion to the error times the input*, is exactly what every neural network still does. What was missing in 1969 wasn't a better single unit; it was a way to pass the error back to hidden units.
+
+</Misconception>
+
+## Check your understanding
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- The perceptron learns its own weights: right answer, no change; should have fired, add the input; fired wrongly, subtract it. In symbols, $\mathbf{w} \leftarrow \mathbf{w} + \eta\,(y - \hat{y})\,\mathbf{x}$.
+- If a line separates the classes, it is guaranteed to stop making mistakes, after at most $(R/\gamma)^2$ of them. A thin margin allows many more mistakes.
+- The order of the examples, the starting weights and the step size change how many mistakes it makes, not whether it succeeds.
+- If no line exists (XOR), it never stops: the weights cycle for ever.
+- It can't train hidden units, because nothing says what a hidden unit should have output: the credit assignment problem. Backpropagation solved it, decades later.
+
+</Takeaways>
+
+Next comes the way around the wall, in two steps. First, <LessonLink to="forward-propagation">layers and the forward pass</LessonLink>: how hidden units are organised and how an input flows through them. Then, in <ModuleRef id="backprop" short />, how to train them.

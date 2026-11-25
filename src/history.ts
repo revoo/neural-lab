@@ -36,6 +36,26 @@ const WP = (page: string) => `https://en.wikipedia.org/wiki/${page}`;
 
 export const HISTORY: HistoryEntry[] = [
   {
+    id: 'mark-i',
+    lessonId: 'perceptron',
+    lab: 'Train the Mark I',
+    idea: 'The perceptron learning rule and its convergence proof',
+    years: [1957, 1959, 1962],
+    when: '1957 · 1959 · 1962',
+    who: [
+      { text: 'Frank Rosenblatt, at the Cornell Aeronautical Laboratory, simulates the perceptron on an IBM 704 in 1957.', source: WP('Perceptron') },
+      { text: 'His team assembles the Mark I Perceptron at the laboratory in Buffalo, New York, in 1959: a camera of 20 × 20 photocells, with the weights held in potentiometers that electric motors turned during learning.', source: WP('Perceptron') },
+      { text: 'Albert Novikoff publishes a proof in 1962 that the rule stops making mistakes after finitely many on any data a line can separate.', source: WP('Perceptron') },
+    ],
+    mood: { text: 'After a 1958 Navy press conference, The New York Times called the perceptron "the embryo of an electronic computer that [the Navy] expects will be able to walk, talk, see, write, reproduce itself and be conscious of its existence."', source: WP('Perceptron') },
+    story: {
+      before: { text: 'Warren McCulloch and Walter Pitts proposed the threshold unit in 1943; its weights had to be chosen by its designer.', source: WP('Artificial_neuron') },
+      this: { text: 'The perceptron learns its own weights from labelled examples, changing them only when it gets an example wrong.', source: WP('Perceptron') },
+      after: { text: 'In 1969 Marvin Minsky and Seymour Papert\'s book Perceptrons set out the limits of what such machines could do.', source: WP('AI_winter') },
+    },
+    dispute: { text: 'Sources disagree on the Mark I\'s date: Wikipedia\'s Mark I article says a first version ran experiments as early as 1958, while its perceptron article dates the machine\'s assembly to 1959 and its first public demonstration to June 1960.', source: WP('Mark_I_Perceptron') },
+  },
+  {
     id: "twenty-questions",
     lessonId: "information",
     lab: "Twenty Questions Compressor",

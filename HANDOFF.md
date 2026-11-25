@@ -315,7 +315,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 â†
 - [x] WP2.3 Tokens, not words: two short notes
 - [x] WP2.4 Plain-language lesson summaries
 - [x] WP3 The Prologue
-- [ ] WP4 New lesson: the Perceptron
+- [x] WP4 New lesson: the Perceptron
 - [ ] WP5 Era labels and the timeline
 - [ ] WP6.1 Opening hooks
 - [ ] WP6.2 "You are standing where they stood"
