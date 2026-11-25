@@ -143,8 +143,8 @@ export const MODULES: ModuleMeta[] = [
     blurb: 'Pretraining, fine-tuning, LoRA, RLHF and the rest of the post-training toolkit.',
     lessons: [
       { id: 'lora', title: 'LoRA & Low-Rank Fine-Tuning', summary: 'Why full fine-tuning blows up VRAM, how factoring ΔW = BA compresses updates 128×, why B=0 & A~N breaks symmetry — and a rank-allocation budget lab.', minutes: 30, load: () => import('./lessons/lora/index.mdx') },
+      { id: 'rlhf-dpo', title: 'RLHF & Direct Preference Optimisation (DPO)', summary: 'Watch a proxy reward model trigger Goodhart’s law, see how DPO cancels Z(x) to drop the reward model, catch likelihood displacement — and tune an alignment pipeline.', minutes: 35, load: () => import('./lessons/rlhf-dpo/index.mdx') },
     ],
-    planned: ['RLHF and DPO'],
   },
   {
     id: 'inference',
