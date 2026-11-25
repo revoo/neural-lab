@@ -712,3 +712,13 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 0; }
 .live-code-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; padding: 6px 10px; font-size: 11.5px; font-weight: 600; color: var(--text-muted); border-bottom: 1px solid var(--border); }
 .live-code-note { font-weight: 400; color: var(--text-faint); }
 .live-code pre, .live-code pre.mono { border: 0; border-radius: 0; margin: 0; padding: 8px 10px; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; background: transparent; color: var(--text); }
+
+/* History cards (src/history.ts) */
+.history-when { margin-left: 8px; font-family: var(--font-mono, monospace); font-size: 12px; color: var(--text-faint); font-weight: 500; }
+.history-card p { margin: 0 0 0.7em; }
+.history-card sup a { font-size: 10.5px; margin-left: 1px; }
+.history-story { margin: 0 0 0.7em; padding-left: 0; list-style: none; display: grid; gap: 6px; }
+.history-story li { padding: 6px 10px; border-radius: 6px; background: var(--bg-sunken); border: 1px solid var(--border); }
+.history-step { display: inline-block; min-width: 52px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--accent-text); }
+.history-dispute { color: var(--text-muted); }
+.history-timeline { font-size: 14px; }

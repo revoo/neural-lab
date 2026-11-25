@@ -131,7 +131,7 @@ The owner asked for the plan in `docs/LAB_IMPROVEMENTS.md` to be implemented in 
 
 - [x] 1. Quick fixes: two hints naming locked options; five early answer reveals gated behind a solve or an explicit "I'm stuck" step.
 - [x] 2. A real job in every brief, "where this happens for real" debrief lines, live code lines in the six tuning labs.
-- [ ] 3. History cards: `src/history.ts` + test, collapsed card after each lab.
+- [x] 3. History cards: `src/history.ts` + test, collapsed card after each lab.
 - [ ] 4. Solution maps: Attention puzzles (11×11 query map), Build a previous-word head (180-speed strip).
 - [ ] 5. Shared pieces: `LabShell`, `MachineLog`, reduced-motion hook; Dice Workshop and Tune the Q-Learner moved onto them.
 - [ ] 6. Machinery for the four "needs work" labs: Q-Learner maze replay, live sampler text, compute-budget map, alignment reply bars.
@@ -143,4 +143,5 @@ The owner asked for the plan in `docs/LAB_IMPROVEMENTS.md` to be implemented in 
 Notes for whoever continues:
 - Step 1 added `src/components/AnswerReveal.tsx` (`AnswerReveal`, `StuckButton`, `useStuck`): use it for any answer/optimum reveal so it appears only after a solve or an explicit, remembered "I'm stuck". Hints that depend on the brief live in the lesson's `.ts` (`rescueHint`, `alignmentHint`) with a `hints.test.ts` checking they never name a locked control.
 - Step 2 added `src/components/LabJob.tsx`: `<LabJob>` (one line above a lab, in MDX), `<ForReal>` ("Where this happens for real", after the debrief) and `LiveCode` (live code line inside a widget). Each tuning lab's code builder lives in `src/lessons/<id>/realCode.ts` with a test; APIs were checked against library source on GitHub (TRL, vLLM, peft, llama.cpp, transformers).
+- Step 3 added `src/history.ts` (25 entries, one per reviewed lab; every sentence a `Claim` with its own source URL, plus `ERAS` and `MILESTONES` for the timeline) and `<HistoryCard id>` placed after each lab's `<ForReal>`. `src/history.test.ts` checks sources, dates and that every entry's card is in its lesson. All † affiliations were confirmed on the papers' title pages; entries without a sourced mood line simply omit it.
 - `scripts/drive-widget.cjs` takes `--title=<text>` to pick a widget by title instead of index.
