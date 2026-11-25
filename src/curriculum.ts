@@ -180,7 +180,16 @@ export const MODULES: ModuleMeta[] = [
       { id: 'guidance', title: 'Guidance and Conditioning', summary: 'Give the denoiser a label, split its push into “towards data” plus “towards looking like the class”, turn that up with classifier-free guidance and watch variety drain away — and Lab: Tune the Guidance.', minutes: 35, load: () => import('./lessons/guidance/index.mdx') },
     ],
   },
-  { id: 'systems', number: 18, title: 'AI Systems Engineering', blurb: 'RAG, tools, agents and evaluation: models inside real software.', lessons: [], planned: ['Retrieval-augmented generation', 'Tool calling and agents', 'Evaluation'] },
+  {
+    id: 'systems',
+    number: 18,
+    title: 'AI Systems Engineering',
+    blurb: 'RAG, tools, agents and evaluation: models inside real software.',
+    lessons: [
+      { id: 'rag', title: 'Retrieval-Augmented Generation', summary: 'Why models need to look things up, lexical vs semantic vs hybrid search computed on a real labelled set, chunk size against prompt cost, recall at k — and Lab: Tune the Retriever.', minutes: 35, load: () => import('./lessons/rag/index.mdx') },
+    ],
+    planned: ['Tool calling and agents', 'Evaluation'],
+  },
 ];
 
 export const ALL_LESSONS: (LessonMeta & { module: ModuleMeta })[] = MODULES.flatMap((m) => m.lessons.map((l) => ({ ...l, module: m })));
