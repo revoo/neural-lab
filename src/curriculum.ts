@@ -133,7 +133,16 @@ export const MODULES: ModuleMeta[] = [
       { id: 'object-detection', title: 'Object Detection', summary: 'Bounding boxes, exact IoU and the small-object penalty, Hard vs Soft Non-Maximum Suppression in crowds, AP50/AP75 & COCO mAP — and Lab: Tune the Object Detector.', minutes: 35, load: () => import('./lessons/object-detection/index.mdx') },
     ],
   },
-  { id: 'embeddings', number: 10, title: 'Embeddings & Representations', blurb: 'Meaning as geometry: learned spaces where similar things sit close together.', lessons: [], planned: ['One-hot vs dense vectors', 'Word embeddings', 'Similarity search', 'Autoencoders'] },
+  {
+    id: 'embeddings',
+    number: 10,
+    title: 'Embeddings & Representations',
+    blurb: 'Meaning as geometry: learned spaces where similar things sit close together.',
+    lessons: [
+      { id: 'one-hot-vs-dense', title: 'One-Hot vs Dense Vectors', summary: 'The orthogonality curse, why E[id] skips 99.999% zero multiplications, zero-shot synonym transfer vs integer IDs — and Lab: Choose & Size the Representation.', minutes: 30, load: () => import('./lessons/one-hot-vs-dense/index.mdx') },
+    ],
+    planned: ['Word embeddings', 'Similarity search', 'Contrastive learning'],
+  },
   { id: 'sequences', number: 11, title: 'Sequence Models', blurb: 'RNNs, LSTMs, and the bottleneck that motivated attention.', lessons: [], planned: ['Recurrent networks', 'LSTMs and GRUs', 'Encoder–decoder and early attention'] },
   {
     id: 'transformers',
