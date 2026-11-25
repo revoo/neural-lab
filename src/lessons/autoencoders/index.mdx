@@ -103,7 +103,7 @@ The loss adds up the two rules:
 
 - $x$ — the original face, and $\hat{x}$ — the face the decoder drew from the sampled code
 - $\cc{\text{reconstruction}}$ — how badly the face was rebuilt. Ours is the cross-entropy from the logarithms lesson, summed over the 144 pixels (each pixel's brightness treated as the probability of "on")
-- $\cg{D_{\text{KL}}}$ — the **<Term id="kl-divergence">KL divergence</Term>**, the same "distance between distributions" that kept the RLHF policy on a leash: here it measures how far the encoder's smudge is from the standard bell
+- $\cg{D_{\text{KL}}}$ — the **<Term id="kl-divergence">KL divergence</Term>**, which you met in <LessonLink to="information">the information lesson</LessonLink> and which kept the RLHF policy on a leash: here it measures how far the encoder's smudge is from the standard bell
 - $\cp{\beta}$ — the **exchange rate** between the two: how many units of blur you'll accept to make the codes one unit more bell-like. The original VAE uses $\beta = 1$; other values give a "β-VAE"
 
 </Eq>

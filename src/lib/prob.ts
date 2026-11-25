@@ -29,3 +29,19 @@ export function crossEntropy(p: number[], q: number[], base = Math.E): number {
 
 /** Surprise (information content) of an event with probability p. */
 export const surprise = (p: number, base = 2): number => -Math.log(p) / Math.log(base);
+
+/**
+ * KL divergence D(p‖q) = Σ p_i log(p_i / q_i): the extra surprise, on average,
+ * from believing q when the truth is p. Terms with p_i = 0 contribute 0;
+ * Infinity if some q_i = 0 < p_i. Default base 2 (bits).
+ */
+export function klDivergence(p: number[], q: number[], base = 2): number {
+  const lb = Math.log(base);
+  let d = 0;
+  for (let i = 0; i < p.length; i++) {
+    if (p[i] <= 0) continue;
+    if (q[i] <= 0) return Infinity;
+    d += (p[i] * Math.log(p[i] / q[i])) / lb;
+  }
+  return d;
+}

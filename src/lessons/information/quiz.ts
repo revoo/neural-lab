@@ -66,4 +66,25 @@ export const questions: Question[] = [
       { text: '$[0.5, 0.5, 0, 0]$', why: 'This is exactly as uncertain as one fair coin flip: 1 bit. The uniform distribution over all four does better.' },
     ],
   },
+  {
+    id: 'information.kl',
+    kind: 'numeric',
+    concepts: ['kl-divergence'],
+    tolerance: 0.01,
+    make: (r) => {
+      const options = [
+        { text: '[1/2, 1/4, 1/8, 1/8]', h: 1.75 },
+        { text: '[1/2, 1/2, 0, 0]', h: 1 },
+        { text: '[1/2, 1/4, 1/4, 0]', h: 1.5 },
+        { text: '[1/4, 1/4, 1/4, 1/4]', h: 2 },
+      ];
+      const o = options[r.int(options.length)];
+      const ans = 2 - o.h;
+      return {
+        prompt: `Four outcomes really happen with probabilities $${o.text}$, but a model believes they are equally likely (1/4 each). What is the KL divergence $D(p \\| q)$ from the truth to the model's belief, in bits?`,
+        answer: ans,
+        explain: `Think of "20 questions": a belief of 1/4 each implies a code that spends exactly 2 yes/no questions on every outcome. The truth's own best code needs only its entropy, $H(p) = ${o.h}$ bits on average. The waste is $2 - ${o.h} = ${ans}$ bits per outcome: that's the KL divergence, the extra cost of a code built for the wrong belief.${ans === 0 ? ' Here the belief is right, so there is no waste.' : ''}`,
+      };
+    },
+  },
 ];

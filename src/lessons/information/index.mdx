@@ -1,6 +1,7 @@
 import { LogExplorer } from './LogExplorer'
 import { EntropyLab } from './EntropyLab'
 import { LossCurves } from './LossCurves'
+import { KLExplorer } from './KLExplorer'
 import { questions } from './quiz'
 
 ## The problem: grading a guess
@@ -169,6 +170,47 @@ It has a lovely interpretation: perplexity is the *effective number of equally l
 
 </Deeper>
 
+## KL divergence: the price of believing the wrong thing
+
+A weather app believes rain and sun are equally likely, 50/50. But where you live it's sunny 90% of the time. Every day the app is graded by its surprise at the real weather. On average, how much *more* surprised is it than an app that knew the true odds?
+
+Split the app's average surprise, its cross-entropy, into two parts. Some surprise is unavoidable: even an app with perfect knowledge is caught out on the rainy 10% of days. That part is the entropy of the truth, 0.469 bits per day here. Everything on top of it is caused by the wrong belief. The 50/50 app pays exactly 1 bit per day, so its wrong belief costs it 1 − 0.469 = **0.531 extra bits** every day. That extra part has a name: the **<Term id="kl-divergence">KL divergence</Term>**.
+
+<Eq
+  words="\text{extra surprise} = \text{surprise when believing the model} - \text{surprise when knowing the truth}"
+  tex="\cv{D_{\text{KL}}(\ca{p} \,\|\, \cb{q})} = \cp{H(\ca{p}, \cb{q})} - \cc{H(\ca{p})}"
+>
+
+- $\ca{p}$ — **the truth**: how often each outcome really happens (90% sun, 10% rain)
+- $\cb{q}$ — **the model's belief** (50/50)
+- $\cp{H(\ca{p}, \cb{q})}$ — the **cross-entropy**: the average surprise of someone who believes $\cb{q}$ while the world follows $\ca{p}$
+- $\cc{H(\ca{p})}$ — the **entropy** of the truth: the surprise no belief can avoid
+- $\cv{D_{\text{KL}}}$ — **the extra surprise**, caused only by believing the wrong thing. Written as one sum: $\sum_i \ca{p_i} \log_2 (\ca{p_i} / \cb{q_i})$
+
+</Eq>
+
+It is never negative (no belief beats the truth on average) and it is zero only when the belief is exactly right. Before you try it, one question.
+
+<Predict
+  question="Is D(p‖q) the same as D(q‖p)? That is, does it matter which distribution plays the truth?"
+  options={["Yes, it's symmetric", "No"]}
+  answer={1}
+>
+
+With p = 90/10 and q = 50/50, believing 50/50 when the truth is 90/10 costs 0.531 bits per day. Believing 90/10 when the truth is 50/50 costs **0.737** bits. The confident belief is punished harder when it's wrong: on the days it rains, a 90/10 believer is far more surprised than a 50/50 one.
+
+</Predict>
+
+<KLExplorer />
+
+<Misconception>
+
+"KL divergence is a distance between two distributions." It's often described that way, but it isn't one. As you just saw, it isn't symmetric: $D(p \,\|\, q)$ and $D(q \,\|\, p)$ differ. It doesn't obey the triangle inequality either, so going from $p$ to $r$ via $q$ can "cost" less than going directly. Read it as what it is: the extra surprise of one particular believer, in one particular world.
+
+</Misconception>
+
+This explains something about training. When a model is trained with cross-entropy, the truth $p$ is the data, and its entropy $H(p)$ is a fixed number the model can't change. So driving the cross-entropy down is exactly the same as driving the KL divergence from the data to the model down: training with cross-entropy *is* minimising the extra surprise. KL returns as the leash in <LessonLink to="rlhf-dpo">RLHF</LessonLink>, which stops a fine-tuned model drifting too far from where it started, and as the pull towards the bell curve in <LessonLink to="autoencoders">autoencoders</LessonLink>.
+
 ## In code
 
 ```python
@@ -204,6 +246,8 @@ That last comment hides a classic bug. PyTorch's `cross_entropy` applies softmax
 - **Entropy** is the average surprise of a distribution: a measure of unpredictability.
 - **Cross-entropy loss** $= -\ln p_{\text{model}}(\text{correct})$: the model's surprise at the truth. It punishes confident mistakes without limit.
 - With softmax, cross-entropy's gradient on the logits is simply $p - y$. Frameworks take **logits**, not probabilities.
+- **KL divergence** is the extra surprise of believing $q$ when the truth is $p$: cross-entropy minus entropy. It is zero only for the right belief, and it is not symmetric (0.531 bits one way, 0.737 the other, for 90/10 against 50/50).
+- Because the data's entropy is fixed, training with cross-entropy is the same as minimising the KL divergence from the data to the model.
 
 </Takeaways>
 

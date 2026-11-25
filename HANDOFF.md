@@ -234,7 +234,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 â†
 - [x] WP1.3 "Where this is going" openers
 - [x] WP1.4 `Bridge` sections
 - [x] WP1.5 Predict-first moments
-- [ ] WP1.6 KL divergence in `information`
+- [x] WP1.6 KL divergence in `information`
 - [ ] WP1.7 Motion: the 3Blue1Brown pass
 - [ ] WP1.8 Nine maths labs:
   - [ ] Lab 1 vectors Â· The Feature Workbench

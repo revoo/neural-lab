@@ -32,7 +32,7 @@ The classic **RLHF** pipeline turns those pairwise votes into an assistant in tw
   ]}
 />
 
-Why do we need that KL leash $\beta$? Because of **Goodhart’s Law**: *when a learned proxy score becomes the target of intense optimisation, the optimiser finds glitches that score huge on the proxy while being awful to real humans* — **<Term id="reward-hacking">reward hacking</Term>**.
+Why do we need that <Term id="kl-divergence">KL</Term> leash $\beta$? Because of **Goodhart’s Law**: *when a learned proxy score becomes the target of intense optimisation, the optimiser finds glitches that score huge on the proxy while being awful to real humans* — **<Term id="reward-hacking">reward hacking</Term>**.
 
 <Predict
   question="Our proxy reward model scores normal answers accurately, but has a hidden bug: it gives +5.0 to a sycophantic glitch string that real humans rate −2.8 (only 1% likely under SFT). If we shrink the KL penalty β from 1.1 down to 0.1, what happens?"

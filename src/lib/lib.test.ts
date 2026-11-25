@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createRng } from './rng';
 import { dot, matMul, matVec, transpose, det2, broadcastShape, cosineSimilarity, angleBetween } from './linalg';
 import { derivative, partials } from './calculus';
-import { softmax, entropy, crossEntropy, logSumExp, surprise } from './prob';
+import { softmax, entropy, crossEntropy, logSumExp, surprise, klDivergence } from './prob';
 import { ACTIVATIONS, erf } from './activations';
 import { Value, topoSort } from './autodiff';
 import { MLP } from './mlp';
@@ -278,5 +278,35 @@ describe('optimizers', () => {
     const p = [1];
     for (let i = 0; i < 20; i++) opt.step([p], [[2 * p[0]]]);
     expect(Math.abs(p[0])).toBeGreaterThan(10);
+  });
+});
+
+describe('KL divergence', () => {
+  it('is zero for identical distributions', () => {
+    expect(klDivergence([0.2, 0.3, 0.5], [0.2, 0.3, 0.5])).toBe(0);
+  });
+  it('is asymmetric: 0.5310 one way, 0.7370 the other (p = 90/10, q = 50/50)', () => {
+    expect(klDivergence([0.9, 0.1], [0.5, 0.5])).toBeCloseTo(0.531, 4);
+    expect(klDivergence([0.5, 0.5], [0.9, 0.1])).toBeCloseTo(0.737, 4);
+    expect(klDivergence([0.9, 0.1], [0.5, 0.5]).toFixed(4)).toBe('0.5310');
+    expect(klDivergence([0.5, 0.5], [0.9, 0.1]).toFixed(4)).toBe('0.7370');
+  });
+  it('equals cross-entropy minus entropy (random seeded distributions)', () => {
+    const r = createRng(2026);
+    for (let t = 0; t < 50; t++) {
+      const raw = (n: number) => Array.from({ length: n }, () => r.next() + 0.01);
+      const norm = (v: number[]) => v.map((x) => x / v.reduce((a, b) => a + b, 0));
+      const p = norm(raw(5));
+      const q = norm(raw(5));
+      expect(klDivergence(p, q)).toBeCloseTo(crossEntropy(p, q, 2) - entropy(p, 2), 12);
+      expect(klDivergence(p, q)).toBeGreaterThanOrEqual(0);
+    }
+  });
+  it('is infinite when q rules out something p allows, and skips p = 0 terms', () => {
+    expect(klDivergence([0.5, 0.5], [1, 0])).toBe(Infinity);
+    expect(klDivergence([1, 0], [0.5, 0.5])).toBeCloseTo(1, 12);
+  });
+  it('[1/2, 1/4, 1/8, 1/8] against uniform is exactly 0.25 bits', () => {
+    expect(klDivergence([0.5, 0.25, 0.125, 0.125], [0.25, 0.25, 0.25, 0.25])).toBeCloseTo(0.25, 14);
   });
 });
