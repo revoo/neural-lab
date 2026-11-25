@@ -312,7 +312,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 â†
 - [x] WP1.9 Re-read Module 1 as a learner
 - [x] WP2.1 Move RL before fine-tuning
 - [x] WP2.2 Move `similarity-search` into Module 18
-- [ ] WP2.3 Tokens, not words: two short notes
+- [x] WP2.3 Tokens, not words: two short notes
 - [ ] WP2.4 Plain-language lesson summaries
 - [ ] WP3 The Prologue
 - [ ] WP4 New lesson: the Perceptron

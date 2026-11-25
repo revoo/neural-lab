@@ -34,6 +34,10 @@ Flip the toggle below and click any pair of words.
 
 <OrthogonalityWidget />
 
+<Callout kind="note" title="Words, or pieces of words?">
+This module treats every word as one item, because it keeps the pictures simple. Real language models first chop text into sub-word pieces called **tokens**: GPT-4's tokenizer splits "strawberry" into three of them (`str`, `aw`, `berry`). How that chopping works is the subject of <LessonLink to="tokenization">Tokenization & Byte-Pair Encoding</LessonLink>, at the end of <ModuleRef id="transformers" />. Everything here carries over unchanged: a token gets its vector exactly the way a word does.
+</Callout>
+
 ---
 
 ## 2. An embedding layer is just `E[token_id]`

@@ -13,7 +13,7 @@ What does "it" mean? The animal, obviously. Now change one word:
 
 Now "it" is the street. Same word, same position, completely different meaning — decided by a word four places further on.
 
-That's the problem with everything you've built so far. A network that turns each word into a vector *on its own* gives "it" the same vector in both sentences. Meaning lives in context: "bank" by a river and "bank" with a mortgage, "it" as an animal and "it" as a street. To understand language, each word needs to be able to **look at the other words and pull in what it needs from them** — and *which* words it needs depends on what the words are.
+That's the problem with everything you've built so far. A network that turns each word into a vector *on its own* gives "it" the same vector in both sentences. Meaning lives in context: "bank" by a river and "bank" with a mortgage, "it" as an animal and "it" as a street. To understand language, each word needs to be able to **look at the other words and pull in what it needs from them** — and *which* words it needs depends on what the words are. (We'll say "word" throughout; real models work on tokens, which <LessonLink to="tokenization">the tokenization lesson</LessonLink> explains.)
 
 The mechanism that does this is called **<Term id="attention">attention</Term>**. It's the core of the transformer, the architecture behind every modern large language model. And as you'll see, it's built from three things you already know: dot products, softmax and weighted sums.
 
