@@ -129,8 +129,9 @@ export const MODULES: ModuleMeta[] = [
     lessons: [
       { id: 'images-as-tensors', title: 'Images as Tensors', summary: 'Pixels as (N, C, H, W) tensors, RGB vs Rec. 709 luminance and shadow-proof HSV hue, spatial aliasing under strided slicing — and Lab: Build the Vision Preprocessor.', minutes: 30, load: () => import('./lessons/images-as-tensors/index.mdx') },
       { id: 'convolution', title: 'Convolution and Kernels', summary: 'Sliding 3×3 dot products, Sobel/Laplacian/blur filters, output-shape padding & stride arithmetic, translation equivariance — and Lab: Design the Kernel (all 19,683 ternary 3×3s checked).', minutes: 35, load: () => import('./lessons/convolution/index.mdx') },
+      { id: 'cnns', title: 'CNNs and Feature Maps', summary: 'Receptive field & jump growth, VGG stacked-3×3 savings, pooling & Global Average Pooling, a live 55-param CNN crushing a 547-param Dense MLP on unseen shifts — and Lab: Architect the CNN.', minutes: 35, load: () => import('./lessons/cnns/index.mdx') },
     ],
-    planned: ['CNNs and feature maps', 'Object detection'],
+    planned: ['Object detection'],
   },
   { id: 'embeddings', number: 10, title: 'Embeddings & Representations', blurb: 'Meaning as geometry: learned spaces where similar things sit close together.', lessons: [], planned: ['One-hot vs dense vectors', 'Word embeddings', 'Similarity search', 'Autoencoders'] },
   { id: 'sequences', number: 11, title: 'Sequence Models', blurb: 'RNNs, LSTMs, and the bottleneck that motivated attention.', lessons: [], planned: ['Recurrent networks', 'LSTMs and GRUs', 'Encoder–decoder and early attention'] },
