@@ -3,6 +3,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Widget } from '../../components/Widget';
 import { Segmented, Slider } from '../../components/controls';
 import { Plot } from '../../components/plot';
+import { LabShell, useLabProgress } from '../../components/LabShell';
+import { LiveCode } from '../../components/LabJob';
+import { useMachineLog } from '../../components/MachineLog';
+import { useTweened, useTweenedArray } from '../../components/motion';
 import {
   ANN_LAB_BRIEFS,
   COMP_SPECS,
@@ -11,6 +15,7 @@ import {
   LAB_NLISTS,
   LAB_NPROBES,
   annLabExhaustive,
+  annLabHint,
   benchmarkIvf16D,
   compareMetrics,
   evalAnnBrief1,
@@ -20,9 +25,9 @@ import {
   getIvf2DScene,
   lshCollisionProb,
   queryIvf,
-  type AnnBriefId,
   type CompFormat,
 } from './ann';
+import { faissRealCode } from './realCode';
 
 const pct1 = (v: number) => `${(100 * v).toFixed(1)}%`;
 
@@ -300,168 +305,498 @@ type AnnLabState = {
   bits: number;
   tables: number;
   fmt: CompFormat;
-  solved: Record<AnnBriefId, boolean>;
 };
 
 const ANN_LAB_KEY = 'nl-ann-lab-v1';
+const ANN_LAB_PROG_KEY = 'nl-ann-lab-progress-v2';
 const ANN_LAB_DEFAULT: AnnLabState = {
   nlist: 8,
   nprobe: 1,
   bits: 6,
   tables: 1,
   fmt: 'fp32',
-  solved: { ivf: false, lsh: false, ram: false },
 };
+
+function loadLegacyAnnSolved(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(ANN_LAB_KEY);
+    if (!raw) return {};
+    const p = JSON.parse(raw);
+    return p?.solved ?? {};
+  } catch {
+    return {};
+  }
+}
 
 function loadAnnLab(): AnnLabState {
   try {
     const raw = localStorage.getItem(ANN_LAB_KEY);
     if (!raw) return ANN_LAB_DEFAULT;
     const p = JSON.parse(raw);
-    return { ...ANN_LAB_DEFAULT, ...p, solved: { ...ANN_LAB_DEFAULT.solved, ...(p.solved ?? {}) } };
+    return {
+      nlist: (LAB_NLISTS as readonly number[]).includes(p.nlist) ? p.nlist : ANN_LAB_DEFAULT.nlist,
+      nprobe: (LAB_NPROBES as readonly number[]).includes(p.nprobe) ? p.nprobe : ANN_LAB_DEFAULT.nprobe,
+      bits: (LAB_LSH_BITS as readonly number[]).includes(p.bits) ? p.bits : ANN_LAB_DEFAULT.bits,
+      tables: (LAB_LSH_TABLES as readonly number[]).includes(p.tables) ? p.tables : ANN_LAB_DEFAULT.tables,
+      fmt: COMP_SPECS.some((s) => s.id === p.fmt) ? p.fmt : ANN_LAB_DEFAULT.fmt,
+    };
   } catch {
     return ANN_LAB_DEFAULT;
   }
 }
 
+function QueryRecallStrip({ hits }: { hits: readonly number[] }) {
+  const perfect = hits.filter((h) => h === 5).length;
+  return (
+    <div>
+      <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 4 }}>
+        60 held-out queries (each tile = Recall@5: <strong>{perfect}/60</strong> hit 5/5)
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(15, 1fr)', gap: 3 }}>
+        {hits.map((h, i) => {
+          const bg =
+            h === 5
+              ? 'color-mix(in srgb, var(--c-good) 58%, var(--bg))'
+              : h >= 3
+                ? 'color-mix(in srgb, var(--c-a) 45%, var(--bg))'
+                : 'color-mix(in srgb, var(--c-bad) 52%, var(--bg))';
+          return (
+            <div
+              key={i}
+              title={`Query ${i + 1}: ${h}/5 exact top-5 found`}
+              style={{
+                height: 16,
+                borderRadius: 3,
+                background: bg,
+                border: '1px solid var(--border)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontFamily: 'var(--mono)',
+                fontSize: 9.5,
+                fontWeight: 600,
+              }}
+            >
+              {h}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function VectorIndexLab() {
-  const [briefId, setBriefId] = useState<AnnBriefId>('ivf');
+  const [activeIdx, setActiveIdx] = useState<number>(0);
+  const briefId = ANN_LAB_BRIEFS[activeIdx].id;
   const [st, setSt] = useState<AnnLabState>(loadAnnLab);
-  const [showOpt, setShowOpt] = useState(false);
+  const progress = useLabProgress(ANN_LAB_PROG_KEY, () => ({ solved: loadLegacyAnnSolved() }));
+  const log = useMachineLog(18);
 
   useEffect(() => {
     try {
-      localStorage.setItem(ANN_LAB_KEY, JSON.stringify(st));
+      localStorage.setItem(ANN_LAB_KEY, JSON.stringify({ ...st, solved: progress.solved }));
     } catch {
       /* ignore */
     }
-  }, [st]);
+  }, [st, progress.solved]);
 
   const r1 = useMemo(() => evalAnnBrief1(st.nlist, st.nprobe), [st.nlist, st.nprobe]);
   const r2 = useMemo(() => evalAnnBrief2(st.bits, st.tables), [st.bits, st.tables]);
   const r3 = useMemo(() => evalAnnBrief3(st.fmt), [st.fmt]);
   const exhaust = useMemo(() => annLabExhaustive(briefId), [briefId]);
+  const hint = useMemo(() => annLabHint(briefId, st), [briefId, st]);
+  const realCode = useMemo(() => faissRealCode(briefId, st), [briefId, st]);
+
+  const b1All = useMemo(() => {
+    const out: ReturnType<typeof evalAnnBrief1>[] = [];
+    for (const nl of LAB_NLISTS) for (const np of LAB_NPROBES) out.push(evalAnnBrief1(nl, np));
+    return out;
+  }, []);
+  const b3All = useMemo(() => COMP_SPECS.map((s) => ({ spec: s, r: evalAnnBrief3(s.id) })), []);
 
   const curPass = briefId === 'ivf' ? r1.pass : briefId === 'lsh' ? r2.pass : r3.pass;
-  useEffect(() => {
-    if (curPass && !st.solved[briefId]) {
-      setSt((p) => ({ ...p, solved: { ...p.solved, [briefId]: true } }));
-    }
-  }, [curPass, briefId, st.solved]);
 
-  const brief = ANN_LAB_BRIEFS.find((b) => b.id === briefId)!;
-  const solvedCount = Object.values(st.solved).filter(Boolean).length;
+  const tweenedIvf = useTweenedArray([r1.recall5, r1.scanFrac], 240);
+  const tweenedLsh = useTweenedArray([r2.recall5, r2.scanFrac], 240);
+  const tweenedRam = useTweened(r3.gib, 240);
+  const tweenedRec3 = useTweened(r3.typicalRecall, 240);
+
+  const updateIvf = (patch: Partial<Pick<AnnLabState, 'nlist' | 'nprobe'>>) => {
+    const nl = patch.nlist ?? st.nlist;
+    const np = patch.nprobe ?? st.nprobe;
+    const ev = evalAnnBrief1(nl, np);
+    setSt((p) => ({ ...p, nlist: nl, nprobe: np }));
+    log.push(
+      `B1 IVF: nlist=${nl}, nprobe=${np} → Recall@5 ${pct1(ev.recall5)}, scan ${pct1(ev.scanFrac)} (${ev.speedup.toFixed(1)}×, ${ev.pass ? 'PASS' : 'FAIL'})`,
+      ev.pass ? 'good' : undefined,
+    );
+  };
+
+  const updateLsh = (patch: Partial<Pick<AnnLabState, 'bits' | 'tables'>>) => {
+    const b = patch.bits ?? st.bits;
+    const t = patch.tables ?? st.tables;
+    const ev = evalAnnBrief2(b, t);
+    setSt((p) => ({ ...p, bits: b, tables: t }));
+    log.push(
+      `B2 LSH: b=${b}, L=${t} → Recall@5 ${pct1(ev.recall5)}, scan ${pct1(ev.scanFrac)} (${ev.speedup.toFixed(1)}×, ${ev.pass ? 'PASS' : 'FAIL'})`,
+      ev.pass ? 'good' : undefined,
+    );
+  };
+
+  const updateFmt = (fmt: CompFormat) => {
+    const ev = evalAnnBrief3(fmt);
+    setSt((p) => ({ ...p, fmt }));
+    log.push(
+      `B3 RAM: ${fmt} → ${ev.gib.toFixed(2)} GiB (${ev.ratio.toFixed(0)}×), recall ${pct1(ev.typicalRecall)} (${ev.pass ? 'PASS' : 'FAIL'})`,
+      ev.pass ? 'good' : undefined,
+    );
+  };
+
+  const resetBrief = () => {
+    if (briefId === 'ivf') {
+      setSt((p) => ({ ...p, nlist: ANN_LAB_DEFAULT.nlist, nprobe: ANN_LAB_DEFAULT.nprobe }));
+      log.push('B1: reset to nlist=8, nprobe=1');
+    } else if (briefId === 'lsh') {
+      setSt((p) => ({ ...p, bits: ANN_LAB_DEFAULT.bits, tables: ANN_LAB_DEFAULT.tables }));
+      log.push('B2: reset to b=6 bits, L=1 table');
+    } else {
+      setSt((p) => ({ ...p, fmt: ANN_LAB_DEFAULT.fmt }));
+      log.push('B3: reset to FP32');
+    }
+  };
+
+  const statusText = useMemo(() => {
+    if (briefId === 'ivf') {
+      return r1.pass
+        ? `Unique IVF sweet spot: Recall@5 ${pct1(r1.recall5)} (≥ 90%) at ${pct1(r1.scanFrac)} scan (${r1.speedup.toFixed(1)}× faster than brute force).`
+        : `Recall@5 ${pct1(r1.recall5)} (need ≥ 90%) · scan work ${pct1(r1.scanFrac)} (limit 25%) · ${r1.speedup.toFixed(1)}× speedup.`;
+    }
+    if (briefId === 'lsh') {
+      return r2.pass
+        ? `Unique LSH sweet spot: Recall@5 ${pct1(r2.recall5)} (≥ 85%) at ${pct1(r2.scanFrac)} scan (${r2.speedup.toFixed(1)}× speedup).`
+        : `Recall@5 ${pct1(r2.recall5)} (need ≥ 85%) · candidate scan ${pct1(r2.scanFrac)} (limit 35%) · ${r2.speedup.toFixed(1)}× speedup.`;
+    }
+    return r3.pass
+      ? `Unique passing format: ${r3.gib.toFixed(2)} GiB (≤ 16.0 GiB, ${r3.ratio.toFixed(0)}× smaller than FP32) at ${pct1(r3.typicalRecall)} recall.`
+      : `${r3.gib.toFixed(2)} GiB (limit 16.0 GiB) · typical recall ${pct1(r3.typicalRecall)} (need ≥ 95.0%).`;
+  }, [briefId, r1, r2, r3]);
+
+  const lshCurvePath = useMemo(() => {
+    const pts: string[] = [];
+    for (let deg = 0; deg <= 120; deg += 4) {
+      const p = lshCollisionProb(deg, st.bits, st.tables);
+      const cx = 34 + (deg / 120) * 232;
+      const cy = 112 - p * 96;
+      pts.push(`${deg === 0 ? 'M' : 'L'} ${cx.toFixed(1)} ${cy.toFixed(1)}`);
+    }
+    return pts.join(' ');
+  }, [st.bits, st.tables]);
 
   return (
-    <Widget
+    <LabShell
       title="Lab: Tune the Vector Index"
-      wide
       caption={
         <>
-          Balance Recall@5, query speedup, and vector-database RAM across three exhaustive briefs. Solved: <strong>{solvedCount}/3</strong>.
+          Inspect Voronoi bucket occupancy, per-query Recall@5 tiles, LSH collision S-curves, and 10M-vector RAM compression live across three exhaustive briefs.
         </>
       }
+      briefs={ANN_LAB_BRIEFS.map((b, i) => ({
+        id: b.id,
+        tab: `Brief ${i + 1}`,
+        title: b.title,
+        text: b.story,
+      }))}
+      active={activeIdx}
+      onSelect={setActiveIdx}
+      progress={progress}
+      passing={curPass}
+      optimal={curPass}
+      status={statusText}
+      hint={hint}
+      actions={
+        <button type="button" className="btn" onClick={resetBrief}>
+          Reset brief
+        </button>
+      }
+      log={{
+        title: 'Vector index bench log',
+        lines: log.lines,
+        onClear: log.clear,
+        empty: 'Adjust nlist/nprobe, LSH bits/tables, or quantisation format to run a benchmark.',
+      }}
+      reveal={{
+        label: `exhaustive search (${exhaust.total} configs)`,
+        content: (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ fontSize: 13 }}>
+              <strong>
+                {exhaust.passing}/{exhaust.total}
+              </strong>{' '}
+              pass · {exhaust.summary}
+            </div>
+
+            {briefId === 'ivf' && (
+              <div>
+                <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 4 }}>
+                  All 15 (nlist, nprobe) configs: scan work vs Recall@5 (shaded quadrant = scan ≤ 25% &amp; recall ≥ 90%)
+                </div>
+                <svg viewBox="0 0 360 144" style={{ width: '100%', maxWidth: 420, height: 'auto', display: 'block' }}>
+                  <rect x={42} y={10} width={304} height={102} fill="var(--bg)" stroke="var(--border)" rx={4} />
+                  {(() => {
+                    const x25 = 42 + (0.25 / 0.85) * 304;
+                    const y90 = 112 - ((0.9 - 0.35) / 0.67) * 102;
+                    return (
+                      <>
+                        <rect x={42} y={10} width={x25 - 42} height={y90 - 10} fill="color-mix(in srgb, var(--c-good) 15%, transparent)" />
+                        <line x1={x25} y1={10} x2={x25} y2={112} stroke="var(--c-good)" strokeDasharray="3 3" strokeWidth={1} />
+                        <line x1={42} y1={y90} x2={346} y2={y90} stroke="var(--c-good)" strokeDasharray="3 3" strokeWidth={1} />
+                      </>
+                    );
+                  })()}
+                  {b1All.map((pt) => {
+                    const cx = 42 + (Math.min(0.85, pt.scanFrac) / 0.85) * 304;
+                    const cy = 112 - ((Math.max(0.35, pt.recall5) - 0.35) / 0.67) * 102;
+                    const isCur = pt.nlist === st.nlist && pt.nprobe === st.nprobe;
+                    const col = pt.pass ? 'var(--c-good)' : pt.nlist === 32 ? 'var(--c-a)' : pt.nlist === 16 ? 'var(--c-b)' : 'var(--text-muted)';
+                    return (
+                      <circle
+                        key={`${pt.nlist}-${pt.nprobe}`}
+                        cx={cx}
+                        cy={cy}
+                        r={isCur ? 5.5 : 3.8}
+                        fill={col}
+                        stroke={isCur ? 'var(--text)' : 'none'}
+                        strokeWidth={2}
+                      />
+                    );
+                  })}
+                  <text x={42} y={128} fontSize={9} fill="var(--text-muted)">0% scan</text>
+                  <text x={118} y={128} fontSize={9} fill="var(--c-good)">25%</text>
+                  <text x={306} y={128} fontSize={9} fill="var(--text-muted)">85% scan</text>
+                  <text x={4} y={31} fontSize={9} fill="var(--c-good)">90%</text>
+                  <text x={4} y={110} fontSize={9} fill="var(--text-muted)">35%</text>
+                </svg>
+              </div>
+            )}
+
+            {briefId === 'lsh' && (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="num-table" style={{ width: '100%', fontSize: 11.5, textAlign: 'center' }}>
+                  <thead>
+                    <tr>
+                      <th>Bits b</th>
+                      {LAB_LSH_TABLES.map((t) => (
+                        <th key={t}>L = {t}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {LAB_LSH_BITS.map((b) => (
+                      <tr key={b}>
+                        <td style={{ fontWeight: 600 }}>{b} bits</td>
+                        {LAB_LSH_TABLES.map((t) => {
+                          const cell = evalAnnBrief2(b, t);
+                          const isCur = b === st.bits && t === st.tables;
+                          return (
+                            <td
+                              key={t}
+                              style={{
+                                background: cell.pass
+                                  ? 'color-mix(in srgb, var(--c-good) 20%, var(--bg))'
+                                  : 'color-mix(in srgb, var(--c-bad) 9%, var(--bg))',
+                                color: cell.pass ? 'var(--c-good)' : 'var(--text-muted)',
+                                fontWeight: cell.pass || isCur ? 700 : 400,
+                                outline: isCur ? '2px solid var(--accent)' : undefined,
+                                outlineOffset: -2,
+                              }}
+                            >
+                              {(100 * cell.recall5).toFixed(0)}% / {(100 * cell.scanFrac).toFixed(0)}%
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {briefId === 'ram' && (
+              <table className="num-table" style={{ width: '100%', fontSize: 12 }}>
+                <thead>
+                  <tr>
+                    <th>Format</th>
+                    <th>B / vec</th>
+                    <th>10M RAM</th>
+                    <th>Recall kept</th>
+                    <th>Pass</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {b3All.map(({ spec, r }) => (
+                    <tr key={spec.id} style={{ fontWeight: spec.id === st.fmt ? 600 : 400 }}>
+                      <td>{spec.label}</td>
+                      <td>{spec.bytesPerVec.toLocaleString()}</td>
+                      <td>{r.gib.toFixed(2)} GiB</td>
+                      <td>{pct1(r.typicalRecall)}</td>
+                      <td style={{ color: r.pass ? 'var(--c-good)' : 'var(--c-bad)' }}>{r.pass ? 'PASS' : 'FAIL'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        ),
+      }}
     >
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-        {ANN_LAB_BRIEFS.map((b, i) => (
-          <button
-            key={b.id}
-            type="button"
-            className="btn"
-            style={{
-              borderColor: briefId === b.id ? 'var(--accent)' : 'var(--border)',
-              background: briefId === b.id ? 'var(--bg-sunken)' : 'transparent',
-              fontWeight: briefId === b.id ? 600 : 400,
-            }}
-            onClick={() => {
-              setBriefId(b.id);
-              setShowOpt(false);
-            }}
-          >
-            {st.solved[b.id] ? '✓ ' : ''}Brief {i + 1}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{brief.title}</div>
-      <p style={{ fontSize: 13.5, color: 'var(--text-muted)', marginTop: 0, marginBottom: 12, lineHeight: 1.5 }}>{brief.story}</p>
-
       {briefId === 'ivf' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
             <Segmented
               label="Voronoi buckets (nlist)"
               value={st.nlist}
-              onChange={(v) => setSt((p) => ({ ...p, nlist: v }))}
+              onChange={(v) => updateIvf({ nlist: v })}
               options={LAB_NLISTS.map((n) => ({ value: n, label: String(n) }))}
             />
             <Segmented
               label="Probed buckets (nprobe)"
               value={st.nprobe}
-              onChange={(v) => setSt((p) => ({ ...p, nprobe: v }))}
+              onChange={(v) => updateIvf({ nprobe: v })}
               options={LAB_NPROBES.map((n) => ({ value: n, label: String(n) }))}
             />
           </div>
-          <div className="readouts" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, margin: 0 }}>
-            <div className="readout">
-              <div className="readout-label">Recall@5 (≥ 90%)</div>
-              <div className="readout-value" style={{ color: r1.recall5 >= 0.9 ? 'var(--c-good)' : 'var(--c-bad)' }}>{pct1(r1.recall5)}</div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 8 }}>
+            <div style={{ padding: 8, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-sunken)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                <span>Recall@5 (target ≥ 90%)</span>
+                <strong style={{ fontFamily: 'var(--mono)', color: r1.recall5 >= 0.9 ? 'var(--c-good)' : 'var(--c-bad)' }}>{pct1(r1.recall5)}</strong>
+              </div>
+              <div style={{ position: 'relative', height: 9, borderRadius: 5, background: 'var(--bg)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${Math.min(100, tweenedIvf[0] * 100)}%`, background: r1.recall5 >= 0.9 ? 'var(--c-good)' : 'var(--c-bad)' }} />
+                <div style={{ position: 'absolute', top: 0, bottom: 0, left: '90%', width: 2, background: 'var(--text)' }} />
+              </div>
             </div>
-            <div className="readout">
-              <div className="readout-label">Scan work (≤ 25%)</div>
-              <div className="readout-value" style={{ color: r1.scanFrac <= 0.25 ? 'var(--c-good)' : 'var(--c-bad)' }}>{pct1(r1.scanFrac)}</div>
+            <div style={{ padding: 8, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-sunken)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                <span>Scan work (ceiling ≤ 25% · {r1.speedup.toFixed(1)}×)</span>
+                <strong style={{ fontFamily: 'var(--mono)', color: r1.scanFrac <= 0.25 ? 'var(--c-good)' : 'var(--c-bad)' }}>{pct1(r1.scanFrac)}</strong>
+              </div>
+              <div style={{ position: 'relative', height: 9, borderRadius: 5, background: 'var(--bg)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${Math.min(100, tweenedIvf[1] * 100)}%`, background: r1.scanFrac <= 0.25 ? 'var(--c-good)' : 'var(--c-bad)' }} />
+                <div style={{ position: 'absolute', top: 0, bottom: 0, left: '25%', width: 2, background: 'var(--text)' }} />
+              </div>
             </div>
-            <div className="readout">
-              <div className="readout-label">Speedup</div>
-              <div className="readout-value">{r1.speedup.toFixed(1)}×</div>
+          </div>
+
+          {/* Voronoi bucket occupancy strip + 60-query Recall@5 heatmap */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px, 100%), 1fr))', gap: 12, padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-sunken)' }}>
+            <div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 6 }}>
+                Inside IVF ({st.nlist} Voronoi buckets · highlighted = {st.nprobe} probed for query #1)
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 68 }}>
+                {(() => {
+                  const maxB = Math.max(...r1.bucketSizes, 1);
+                  const probedSet = new Set(r1.sampleProbed);
+                  return r1.bucketSizes.map((sz, i) => {
+                    const isProbed = probedSet.has(i);
+                    return (
+                      <div
+                        key={i}
+                        title={`Bucket ${i}: ${sz} vectors${isProbed ? ' (probed)' : ''}`}
+                        style={{
+                          flex: 1,
+                          height: `${Math.max(8, (sz / maxB) * 100)}%`,
+                          borderRadius: '3px 3px 0 0',
+                          background: isProbed ? 'var(--accent)' : 'color-mix(in srgb, var(--c-a) 30%, var(--bg))',
+                          border: isProbed ? '1px solid var(--text)' : '1px solid var(--border)',
+                        }}
+                      />
+                    );
+                  });
+                })()}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                Avg bucket size ≈ {(600 / st.nlist).toFixed(1)} vecs · {st.nlist} centroid checks + {st.nprobe} buckets
+              </div>
             </div>
-            <div className="readout">
-              <div className="readout-label">Status</div>
-              <div className="readout-value" style={{ color: r1.pass ? 'var(--c-good)' : 'var(--c-bad)' }}>{r1.pass ? 'PASS (Unique!)' : 'FAIL'}</div>
-            </div>
+            <QueryRecallStrip hits={r1.perQueryHits} />
           </div>
         </div>
       )}
 
       {briefId === 'lsh' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
             <Segmented
               label="Hash bits"
               value={st.bits}
-              onChange={(v) => setSt((p) => ({ ...p, bits: v }))}
+              onChange={(v) => updateLsh({ bits: v })}
               options={LAB_LSH_BITS.map((b) => ({ value: b, label: `${b} bits` }))}
             />
             <Segmented
               label="Hash tables"
               value={st.tables}
-              onChange={(v) => setSt((p) => ({ ...p, tables: v }))}
+              onChange={(v) => updateLsh({ tables: v })}
               options={LAB_LSH_TABLES.map((t) => ({ value: t, label: `${t} tables` }))}
             />
           </div>
-          <div className="readouts" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, margin: 0 }}>
-            <div className="readout">
-              <div className="readout-label">Recall@5 (≥ 85%)</div>
-              <div className="readout-value" style={{ color: r2.recall5 >= 0.85 ? 'var(--c-good)' : 'var(--c-bad)' }}>{pct1(r2.recall5)}</div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 8 }}>
+            <div style={{ padding: 8, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-sunken)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                <span>Recall@5 (target ≥ 85%)</span>
+                <strong style={{ fontFamily: 'var(--mono)', color: r2.recall5 >= 0.85 ? 'var(--c-good)' : 'var(--c-bad)' }}>{pct1(r2.recall5)}</strong>
+              </div>
+              <div style={{ position: 'relative', height: 9, borderRadius: 5, background: 'var(--bg)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${Math.min(100, tweenedLsh[0] * 100)}%`, background: r2.recall5 >= 0.85 ? 'var(--c-good)' : 'var(--c-bad)' }} />
+                <div style={{ position: 'absolute', top: 0, bottom: 0, left: '85%', width: 2, background: 'var(--text)' }} />
+              </div>
             </div>
-            <div className="readout">
-              <div className="readout-label">Scan work (≤ 35%)</div>
-              <div className="readout-value" style={{ color: r2.scanFrac <= 0.35 ? 'var(--c-good)' : 'var(--c-bad)' }}>{pct1(r2.scanFrac)}</div>
+            <div style={{ padding: 8, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-sunken)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                <span>Candidate scan (ceiling ≤ 35% · {r2.speedup.toFixed(1)}×)</span>
+                <strong style={{ fontFamily: 'var(--mono)', color: r2.scanFrac <= 0.35 ? 'var(--c-good)' : 'var(--c-bad)' }}>{pct1(r2.scanFrac)}</strong>
+              </div>
+              <div style={{ position: 'relative', height: 9, borderRadius: 5, background: 'var(--bg)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${Math.min(100, tweenedLsh[1] * 100)}%`, background: r2.scanFrac <= 0.35 ? 'var(--c-good)' : 'var(--c-bad)' }} />
+                <div style={{ position: 'absolute', top: 0, bottom: 0, left: '35%', width: 2, background: 'var(--text)' }} />
+              </div>
             </div>
-            <div className="readout">
-              <div className="readout-label">Speedup</div>
-              <div className="readout-value">{r2.speedup.toFixed(1)}×</div>
+          </div>
+
+          {/* Live LSH collision S-curve + 60-query Recall@5 strip */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px, 100%), 1fr))', gap: 12, padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-sunken)', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 4 }}>
+                SimHash collision probability P_hit(θ) for b={st.bits}, L={st.tables}
+              </div>
+              <svg viewBox="0 0 280 132" style={{ width: '100%', maxWidth: 320, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', display: 'block' }}>
+                <line x1={34} y1={112} x2={266} y2={112} stroke="var(--border)" strokeWidth={1} />
+                <line x1={34} y1={16} x2={34} y2={112} stroke="var(--border)" strokeWidth={1} />
+                {/* 25° near-neighbour marker & 75° far-noise marker */}
+                <line x1={34 + (25 / 120) * 232} y1={16} x2={34 + (25 / 120) * 232} y2={112} stroke="var(--c-good)" strokeDasharray="3 3" strokeWidth={1} />
+                <line x1={34 + (75 / 120) * 232} y1={16} x2={34 + (75 / 120) * 232} y2={112} stroke="var(--c-bad)" strokeDasharray="3 3" strokeWidth={1} />
+                <path d={lshCurvePath} fill="none" stroke="var(--accent)" strokeWidth={2.2} />
+                <text x={34 + (25 / 120) * 232} y={125} textAnchor="middle" fontSize={8.5} fill="var(--c-good)">
+                  25° ({(100 * lshCollisionProb(25, st.bits, st.tables)).toFixed(0)}%)
+                </text>
+                <text x={34 + (75 / 120) * 232} y={125} textAnchor="middle" fontSize={8.5} fill="var(--c-bad)">
+                  75° ({(100 * lshCollisionProb(75, st.bits, st.tables)).toFixed(0)}%)
+                </text>
+                <text x={6} y={22} fontSize={8.5} fill="var(--text-muted)">1.0</text>
+                <text x={6} y={112} fontSize={8.5} fill="var(--text-muted)">0.0</text>
+              </svg>
             </div>
-            <div className="readout">
-              <div className="readout-label">Status</div>
-              <div className="readout-value" style={{ color: r2.pass ? 'var(--c-good)' : 'var(--c-bad)' }}>{r2.pass ? 'PASS (Unique!)' : 'FAIL'}</div>
-            </div>
+            <QueryRecallStrip hits={r2.perQueryHits} />
           </div>
         </div>
       )}
 
       {briefId === 'ram' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {COMP_SPECS.map((s) => (
               <button
@@ -475,43 +810,55 @@ export function VectorIndexLab() {
                   background: st.fmt === s.id ? 'var(--bg-sunken)' : 'transparent',
                   fontWeight: st.fmt === s.id ? 600 : 400,
                 }}
-                onClick={() => setSt((p) => ({ ...p, fmt: s.id }))}
+                onClick={() => updateFmt(s.id)}
               >
                 {s.label}
               </button>
             ))}
           </div>
-          <div className="readouts" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, margin: 0 }}>
-            <div className="readout">
-              <div className="readout-label">RAM (≤ 16.0 GiB)</div>
-              <div className="readout-value" style={{ color: r3.gib <= 16 ? 'var(--c-good)' : 'var(--c-bad)' }}>{r3.gib.toFixed(2)} GiB</div>
+
+          <div style={{ padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-sunken)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', fontFamily: 'var(--mono)', fontSize: 12 }}>
+              <span style={{ padding: '4px 8px', borderRadius: 6, background: 'var(--bg)', border: '1px solid var(--border)' }}>
+                1 vector (1,536D) = <strong>{r3.bytesPerVec.toLocaleString()} B</strong> ({r3.ratio.toFixed(0)}× smaller than FP32)
+              </span>
+              <span>× 10,000,000 =</span>
+              <span style={{ padding: '4px 8px', borderRadius: 6, background: 'var(--bg)', border: `1px solid ${r3.gib <= 16 ? 'var(--c-good)' : 'var(--c-bad)'}`, fontWeight: 600 }}>
+                {r3.gib.toFixed(2)} GiB
+              </span>
             </div>
-            <div className="readout">
-              <div className="readout-label">Compression</div>
-              <div className="readout-value">{r3.ratio.toFixed(0)}×</div>
-            </div>
-            <div className="readout">
-              <div className="readout-label">Recall kept (≥ 95%)</div>
-              <div className="readout-value" style={{ color: r3.typicalRecall >= 0.95 ? 'var(--c-good)' : 'var(--c-bad)' }}>{pct1(r3.typicalRecall)}</div>
-            </div>
-            <div className="readout">
-              <div className="readout-label">Status</div>
-              <div className="readout-value" style={{ color: r3.pass ? 'var(--c-good)' : 'var(--c-bad)' }}>{r3.pass ? 'PASS (Unique!)' : 'FAIL'}</div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                  <span>Node RAM (ceiling = 16.0 GiB)</span>
+                  <strong style={{ fontFamily: 'var(--mono)', color: r3.gib <= 16 ? 'var(--c-good)' : 'var(--c-bad)' }}>
+                    {tweenedRam.toFixed(2)} / 16.0 GiB
+                  </strong>
+                </div>
+                <div style={{ position: 'relative', height: 12, borderRadius: 5, background: 'var(--bg)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${Math.min(100, (tweenedRam / 60) * 100)}%`, background: r3.gib <= 16 ? 'var(--c-good)' : 'var(--c-bad)' }} />
+                  <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${(16 / 60) * 100}%`, width: 2, background: 'var(--text)' }} />
+                </div>
+              </div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                  <span>Typical recall retention (floor ≥ 95%)</span>
+                  <strong style={{ fontFamily: 'var(--mono)', color: r3.typicalRecall >= 0.95 ? 'var(--c-good)' : 'var(--c-bad)' }}>
+                    {pct1(r3.typicalRecall)}
+                  </strong>
+                </div>
+                <div style={{ position: 'relative', height: 12, borderRadius: 5, background: 'var(--bg)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${Math.min(100, tweenedRec3 * 100)}%`, background: r3.typicalRecall >= 0.95 ? 'var(--c-good)' : 'var(--c-bad)' }} />
+                  <div style={{ position: 'absolute', top: 0, bottom: 0, left: '95%', width: 2, background: 'var(--text)' }} />
+                </div>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
-        <button type="button" className="btn" onClick={() => setShowOpt((v) => !v)}>
-          {showOpt ? 'Hide exhaustive check' : `Reveal exhaustive search (${exhaust.total} configs)`}
-        </button>
-        {showOpt && (
-          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            <strong>{exhaust.passing}/{exhaust.total}</strong> pass · {exhaust.summary}
-          </div>
-        )}
-      </div>
-    </Widget>
+      <LiveCode note="FAISS / NumPy ANN" code={realCode} />
+    </LabShell>
   );
 }

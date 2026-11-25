@@ -648,6 +648,25 @@ export const HISTORY: HistoryEntry[] = [
       after: { text: 'Static word vectors eventually gave way to contextual Transformer representations for polysemy, while negative sampling lived on in item recommenders and contrastive learning.', source: WP('Word_embedding') },
     },
   },
+  {
+    id: 'similarity-search',
+    lessonId: 'similarity-search',
+    lab: 'Tune the Vector Index',
+    idea: 'LSH, Product Quantization, HNSW, and GPU vector search (FAISS)',
+    years: [1998, 2011, 2016, 2017],
+    when: '1998 · 2011 · 2016 · 2017',
+    who: [
+      { text: 'Piotr Indyk and Rajeev Motwani introduce Locality-Sensitive Hashing (1998) to break the high-dimensional curse of exact spatial trees.', source: WP('Locality-sensitive_hashing') },
+      { text: 'Hervé Jégou, Matthijs Douze, and Cordelia Schmid publish Product Quantization for Nearest Neighbor Search (2011), compressing vectors into short codebook IDs.', source: WP('Vector_quantization') },
+      { text: 'Yury Malkov and Dmitry Yashunin propose Hierarchical Navigable Small World (HNSW) graphs (2016), layering proximity graphs for fast greedy vector navigation.', source: WP('Hierarchical_navigable_small_world') },
+      { text: 'Jeff Johnson, Matthijs Douze, and Hervé Jégou open-source FAISS (2017), indexing a billion vectors across four GPUs with IVF and product quantization.', source: 'https://arxiv.org/abs/1702.08734' },
+    ],
+    story: {
+      before: { text: 'Exact spatial trees like k-d trees degraded to brute-force scans in high dimensions, making million-scale similarity queries impractical.', source: WP('Hierarchical_navigable_small_world') },
+      this: { text: 'Trading a tiny fraction of exact recall via hashing, Voronoi partitioning, graph navigation, and vector quantization brought billion-scale search into milliseconds and commodity RAM.', source: 'https://arxiv.org/abs/1702.08734' },
+      after: { text: 'Vector databases built on IVF, HNSW, and scalar/product quantization now sit behind semantic search, recommendation engines, and RAG pipelines.', source: WP('Hierarchical_navigable_small_world') },
+    },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */

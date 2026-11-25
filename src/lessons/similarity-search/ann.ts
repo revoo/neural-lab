@@ -200,7 +200,10 @@ export function getAnn16DData() {
   return CACHED_16D;
 }
 
-const IVF_CACHE = new Map<string, { recall5: number; scanFrac: number; speedup: number }>();
+const IVF_CACHE = new Map<
+  string,
+  { recall5: number; scanFrac: number; speedup: number; perQueryHits: number[]; bucketSizes: number[]; sampleProbed: number[] }
+>();
 
 export function benchmarkIvf16D(nlist: number, nprobe: number) {
   const key = `${nlist}:${nprobe}`;
@@ -210,15 +213,22 @@ export function benchmarkIvf16D(nlist: number, nprobe: number) {
   const ivf = buildIvf(data, nlist, 41);
   let hits = 0;
   let totalEvals = 0;
+  const perQueryHits: number[] = [];
+  let sampleProbed: number[] = [];
   for (let q = 0; q < queries.length; q++) {
     const res = queryIvf(data, ivf, queries[q], nprobe, 5);
+    if (q === 0) sampleProbed = res.probedBuckets;
     totalEvals += res.distEvals;
-    for (const id of res.topK) if (exactTop5[q].has(id)) hits++;
+    let qHits = 0;
+    for (const id of res.topK) if (exactTop5[q].has(id)) qHits++;
+    hits += qHits;
+    perQueryHits.push(qHits);
   }
   const recall5 = hits / (queries.length * 5);
   const meanEvals = totalEvals / queries.length;
   const scanFrac = meanEvals / data.length;
-  const res = { recall5, scanFrac, speedup: data.length / meanEvals };
+  const bucketSizes = ivf.buckets.map((b) => b.length);
+  const res = { recall5, scanFrac, speedup: data.length / meanEvals, perQueryHits, bucketSizes, sampleProbed };
   IVF_CACHE.set(key, res);
   return res;
 }
@@ -231,7 +241,7 @@ export function lshCollisionProb(angleDeg: number, bits: number, tables: number)
   return 1 - (1 - pOneTable) ** tables;
 }
 
-const LSH_CACHE = new Map<string, { recall5: number; scanFrac: number; speedup: number }>();
+const LSH_CACHE = new Map<string, { recall5: number; scanFrac: number; speedup: number; perQueryHits: number[] }>();
 
 export function benchmarkLsh16D(bits: number, tables: number) {
   const key = `${bits}:${tables}`;
@@ -260,6 +270,7 @@ export function benchmarkLsh16D(bits: number, tables: number) {
 
   let hits = 0;
   let totalScanned = 0;
+  const perQueryHits: number[] = [];
   for (let q = 0; q < queries.length; q++) {
     const candSet = new Set<number>();
     for (let t = 0; t < tables; t++) {
@@ -273,11 +284,14 @@ export function benchmarkLsh16D(bits: number, tables: number) {
       .sort((a, b) => a.d - b.d)
       .slice(0, 5);
     totalScanned += candSet.size;
-    for (const c of cands) if (exactTop5[q].has(c.i)) hits++;
+    let qHits = 0;
+    for (const c of cands) if (exactTop5[q].has(c.i)) qHits++;
+    hits += qHits;
+    perQueryHits.push(qHits);
   }
   const recall5 = hits / (queries.length * 5);
   const meanScanned = Math.max(1, totalScanned / queries.length);
-  const res = { recall5, scanFrac: meanScanned / data.length, speedup: data.length / meanScanned };
+  const res = { recall5, scanFrac: meanScanned / data.length, speedup: data.length / meanScanned, perQueryHits };
   LSH_CACHE.set(key, res);
   return res;
 }
@@ -311,12 +325,12 @@ export const ANN_LAB_BRIEFS: { id: AnnBriefId; title: string; story: string }[] 
   {
     id: 'ivf',
     title: 'Brief 1 · Tune IVF Index Under a 25% Compute Budget (600 × 16D)',
-    story: 'Search 600 16D embeddings across 60 queries. Choose number of Voronoi buckets (nlist ∈ {8, 16, 32}) and probed buckets (nprobe ∈ {1, 2, 3, 4, 6}) to achieve Recall@5 ≥ 90% while doing ≤ 25% of brute-force distance evaluations. Optional: minimise distance work!',
+    story: 'Search 600 16D embeddings across 60 queries. Choose number of Voronoi buckets (nlist ∈ {8, 16, 32}) and probed buckets (nprobe ∈ {1, 2, 3, 4, 6}) to achieve Recall@5 ≥ 90% while doing ≤ 25% of brute-force distance evaluations. Optional: minimise distance work.',
   },
   {
     id: 'lsh',
     title: 'Brief 2 · Multi-Table LSH Recall vs Candidate Scan (600 × 16D)',
-    story: 'Pick hash width (bits b ∈ {4, 6, 8}) and independent hash tables (L ∈ {1, 4, 8, 16}) to achieve Recall@5 ≥ 85% while scanning ≤ 35% of the database. Watch how data-oblivious LSH compares honestly against data-aware IVF!',
+    story: 'Pick hash width (bits b ∈ {4, 6, 8}) and independent hash tables (L ∈ {1, 4, 8, 16}) to achieve Recall@5 ≥ 85% while scanning ≤ 35% of the database. Watch how data-oblivious LSH compares honestly against data-aware IVF.',
   },
   {
     id: 'ram',
@@ -344,7 +358,45 @@ export function evalAnnBrief3(fmt: CompFormat) {
   const spec = COMP_SPECS.find((s) => s.id === fmt)!;
   const gib = vectorDbGiB(10_000_000, spec.bytesPerVec);
   const ratio = (1536 * 4) / spec.bytesPerVec;
-  return { fmt, gib, ratio, typicalRecall: spec.typicalRecall, pass: gib <= 16.0 + 1e-9 && spec.typicalRecall >= 0.95 - 1e-9 };
+  return { fmt, gib, ratio, bytesPerVec: spec.bytesPerVec, typicalRecall: spec.typicalRecall, pass: gib <= 16.0 + 1e-9 && spec.typicalRecall >= 0.95 - 1e-9 };
+}
+
+/** Evidence-only hint for the Vector Index Lab (never names winning buttons or exact settings). */
+export function annLabHint(
+  id: AnnBriefId,
+  st: { nlist: number; nprobe: number; bits: number; tables: number; fmt: CompFormat },
+): string {
+  if (id === 'ivf') {
+    const r = evalAnnBrief1(st.nlist, st.nprobe);
+    if (r.pass) {
+      return `Both targets met: Recall@5 ${(100 * r.recall5).toFixed(1)}% (≥ 90%) at ${(100 * r.scanFrac).toFixed(1)}% scan (${r.speedup.toFixed(1)}× speedup).`;
+    }
+    if (r.scanFrac > 0.25 && r.recall5 >= 0.9) {
+      return `Recall@5 clears 90% (${(100 * r.recall5).toFixed(1)}%), but each bucket is wide enough that probing ${st.nprobe} of ${st.nlist} buckets scans ${(100 * r.scanFrac).toFixed(1)}% (> 25%). Finer Voronoi partitions let you probe neighbouring cells cheaply.`;
+    }
+    if (r.scanFrac > 0.25) {
+      return `Scan work (${(100 * r.scanFrac).toFixed(1)}%) already exceeds 25% while Recall@5 is ${(100 * r.recall5).toFixed(1)}%. Look at the bucket bar chart: coarser buckets force each probe to inspect too many vectors.`;
+    }
+    return `Scan work fits (${(100 * r.scanFrac).toFixed(1)}% ≤ 25%), but Recall@5 is only ${(100 * r.recall5).toFixed(1)}% — look at the 60-query grid where boundary queries miss neighbours across Voronoi walls.`;
+  }
+  if (id === 'lsh') {
+    const r = evalAnnBrief2(st.bits, st.tables);
+    if (r.pass) {
+      return `Passed: Recall@5 ${(100 * r.recall5).toFixed(1)}% (≥ 85%) at ${(100 * r.scanFrac).toFixed(1)}% scan (${r.speedup.toFixed(1)}× speedup).`;
+    }
+    if (r.scanFrac > 0.35) {
+      return `Recall@5 is ${(100 * r.recall5).toFixed(1)}%, but candidate scan hits ${(100 * r.scanFrac).toFixed(1)}% (> 35%). Look at the S-curve at 60°–90°: distant unrelated vectors are colliding into your buckets too often.`;
+    }
+    return `Candidate scan is low (${(100 * r.scanFrac).toFixed(1)}% ≤ 35%), yet Recall@5 stalls at ${(100 * r.recall5).toFixed(1)}%. Look at the S-curve at 20°–35°: genuine neighbours aren't colliding in enough independent tables.`;
+  }
+  const r = evalAnnBrief3(st.fmt);
+  if (r.pass) {
+    return `Passed: ${r.gib.toFixed(2)} GiB fits inside 16.0 GiB while retaining ${(100 * r.typicalRecall).toFixed(1)}% recall.`;
+  }
+  if (r.gib > 16.0) {
+    return `Recall retention is high (${(100 * r.typicalRecall).toFixed(1)}%), but ${r.bytesPerVec.toLocaleString()} B/vector × 10M vectors needs ${r.gib.toFixed(2)} GiB (> 16.0 GiB). Look for a format under 1,718 B/vector.`;
+  }
+  return `Footprint fits easily (${r.gib.toFixed(2)} GiB ≤ 16.0 GiB), but compressing down to ${r.bytesPerVec} B/vector drops typical recall to ${(100 * r.typicalRecall).toFixed(1)}% (< 95%) without a full-precision re-ranker.`;
 }
 
 export function annLabExhaustive(id: AnnBriefId) {
