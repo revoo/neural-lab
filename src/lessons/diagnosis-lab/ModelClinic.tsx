@@ -107,6 +107,33 @@ function BatchStrip({ mix }: { mix: number[] }) {
   );
 }
 
+
+/** The training log an engineer would read first: one line per checkpoint, the end in view. */
+function TrainLog({ run }: { run: Clinic }) {
+  const H = run.history;
+  const every = Math.max(1, Math.floor(H.length / 24));
+  const rows = H.filter((_, i) => i % every === 0 || i === H.length - 1);
+  const f = (v: number) => (Number.isFinite(v) ? v.toFixed(4) : '   nan');
+  const lines = rows.map(
+    (h) => `step ${String(h.step).padStart(5)} | train loss ${f(h.trainLoss)} | test loss ${f(h.testLoss)} | train acc ${(100 * h.trainAcc).toFixed(1).padStart(5)}% | test acc ${(100 * h.testAcc).toFixed(1).padStart(5)}%`,
+  );
+  return (
+    <details className="machine-log">
+      <summary>
+        <span className="machine-log-title">train.log</span>
+        <span className="machine-log-last mono">{lines[lines.length - 1]}</span>
+      </summary>
+      <div className="machine-log-body mono" ref={(el) => {
+        if (el) el.scrollTop = el.scrollHeight;
+      }}>
+        {lines.map((l, i) => (
+          <div key={i} className="machine-log-line">{l}</div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 function Evidence({ run }: { run: Clinic }) {
   const stats = run.layerStats();
   const L = run.last;
@@ -444,7 +471,7 @@ export function ModelClinic() {
         <p style={{ margin: '4px 0 8px' }}>“{c.brief}”</p>
         <ConfigCard cfg={c.cfg} />
       </div>
-      {run ? <Evidence run={run} /> : <div className="muted" style={{ padding: 20 }}>Training the case…</div>}
+      {run ? (<><TrainLog run={run} /><Evidence run={run} /></>) : <div className="muted" style={{ padding: 20 }}>Training the case…</div>}
       <div className="clinic-diagnose">
         <h4 style={{ margin: '14px 0 6px' }}>Your diagnosis: what is the root cause?</h4>
         <div className="clinic-causes">
