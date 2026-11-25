@@ -87,7 +87,9 @@ Test all four encodings live below.
 
 ## 4. Lab: Choose & Size the Representation
 
-Solve three real representation-engineering briefs, each exhaustively verified across all settings.
+<LabJob>You are shipping ML models across two very different constraints: an on-device keyboard with an 8 MiB RAM cap for 50,000 tokens, and a recommender handling 100,000 product SKUs. Inspect why sparse IDs freeze unseen weights, pack maximum vector width into INT8, and factor high-cardinality inputs through an embedding bottleneck.</LabJob>
+
+Solve three real representation-engineering briefs and inspect the weights, boundaries, and memory layouts live.
 
 <RepresentationLab />
 
@@ -96,6 +98,14 @@ Solve three real representation-engineering briefs, each exhaustively verified a
   - **Brief 2 (Edge keyboard RAM ≤ 8.0 MiB, `V = 50,000, d ≥ 64`):** `d = 128` in FP16 takes `12.207 MiB` (FAIL), whereas **`d = 128` in INT8** fits cleanly in **6.104 MiB** — doubling vector capacity over `d = 64` FP16 (`6.104 MiB`) inside the exact same RAM cap (`3/12` pass).
   - **Brief 3 (`100,000` SKU IDs → `128`-unit MLP):** Direct One-Hot burns **12.800M** parameters. Bottlenecking through **`Embedding(100,000, 16) → Linear(16, 128)`** drops that to **1.602M** — **8.0× smaller** while letting similar SKUs share representations (`2/5` pass).
 </Deeper>
+
+<ForReal>
+
+Large recommendation systems (such as Meta's DLRM) and modern LLMs spend a surprising share of total RAM on `nn.Embedding` lookup tables: a table of 100 million user or item IDs at `d = 64` in FP32 occupies over 23 GiB before a single dense layer runs. Production stacks routinely store embedding tables in FP16 or INT8 (via `torch.ao.quantization` or `bitsandbytes`), use hashing tricks for tail IDs, and often **tie** the input token embedding matrix to the final language-model output head to cut parameters in half.
+
+</ForReal>
+
+<HistoryCard id="one-hot-vs-dense" />
 
 ---
 

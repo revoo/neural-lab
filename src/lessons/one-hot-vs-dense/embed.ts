@@ -189,7 +189,7 @@ export function trainRepClassifier(rep: RepKind) {
 
   const tr = scoreSet(train);
   const te = scoreSet(test);
-  return { rep, dim: d, params: d + 1, trainAcc: tr.acc, testAcc: te.acc, testPreds: te.preds };
+  return { rep, dim: d, params: d + 1, weights: w, bias: b, trainAcc: tr.acc, testAcc: te.acc, testPreds: te.preds };
 }
 
 // ------------------------------------------------------------------ 3. Lab: Choose & Size the Representation
@@ -244,6 +244,50 @@ export function evalEmbedBrief3(mode: SkuMode) {
   const d = Number(mode.split('-')[1]);
   const params = V * d + d * H + H;
   return { mode, d, params, pass: d >= 16 && params <= 3_500_000 };
+}
+
+/** Evidence-only hint for the Representation Lab (never names winning buttons or exact settings). */
+export function embedLabHint(
+  id: EmbedBriefId,
+  st: { rep: RepKind; b2Dim: number; b2Bytes: 1 | 2 | 4; sku: SkuMode },
+): string {
+  if (id === 'transfer') {
+    const r = evalEmbedBrief1(st.rep);
+    if (r.pass) {
+      return r.params === 3
+        ? 'Passed at the minimum parameter count (3 weights, 100.0% unseen accuracy).'
+        : `Passed with 100.0% unseen accuracy using ${r.params} weights. Check whether fewer semantic coordinates still keep the two classes linearly separable.`;
+    }
+    if (st.rep === 'onehot') {
+      return 'Look at weights w[8..13] on the bar chart: those columns belong to unseen words and received zero gradient during training, leaving every unseen prediction at P = 0.50.';
+    }
+    return 'Look at the 1D number line: Living and Vehicle IDs alternate along the axis, so no single scalar cut can separate them — even on the 8 training nouns (50.0% accuracy).';
+  }
+  if (id === 'edge-ram') {
+    const r = evalEmbedBrief2(st.b2Dim, st.b2Bytes);
+    if (r.pass) {
+      return r.d === 128
+        ? 'Passed at the maximum vector dimension (128D) that still fits inside 8.0 MiB.'
+        : `Fits in ${r.mib.toFixed(3)} MiB with ${r.d}D vectors. Look at bytes per coordinate — halving storage width per float frees half the table RAM for extra dimensions.`;
+    }
+    if (r.d < 64) {
+      return `Table fits easily (${r.mib.toFixed(3)} MiB ≤ 8.0 MiB), but ${r.d}D falls short of the 64D semantic capacity floor.`;
+    }
+    return `Table takes ${r.mib.toFixed(3)} MiB (> 8.0 MiB) because RAM equals V × d × bytes_per_weight. Watch how reducing bytes per coordinate shrinks the footprint while preserving dimension d.`;
+  }
+  const r = evalEmbedBrief3(st.sku);
+  if (r.pass) {
+    return r.d === 16
+      ? 'Passed at the minimum total parameter count (1.602M weights, 8.0× smaller than direct One-Hot).'
+      : `Passed with ${(r.params / 1e6).toFixed(3)}M weights (≤ 3.50M). Check whether a smaller embedding dimension still meets the d ≥ 16 floor.`;
+  }
+  if (st.sku === 'onehot') {
+    return 'A direct dense matrix from 100,000 one-hot inputs to 128 hidden units needs 100,000 × 128 = 12.800M weights. Factoring through a narrow intermediate lookup dimension shrinks the dominant 100,000 × d term.';
+  }
+  if (r.d < 16) {
+    return `Total weights fit comfortably (${(r.params / 1e6).toFixed(3)}M ≤ 3.50M), but embedding dimension ${r.d}D is below the 16D capacity floor.`;
+  }
+  return `Embedding dimension ${r.d}D passes the floor, but 100,000 × ${r.d} alone pushes total weights to ${(r.params / 1e6).toFixed(3)}M (> 3.50M).`;
 }
 
 export function embedLabExhaustive(id: EmbedBriefId) {

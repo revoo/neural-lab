@@ -611,6 +611,25 @@ export const HISTORY: HistoryEntry[] = [
       after: { text: 'Modern real-time detectors pair multi-scale feature pyramids with tuned NMS — or eliminate NMS altogether with end-to-end set matching.', source: WP('You_Only_Look_Once') },
     },
   },
+  {
+    id: 'one-hot-vs-dense',
+    lessonId: 'one-hot-vs-dense',
+    lab: 'Choose & Size the Representation',
+    idea: 'Distributional semantics, LSA, and neural embedding tables',
+    years: [1954, 1957, 1990, 2005],
+    when: '1954 · 1957 · 1990 · 2005',
+    who: [
+      { text: 'Linguist Zellig Harris formulates the distributional hypothesis (1954): words occurring in similar contexts tend to share meaning.', source: WP('Distributional_semantics') },
+      { text: 'J. R. Firth popularises the idea in 1957 with the dictum that "a word is characterized by the company it keeps".', source: WP('Distributional_semantics') },
+      { text: 'Scott Deerwester, Susan Dumais, George Furnas, Thomas Landauer, and Richard Harshman introduce Latent Semantic Analysis (1990), compressing sparse term-document counts into dense SVD vectors.', source: WP('Distributional_semantics') },
+      { text: 'Yoshua Bengio and colleagues (including Morin & Bengio, 2005) establish neural language models that learn dense distributed word vectors jointly via lookup tables.', source: WP('Word_embedding') },
+    ],
+    story: {
+      before: { text: 'Early statistical NLP represented words as orthogonal atomic indices or sparse bag-of-words counts, so seeing "cat" taught nothing about "kitten".', source: WP('Distributional_semantics') },
+      this: { text: 'Projecting discrete symbol IDs into a shared dense vector table let linear and neural models share statistical strength across related symbols.', source: WP('Word_embedding') },
+      after: { text: 'Embedding tables became the universal front door of deep learning — from Word2Vec and recommender SKUs to every modern Transformer tokeniser.', source: WP('Word_embedding') },
+    },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */
