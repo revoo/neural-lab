@@ -76,7 +76,7 @@ In-batch InfoNCE only sees negatives that happen to land inside the same mini-ba
 - **MoCo’s clever bypass:** instead of keeping 4,096 full encoder activation graphs in GPU VRAM, maintain a **FIFO queue** of $Q$ precomputed embeddings from a slow-moving momentum encoder. You only backpropagate through a tiny active batch (`B = 64`, **0.63 GiB** VRAM) while still contrasting against thousands of negatives!
 
 <Callout kind="info" title="Embeddings complete: the bridge to sequence models">
-  Across <ModuleRef id="embeddings" short /> you went from sparse orthogonal one-hot vectors (`one-hot-vs-dense`), to Word2Vec learning geometry from co-occurrence (`word-embeddings`), to searching 10 million vectors in milliseconds (`similarity-search`), to shaping entire multimodal hyperspheres with InfoNCE (`contrastive-learning`). Note also that **autoencoders and VAEs** — another major representation-learning family — already have their own dedicated deep-dive in **<ModuleRef id="generative" short />**! Next up is **<ModuleRef id="sequences" />** (RNNs, LSTMs, and Seq2Seq Attention), tracing the exact path that led to Transformers.
+  Across <ModuleRef id="embeddings" short /> you went from sparse orthogonal one-hot vectors (`one-hot-vs-dense`), to Word2Vec learning geometry from co-occurrence (`word-embeddings`), to shaping entire multimodal hyperspheres with InfoNCE (`contrastive-learning`). Note also that **autoencoders and VAEs** — another major representation-learning family — already have their own dedicated deep-dive in **<ModuleRef id="generative" short />**! Next up is **<ModuleRef id="sequences" />** (RNNs, LSTMs, and Seq2Seq Attention), tracing the exact path that led to Transformers.
 </Callout>
 
 ---

@@ -9,7 +9,9 @@ import { questions } from './quiz';
 
 # Similarity Search
 
-Now you have a real embedding model turning every document, image, or product into a 1,536-dimensional vector. In <LessonLink to="rag">the RAG lesson</LessonLink> we searched a tiny 67-sentence manual by scanning every single vector in a loop.
+<LessonLink to="rag">Retrieval, in the RAG lesson</LessonLink>, starts with a question this lesson answers: given ten million vectors, how do you find the nearest ones without checking them all?
+
+An embedding model turns every document, image or product into a vector, often 1,536 numbers long. With a few dozen of them you can simply compare the question with every vector in a loop, and the RAG lesson does exactly that with a 67-sentence manual.
 
 What happens when your database grows to **10 million** 1,536D embeddings?
 

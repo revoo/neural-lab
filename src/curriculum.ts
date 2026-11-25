@@ -141,7 +141,6 @@ export const MODULES: ModuleMeta[] = [
     lessons: [
       { id: 'one-hot-vs-dense', title: 'One-Hot vs Dense Vectors', summary: 'The orthogonality curse, why E[id] skips 99.999% zero multiplications, zero-shot synonym transfer vs integer IDs — and Lab: Choose & Size the Representation.', minutes: 30, load: () => import('./lessons/one-hot-vs-dense/index.mdx') },
       { id: 'word-embeddings', title: 'Word Embeddings', summary: 'Skip-Gram with Negative Sampling trained live on raw sentences, king − man + woman ≈ queen emerging from co-occurrence, K = 0 collapse, 16,667× softmax speedup — and Lab: Train & Debug Word2Vec.', minutes: 35, load: () => import('./lessons/word-embeddings/index.mdx') },
-      { id: 'similarity-search', title: 'Similarity Search', summary: 'Unit-norm metric equivalence, IVF Voronoi buckets & multi-probe recall, random-hyperplane LSH vs IVF, 10M-vector RAM compression (INT8 & PQ-64) — and Lab: Tune the Vector Index.', minutes: 35, load: () => import('./lessons/similarity-search/index.mdx') },
       { id: 'contrastive-learning', title: 'Contrastive Learning & Representation Spaces', summary: 'How InfoNCE pulls positive pairs together and pushes in-batch negatives apart on the unit hypersphere, temperature τ hard-negative focus, why alignment without negatives collapses to one point — and Lab: Tune the Contrastive Objective.', minutes: 35, load: () => import('./lessons/contrastive-learning/index.mdx') },
     ],
   },
@@ -227,8 +226,9 @@ export const MODULES: ModuleMeta[] = [
     id: 'systems',
     number: 18,
     title: 'AI Systems Engineering',
-    blurb: 'RAG, tools, agents and evaluation: models inside real software.',
+    blurb: 'Vector search, RAG, tools, agents and evaluation: models inside real software.',
     lessons: [
+      { id: 'similarity-search', title: 'Similarity Search', summary: 'Unit-norm metric equivalence, IVF Voronoi buckets & multi-probe recall, random-hyperplane LSH vs IVF, 10M-vector RAM compression (INT8 & PQ-64) — and Lab: Tune the Vector Index.', minutes: 35, load: () => import('./lessons/similarity-search/index.mdx') },
       { id: 'rag', title: 'Retrieval-Augmented Generation', summary: 'Why models need to look things up, lexical vs semantic vs hybrid search computed on a real labelled set, chunk size against prompt cost, recall at k — and Lab: Tune the Retriever.', minutes: 35, load: () => import('./lessons/rag/index.mdx') },
       { id: 'tool-calling', title: 'Tool Calling and Agents', summary: 'How a next-token predictor acts on the world through a host-run agent loop, why structured outputs aren’t enough without backend guards, compounding reliability pⁿ and verifiers — and Lab: Harden the Agent Pipeline.', minutes: 35, load: () => import('./lessons/tool-calling/index.mdx') },
       { id: 'evaluation', title: 'Evaluation: Measuring AI Without Fooling Yourself', summary: 'Paired McNemar comparisons vs unpaired noise, the exact winner’s curse of eval overfitting, LLM-as-a-judge position bias and attenuation — and Lab: Size Your Eval Suite.', minutes: 35, load: () => import('./lessons/evaluation/index.mdx') },
