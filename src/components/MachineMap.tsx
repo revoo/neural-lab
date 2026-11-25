@@ -117,7 +117,7 @@ export function MachineMap({ highlight, caption }: { highlight?: string; caption
         })}
       </svg>
       <figcaption className="live-note">
-        {caption ?? (here ? <>You are here: <strong>{here.caption}</strong>.</> : <>Each box is one lesson of the Maths Toolkit. Click one to go there.</>)}
+        {caption ?? (here ? <>You are here: <strong>{here.caption}</strong>{/[?!.]$/.test(here.caption) ? '' : '.'}</> : <>Each box is one lesson of the Maths Toolkit. Click one to go there.</>)}
       </figcaption>
     </figure>
   );

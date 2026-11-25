@@ -9,6 +9,10 @@ Language models face this constantly. After the words "The weather today is", th
 
 So we want models to output **probabilities**. That raises a practical problem. The last layer of a network produces arbitrary numbers — positive, negative, large, small. How do we turn those into something that behaves like probabilities?
 
+<MachineMap highlight="probabilities" />
+
+**Where this is going.** A classifier shouldn't just shout "cat". It should say how sure it is. Softmax turns a network's raw scores into probabilities, and it's the last layer of nearly every classifier and language model.
+
 ## What a probability distribution is
 
 A **<Term id="probability-distribution">probability distribution</Term>** over a set of outcomes is just a list of numbers, one per outcome, with two rules:

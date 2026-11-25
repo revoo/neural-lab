@@ -9,6 +9,10 @@ Picture the first layer of an image classifier. In goes a vector of 784 pixel va
 
 We need a mathematical machine for that. The simplest useful one is a **<Term id="matrix">matrix</Term>**: a rectangular grid of numbers. This lesson is about how to *read* a matrix — not as a table of data, but as a description of motion.
 
+<MachineMap highlight="layer" />
+
+**Where this is going.** One neuron is one dot product. A layer of neurons is many dot products at once, and writing them as a single matrix is what lets a GPU compute a whole layer in one go.
+
 ## First reading: a panel of judges
 
 You already know half of the story. In <LessonLink to="dot-product">the dot product lesson</LessonLink>, one vector of weights scored an email with a dot product. What if you want *several* scores at once — say, how spammy, how urgent and how personal?

@@ -10,6 +10,10 @@ Now pick a weight somewhere in layer 1. It doesn't touch the loss directly. It c
 
 How do you measure sensitivity across a chain? This lesson answers that, and the answer — the **<Term id="chain-rule">chain rule</Term>** — is the mathematical engine underneath backpropagation, and therefore underneath the training of essentially every neural network.
 
+<MachineMap highlight="backward" />
+
+**Where this is going.** A network is a chain of stages, and a weight deep inside it affects the error only through everything after it. The chain rule is how blame flows backwards through that chain. It is the whole idea behind backpropagation, in <ModuleRef id="backprop" short />.
+
 ## Mental model: gears
 
 <Analogy title="Think of a gear train">

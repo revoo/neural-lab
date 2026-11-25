@@ -13,6 +13,10 @@ Second, **chains**. A neural network is a sequence of layers, each with its own 
 
 Both questions have the same answer: **matrix multiplication**. And it brings along a companion skill that will save you more debugging hours than almost anything else in this course: reasoning about **shapes**.
 
+<MachineMap highlight="stack" />
+
+**Where this is going.** A network is layers in a pipeline: the output of one matrix becomes the input of the next. Multiplying matrices is how you compose those stages, and the shape rules here are the ones that crash or run your model code.
+
 ## Every row meets every column
 
 You already know how to multiply a matrix by a vector: dot each row of the matrix with the vector. Now replace the single vector with a whole matrix of them, arranged as columns. Do the same thing for each column, and line the results up side by side. That's matrix multiplication.

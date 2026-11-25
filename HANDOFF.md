@@ -231,7 +231,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 â†
 - [x] WP0.4 `src/curriculum.test.ts` and `scripts/forward-links.cjs`
 - [x] WP1.1 Move `statistics` and `high-dimensions` out of Module 1
 - [x] WP1.2 The Machine Map component
-- [ ] WP1.3 "Where this is going" openers
+- [x] WP1.3 "Where this is going" openers
 - [ ] WP1.4 `Bridge` sections
 - [ ] WP1.5 Predict-first moments
 - [ ] WP1.6 KL divergence in `information`
