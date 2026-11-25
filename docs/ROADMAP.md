@@ -4,7 +4,7 @@ _Last updated: lab-improvement plan (`docs/LAB_IMPROVEMENTS.md`) implemented, st
 
 ## Current state (read this first if you're picking up mid-session)
 
-**Curriculum audit, written [Claude Opus 5.5]** (owner's request: audit the order, jargon, history and "the struggle"). Report and proposals in `docs/CURRICULUM_AUDIT.md`. Nothing has been moved yet. Its Phase 1 quick wins (RL before fine-tuning, KL in `information`, tokenization before embeddings, similarity-search into Module 18, plain-language summaries, historical hooks in openings) are waiting for the owner's go-ahead.
+**Curriculum audit, written [Claude Opus 5.5]** (owner's request: audit the order, jargon, history and "the struggle"). Report and proposals in `docs/CURRICULUM_AUDIT.md`; **step-by-step implementation plan in `docs/CURRICULUM_PLAN.md`** (WP0–WP9; WP0 guard rails first, then WP1, the maths-toolkit upgrade, as the owner's priority). Nothing has been moved yet. Its Phase 1 quick wins (RL before fine-tuning, KL in `information`, tokenization before embeddings, similarity-search into Module 18, plain-language summaries, historical hooks in openings) are waiting for the owner's go-ahead.
 
 **Lab-improvement plan, done [Claude Opus 5.5]** (owner's request: implement `docs/LAB_IMPROVEMENTS.md` in its suggested order; progress checklist in `HANDOFF.md`). Summary of what now exists:
 
