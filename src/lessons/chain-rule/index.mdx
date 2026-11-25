@@ -16,6 +16,17 @@ How do you measure sensitivity across a chain? This lesson answers that, and the
 
 ## Mental model: gears
 
+<Predict
+  question="Three gears in a chain multiply turns by 2, 3 and 0.5. Turn the first gear once: how far does the last turn?"
+  options={["3", "5.5", "6"]}
+  answer={0}
+>
+
+Sensitivities multiply along a chain: $2 \times 3 \times 0.5 = 3$.
+
+</Predict>
+
+
 <Analogy title="Think of a gear train">
 
 Three gears are meshed in a row. When you turn gear A once, gear B turns 3 times. When gear B turns once, gear C turns 2 times. How many times does C turn when you turn A once?
@@ -41,6 +52,16 @@ Try these:
 - **Move $w$ around and compare** the chain-rule product with the measured value. With a small test nudge, they agree to several decimal places. The chain rule isn't an approximation; the measurement is.
 - **Find the weight where the gradient is zero.** It's where the neuron's output exactly hits the target, so the last link ($2(a - t)$) is zero. A zero anywhere in the chain zeroes the whole product.
 - **Now drag $w$ all the way down to −3.** The output is pinned near −1, nowhere near the target of 0.8, so the loss is large — over 3. Yet the gradient is tiny. Look at the middle link: $\tanh$ has flattened out, its local derivative is almost zero, and it's choking off the whole chain. The weight is wrong, but the gradient barely notices. That's a preview of the **vanishing gradient** problem, which shaped two decades of neural network design.
+
+<Predict
+  question="Ten sigmoid stages in a row, each with slope at most 0.25. At most, how much of a nudge at the start reaches the end?"
+  options={["About 1", "About 0.25", "About one millionth"]}
+  answer={2}
+>
+
+$0.25^{10} \approx 9.5 \times 10^{-7}$. This is the vanishing gradient, and <ModuleRef id="backprop" short /> is about rescuing it.
+
+</Predict>
 
 ## Writing it down
 

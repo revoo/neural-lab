@@ -49,6 +49,16 @@ Here is the speed-dating rule in symbols. It's the most compact description of a
 
 </Eq>
 
+<Predict
+  question="A batch of shape $(32, 784)$ is multiplied by a weight matrix of shape $(784, 128)$. What shape comes out?"
+  options={["(32, 128)", "(784, 784)", "(32, 784)"]}
+  answer={0}
+>
+
+The inner 784s match and disappear; the outer sizes remain: 32 inputs, each now 128 numbers.
+
+</Predict>
+
 Notice where $k$ appears: as the *second* index of $A$ and the *first* index of $B$. It's summed over, so it vanishes from the result. The surviving indices, $i$ and $j$, tell you the output shape. That leads to the shape rule:
 
 $$

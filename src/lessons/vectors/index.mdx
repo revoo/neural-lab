@@ -40,6 +40,16 @@ That is the central bet of a huge amount of machine learning. **If we can turn t
 
 Classifying an email, for instance, could become: *which side of some line does this point fall on?* Hold on to that thought. In a few lessons, you'll see that this is precisely what a single artificial neuron does.
 
+<Predict
+  question="Two emails are `[3, 6]` and `[6, 12]`. Do their arrows point in the same direction?"
+  options={["Yes, one is just longer", "No", "Only if they are both spam"]}
+  answer={0}
+>
+
+The second is the first scaled by 2, so it points the same way and is twice as long. Direction versus length is exactly what cosine similarity separates, in the dot product lesson.
+
+</Predict>
+
 ## Playing with arrows
 
 Before we can draw lines through clouds of points, we need to be fluent with the basic moves. There are only three that matter for now: adding vectors, scaling them, and subtracting them.

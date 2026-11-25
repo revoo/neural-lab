@@ -37,7 +37,27 @@ Here's the trick: **zoom in**. Any smooth curve, viewed closely enough, looks li
 
 Try it below. Start with $x^2$, drag the point around, and then shrink the nudge size $h$.
 
+<Predict
+  question="What is the slope of $x^2$ at $x = 3$?"
+  options={["3", "6", "9"]}
+  answer={1}
+>
+
+The derivative of $x^2$ is $2x$, so 6. Check it with the explorer: pick $x^2$ and put the point at 3.
+
+</Predict>
+
 <TangentExplorer />
+
+<Predict
+  question="You shrink the nudge $h$ to $10^{-15}$. Does the slope estimate get better?"
+  options={["No, it goes haywire", "Yes, it's nearly exact", "It stops changing"]}
+  answer={0}
+>
+
+Floating-point numbers have about 16 significant digits. Subtracting two nearly equal values leaves mostly rounding noise, which is why gradient checks use $h$ around $10^{-5}$ with central differences.
+
+</Predict>
 
 What to notice:
 

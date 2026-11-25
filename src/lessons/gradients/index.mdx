@@ -27,6 +27,16 @@ Now a more useful question: *which way is straight uphill, and how steep is it?*
 
 Explore it below. Pick a landscape, drag the point around, and watch the arrows.
 
+<Predict
+  question="On a hillside, you walk exactly perpendicular to the gradient arrow. Does your height change, for a small step?"
+  options={["No", "Yes, it rises", "Yes, it falls"]}
+  answer={0}
+>
+
+Change ≈ gradient · step, and a perpendicular step has zero dot product. You're walking along a contour line.
+
+</Predict>
+
 <GradientField />
 
 Some things to look for:
@@ -35,6 +45,16 @@ Some things to look for:
 - **The gradient is always perpendicular to the contour lines.** Contours connect points of equal height, so walking along one changes nothing. The steepest direction has to be at right angles to that.
 - **Try the narrow valley.** The gradient mostly points across the valley, not along it towards the true minimum. Hold on to that observation: it's the reason plain gradient descent can zig-zag badly, and the reason optimizers like momentum and Adam exist.
 - **Find the flat spots.** In the bowl, there's one: the minimum. On the saddle, the gradient is zero at the centre, yet it's not a minimum at all.
+
+<Predict
+  question="The gradient is $(3, 4)$. How steep is the steepest climb, per unit step?"
+  options={["5", "7", "12"]}
+  answer={0}
+>
+
+Its length: $\sqrt{3^2 + 4^2} = 5$. The gradient's direction is the steepest way up, and its length is the steepness.
+
+</Predict>
 
 ## Writing it down
 

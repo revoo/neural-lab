@@ -69,6 +69,16 @@ Here's the surprising answer: **the dot product measures how much two arrows poi
 
 Play with it before reading on. Drag the two vectors around and watch the sign and size of the dot product.
 
+<Predict
+  question="Two weight arrows point in exactly perpendicular directions. What is their dot product?"
+  options={["0", "1", "It depends on their lengths"]}
+  answer={0}
+>
+
+Perpendicular means no agreement at all: each arrow's shadow on the other has length zero, whatever their lengths. Set the angle to 90° in the explorer and check.
+
+</Predict>
+
 <DotExplorer />
 
 Here is what you should have found:
@@ -128,6 +138,16 @@ Here's an argument that avoids heavy trigonometry. Two facts do all the work.
 Put them together: $\mathbf{a}\cdot\mathbf{b} = \|\mathbf{a}\|\,\|\mathbf{b}\|\cos\theta$. The same argument works in any number of dimensions.
 
 </Deeper>
+
+<Predict
+  question="You double every number in the email vector. What happens to its spam score $\mathbf{w} \cdot \mathbf{x}$?"
+  options={["It doubles", "It stays the same", "It quadruples"]}
+  answer={0}
+>
+
+The dot product is linear in each argument, so twice the evidence gives twice the score. That's why the cosine section that follows divides by length.
+
+</Predict>
 
 ## Cosine similarity: direction only
 

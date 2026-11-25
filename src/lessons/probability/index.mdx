@@ -66,6 +66,16 @@ In code, it's three steps: exponentiate, sum, divide.
 
 The exponential isn't just a convenient way to make things positive. It has a property that turns out to be exactly what you want:
 
+<Predict
+  question="What does softmax give for scores $[2, 2, 2]$? And for $[102, 102, 102]$?"
+  options={["⅓ each, both times", "⅓, then nearly all on one", "Different, because 102 is bigger"]}
+  answer={0}
+>
+
+Softmax only cares about differences between scores. Adding 100 to all three changes nothing. The next few lines show why.
+
+</Predict>
+
 $$
 \frac{p_i}{p_j} = \frac{e^{z_i}}{e^{z_j}} = e^{\,z_i - z_j}
 $$
@@ -85,6 +95,16 @@ $$
 That last expression is the **sigmoid** function, $\sigma(z)$ — the classic S-shaped curve squashing any number into $(0, 1)$. So when a single neuron with a sigmoid outputs "probability of spam", it's doing two-class softmax on the logits $[z, 0]$. You'll meet the sigmoid properly in <LessonLink to="neuron">the neuron lesson</LessonLink>.
 
 </Deeper>
+
+<Predict
+  question="You turn the temperature down towards 0. What happens to the probabilities?"
+  options={["They become equal", "Almost all goes to the top score", "Nothing"]}
+  answer={1}
+>
+
+Dividing by a tiny temperature stretches the differences enormously, so the largest score takes nearly everything.
+
+</Predict>
 
 ### Temperature
 
