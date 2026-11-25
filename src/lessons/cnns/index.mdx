@@ -87,6 +87,8 @@ Inspect the real trained weights, feature maps, and predictions below.
 
 ## 4. Lab: Architect the CNN
 
+<LabJob>You are designing a vision classifier for an edge camera with tight memory and shift-robustness constraints. Budget your receptive field under 10,000 weights, inspect why a 10× larger dense network collapses on unseen corners, and replace a bloated fully connected head without losing semantic channels.</LabJob>
+
 Apply receptive-field arithmetic, shift generalisation, and classification-head sizing across three exhaustive briefs.
 
 <CnnArchitectLab />
@@ -96,6 +98,14 @@ Apply receptive-field arithmetic, shift generalisation, and classification-head 
   - **Brief 2 (Unseen bottom-right shifts):** **0 of 3** Dense MLPs pass (even `1,091` params scores just `33.3%`). A 2-filter CNN lacks capacity (`45.0%`), 3 filters hits `73.3%`, and **`CNN + GlobalMaxPool (4 filters)`** is the smallest passing model at **55 parameters** (**100.0%** unseen-shift accuracy).
   - **Brief 3 (ImageNet 7×7×512 head ≤ 3M params):** VGG’s `Flatten→4096→1000` burns **106.862M** params; `Flatten→1000` still burns **25.089M**; squeezing `512→128` drops channel capacity. **`Global Avg Pool → 1000`** is the unique winner at **0.513M** params with all 512 channels intact.
 </Deeper>
+
+<ForReal>
+
+In production `torchvision` vision backbones (ResNet, EfficientNet, MobileNetV2, ConvNeXt), almost every classifier ends with `nn.AdaptiveAvgPool2d(1)` followed by a single `nn.Linear(C, num_classes)`. That one swap — introduced in Network in Network (2013) and popularised by ResNet (2015) — eliminated the `4096→4096→1000` fully connected layers that accounted for the vast majority of VGG-16's parameters, while letting the same trained weights run on arbitrary input resolutions without reshaping a fixed dense matrix.
+
+</ForReal>
+
+<HistoryCard id="cnns" />
 
 ---
 

@@ -573,6 +573,25 @@ export const HISTORY: HistoryEntry[] = [
       after: { text: 'Combining learned convolutional stacks with backpropagation produced modern CNNs — whose first layers still spontaneously rediscover oriented edge filters.', source: WP('Neocognitron') },
     },
   },
+  {
+    id: 'cnns',
+    lessonId: 'cnns',
+    lab: 'Architect the CNN',
+    idea: 'LeNet, AlexNet, stacked 3×3s, and Global Average Pooling',
+    years: [1989, 2012, 2013, 2014],
+    when: '1989 · 2012 · 2013 · 2014',
+    who: [
+      { text: 'Yann LeCun and colleagues at AT&T Bell Labs train LeNet-1 with backpropagation (1989) and deploy LeNet-5 in cheque-reading systems (1998).', source: WP('LeNet') },
+      { text: 'Alex Krizhevsky, Ilya Sutskever, and Geoffrey Hinton at the University of Toronto win ILSVRC 2012 with AlexNet (15.3% top-5 error, 60M parameters across two 3 GB GTX 580 GPUs).', source: WP('AlexNet') },
+      { text: 'Min Lin, Qiang Chen, and Shuicheng Yan introduce global average pooling in Network in Network (2013) to replace fully connected heads.', source: 'https://arxiv.org/abs/1312.4400' },
+      { text: 'Oxford\'s Visual Geometry Group (VGGNet, 2014) shows that stacking 3×3 convolutions matches 5×5 and 7×7 receptive fields with far fewer weights.', source: WP('VGGNet') },
+    ],
+    story: {
+      before: { text: 'Early CNNs like AlexNet used large 11×11 first-layer kernels and massive dense classification heads that barely fit across two GPUs.', source: WP('AlexNet') },
+      this: { text: 'Stacking small 3×3 filters with 2×2 pooling grew receptive fields cheaply, while global average pooling collapsed spatial maps directly into channel averages before the final linear classifier.', source: WP('VGGNet') },
+      after: { text: 'ResNet (2015) combined small 3×3 residual blocks with global average pooling, setting the template for a decade of modern vision backbones.', source: WP('Residual_neural_network') },
+    },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */

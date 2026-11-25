@@ -391,11 +391,24 @@ export function trainDenseBaseline(hidden = 8, epochs = 120, lr = 0.05, seed = 1
     return ok / ds.length;
   };
 
+  const inputEnergy = new Array<number>(64).fill(0);
+  for (let i = 0; i < 64; i++) {
+    let s = 0;
+    for (let j = 0; j < hidden; j++) s += Math.abs(W1[j * 64 + i]);
+    inputEnergy[i] = s / hidden;
+  }
+
   return {
     paramCount: hidden * 64 + hidden + 3 * hidden + 3,
     trainAcc: evalSet(train),
     inDistAcc: evalSet(testInDist),
     shiftedAcc: evalSet(testShifted),
+    inputEnergy,
+    predict: (x: readonly number[]) => {
+      const { probs } = forwardOne(x);
+      const pred = probs[0] >= probs[1] && probs[0] >= probs[2] ? 0 : probs[1] >= probs[2] ? 1 : 2;
+      return { probs, pred };
+    },
   };
 }
 
@@ -417,26 +430,25 @@ export const CNN_LAB_BRIEFS: { id: CnnBriefId; title: string; story: string }[] 
   {
     id: 'rf-budget',
     title: 'Brief 1 · Reach Receptive Field ≥ 15×15 Under 10,000 Weights',
-    story: 'You have 16 channels per conv layer. Choose a 4-stage stack: conv kernel (3×3 or 5×5) and whether to insert 2×2 MaxPool after each conv (0, 1, or 2 pools total, interleaved cleanly) to reach receptive field ≥ 15×15 while spending ≤ 10,000 parameters. Optional goal: hit the fewest parameters!',
+    story: 'You have 16 channels per conv layer. Design a small conv/pool stack (conv kernel size, number of conv layers, and interleaved 2×2 pooling layers) that reaches receptive field ≥ 15×15 while spending ≤ 10,000 parameters. Optional goal: hit the fewest parameters.',
   },
   {
     id: 'shift-gen',
     title: 'Brief 2 · Generalise to Unseen Positions (Tiny Shape Classifier)',
-    story: 'Shapes are trained ONLY in the top-left corner of an 8×8 canvas and tested in the unseen bottom-right corner! Pick model family (Dense MLP vs CNN + GlobalMaxPool) and capacity so unseen-position test accuracy reaches ≥ 95% with as few parameters as possible.',
+    story: 'Shapes are trained ONLY in the top-left corner of an 8×8 canvas and tested in the unseen bottom-right corner. Pick a model family and capacity so unseen-position test accuracy reaches ≥ 95% with as few parameters as possible.',
   },
   {
     id: 'gap-head',
     title: 'Brief 3 · Shrink a 7×7×512 ImageNet Classification Head Under 3M Params',
-    story: 'A deep backbone outputs a 7×7×512 feature map for 1,000 classes. Choose the classification head to stay ≤ 3.0M parameters while preserving all 512 semantic channels (no information bottleneck before the classifier).',
+    story: 'A deep backbone outputs a 7×7×512 feature map for 1,000 classes. Choose a classification head that stays ≤ 3.0M parameters while preserving all 512 semantic channels (no channel bottleneck before the classifier).',
   },
 ];
 
 export type RfConfig = { k: 3 | 5; nConv: 2 | 3 | 4; nPools: 0 | 1 | 2 };
 
-export function evalCnnBrief1(cfg: RfConfig) {
+export function buildBrief1Stack(cfg: RfConfig): LayerSpec[] {
   const convSpec = cfg.k === 3 ? LAYER_CATALOG[0] : LAYER_CATALOG[1];
   const poolSpec = LAYER_CATALOG[3];
-  // Interleave pools after early convs for maximum RF expansion
   const stack: LayerSpec[] = [];
   let poolsLeft = cfg.nPools;
   for (let i = 0; i < cfg.nConv; i++) {
@@ -450,10 +462,26 @@ export function evalCnnBrief1(cfg: RfConfig) {
     stack.push(poolSpec);
     poolsLeft--;
   }
+  return stack;
+}
+
+export function evalCnnBrief1(cfg: RfConfig) {
+  const stack = buildBrief1Stack(cfg);
   const trace = traceReceptiveField(32, stack, 16);
   const last = trace[trace.length - 1];
   const params = trace.reduce((a, r) => a + r.params, 0);
-  return { rf: last.rf, params, pass: last.rf >= 15 && params <= 10_000 };
+  return { rf: last.rf, jump: last.jump, params, trace, pass: last.rf >= 15 && params <= 10_000 };
+}
+
+export function cnnBrief1Grid() {
+  const rows: { cfg: RfConfig; rf: number; params: number; pass: boolean }[] = [];
+  for (const k of [3, 5] as const)
+    for (const nConv of [2, 3, 4] as const)
+      for (const nPools of [0, 1, 2] as const) {
+        const r = evalCnnBrief1({ k, nConv, nPools });
+        rows.push({ cfg: { k, nConv, nPools }, rf: r.rf, params: r.params, pass: r.pass });
+      }
+  return rows;
 }
 
 export type ShiftChoice = 'dense-4' | 'dense-8' | 'dense-16' | 'cnn-2' | 'cnn-3' | 'cnn-4' | 'cnn-6';
@@ -468,20 +496,52 @@ export const SHIFT_CHOICES: { value: ShiftChoice; label: string }[] = [
   { value: 'cnn-6', label: 'CNN + GlobalMaxPool (6 filters)' },
 ];
 
-const B2_CACHE = new Map<ShiftChoice, { params: number; inDistAcc: number; shiftedAcc: number; pass: boolean }>();
+export type Brief2Eval = {
+  kind: 'dense' | 'cnn';
+  params: number;
+  inDistAcc: number;
+  shiftedAcc: number;
+  pass: boolean;
+  cnnParams?: TinyCnnParams;
+  denseEnergy?: number[];
+  predict: (x: readonly number[]) => { probs: number[]; pred: number };
+};
 
-export function evalCnnBrief2(choice: ShiftChoice) {
+const B2_CACHE = new Map<ShiftChoice, Brief2Eval>();
+
+export function evalCnnBrief2(choice: ShiftChoice): Brief2Eval {
   const hit = B2_CACHE.get(choice);
   if (hit) return hit;
-  let r: { paramCount: number; inDistAcc: number; shiftedAcc: number };
+  let res: Brief2Eval;
   if (choice.startsWith('dense-')) {
     const h = Number(choice.split('-')[1]);
-    r = trainDenseBaseline(h, 120, 0.05, 11);
+    const r = trainDenseBaseline(h, 120, 0.05, 11);
+    res = {
+      kind: 'dense',
+      params: r.paramCount,
+      inDistAcc: r.inDistAcc,
+      shiftedAcc: r.shiftedAcc,
+      pass: r.shiftedAcc >= 0.95 - 1e-9,
+      denseEnergy: r.inputEnergy,
+      predict: r.predict,
+    };
   } else {
     const f = Number(choice.split('-')[1]);
-    r = trainTinyCnn(f, 120, 0.08, 11);
+    const r = trainTinyCnn(f, 120, 0.08, 11);
+    res = {
+      kind: 'cnn',
+      params: r.paramCount,
+      inDistAcc: r.inDistAcc,
+      shiftedAcc: r.shiftedAcc,
+      pass: r.shiftedAcc >= 0.95 - 1e-9,
+      cnnParams: r.params,
+      predict: (x: readonly number[]) => {
+        const fwd = cnnForwardOne(r.params, x);
+        const pred = fwd.probs[0] >= fwd.probs[1] && fwd.probs[0] >= fwd.probs[2] ? 0 : fwd.probs[1] >= fwd.probs[2] ? 1 : 2;
+        return { probs: fwd.probs, pred };
+      },
+    };
   }
-  const res = { params: r.paramCount, inDistAcc: r.inDistAcc, shiftedAcc: r.shiftedAcc, pass: r.shiftedAcc >= 0.95 - 1e-9 };
   B2_CACHE.set(choice, res);
   return res;
 }
@@ -511,6 +571,51 @@ export function evalCnnBrief3(head: HeadChoice) {
   }
   const params = 512 * 1000 + 1000;
   return { head, params, channelsKept: 512, pass: true };
+}
+
+/** Evidence-only hint for the CNN Architect Lab (never names a winning button or setting). */
+export function cnnLabHint(
+  id: CnnBriefId,
+  st: { k: 3 | 5; nConv: 2 | 3 | 4; nPools: 0 | 1 | 2; shiftChoice: ShiftChoice; headChoice: HeadChoice },
+): string {
+  if (id === 'rf-budget') {
+    const r = evalCnnBrief1({ k: st.k, nConv: st.nConv, nPools: st.nPools });
+    if (r.pass) {
+      return r.params === 6960
+        ? 'You hit the exact parameter floor (6,960 weights) with an 18×18 receptive field.'
+        : `This stack passes (${r.rf}×${r.rf} RF, ${r.params.toLocaleString()} weights). Look at the last layer's parameter share — can a leaner stack still clear 15×15?`;
+    }
+    if (r.params > 10_000 && r.rf < 15) {
+      return `Both constraints miss: ${r.params.toLocaleString()} weights (> 10,000) and ${r.rf}×${r.rf} RF (< 15×15). Compare the parameter cost per layer with the jump column in the trace.`;
+    }
+    if (r.params > 10_000) {
+      return `Receptive field clears 15×15 (${r.rf}×${r.rf}), but each conv layer's weights scale with kernel area (k²). Look at how much cheaper each layer becomes when kernel area shrinks, while downsampling grows the jump for free.`;
+    }
+    if (r.jump === 1) {
+      return `Your effective stride (jump) is still 1 throughout the stack, so each layer widens the field by only ${st.k - 1} pixels. Doubling the jump mid-stack makes later layers cover twice as many input pixels per step at zero parameter cost.`;
+    }
+    return `Weights fit (${r.params.toLocaleString()} ≤ 10,000), but the receptive field stops at ${r.rf}×${r.rf} (< 15×15). Watch how much jump multiplies the reach of any conv layer placed after downsampling.`;
+  }
+  if (id === 'shift-gen') {
+    const r = evalCnnBrief2(st.shiftChoice);
+    if (r.pass) {
+      return r.params === 55
+        ? 'Both targets met at the minimum parameter count (55 weights, 100.0% unseen-shift accuracy).'
+        : `This model clears 95% unseen-shift accuracy (${(100 * r.shiftedAcc).toFixed(1)}%) with ${r.params} weights. Check whether slightly fewer filters still preserve full accuracy.`;
+    }
+    if (r.kind === 'dense') {
+      return `In-distribution accuracy is ${(100 * r.inDistAcc).toFixed(1)}%, yet unseen bottom-right accuracy collapses to ${(100 * r.shiftedAcc).toFixed(1)}%. Look at the 8×8 input-weight energy map: bottom-right pixels received almost no gradient during training, regardless of hidden width.`;
+    }
+    return `Translation equivariance is working (feature maps do light up in the bottom-right corner), but unseen-shift accuracy is only ${(100 * r.shiftedAcc).toFixed(1)}%. Three distinct orientations need enough learned filters to separate them cleanly.`;
+  }
+  const r = evalCnnBrief3(st.headChoice);
+  if (r.pass) {
+    return 'Passed: collapsing the 7×7 spatial grid before the linear classifier keeps all 512 channels while spending only 0.513M parameters.';
+  }
+  if (r.channelsKept < 512) {
+    return `Parameters fit (${(r.params / 1e6).toFixed(3)}M ≤ 3.0M), but projecting channels down drops the representation from 512 to ${r.channelsKept} channels before the classifier.`;
+  }
+  return `Flattening keeps all 49 spatial positions separate (7 × 7 × 512 = 25,088 inputs into the first dense matrix), which multiplies head weight count by 49× (${(r.params / 1e6).toFixed(3)}M > 3.0M).`;
 }
 
 export function cnnLabExhaustive(id: CnnBriefId) {

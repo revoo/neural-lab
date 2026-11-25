@@ -202,7 +202,7 @@ The owner asked for this next, in a fresh session. `docs/LAB_IMPROVEMENTS.md` re
 - [x] clustering-pca · Compress & Segment
 - [x] images-as-tensors · Build the Vision Preprocessor
 - [x] convolution · Design the Kernel
-- [ ] cnns · Architect the CNN
+- [x] cnns · Architect the CNN
 - [ ] object-detection · Tune the Object Detector
 - [ ] one-hot-vs-dense · Choose & Size the Representation
 - [ ] word-embeddings · Train & Debug Word2Vec
