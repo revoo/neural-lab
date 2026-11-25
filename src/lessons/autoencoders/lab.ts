@@ -122,3 +122,33 @@ export const allDesigns = (): Design[] =>
   LATENTS.flatMap((latent) => HIDDENS.flatMap((hidden) => BETAS.map((beta) => ({ latent, hidden, beta }))));
 
 export const designKey = (d: Design) => `${d.latent}-${d.hidden}-${d.beta}`;
+
+export function facePrinterHint(brief: BriefId, d: Design, runs?: Measured[] | null): string {
+  if (runs && runs.length === 3) {
+    const b = BRIEFS.find((x) => x.id === brief)!;
+    const vs = runs.map((r) => verdict(b, r));
+    if (vs.every((v) => v.pass)) {
+      return `All three seeds meet the spec with ${paramCount(d).toLocaleString('en-GB')} parameters. Optional goal: see if a smaller network still clears every seed.`;
+    }
+    if (d.latent === 1) {
+      return 'Every face varies along two independent knobs (smile and eyes). A single code number has to fold a 2D sheet onto a 1D line, so held-out reconstructions cannot get sharp.';
+    }
+    if (brief === 'printer' && d.beta === 0) {
+      return 'A plain autoencoder never places its codes on the standard bell, so random standard-bell codes miss where the decoder learned to draw.';
+    }
+    if (d.beta >= 3) {
+      return 'The pull towards the bell is stronger than the pixel detail: codes collapse towards the prior and faces come back blurry or identical.';
+    }
+    if (vs.some((v) => v.pass)) {
+      return `Passing on ${vs.filter((v) => v.pass).length} of 3 seeds is a lucky run, not a reliable design. Inspect the failing seed's column to see which metric slipped.`;
+    }
+    if (brief === 'printer' && vs.some((v) => !v.real)) {
+      return 'Some standard-bell codes still land outside the region of real faces — the codes need a slightly stronger pull towards the standard bell.';
+    }
+  }
+  if (brief === 'printer') {
+    return 'Count the knobs that make one face different from another: the code needs at least that many numbers. Then remember who supplies the codes: the printer draws from the standard bell, so training must place faces there without blurring them out.';
+  }
+  return 'Nobody will ever feed this decoder random codes, so filling the standard bell is no longer the goal. Watch what a heavy pull costs reconstruction error — and whether a gentle pull still stabilises training across seeds.';
+}
+

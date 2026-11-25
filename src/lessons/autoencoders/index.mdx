@@ -215,6 +215,10 @@ Time to design one. Your primitives are the three choices that matter: how many 
 
 There are two briefs: a **printer** that will feed your decoder standard-bell random codes, and a **compressor** that only ever stores and rebuilds faces. The optional goal for both is to meet the spec with as few parameters as possible. Every design in the space was trained with all three seeds, so the smallest working design is known.
 
+<LabJob>
+  You are shipping a tiny generative image module in two modes: a novelty printer that must decode random standard-normal codes into diverse, crisp faces across three random seeds, and a pure codec that only compresses and rebuilds held-out faces. Pick the code width, hidden size, and KL exchange rate β to clear the spec reliably with the fewest parameters.
+</LabJob>
+
 <FacePrinterLab />
 
 <Deeper title="Debrief: what the two briefs were testing" tag="Spoiler">
@@ -226,6 +230,12 @@ There are two briefs: a **printer** that will feed your decoder standard-bell ra
 **The compressor wants a weaker pull.** 7 designs pass Brief 2, and the smallest is **2 code numbers, width 16, β = 0.1**, the same network as Brief 1's answer with a gentler pull. With no printer to satisfy, the pull is only a cost (blur) and a training aid. A plain autoencoder does pass (3 code numbers, width 32), but smaller plain autoencoders were unreliable in our runs, and here we owe you an honest note: that's partly our setup. Our hidden units use tanh, and nothing stops an autoencoder's codes from growing. In the stalled runs they grew within the first few hundred steps from around 0.5 to around 4 to 6, which pushed the decoder's tanh units into their flat ends (every one of them, in the worst runs), where gradients vanish, and the networks settled for drawing the average face. Even a small β keeps codes near 0, which happens to fix this. Normalising the codes or using a different activation would fix it too, so don't read the lab as "autoencoders can't compress". Read it as: the regulariser you pick changes how training goes, not just where it ends.
 
 </Deeper>
+
+<ForReal>
+  Production image generators split the exact two jobs in this lab: Stable Diffusion's `AutoencoderKL` uses a tiny KL weight (`1e-6`) to act like Brief 2's sharp compressor — shrinking a 512×512×3 image 48× into a 64×64×4 latent grid — while a separate diffusion model learns to sample inside that latent space. Meanwhile, multi-seed verification is non-negotiable whenever tuning β or bottleneck width: a single lucky seed routinely hides tanh saturation or partial posterior collapse.
+</ForReal>
+
+<HistoryCard id="autoencoders" />
 
 <Quiz questions={questions} />
 

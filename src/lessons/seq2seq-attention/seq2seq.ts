@@ -407,3 +407,44 @@ export function seqLabExhaustive(brief: SeqBriefId) {
       : 'none',
   };
 }
+
+export function seqLabHint(
+  brief: SeqBriefId,
+  state: {
+    b1Arch: 'fixed' | 'cross-attn';
+    b1D: number;
+    b2Kind: ScoreKind;
+    b2Tau: number;
+    b3Arch: SeqArchId;
+  },
+): string {
+  if (brief === 'bottleneck') {
+    const r = evalSeqBrief1(state.b1Arch, state.b1D);
+    if (r.pass) {
+      return `L = 20 copy accuracy holds at ${(100 * r.acc).toFixed(1)}% because the decoder reads directly from all 20 encoder states. Optional goal: check whether a smaller state width still holds 100%.`;
+    }
+    return `At L = 20 tokens, squeezing the whole sentence into one ${state.b1D}-float vector drops accuracy to ${(100 * r.acc).toFixed(1)}% due to superposition cross-talk. Widening one vector helps only slightly — look at the decoder bridge itself.`;
+  }
+  if (brief === 'align') {
+    const r = evalSeqBrief2(state.b2Kind, state.b2Tau);
+    if (r.pass) {
+      return `Mean gold alignment weight is ${(100 * r.meanGoldWeight).toFixed(1)}% with max |logit| = ${r.maxAbsLogit.toFixed(2)} (safely under 15).`;
+    }
+    if (r.maxAbsLogit > 15) {
+      return `Scores are so peaked that max |logit| hits ${r.maxAbsLogit.toFixed(2)} (over the 15.0 FP16 cap). A gentler temperature keeps softmax logits inside safe dynamic range.`;
+    }
+    if (state.b2Kind === 'bahdanau' && r.meanGoldWeight < 0.85) {
+      return `Mean gold weight is only ${(100 * r.meanGoldWeight).toFixed(1)}% — notice how tanh squashes the additive score margin between the right word and distractors, leaving weights smeared across the heatmap.`;
+    }
+    return `Mean gold alignment is ${(100 * r.meanGoldWeight).toFixed(1)}% (need ≥ 85%) because high temperature flattens the softmax distribution across unrelated source words.`;
+  }
+  const r = evalSeqBrief3(state.b3Arch);
+  if (r.pass) {
+    return `Step latency is ${r.trainLatencyMs.toFixed(2)} ms (≤ 20 ms) with direct O(1) path length and serial depth ${r.seqDepth}.`;
+  }
+  if (r.maxPathLen > 1) {
+    return `Max path length is ${r.maxPathLen} (bottlenecked through sequential states) and serial depth ${r.seqDepth} pushes latency to ${r.trainLatencyMs.toFixed(2)} ms.`;
+  }
+  return `Direct attention fixes path length (= 1), yet the recurrent loop still forces ${r.seqDepth.toLocaleString()} serial steps on GPU (${r.trainLatencyMs.toFixed(2)} ms vs 20 ms SLA). What removes the sequential loop completely?`;
+}
+

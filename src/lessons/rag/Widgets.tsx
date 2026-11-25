@@ -2,9 +2,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Widget } from '../../components/Widget';
 import { Segmented, Slider } from '../../components/controls';
+import { Plot } from '../../components/plot';
+import { AnswerReveal } from '../../components/AnswerReveal';
+import { LiveCode } from '../../components/LabJob';
+import { MachineLog, useMachineLog } from '../../components/MachineLog';
+import { useTweenedArray } from '../../components/motion';
 import { QUESTIONS, type Question } from './corpus';
 import { buildIndex, chunkCorpus, containsAnswer, evaluate } from './rag';
-import { LAB_BRIEFS, LAB_KS, LAB_LAMBDAS, LAB_SIZES, labExhaustive, type LabBrief } from './lab';
+import { LAB_BRIEFS, LAB_KS, LAB_LAMBDAS, LAB_SIZES, labExhaustive, ragLabHint, type LabBrief } from './lab';
+import { ragLabRealCode } from './realCode';
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 const PRESETS = [
@@ -292,15 +298,19 @@ function loadLab(): LabState {
 export function RetrieverLab() {
   const [lab, setLab] = useState<LabState>(() => loadLab());
   const [briefIdx, setBriefIdx] = useState(0);
-  const [showOpt, setShowOpt] = useState(false);
+  const [hint, setHint] = useState(false);
+  const [selectedQ, setSelectedQ] = useState<number | null>(null);
+  const log = useMachineLog(20);
+
   const brief = LAB_BRIEFS[briefIdx];
   const e = lab[brief.id];
   const lambda = brief.fixedLambda ?? e.lambda;
+  const index = useMemo(() => buildIndex(chunkCorpus(e.size)), [e.size]);
   const r = useMemo(() => evaluate(e.size, lambda, e.k), [e.size, lambda, e.k]);
   const pass = r.recall >= brief.minRecall - 1e-9;
-  const ex = useMemo(() => (showOpt ? labExhaustive(brief) : null), [showOpt, brief]);
   const saved = useRef(lab);
   saved.current = lab;
+
   const persist = (next: LabState) => {
     setLab(next);
     try {
@@ -309,7 +319,18 @@ export function RetrieverLab() {
       // ignore storage errors
     }
   };
-  const update = (patch: Partial<Entry>) => persist({ ...lab, [brief.id]: { ...e, ...patch } });
+  const update = (patch: Partial<Entry>) => {
+    const nextE = { ...e, ...patch };
+    persist({ ...lab, [brief.id]: nextE });
+    const nextLambda = brief.fixedLambda ?? nextE.lambda;
+    const nr = evaluate(nextE.size, nextLambda, nextE.k);
+    const nw = Math.round(nr.promptWords * 10) / 10;
+    const np = nr.recall >= brief.minRecall - 1e-9;
+    log.push(
+      `${brief.id}: size=${nextE.size}, λ=${nextLambda.toFixed(2)}, k=${nextE.k} → recall ${pct(nr.recall)}, ${nw} words (${np ? 'PASS' : 'FAIL'})`,
+      np ? 'good' : 'bad',
+    );
+  };
   const words = Math.round(r.promptWords * 10) / 10;
 
   useEffect(() => {
@@ -319,13 +340,43 @@ export function RetrieverLab() {
     persist({ ...saved.current, [brief.id]: { ...cur, solved: true, best: cur.best === null ? words : Math.min(cur.best, words) } });
   }, [pass, brief.id, words]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Per-kind recall breakdown
+  const kindStats = useMemo(() => {
+    const kinds: { id: Question['kind']; label: string; hits: number; total: number }[] = [
+      { id: 'paraphrase', label: 'Paraphrase', hits: 0, total: 0 },
+      { id: 'exact', label: 'Exact code', hits: 0, total: 0 },
+      { id: 'plain', label: 'Plain wording', hits: 0, total: 0 },
+    ];
+    QUESTIONS.forEach((q, i) => {
+      const kEntry = kinds.find((x) => x.id === q.kind)!;
+      kEntry.total++;
+      if (r.ranks[i] <= e.k) kEntry.hits++;
+    });
+    return kinds;
+  }, [r.ranks, e.k]);
+
+  const tweenedBars = useTweenedArray([
+    r.recall * 100,
+    ...kindStats.map((s) => (s.total ? (s.hits / s.total) * 100 : 0)),
+  ]);
+
+  const firstMissIdx = useMemo(() => r.ranks.findIndex((rk) => rk > e.k), [r.ranks, e.k]);
+  const inspectIdx = selectedQ !== null ? selectedQ : firstMissIdx >= 0 ? firstMissIdx : 0;
+  const inspectQ = QUESTIONS[inspectIdx];
+  const inspectRank = r.ranks[inspectIdx];
+  const inspectHits = useMemo(() => index.search(inspectQ.q, lambda).slice(0, e.k), [index, inspectQ.q, lambda, e.k]);
+
+  const hintText = useMemo(() => ragLabHint(brief, e.size, lambda, e.k), [brief, e.size, lambda, e.k]);
+  const liveCode = useMemo(() => ragLabRealCode(e.size, lambda, e.k), [e.size, lambda, e.k]);
+  const misses = QUESTIONS.length - Math.round(r.recall * QUESTIONS.length);
+
   return (
     <Widget
       title="Lab: Tune the Retriever"
       wide
       caption={
         <>
-          Every word of retrieved text costs money and context space on every request, so the job is to find the answers with as little text as possible. Choose chunk size, hybrid weight and k; recall is measured on all 34 labelled questions. Meet the brief’s recall; optionally, use as few words as you can. Your settings are saved in this browser.
+          Every word of retrieved text costs money and context space on every request, so the job is to find the answers with as little text as possible. Click any of the 34 question tiles below to inspect its live top-k chunks and lexical/semantic scores. Meet the brief’s recall; optionally, use as few words as you can. Your settings are saved in this browser.
         </>
       }
     >
@@ -333,7 +384,8 @@ export function RetrieverLab() {
         value={briefIdx}
         onChange={(i) => {
           setBriefIdx(i);
-          setShowOpt(false);
+          setHint(false);
+          setSelectedQ(null);
         }}
         options={LAB_BRIEFS.map((b, i) => ({ value: i, label: `${lab[b.id].solved ? '✓ ' : ''}${b.title.split(' · ')[0]}` }))}
       />
@@ -350,32 +402,180 @@ export function RetrieverLab() {
       ) : (
         <div style={{ fontSize: 13.5, color: 'var(--text-muted)' }}>This brief fixes λ = {brief.fixedLambda} (semantic search only).</div>
       )}
-      <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
-        <div className="btn-row">
-          <span className={`status ${pass ? 'good' : 'bad'}`}>{pass ? 'Meets the brief' : 'Not yet'}</span>
-          {e.solved && <span className="status good">Solved{e.best !== null ? ` · fewest words so far: ${e.best}` : ''}</span>}
-        </div>
-        <div className="readout">
-          <span style={{ color: pass ? 'var(--c-good)' : 'var(--c-bad)' }}>{pass ? '✓' : '✗'}</span> recall {pct(r.recall)} (need ≥ {pct(brief.minRecall)}){'\n'}
-          <span className="k">retrieved text per question </span>
-          {words} words ({r.chunks} chunks in the index)
-        </div>
-        <div className="live-note">
-          {pass
-            ? `It works with ${words} words of retrieved text per question. Optional: can you find them all with fewer?`
-            : `${QUESTIONS.length - Math.round(r.recall * QUESTIONS.length)} question${QUESTIONS.length - Math.round(r.recall * QUESTIONS.length) === 1 ? '' : 's'} still miss. Check the table in “Score the retriever” with these settings to see which, and whether they are reworded questions or exact codes.`}
-        </div>
-        {e.solved && (
+
+      <div className="btn-row" style={{ margin: '10px 0 12px' }}>
+        <span className={`status ${pass ? 'good' : 'bad'}`}>{pass ? 'Meets the brief' : 'Not yet'}</span>
+        <button type="button" className="btn" onClick={() => setHint((h) => !h)}>{hint ? 'Hide hint' : 'Hint'}</button>
+        {e.solved && <span className="status good">Solved{e.best !== null ? ` · fewest words so far: ${e.best}` : ''}</span>}
+      </div>
+      {hint && <div className="live-note" style={{ marginBottom: 12 }}>{hintText}</div>}
+
+      {/* Into-the-machine X-ray: category recall bars + 34 clickable question tiles + live chunk inspector */}
+      <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg-subtle)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
           <div>
-            <button type="button" className="btn" onClick={() => setShowOpt((s) => !s)}>{showOpt ? 'Hide' : 'Show'} the exhaustive search</button>
-            {showOpt && ex && (
-              <div className="live-note" style={{ marginTop: 10 }}>
-                All {ex.total} settings were tried: {ex.passing} meet this brief. The fewest words is <strong>{ex.bestWords}</strong>, with {ex.best.map((b) => `${b.size}-sentence chunks, λ = ${b.lambda}, k = ${b.k}`).join('; or ')}.
-              </div>
-            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, fontFamily: 'var(--mono)', marginBottom: 3 }}>
+              <span>Overall (≥ {pct(brief.minRecall)})</span>
+              <strong style={{ color: pass ? 'var(--c-good)' : 'var(--c-bad)' }}>{pct(r.recall)}</strong>
+            </div>
+            <div style={{ position: 'relative', height: 7, borderRadius: 4, background: 'var(--bg-elev)', border: '1px solid var(--border)' }}>
+              <div style={{ width: `${tweenedBars[0]}%`, height: '100%', borderRadius: 3, background: pass ? 'var(--c-good)' : 'var(--c-bad)' }} />
+              <div style={{ position: 'absolute', left: `${brief.minRecall * 100}%`, top: -2, bottom: -2, width: 2, background: 'var(--text)' }} />
+            </div>
           </div>
-        )}
+          {kindStats.map((ks, idx) => (
+            <div key={ks.id}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, fontFamily: 'var(--mono)', marginBottom: 3 }}>
+                <span>{ks.label}</span>
+                <strong style={{ color: ks.hits === ks.total ? 'var(--c-good)' : 'var(--c-b)' }}>{ks.hits}/{ks.total}</strong>
+              </div>
+              <div style={{ height: 7, borderRadius: 4, background: 'var(--bg-elev)', border: '1px solid var(--border)' }}>
+                <div style={{ width: `${tweenedBars[idx + 1]}%`, height: '100%', borderRadius: 3, background: ks.hits === ks.total ? 'var(--c-good)' : 'var(--c-b)' }} />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6, fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 6 }}>
+            <span>34 labelled questions — click any tile to inspect retrieved chunks ({r.chunks} chunks · <strong>{words} words/query</strong>)</span>
+            <span style={{ fontFamily: 'var(--mono)' }}>P=paraphrase · E=exact code · •=plain</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(38px, 1fr))', gap: 4 }}>
+            {QUESTIONS.map((q, idx) => {
+              const hit = r.ranks[idx] <= e.k;
+              const isSel = idx === inspectIdx;
+              const tag = q.kind === 'paraphrase' ? 'P' : q.kind === 'exact' ? 'E' : '•';
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  title={`Q${idx + 1} (${q.kind}): ${q.q} — ${hit ? `hit at rank #${r.ranks[idx]}` : `missed (rank ${r.ranks[idx] === Infinity ? '∞' : '#' + r.ranks[idx]})`}`}
+                  onClick={() => setSelectedQ(idx)}
+                  style={{
+                    padding: '4px 2px',
+                    borderRadius: 5,
+                    cursor: 'pointer',
+                    fontFamily: 'var(--mono)',
+                    fontSize: 10.5,
+                    lineHeight: 1.15,
+                    border: isSel ? '2px solid var(--accent)' : `1px solid ${hit ? 'var(--c-good)' : 'var(--c-bad)'}`,
+                    background: hit ? 'color-mix(in srgb, var(--c-good) 14%, var(--bg-elev))' : 'color-mix(in srgb, var(--c-bad) 16%, var(--bg-elev))',
+                    color: hit ? 'var(--c-good)' : 'var(--c-bad)',
+                    fontWeight: isSel ? 700 : 500,
+                  }}
+                >
+                  <div>{idx + 1}</div>
+                  <div style={{ fontSize: 9, opacity: 0.85 }}>{tag}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={{ padding: '8px 10px', borderRadius: 6, background: 'var(--bg-elev)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6, fontSize: 12 }}>
+            <span>
+              <strong>Q{inspectIdx + 1}</strong>{' '}
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-muted)' }}>[{inspectQ.kind}]</span>: “{inspectQ.q}”
+            </span>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 11.5, color: inspectRank <= e.k ? 'var(--c-good)' : 'var(--c-bad)', fontWeight: 700 }}>
+              {inspectRank <= e.k ? `HIT at #${inspectRank}` : `MISS (answer at ${inspectRank === Infinity ? 'unranked' : `#${inspectRank}`})`}
+            </span>
+          </div>
+          <div style={{ display: 'grid', gap: 4 }}>
+            {inspectHits.map((h, i) => {
+              const isAns = containsAnswer(h.chunk, inspectQ);
+              return (
+                <div
+                  key={h.chunk.id}
+                  style={{
+                    fontSize: 12,
+                    lineHeight: 1.4,
+                    padding: '5px 8px',
+                    borderRadius: 5,
+                    background: 'var(--bg-subtle)',
+                    border: `1px solid ${isAns ? 'var(--c-good)' : 'var(--border)'}`,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6, fontFamily: 'var(--mono)', fontSize: 10.5, color: 'var(--text-muted)' }}>
+                    <span>
+                      #{i + 1} · {h.chunk.title} ({h.chunk.words}w){isAns ? ' · ✓ ANSWER' : ''}
+                    </span>
+                    <span>lex {h.lex.toFixed(2)} · sem {h.sem.toFixed(2)} → <strong>{h.score.toFixed(2)}</strong></span>
+                  </div>
+                  <div>{h.chunk.text}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="live-note" style={{ marginBottom: 12 }}>
+        {pass
+          ? `It works with ${words} words of retrieved text per question. Optional: can you hit ${pct(brief.minRecall)} with fewer words?`
+          : `${misses} question${misses === 1 ? '' : 's'} still miss. Click any red tile above to see its exact lexical and semantic scores.`}
+      </div>
+
+      <LiveCode note="Hybrid RAG retrieval pipeline" code={liveCode} />
+
+      <div style={{ marginTop: 12 }}>
+        <AnswerReveal solved={e.solved} stuckKey={`rag:${brief.id}`} label="the exhaustive words-vs-recall map">
+          <RagParetoMap brief={brief} curWords={words} curRecall={r.recall} />
+        </AnswerReveal>
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <MachineLog
+          title="RETRIEVER BENCH LOG"
+          lines={log.lines}
+          onClear={log.clear}
+          empty="Adjust chunk size, top-k, or hybrid weight λ to log runs."
+        />
       </div>
     </Widget>
+  );
+}
+
+function RagParetoMap({ brief, curWords, curRecall }: { brief: LabBrief; curWords: number; curRecall: number }) {
+  const ex = useMemo(() => labExhaustive(brief), [brief]);
+  const maxW = Math.max(250, ...ex.rows.map((r) => r.words)) + 10;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+      <div className="live-note">
+        All {ex.total} settings were tried: <strong>{ex.passing}</strong> meet this brief. The fewest words is <strong>{ex.bestWords}</strong>, with{' '}
+        {ex.best.map((b) => `${b.size}-sentence chunks, λ = ${b.lambda}, k = ${b.k}`).join('; or ')}.
+      </div>
+      <Plot x={[0, maxW]} y={[50, 103]} width={720} height={175} xLabel="Retrieved words / question" yLabel="Recall (%)">
+        {({ x: sx, y: sy }) => (
+          <>
+            <line x1={sx(0)} x2={sx(maxW)} y1={sy(brief.minRecall * 100)} y2={sy(brief.minRecall * 100)} stroke="var(--c-good)" strokeDasharray="4 4" strokeWidth={1.1} />
+            {ex.rows.map((row, idx) => {
+              const ok = row.recall >= brief.minRecall - 1e-9;
+              const isBest = ok && row.words === ex.bestWords;
+              return (
+                <circle
+                  key={idx}
+                  cx={sx(row.words)}
+                  cy={sy(Math.max(50, row.recall * 100))}
+                  r={isBest ? 5.5 : 3}
+                  fill={isBest ? 'var(--c-good)' : ok ? 'var(--c-a)' : 'var(--text-muted)'}
+                  opacity={isBest ? 1 : ok ? 0.75 : 0.35}
+                />
+              );
+            })}
+            <circle
+              cx={sx(curWords)}
+              cy={sy(Math.max(50, curRecall * 100))}
+              r={6.5}
+              fill="none"
+              stroke="var(--accent)"
+              strokeWidth={2.2}
+            />
+          </>
+        )}
+      </Plot>
+    </div>
   );
 }

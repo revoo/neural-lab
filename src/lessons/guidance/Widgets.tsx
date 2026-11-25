@@ -3,6 +3,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Widget } from '../../components/Widget';
 import { Segmented, Slider } from '../../components/controls';
 import { Arrow, Handle, Plot, usePlot } from '../../components/plot';
+import { AnswerReveal } from '../../components/AnswerReveal';
+import { LiveCode } from '../../components/LabJob';
+import { MachineLog, useMachineLog } from '../../components/MachineLog';
+import { useReplay } from '../../components/motion';
+import { ReplayControls } from '../../components/ReplayControls';
 import {
   GUIDE_BRIEFS,
   LAB_STEPS,
@@ -14,6 +19,7 @@ import {
   guess,
   guided,
   guideExhaustive,
+  guideLabHint,
   judge,
   labPass,
   labTry,
@@ -23,6 +29,7 @@ import {
   type GuideBrief,
   type Pt,
 } from './guide';
+import { guidanceRealCode } from './realCode';
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 const VIEW: [number, number] = [-2.6, 2.6];
@@ -322,25 +329,24 @@ function loadLab(): LabState {
   return d;
 }
 
-const HINTS: Record<GuideBrief['id'], string> = {
-  catalogue: 'Every blob needs a fair share, so be careful with anything that exaggerates the label. How few steps can plain conditioning get away with?',
-  poster: 'Variety doesn’t matter here. What does turning the guidance up do to the samples that would otherwise get stranded between blobs?',
-  both: 'You need guidance’s accuracy and some of plain conditioning’s fairness. Look for the narrow band of w where both survive, and give it enough steps.',
-};
-
 export function GuidanceLab() {
   const [lab, setLab] = useState<LabState>(() => loadLab());
   const [briefIdx, setBriefIdx] = useState(0);
   const [hint, setHint] = useState(false);
-  const [showOpt, setShowOpt] = useState(false);
+  const log = useMachineLog(20);
+
   const brief = GUIDE_BRIEFS[briefIdx];
   const entry = lab[brief.id];
   const r = useMemo(() => labTry(entry.steps, entry.w), [entry.steps, entry.w]);
-  const run = useMemo(() => ddim(guided(TRIBES, 0, entry.w), stops(entry.steps), noiseStart(N, 5)).xs, [entry.steps, entry.w]);
+  const runRes = useMemo(() => ddim(guided(TRIBES, 0, entry.w), stops(entry.steps), noiseStart(N, 5), true), [entry.steps, entry.w]);
   const pass = labPass(brief, r);
-  const ex = useMemo(() => (showOpt ? guideExhaustive(brief) : null), [showOpt, brief]);
   const saved = useRef(lab);
   saved.current = lab;
+
+  const maxFrame = Math.max(0, runRes.path.length - 1);
+  const replay = useReplay(maxFrame, 420, `${brief.id}:${entry.steps}:${entry.w}`, false);
+  const frameIdx = Math.min(replay.i, maxFrame);
+  const shownPts = runRes.path[frameIdx] ?? runRes.xs;
 
   const persist = (next: LabState) => {
     setLab(next);
@@ -350,7 +356,16 @@ export function GuidanceLab() {
       // ignore storage errors
     }
   };
-  const update = (patch: Partial<Entry>) => persist({ ...lab, [brief.id]: { ...entry, ...patch } });
+  const update = (patch: Partial<Entry>) => {
+    const nextEntry = { ...entry, ...patch };
+    persist({ ...lab, [brief.id]: nextEntry });
+    const nr = labTry(nextEntry.steps, nextEntry.w);
+    const np = labPass(brief, nr);
+    log.push(
+      `${brief.id}: steps=${nextEntry.steps}, w=${nextEntry.w.toFixed(2)} → on-class ${pct(nr.onClass)}, min-blob ${pct(nr.minBlob)} (${np ? 'PASS' : 'FAIL'})`,
+      np ? 'good' : 'bad',
+    );
+  };
 
   useEffect(() => {
     if (!pass) return;
@@ -359,13 +374,16 @@ export function GuidanceLab() {
     persist({ ...saved.current, [brief.id]: { ...cur, solved: true, fewest: cur.fewest === null ? entry.steps : Math.min(cur.fewest, entry.steps) } });
   }, [pass, brief.id, entry.steps]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const hintText = useMemo(() => guideLabHint(brief, r), [brief, r]);
+  const liveCode = useMemo(() => guidanceRealCode(entry.steps, entry.w), [entry.steps, entry.w]);
+
   return (
     <Widget
       title="Lab: Tune the Guidance"
       wide
       caption={
         <>
-          Ask for blue with the exact denoiser and choose two things: how many DDIM steps (each one is a full call to the denoiser, so fewer is faster) and the guidance scale w. Results update instantly (2,000 samples, fixed starting noise). Meet the brief; optionally, with as few steps as possible. Your settings are saved in this browser.
+          Ask for the target class with the exact denoiser and choose two things: how many DDIM steps (fewer is faster) and the guidance scale w. Scrub or press Play to watch guidance push 2,000 noisy samples towards the target blobs step by step. Meet the brief; optionally, with as few steps as possible. Your settings are saved in this browser.
         </>
       }
     >
@@ -374,7 +392,6 @@ export function GuidanceLab() {
         onChange={(i) => {
           setBriefIdx(i);
           setHint(false);
-          setShowOpt(false);
         }}
         options={GUIDE_BRIEFS.map((b, i) => ({ value: i, label: `${lab[b.id].solved ? '✓ ' : ''}${b.title.split(' · ')[0]}` }))}
       />
@@ -390,12 +407,15 @@ export function GuidanceLab() {
         <button type="button" className="btn" onClick={() => setHint((h) => !h)}>{hint ? 'Hide hint' : 'Hint'}</button>
         {entry.solved && <span className="status good">Solved{entry.fewest !== null ? ` · fewest so far: ${entry.fewest} steps` : ''}</span>}
       </div>
-      {hint && <div className="live-note" style={{ marginBottom: 12 }}>{HINTS[brief.id]}</div>}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16, alignItems: 'start' }}>
-        <Scatter label="Samples for your settings">
-          <Blobs highlight={0} />
-          <Dots pts={run} color="var(--c-a)" />
-        </Scatter>
+      {hint && <div className="live-note" style={{ marginBottom: 12 }}>{hintText}</div>}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16, alignItems: 'start', marginBottom: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Scatter label={`Samples at step ${frameIdx}/${maxFrame} (w = ${entry.w.toFixed(2)})`}>
+            <Blobs highlight={0} />
+            <Dots pts={shownPts} color="var(--c-a)" />
+          </Scatter>
+          <ReplayControls r={replay} label="step" />
+        </div>
         <div style={{ display: 'grid', gap: 10 }}>
           <span className={`status ${pass ? 'good' : 'bad'}`} style={{ justifySelf: 'start' }}>
             {pass ? 'Meets the brief' : 'Not yet'}
@@ -421,16 +441,86 @@ export function GuidanceLab() {
           </div>
         </div>
       </div>
-      {entry.solved && (
-        <div style={{ marginTop: 14 }}>
-          <button type="button" className="btn" onClick={() => setShowOpt((s) => !s)}>{showOpt ? 'Hide' : 'Show'} the exhaustive search</button>
-          {showOpt && ex && (
-            <div className="live-note" style={{ marginTop: 10 }}>
-              All {ex.total} settings ({LAB_STEPS.length} step counts × {LAB_WS.length} values of w) were tried: {ex.passing} meet this brief. The fewest steps that can is <strong>{ex.fewest}</strong>, with w = {ex.atFewest.join(', ')}.
-            </div>
-          )}
-        </div>
-      )}
+
+      <LiveCode note="Hugging Face diffusers CFG call" code={liveCode} />
+
+      <div style={{ marginTop: 12 }}>
+        <AnswerReveal solved={entry.solved} stuckKey={`guidance:${brief.id}`} label="the 102-setting (steps × w) map">
+          <GuidanceExhaustiveMap brief={brief} curSteps={entry.steps} curW={entry.w} />
+        </AnswerReveal>
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <MachineLog
+          title="GUIDANCE BENCH LOG"
+          lines={log.lines}
+          onClear={log.clear}
+          empty="Change denoising steps or guidance scale w to log runs."
+        />
+      </div>
     </Widget>
+  );
+}
+
+function GuidanceExhaustiveMap({ brief, curSteps, curW }: { brief: GuideBrief; curSteps: number; curW: number }) {
+  const ex = useMemo(() => guideExhaustive(brief), [brief]);
+  const byKey = useMemo(() => new Map(ex.rows.map((row) => [`${row.steps}:${row.w}`, row])), [ex]);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+      <div className="live-note">
+        All {ex.total} settings ({LAB_STEPS.length} step counts × {LAB_WS.length} values of w) were tried: <strong>{ex.passing}</strong> meet this brief. The fewest steps that can is <strong>{ex.fewest}</strong>, with w = {ex.atFewest.join(', ')}.
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--mono)', fontSize: 10.5 }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left', padding: '3px 5px', borderBottom: '1px solid var(--border)' }}>s \ w</th>
+              {LAB_WS.map((w) => (
+                <th key={w} style={{ textAlign: 'center', padding: '3px 2px', borderBottom: '1px solid var(--border)' }}>
+                  {Number.isInteger(w) ? w : w.toFixed(2).replace(/^0/, '')}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {LAB_STEPS.map((s) => (
+              <tr key={s}>
+                <td style={{ padding: '3px 5px', fontWeight: 600 }}>{s}</td>
+                {LAB_WS.map((w) => {
+                  const cell = byKey.get(`${s}:${w}`)!;
+                  const ok = labPass(brief, cell);
+                  const isMin = ok && s === ex.fewest;
+                  const isCur = s === curSteps && Math.abs(w - curW) < 1e-6;
+                  return (
+                    <td
+                      key={w}
+                      title={`steps=${s}, w=${w}: on-class ${pct(cell.onClass)}, min-blob ${pct(cell.minBlob)}`}
+                      style={{
+                        textAlign: 'center',
+                        padding: '3px 2px',
+                        borderRadius: 3,
+                        color: ok ? 'var(--c-good)' : 'var(--text-muted)',
+                        fontWeight: isMin ? 700 : 400,
+                        background: isMin
+                          ? 'color-mix(in srgb, var(--c-good) 24%, transparent)'
+                          : ok
+                            ? 'color-mix(in srgb, var(--c-good) 10%, transparent)'
+                            : 'transparent',
+                        outline: isCur ? '1.5px solid var(--accent)' : 'none',
+                      }}
+                    >
+                      {isMin ? '★' : ok ? '✓' : '·'}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+          <code>★</code> = fewest-step winner · <code>✓</code> = passes brief · <code>·</code> = fails (hover any cell for exact on-class &amp; min-blob shares).
+        </div>
+      </div>
+    </div>
   );
 }

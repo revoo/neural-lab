@@ -3,6 +3,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Widget } from '../../components/Widget';
 import { Segmented, Slider } from '../../components/controls';
 import { Plot } from '../../components/plot';
+import { AnswerReveal } from '../../components/AnswerReveal';
+import { LiveCode } from '../../components/LabJob';
+import { MachineLog, useMachineLog } from '../../components/MachineLog';
+import { useTweenedArray } from '../../components/motion';
 import {
   GRADERS,
   GRADER_BY_ID,
@@ -11,6 +15,8 @@ import {
   LAB_MODES,
   LAB_NS,
   briefPasses,
+  evalLabHint,
+  evalPowerCurve,
   evaluateEvalDesign,
   judgeModel,
   labExhaustive,
@@ -22,6 +28,7 @@ import {
   type GraderId,
   type JudgeProtocol,
 } from './eval';
+import { evalSuiteRealCode } from './realCode';
 
 const pct1 = (v: number) => `${(100 * v).toFixed(1)}%`;
 const pct2 = (v: number) => `${(100 * v).toFixed(2)}%`;
@@ -480,10 +487,17 @@ function loadLab(): LabState {
   return fresh;
 }
 
+const GRADER_COLOR: Record<GraderId, string> = {
+  human: 'var(--c-a)',
+  judge2: 'var(--c-b)',
+  judge1: 'var(--c-c)',
+};
+
 export function EvalSizingLab() {
   const [lab, setLab] = useState<LabState>(() => loadLab());
   const [briefIdx, setBriefIdx] = useState(0);
-  const [showOpt, setShowOpt] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+  const log = useMachineLog(12);
 
   const brief = LAB_BRIEFS[briefIdx];
   const entry = lab[brief.id];
@@ -491,10 +505,12 @@ export function EvalSizingLab() {
     () => (brief.maxN !== undefined ? LAB_NS.filter((x) => x <= brief.maxN!) : [...LAB_NS]),
     [brief.maxN],
   );
-  const design: EvalDesign = allowedNs.includes(entry.design.n) ? entry.design : { ...entry.design, n: allowedNs[allowedNs.length - 1] };
+  const design: EvalDesign = allowedNs.includes(entry.design.n)
+    ? entry.design
+    : { ...entry.design, n: allowedNs[allowedNs.length - 1] };
   const ev = useMemo(() => evaluateEvalDesign(design, brief), [design, brief]);
   const pass = briefPasses(brief, design, ev);
-  const ex = useMemo(() => (showOpt ? labExhaustive(brief) : null), [showOpt, brief]);
+  const curve = useMemo(() => evalPowerCurve(design, brief), [design, brief]);
 
   const saved = useRef(lab);
   saved.current = lab;
@@ -506,7 +522,16 @@ export function EvalSizingLab() {
       // ignore storage errors
     }
   };
-  const update = (patch: Partial<EvalDesign>) => persist({ ...lab, [brief.id]: { ...entry, design: { ...design, ...patch } } });
+  const update = (patch: Partial<EvalDesign>) => {
+    const nextDesign = { ...design, ...patch };
+    persist({ ...lab, [brief.id]: { ...entry, design: nextDesign } });
+    const nextEv = evaluateEvalDesign(nextDesign, brief);
+    const nextPass = briefPasses(brief, nextDesign, nextEv);
+    log.push(
+      `${brief.id}: ${nextDesign.mode}, ${GRADER_BY_ID[nextDesign.grader].shortLabel}, n=${nextDesign.n}, cap=${(nextDesign.alpha * 100).toFixed(0)}% -> power ${pct1(nextEv.power)}, FPR ${pct2(nextEv.fpr)}, ${nextEv.cost.toLocaleString()} cr (${nextPass ? 'PASS' : 'FAIL'})`,
+      nextPass ? 'good' : 'bad',
+    );
+  };
 
   useEffect(() => {
     if (!pass) return;
@@ -525,6 +550,19 @@ export function EvalSizingLab() {
   const okPow = ev.power >= brief.minPower - 1e-9;
   const okFpr = ev.fpr <= brief.maxFpr + 1e-9;
   const g = GRADER_BY_ID[design.grader];
+  const atten = 2 * g.accuracy - 1;
+  const maxN = allowedNs[allowedNs.length - 1];
+  const firstCross = curve.find((pt) => pt.power >= brief.minPower - 1e-9);
+  const peakPower = curve[curve.length - 1].power;
+  const trueDiscord = 2 * brief.baseDiscord + brief.delta;
+
+  const animBars = useTweenedArray([ev.power * 100, Math.min(12, ev.fpr * 100), atten * 100], 220);
+  const animPow = animBars[0] ?? ev.power * 100;
+  const animFpr = animBars[1] ?? Math.min(12, ev.fpr * 100);
+  const animAtten = animBars[2] ?? atten * 100;
+
+  const hintText = useMemo(() => evalLabHint(brief, design, ev), [brief, design, ev]);
+  const realCode = useMemo(() => evalSuiteRealCode(design, brief, ev), [design, brief, ev]);
 
   return (
     <Widget
@@ -532,7 +570,7 @@ export function EvalSizingLab() {
       wide
       caption={
         <>
-          Design an A/B evaluation suite for each brief: choose <strong>Unpaired</strong> (1.0× grading cost) or <strong>Paired</strong> (1.5× cost, cancels shared question difficulty), a grader (Exact 100% at 5 cr, Dual LLM 93% at 1 cr, or Fast LLM 85% at 0.4 cr), sample size <strong>n</strong>, and your false-positive cap. Detection power and false-positive rate are computed with exact binomial / McNemar sums. Meet the brief; optionally minimise total grading cost.
+          Design an A/B evaluation suite for each brief: choose <strong>Unpaired</strong> (1.0× grading cost) or <strong>Paired</strong> (1.5× cost, cancels shared question difficulty), a grader (Exact 100% at 5 cr, Dual LLM 93% at 1 cr, or Fast LLM 85% at 0.4 cr), sample size <strong>n</strong>, and your false-positive cap. Watch the live power curve and grader signal attenuation respond; click any point on the curve to jump to that sample size. Meet the brief; optionally minimise total grading cost.
         </>
       }
     >
@@ -540,7 +578,8 @@ export function EvalSizingLab() {
         value={briefIdx}
         onChange={(i) => {
           setBriefIdx(i);
-          setShowOpt(false);
+          setShowHint(false);
+          log.push(`Switched to ${LAB_BRIEFS[i].title}`, 'info');
         }}
         options={LAB_BRIEFS.map((b, i) => ({
           value: i,
@@ -551,6 +590,264 @@ export function EvalSizingLab() {
       <div style={{ margin: '12px 0' }}>
         <div style={{ fontWeight: 650, marginBottom: 4 }}>{brief.title}</div>
         <div style={{ fontSize: 14.5, lineHeight: 1.55 }}>{brief.story}</div>
+      </div>
+
+      {/* Live "into the machine" instrument panel: Power(n) curve + Grader attenuation & gate meters */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(290px, 100%), 1fr))',
+          gap: 14,
+          marginBottom: 14,
+          alignItems: 'stretch',
+        }}
+      >
+        <div
+          style={{
+            border: '1px solid var(--border)',
+            borderRadius: 10,
+            padding: '10px 12px',
+            background: 'var(--bg-subtle)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11.5, fontWeight: 650, letterSpacing: '0.02em', color: 'var(--text-muted)' }}>
+              EXACT POWER CURVE · {design.mode.toUpperCase()} · {g.shortLabel}
+            </span>
+            <span
+              style={{
+                fontFamily: 'var(--mono)',
+                fontSize: 11.5,
+                color: firstCross ? 'var(--c-good)' : 'var(--c-bad)',
+                fontWeight: 600,
+              }}
+            >
+              {firstCross
+                ? `Reaches ${pct1(brief.minPower)} at n = ${firstCross.n.toLocaleString()}`
+                : `Peaks at ${pct1(peakPower)} (n = ${maxN.toLocaleString()})`}
+            </span>
+          </div>
+
+          <Plot
+            width={380}
+            height={195}
+            x={[0, maxN * 1.06]}
+            y={[0, 100]}
+            xLabel="sample size n (click any dot)"
+            yLabel="power (%)"
+          >
+            {({ x: sx, y: sy }) => {
+              const targetY = sy(brief.minPower * 100);
+              const curX = sx(design.n);
+              const curY = sy(ev.power * 100);
+              const pathD = curve
+                .map((pt, i) => `${i === 0 ? 'M' : 'L'} ${sx(pt.n).toFixed(1)} ${sy(pt.power * 100).toFixed(1)}`)
+                .join(' ');
+              const labelRight = design.n < maxN * 0.62;
+              const labelY = !labelRight && ev.power > 0.72
+                ? curY + 18
+                : Math.max(sy(100) + 12, curY - 9);
+              return (
+                <>
+                  {/* Passing power zone above target */}
+                  <rect
+                    x={sx(0)}
+                    y={sy(100)}
+                    width={sx(maxN * 1.06) - sx(0)}
+                    height={targetY - sy(100)}
+                    fill="var(--c-good)"
+                    fillOpacity={0.08}
+                  />
+                  {/* Target power line */}
+                  <line
+                    x1={sx(0)}
+                    x2={sx(maxN * 1.06)}
+                    y1={targetY}
+                    y2={targetY}
+                    stroke="var(--c-good)"
+                    strokeWidth={1.4}
+                    strokeDasharray="4 3"
+                  />
+                  <text
+                    x={sx(0) + 6}
+                    y={targetY - 4}
+                    textAnchor="start"
+                    fontSize={10}
+                    fontWeight={600}
+                    fill="var(--c-good)"
+                  >
+                    {(brief.minPower * 100).toFixed(0)}% target
+                  </text>
+                  {/* Power(n) curve */}
+                  <path d={pathD} fill="none" stroke="var(--c-a)" strokeWidth={2.2} strokeLinejoin="round" />
+                  {/* Clickable discrete n points */}
+                  {curve.map((pt) => {
+                    const isCur = pt.n === design.n;
+                    return (
+                      <circle
+                        key={pt.n}
+                        cx={sx(pt.n)}
+                        cy={sy(pt.power * 100)}
+                        r={isCur ? 5.5 : 3.5}
+                        fill={isCur ? (okPow ? 'var(--c-good)' : 'var(--c-bad)') : 'var(--bg)'}
+                        stroke={isCur ? 'var(--text)' : 'var(--c-a)'}
+                        strokeWidth={isCur ? 2 : 1.6}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => update({ n: pt.n })}
+                      >
+                        <title>{`n = ${pt.n}: power ${pct1(pt.power)}, cost ${pt.cost.toLocaleString()} cr`}</title>
+                      </circle>
+                    );
+                  })}
+                  {/* Vertical drop guide for current n */}
+                  <line
+                    x1={curX}
+                    x2={curX}
+                    y1={curY + 6}
+                    y2={sy(0)}
+                    stroke={okPow ? 'var(--c-good)' : 'var(--c-bad)'}
+                    strokeWidth={1}
+                    strokeDasharray="2 3"
+                    opacity={0.75}
+                  />
+                  <text
+                    x={labelRight ? curX + 8 : curX - 8}
+                    y={labelY}
+                    textAnchor={labelRight ? 'start' : 'end'}
+                    fontSize={10.5}
+                    fontWeight={700}
+                    fontFamily="var(--mono)"
+                    fill={okPow ? 'var(--c-good)' : 'var(--c-bad)'}
+                  >
+                    n={design.n}: {pct1(ev.power)}
+                  </text>
+                </>
+              );
+            }}
+          </Plot>
+        </div>
+
+        <div
+          style={{
+            border: '1px solid var(--border)',
+            borderRadius: 10,
+            padding: '10px 12px',
+            background: 'var(--bg-subtle)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            gap: 10,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 650, letterSpacing: '0.02em', color: 'var(--text-muted)' }}>
+              SIGNAL &amp; GATE METERS
+            </span>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>
+              {ev.cost.toLocaleString()} cr
+            </span>
+          </div>
+
+          {/* Grader signal attenuation meter */}
+          <div style={{ display: 'grid', gap: 5 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12 }}>
+              <span style={{ color: 'var(--text-muted)' }}>Grader signal retained (2q − 1)</span>
+              <span style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}>
+                +{(ev.observedGap * 100).toFixed(2)} pp / +{(brief.delta * 100).toFixed(1)} pp (×{atten.toFixed(2)})
+              </span>
+            </div>
+            <div style={{ position: 'relative', height: 10, borderRadius: 99, background: 'var(--bg-elev)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+              <div
+                style={{
+                  width: `${Math.max(0, Math.min(100, animAtten))}%`,
+                  height: '100%',
+                  background: g.accuracy >= 1 ? 'var(--c-good)' : 'var(--c-b)',
+                  borderRadius: 99,
+                }}
+              />
+            </div>
+            {design.mode === 'paired' && ev.effectiveDiscord !== null && (
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+                Paired disagreements: true <span style={{ fontFamily: 'var(--mono)' }}>{pct1(trueDiscord)}</span> → observed{' '}
+                <span
+                  style={{
+                    fontFamily: 'var(--mono)',
+                    color: ev.effectiveDiscord > trueDiscord + 0.01 ? 'var(--c-b)' : 'var(--c-good)',
+                    fontWeight: 600,
+                  }}
+                >
+                  {pct1(ev.effectiveDiscord)}
+                </span>{' '}
+                {ev.effectiveDiscord > trueDiscord + 0.01 ? '(grader noise injects fake flips)' : '(clean pairs)'}
+              </div>
+            )}
+          </div>
+
+          {/* Detection power meter */}
+          <div style={{ display: 'grid', gap: 5 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+              <span style={{ color: 'var(--text-muted)' }}>Detection power (need ≥ {pct1(brief.minPower)})</span>
+              <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: okPow ? 'var(--c-good)' : 'var(--c-bad)' }}>
+                {pct1(ev.power)}
+              </span>
+            </div>
+            <div style={{ position: 'relative', height: 11, borderRadius: 99, background: 'var(--bg-elev)', border: '1px solid var(--border)' }}>
+              <div
+                style={{
+                  width: `${Math.max(0, Math.min(100, animPow))}%`,
+                  height: '100%',
+                  background: okPow ? 'var(--c-good)' : 'var(--c-bad)',
+                  borderRadius: 99,
+                }}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  left: `${brief.minPower * 100}%`,
+                  top: -2,
+                  bottom: -2,
+                  width: 2,
+                  background: 'var(--text)',
+                }}
+                title={`Target ${pct1(brief.minPower)}`}
+              />
+            </div>
+          </div>
+
+          {/* False-positive rate meter (0%..12% scale) */}
+          <div style={{ display: 'grid', gap: 5 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+              <span style={{ color: 'var(--text-muted)' }}>Exact false-positive rate (need ≤ {pct1(brief.maxFpr)})</span>
+              <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: okFpr ? 'var(--c-good)' : 'var(--c-bad)' }}>
+                {pct2(ev.fpr)}
+              </span>
+            </div>
+            <div style={{ position: 'relative', height: 11, borderRadius: 99, background: 'var(--bg-elev)', border: '1px solid var(--border)' }}>
+              <div
+                style={{
+                  width: `${Math.max(0, Math.min(100, (animFpr / 12) * 100))}%`,
+                  height: '100%',
+                  background: okFpr ? 'var(--c-good)' : 'var(--c-bad)',
+                  borderRadius: 99,
+                }}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  left: `${Math.min(100, ((brief.maxFpr * 100) / 12) * 100)}%`,
+                  top: -2,
+                  bottom: -2,
+                  width: 2,
+                  background: 'var(--text)',
+                }}
+                title={`Limit ${pct1(brief.maxFpr)}`}
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gap: 10 }}>
@@ -590,10 +887,17 @@ export function EvalSizingLab() {
       <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
         <div className="btn-row">
           <span className={`status ${pass ? 'good' : 'bad'}`}>{pass ? 'Meets the brief' : 'Not yet'}</span>
+          <button type="button" className="btn" onClick={() => setShowHint((h) => !h)}>
+            {showHint ? 'Hide hint' : 'Hint'}
+          </button>
           {entry.solved && (
-            <span className="status good">Solved{entry.bestCost !== null ? ` · lowest cost so far: ${entry.bestCost.toLocaleString()} cr` : ''}</span>
+            <span className="status good">
+              Solved{entry.bestCost !== null ? ` · lowest cost so far: ${entry.bestCost.toLocaleString()} cr` : ''}
+            </span>
           )}
         </div>
+
+        {showHint && <div className="live-note">{hintText}</div>}
 
         <div className="readout">
           <span style={{ color: okPow ? 'var(--c-good)' : 'var(--c-bad)' }}>{okPow ? '✓' : '✗'}</span>{' '}
@@ -605,42 +909,156 @@ export function EvalSizingLab() {
           {pct2(ev.fpr)} (need ≤ {pct1(brief.maxFpr)})
           {'\n'}
           <span className="k">observed gap through {g.shortLabel} </span>
-          +{(ev.observedGap * 100).toFixed(2)} pp (true +{(brief.delta * 100).toFixed(1)} pp × {(2 * g.accuracy - 1).toFixed(2)})
+          +{(ev.observedGap * 100).toFixed(2)} pp (true +{(brief.delta * 100).toFixed(1)} pp × {atten.toFixed(2)})
           {'\n'}
           <span className="k">total grading cost </span>
           <strong>{ev.cost.toLocaleString()} credits</strong>
         </div>
 
-        <div className="live-note">
-          {pass
-            ? `This suite passes at ${ev.cost.toLocaleString()} credits. Optional: can you hit the same targets for less by trading grader accuracy against sample size or pairing?`
-            : !okFpr
-              ? `Your false-positive cap (${(design.alpha * 100).toFixed(0)}%) exceeds the brief’s limit of ${pct1(brief.maxFpr)}. Tighten the cap first.`
-              : g.accuracy < 1
-                ? `Power is ${pct1(ev.power)}. Notice that this ${(g.accuracy * 100).toFixed(0)}%-accurate grader shrinks the true +${(brief.delta * 100).toFixed(1)} pp lift to +${(ev.observedGap * 100).toFixed(2)} pp and adds fake disagreements — try more items, pairing, or a sharper grader.`
-                : `Power is ${pct1(ev.power)}. ${design.mode === 'unpaired' ? 'Switching to Paired McNemar cancels shared question difficulty and boosts power sharply without changing the grader.' : 'You need more test questions to separate a +' + (brief.delta * 100).toFixed(1) + ' pp signal from binomial noise.'}`}
+        <LiveCode code={realCode} note="scipy.stats exact test" />
+
+        <div>
+          <AnswerReveal
+            solved={entry.solved}
+            stuckKey={`eval-sizing:${brief.id}`}
+            label="the exhaustive search & cost–power map"
+          >
+            <EvalParetoFrontier brief={brief} design={design} pass={pass} />
+          </AnswerReveal>
         </div>
 
-        {entry.solved && (
-          <div>
-            <button type="button" className="btn" onClick={() => setShowOpt((s) => !s)}>
-              {showOpt ? 'Hide' : 'Show'} the exhaustive search
-            </button>
-            {showOpt && ex && (
-              <div className="live-note" style={{ marginTop: 10 }}>
-                All {ex.total} combinations were computed exactly: <strong>{ex.passing}</strong> meet this brief. The cheapest costs{' '}
-                <strong>{ex.bestCost.toLocaleString()} credits</strong>:{' '}
-                {ex.best
-                  .map(
-                    (w) =>
-                      `${w.design.mode}, ${GRADER_BY_ID[w.design.grader].shortLabel}, n = ${w.design.n}, cap ${(w.design.alpha * 100).toFixed(0)}% (power ${pct1(w.eval.power)}, FPR ${pct2(w.eval.fpr)})`,
-                  )
-                  .join('; or ')}.
-              </div>
-            )}
-          </div>
-        )}
+        <MachineLog
+          title="EVAL SUITE LOG"
+          lines={log.lines}
+          onClear={log.clear}
+          empty="Toggle protocol, grader, sample size, or cap to log evaluations."
+        />
       </div>
     </Widget>
+  );
+}
+
+function EvalParetoFrontier({ brief, design, pass }: { brief: EvalBrief; design: EvalDesign; pass: boolean }) {
+  const ex = useMemo(() => labExhaustive(brief), [brief]);
+  const bestPt = ex.best[0];
+  const maxCost = Math.max(...ex.passingPts.map((p) => p.eval.cost), ex.bestCost * 1.2);
+  const costDomainMax = Math.ceil(maxCost / 1000) * 1000;
+
+  return (
+    <div style={{ display: 'grid', gap: 10, marginTop: 8 }}>
+      <div className="live-note">
+        All {ex.total} combinations were computed exactly: <strong>{ex.passing}</strong> meet this brief. The cheapest costs{' '}
+        <strong>{ex.bestCost.toLocaleString()} credits</strong>:{' '}
+        {ex.best
+          .map(
+            (w) =>
+              `${w.design.mode}, ${GRADER_BY_ID[w.design.grader].shortLabel}, n = ${w.design.n.toLocaleString()}, cap ${(w.design.alpha * 100).toFixed(0)}% (power ${pct1(w.eval.power)}, FPR ${pct2(w.eval.fpr)})`,
+          )
+          .join('; or ')}
+        .
+      </div>
+
+      {ex.passingPts.length > 0 && (
+        <div
+          style={{
+            border: '1px solid var(--border)',
+            borderRadius: 10,
+            padding: '10px 12px',
+            background: 'var(--bg-subtle)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 8,
+              marginBottom: 6,
+              fontSize: 12,
+            }}
+          >
+            <span style={{ fontWeight: 650, color: 'var(--text-muted)' }}>
+              ALL {ex.passing} PASSING SUITES · COST VS POWER
+            </span>
+            <span style={{ display: 'flex', gap: 10, flexWrap: 'wrap', color: 'var(--text-muted)' }}>
+              {GRADERS.map((gr) => (
+                <span key={gr.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 99,
+                      background: GRADER_COLOR[gr.id],
+                      display: 'inline-block',
+                    }}
+                  />
+                  {gr.shortLabel}
+                </span>
+              ))}
+            </span>
+          </div>
+          <Plot
+            width={680}
+            height={185}
+            x={[0, costDomainMax * 1.04]}
+            y={[81, 101]}
+            xLabel="total grading cost (credits)"
+            yLabel="power (%)"
+          >
+            {({ x: sx, y: sy }) => (
+              <>
+                <line
+                  x1={sx(0)}
+                  x2={sx(costDomainMax * 1.04)}
+                  y1={sy(brief.minPower * 100)}
+                  y2={sy(brief.minPower * 100)}
+                  stroke="var(--c-good)"
+                  strokeDasharray="4 3"
+                  strokeWidth={1.2}
+                />
+                {ex.passingPts.map((pt, idx) => {
+                  const isBest =
+                    pt.design.mode === bestPt.design.mode &&
+                    pt.design.grader === bestPt.design.grader &&
+                    pt.design.n === bestPt.design.n &&
+                    pt.design.alpha === bestPt.design.alpha;
+                  const isCur =
+                    pass &&
+                    pt.design.mode === design.mode &&
+                    pt.design.grader === design.grader &&
+                    pt.design.n === design.n &&
+                    pt.design.alpha === design.alpha;
+                  return (
+                    <circle
+                      key={idx}
+                      cx={sx(pt.eval.cost)}
+                      cy={sy(pt.eval.power * 100)}
+                      r={isBest ? 6 : 4}
+                      fill={GRADER_COLOR[pt.design.grader]}
+                      fillOpacity={isBest ? 1 : 0.78}
+                      stroke={isCur ? 'var(--text)' : isBest ? 'var(--c-good)' : 'none'}
+                      strokeWidth={isCur ? 2.2 : isBest ? 2 : 0}
+                    >
+                      <title>{`${pt.design.mode}, ${GRADER_BY_ID[pt.design.grader].shortLabel}, n=${pt.design.n}, cap ${(pt.design.alpha * 100).toFixed(0)}%: ${pct1(pt.eval.power)} power, ${pt.eval.cost.toLocaleString()} cr`}</title>
+                    </circle>
+                  );
+                })}
+                <text
+                  x={sx(bestPt.eval.cost) + 8}
+                  y={sy(bestPt.eval.power * 100) - 9}
+                  fontSize={10.5}
+                  fontWeight={700}
+                  fontFamily="var(--mono)"
+                  fill="var(--c-good)"
+                >
+                  Cheapest: {ex.bestCost.toLocaleString()} cr
+                </text>
+              </>
+            )}
+          </Plot>
+        </div>
+      )}
+    </div>
   );
 }

@@ -229,5 +229,25 @@ export function guideExhaustive(b: GuideBrief, seed = 5) {
   const rows = LAB_STEPS.flatMap((steps) => LAB_WS.map((w) => ({ steps, w, ...labTry(steps, w, seed) })));
   const pass = rows.filter((r) => labPass(b, r));
   const fewest = pass.length ? Math.min(...pass.map((r) => r.steps)) : -1;
-  return { total: rows.length, passing: pass.length, fewest, atFewest: pass.filter((r) => r.steps === fewest).map((r) => r.w) };
+  return { total: rows.length, passing: pass.length, fewest, atFewest: pass.filter((r) => r.steps === fewest).map((r) => r.w), rows };
 }
+
+export function guideLabHint(
+  b: GuideBrief,
+  r: { onClass: number; minBlob: number; offShape: number; wrongClass: number },
+): string {
+  if (labPass(b, r)) {
+    return `Meets the brief (${(100 * r.onClass).toFixed(1)}% on target class, smallest blob ${(100 * r.minBlob).toFixed(1)}%). Optional: test whether fewer denoising steps can still hold the target.`;
+  }
+  if (r.onClass < b.minOn && r.wrongClass > r.offShape) {
+    return `${(100 * r.wrongClass).toFixed(1)}% of samples drift onto the opposite class because the class pull is too weak. Increasing the conditioning strength steers samples away from the wrong class.`;
+  }
+  if (r.onClass < b.minOn) {
+    return `${(100 * r.offShape).toFixed(1)}% of samples are stranded in empty gaps between blobs. Either more denoising steps or stronger guidance pushes them onto a blob — watch how each choice affects blob shares.`;
+  }
+  if (b.id === 'catalogue') {
+    return `Accuracy is high (${(100 * r.onClass).toFixed(1)}%), but the inner blob gets only ${(100 * r.minBlob).toFixed(1)}% (need ≥ 25%). Stronger guidance exaggerates typicality and drains the inner blob; easing guidance back preserves variety.`;
+  }
+  return `Target-class accuracy clears the bar, yet the inner blob dropped to ${(100 * r.minBlob).toFixed(1)}% (need ≥ ${(100 * b.minBlob).toFixed(0)}%). Balance a milder guidance pull with enough steps to commit stragglers.`;
+}
+

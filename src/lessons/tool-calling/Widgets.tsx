@@ -3,6 +3,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Widget } from '../../components/Widget';
 import { Segmented, Slider, Toggle } from '../../components/controls';
 import { Plot } from '../../components/plot';
+import { AnswerReveal } from '../../components/AnswerReveal';
+import { LiveCode } from '../../components/LabJob';
+import { MachineLog, useMachineLog } from '../../components/MachineLog';
+import { useTweenedArray } from '../../components/motion';
 import {
   CUSTOMER_TICKETS,
   GATE_PRESETS,
@@ -20,11 +24,13 @@ import {
   evaluatePipeline,
   formatStageConfig,
   labExhaustive,
+  pipelineLabHint,
   uniformPipeline,
   type LabBrief,
   type PipelineConfig,
   type StageConfig,
 } from './reliability';
+import { pipelineLabRealCode } from './realCode';
 
 const pct1 = (v: number) => `${(100 * v).toFixed(1)}%`;
 const pct2 = (v: number) => `${(100 * v).toFixed(2)}%`;
@@ -536,14 +542,14 @@ function loadLab(): LabState {
 export function AgentPipelineLab() {
   const [lab, setLab] = useState<LabState>(() => loadLab());
   const [briefIdx, setBriefIdx] = useState(0);
-  const [showOpt, setShowOpt] = useState(false);
+  const [hint, setHint] = useState(false);
+  const log = useMachineLog(20);
 
   const brief = LAB_BRIEFS[briefIdx];
   const entry = lab[brief.id];
   const ev = useMemo(() => evaluatePipeline(entry.cfg), [entry.cfg]);
   const pass = briefPasses(brief, ev);
   const costRounded = Math.round(ev.expectedCost * 100) / 100;
-  const ex = useMemo(() => (showOpt ? labExhaustive(brief) : null), [showOpt, brief]);
 
   const saved = useRef(lab);
   saved.current = lab;
@@ -556,11 +562,21 @@ export function AgentPipelineLab() {
     }
   };
 
+  const logEval = (tag: string, nextCfg: PipelineConfig) => {
+    const nev = evaluatePipeline(nextCfg);
+    const np = briefPasses(brief, nev);
+    log.push(
+      `${brief.id} (${tag}): ok ${pct1(nev.pTask)}, silent ${pct1(nev.pSilentAny)}, cost ${nev.expectedCost.toFixed(2)} cr (${np ? 'PASS' : 'FAIL'})`,
+      np ? 'good' : 'bad',
+    );
+  };
+
   const updateStage = (idx: number, patch: Partial<StageConfig>) => {
     const nextCfg = cloneCfg(entry.cfg);
     nextCfg[idx] = { ...nextCfg[idx], ...patch };
     if (!nextCfg[idx].check) nextCfg[idx].retries = 0;
     persist({ ...lab, [brief.id]: { ...entry, cfg: nextCfg } });
+    logEval(LAB_STAGES[idx].shortName, nextCfg);
   };
 
   const applyPreset = (kind: 'allFast' | 'allStrong') => {
@@ -570,6 +586,7 @@ export function AgentPipelineLab() {
       retries: 0,
     })) as PipelineConfig;
     persist({ ...lab, [brief.id]: { ...entry, cfg: nextCfg } });
+    logEval(kind === 'allStrong' ? 'All Strong' : 'All Fast', nextCfg);
   };
 
   useEffect(() => {
@@ -590,13 +607,33 @@ export function AgentPipelineLab() {
   const okSilent = ev.pSilentAny <= brief.maxSilent + 1e-9;
   const okBadAct = brief.maxBadAction === undefined || ev.pBadAction <= brief.maxBadAction + 1e-9;
 
+  // Cumulative clean survival across stages 0..3
+  const cumSurv = useMemo(() => {
+    const out: number[] = [1];
+    let p = 1;
+    for (const s of ev.stageStats) {
+      p *= s.pOk;
+      out.push(p);
+    }
+    return out;
+  }, [ev.stageStats]);
+
+  const tweened = useTweenedArray([
+    ev.pTask * 100,
+    ev.pAbortAny * 100,
+    ev.pSilentAny * 100,
+  ]);
+
+  const hintText = useMemo(() => pipelineLabHint(brief, entry.cfg), [brief, entry.cfg]);
+  const liveCode = useMemo(() => pipelineLabRealCode(entry.cfg), [entry.cfg]);
+
   return (
     <Widget
       title="Lab: Harden the Agent Pipeline"
       wide
       caption={
         <>
-          Configure all 4 stages of the Kestrel support agent: choose Fast (1.0 cr) or Strong (3.0 cr), whether to run that stage’s check, and how many retries to allow when the check catches an error. Every probability and expected cost is computed exactly. Meet the brief’s reliability targets; optionally, minimise expected credits per ticket. Your work is saved in this browser.
+          Configure all 4 stages of the Kestrel support agent: choose Fast (1.0 cr) or Strong (3.0 cr), whether to run that stage’s verifier, and how many retries to allow on catch. Watch ticket survival drop stage by stage in the waterfall below. Meet the brief’s reliability targets; optionally, minimise expected credits per ticket. Your work is saved in this browser.
         </>
       }
     >
@@ -605,7 +642,7 @@ export function AgentPipelineLab() {
           value={briefIdx}
           onChange={(i) => {
             setBriefIdx(i);
-            setShowOpt(false);
+            setHint(false);
           }}
           options={LAB_BRIEFS.map((b, i) => ({
             value: i,
@@ -627,7 +664,62 @@ export function AgentPipelineLab() {
         <div style={{ fontSize: 14.5, lineHeight: 1.55 }}>{brief.story}</div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))', gap: 10 }}>
+      {/* Live 100-ticket outcome stacked bar + 4-stage survival waterfall */}
+      <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg-subtle)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+        <div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8, fontSize: 11.5, fontFamily: 'var(--mono)', marginBottom: 5 }}>
+            <span style={{ color: 'var(--c-good)', fontWeight: 700 }}>✓ Clean success {pct1(ev.pTask)}</span>
+            <span style={{ color: 'var(--c-b)' }}>⏸ Safe abort {pct1(ev.pAbortAny)}</span>
+            <span style={{ color: 'var(--c-bad)', fontWeight: 700 }}>✗ Silent fail {pct1(ev.pSilentAny)}</span>
+            <span>Cost: <strong>{costRounded.toFixed(2)} cr</strong></span>
+          </div>
+          <div style={{ display: 'flex', height: 11, borderRadius: 6, overflow: 'hidden', background: 'var(--bg-elev)', border: '1px solid var(--border)' }}>
+            <div style={{ width: `${Math.max(0, tweened[0])}%`, background: 'var(--c-good)' }} />
+            <div style={{ width: `${Math.max(0, tweened[1])}%`, background: 'var(--c-b)' }} />
+            <div style={{ width: `${Math.max(0, tweened[2])}%`, background: 'var(--c-bad)' }} />
+          </div>
+        </div>
+
+        <svg viewBox="0 0 640 82" style={{ width: '100%', height: 'auto', display: 'block' }} role="img" aria-label="4-stage pipeline clean survival waterfall">
+          <line x1={30} x2={610} y1={56 - brief.minSuccess * 44} y2={56 - brief.minSuccess * 44} stroke="var(--c-good)" strokeDasharray="3 3" strokeWidth={1} opacity={0.75} />
+          <text x={614} y={59 - brief.minSuccess * 44} fontSize={9.5} fontFamily="var(--mono)" fill="var(--c-good)">{(100 * brief.minSuccess).toFixed(0)}%</text>
+          {['Start', ...LAB_STAGES.map((s) => s.shortName)].map((label, idx) => {
+            const x = 62 + idx * 124;
+            const val = cumSurv[idx];
+            const barH = Math.max(3, val * 44);
+            const drop = idx > 0 ? cumSurv[idx - 1] - val : 0;
+            return (
+              <g key={label}>
+                {idx > 0 && (
+                  <line x1={x - 94} x2={x - 32} y1={56 - cumSurv[idx - 1] * 44} y2={56 - val * 44} stroke="var(--text-muted)" strokeWidth={1.2} strokeDasharray="2 2" />
+                )}
+                <rect
+                  x={x - 28}
+                  y={56 - barH}
+                  width={56}
+                  height={barH}
+                  rx={4}
+                  fill={idx === 0 ? 'var(--text-muted)' : idx === 4 ? (okSuccess ? 'var(--c-good)' : 'var(--c-bad)') : 'var(--c-a)'}
+                  opacity={idx === 0 ? 0.35 : 0.85}
+                />
+                <text x={x} y={52 - barH} textAnchor="middle" fontSize={10} fontWeight={700} fontFamily="var(--mono)" fill="var(--text)">
+                  {(100 * val).toFixed(1)}%
+                </text>
+                <text x={x} y={69} textAnchor="middle" fontSize={10} fontFamily="var(--mono)" fill="var(--text-muted)">
+                  {label}
+                </text>
+                {idx > 0 && drop > 0.001 && (
+                  <text x={x} y={80} textAnchor="middle" fontSize={9} fontFamily="var(--mono)" fill="var(--c-bad)">
+                    −{(100 * drop).toFixed(1)}pp
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(340px, 100%), 1fr))', gap: 10 }}>
         {LAB_STAGES.map((st, idx) => {
           const c = entry.cfg[idx];
           const stat = ev.stageStats[idx];
@@ -696,10 +788,12 @@ export function AgentPipelineLab() {
       <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
         <div className="btn-row">
           <span className={`status ${pass ? 'good' : 'bad'}`}>{pass ? 'Meets the brief' : 'Not yet'}</span>
+          <button type="button" className="btn" onClick={() => setHint((h) => !h)}>{hint ? 'Hide hint' : 'Hint'}</button>
           {entry.solved && (
             <span className="status good">Solved{entry.bestCost !== null ? ` · cheapest so far: ${entry.bestCost.toFixed(2)} cr` : ''}</span>
           )}
         </div>
+        {hint && <div className="live-note">{hintText}</div>}
 
         <div className="readout">
           <span style={{ color: okSuccess ? 'var(--c-good)' : 'var(--c-bad)' }}>{okSuccess ? '✓' : '✗'}</span>{' '}
@@ -725,34 +819,62 @@ export function AgentPipelineLab() {
           <strong>{costRounded.toFixed(2)} credits</strong>
         </div>
 
-        <div className="live-note">
-          {pass
-            ? `Your pipeline passes at ${costRounded.toFixed(2)} credits per ticket. Optional: can you replace any Strong model with Fast + a cheap deterministic check, or trim a retry without breaking the brief?`
-            : !okBadAct
-              ? 'Stage 4 is still committing too many silent errors. Notice that a 95% dry-run guard lets 5% of Stage 4 mistakes through — lowering the base error rate there (Strong + guard) cuts silent bad actions dramatically.'
-              : !okSilent
-                ? 'Too many errors are slipping through silently. Any stage with its check turned off sends 100% of its mistakes downstream unnoticed.'
-                : 'End-to-end success is still below target. Find the stage with the lowest “step ok” above: cheap deterministic checks + retries fix Lookup and Math; fuzzy Policy judgement needs a stronger base model.'}
+        <LiveCode note="Tiered agent pipeline spec" code={liveCode} />
+
+        <div>
+          <AnswerReveal solved={entry.solved} stuckKey={`agent-pipeline:${brief.id}`} label="the 4,096-pipeline Pareto frontier">
+            <AgentParetoFrontier brief={brief} curCost={costRounded} curSuccess={ev.pTask} />
+          </AnswerReveal>
         </div>
 
-        {entry.solved && (
-          <div>
-            <button type="button" className="btn" onClick={() => setShowOpt((s) => !s)}>
-              {showOpt ? 'Hide' : 'Show'} the exhaustive search (all 4,096 pipelines)
-            </button>
-            {showOpt && ex && (
-              <div className="live-note" style={{ marginTop: 10 }}>
-                All {ex.total.toLocaleString()} combinations were evaluated exactly: <strong>{ex.passing}</strong> meet this brief. The cheapest costs{' '}
-                <strong>{ex.bestCost.toFixed(2)} credits</strong>:{' '}
-                {ex.best
-                  .map((w) => w.cfg.map((c, i) => `${LAB_STAGES[i].shortName} ${formatStageConfig(c)}`).join(' · '))
-                  .join('; or ')}{' '}
-                ({pct1(ex.best[0].eval.pTask)} success, {pct1(ex.best[0].eval.pSilentAny)} silent).
-              </div>
-            )}
-          </div>
-        )}
+        <MachineLog
+          title="PIPELINE BENCH LOG"
+          lines={log.lines}
+          onClear={log.clear}
+          empty="Toggle models, checks, retries, or presets to log evaluations."
+        />
       </div>
     </Widget>
+  );
+}
+
+function AgentParetoFrontier({ brief, curCost, curSuccess }: { brief: LabBrief; curCost: number; curSuccess: number }) {
+  const ex = useMemo(() => labExhaustive(brief), [brief]);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+      <div className="live-note">
+        All {ex.total.toLocaleString()} combinations were evaluated exactly: <strong>{ex.passing}</strong> meet this brief. The cheapest costs{' '}
+        <strong>{ex.bestCost.toFixed(2)} credits</strong>:{' '}
+        {ex.best
+          .map((w) => w.cfg.map((c, i) => `${LAB_STAGES[i].shortName} ${formatStageConfig(c)}`).join(' · '))
+          .join('; or ')}{' '}
+        ({pct1(ex.best[0].eval.pTask)} success, {pct1(ex.best[0].eval.pSilentAny)} silent).
+      </div>
+      <Plot x={[4, 16]} y={[50, 100]} width={720} height={175} xLabel="Expected credits / ticket" yLabel="End-to-end success (%)">
+        {({ x: sx, y: sy }) => (
+          <>
+            <line x1={sx(4)} x2={sx(16)} y1={sy(brief.minSuccess * 100)} y2={sy(brief.minSuccess * 100)} stroke="var(--c-good)" strokeDasharray="4 4" strokeWidth={1.1} />
+            {ex.passingPts.map((pt, idx) => {
+              const isBest = Math.abs(pt.cost - ex.bestCost) < 1e-6;
+              return (
+                <circle
+                  key={idx}
+                  cx={sx(Math.min(15.8, pt.cost))}
+                  cy={sy(pt.pTask * 100)}
+                  r={isBest ? 5.5 : 2.6}
+                  fill={isBest ? 'var(--c-good)' : 'var(--c-a)'}
+                  opacity={isBest ? 1 : 0.45}
+                />
+              );
+            })}
+            {/* Unguarded All-Strong reference */}
+            <circle cx={sx(12)} cy={sy(80.5)} r={4.2} fill="var(--c-bad)" />
+            <text x={sx(12) + 6} y={sy(80.5) + 3} fontSize={9.5} fontFamily="var(--mono)" fill="var(--c-bad)">All Strong (12 cr, 80.5%)</text>
+            {/* Current pipeline */}
+            <circle cx={sx(Math.max(4, Math.min(15.8, curCost)))} cy={sy(Math.max(50, curSuccess * 100))} r={6.5} fill="none" stroke="var(--accent)" strokeWidth={2.2} />
+          </>
+        )}
+      </Plot>
+    </div>
   );
 }

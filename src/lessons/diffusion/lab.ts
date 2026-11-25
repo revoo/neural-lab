@@ -69,3 +69,23 @@ export function exhaustive(b: Brief, noiseSeed?: number) {
 
 export const levelLabel = (a: number) => String(a);
 export { LAB_LEVELS };
+
+export function stepBudgetHint(id: LabBriefId, levels: number[], offShape?: number, rareShare?: number | null): string {
+  if (offShape !== undefined && offShape > 0.5) {
+    return 'Most samples land in the empty gaps between blobs: the final jump to clean data starts from too much noise, so the best guess averages neighbouring blobs together.';
+  }
+  if (id === 'lopsided' && rareShare !== null && rareShare !== undefined && rareShare < 0.07) {
+    return `The rare blob gets only ${(rareShare * 100).toFixed(1)}% (fair share 10%). Samples must split towards the distant blob while noise is still high enough for them to wander that far.`;
+  }
+  if (levels.some((l) => l < 0.05) && id === 'ring') {
+    return 'Check the forward-noise chart: at very small signal shares, almost none of the ring shape survives, so spending denoiser calls there buys almost nothing.';
+  }
+  if (id === 'ring') {
+    return 'Where does the work happen? Below a small signal share the shape has nearly vanished, while the final jump to clean data is a single best guess that blurs if started too noisy.';
+  }
+  if (id === 'smiley') {
+    return 'The eyes and smile blobs sit close together, so samples must separate neighbours at lower noise. Compare both samplers as you place stops where those decisions happen.';
+  }
+  return 'Watch the rare blob’s share. Samples have to commit to the rare blob early while noise is still wide, then sharpen onto both blobs without starving either one.';
+}
+

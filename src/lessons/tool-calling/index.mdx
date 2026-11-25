@@ -191,6 +191,10 @@ You're shipping the 4-stage Kestrel support agent: **Parse & Lookup**, **Policy 
 
 Hit the reliability targets for all three briefs — and optionally, minimise expected credits per ticket. All 4,096 combinations are checked exhaustively.
 
+<LabJob>
+  You are the reliability engineer for an automated e-commerce refund agent. Every ticket flows through four stages — order lookup, policy judgement, refund arithmetic, and an irreversible payment API call. Combine fast vs strong models, deterministic vs fuzzy verifiers, and retries to hit each SLA while keeping expected credits per ticket as low as possible.
+</LabJob>
+
 <AgentPipelineLab />
 
 <Deeper title="Debrief: what the exhaustive search reveals" tag="Spoiler">
@@ -204,6 +208,12 @@ First, try the two unguarded presets: **All Fast** gets only **52.0%** end-to-en
 The transferable engineering rule: **put cheap models behind deterministic checks and retries wherever exact verification exists, and reserve expensive models for fuzzy judgements and irreversible actions.**
 
 </Deeper>
+
+<ForReal>
+  Production agent orchestrators (LangGraph, Temporal-backed agent loops, or custom Pydantic/JSON-Schema harnesses) use this exact tiered pattern: route schema parsing and arithmetic to cheap, fast models guarded by deterministic validators or sandboxed Python assertions with 1–2 automatic retries, while reserving frontier models and dry-run/human-approval gates for ambiguous policy calls and irreversible writes.
+</ForReal>
+
+<HistoryCard id="tool-calling" />
 
 <Quiz questions={questions} />
 

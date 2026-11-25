@@ -208,15 +208,15 @@ The owner asked for this next, in a fresh session. `docs/LAB_IMPROVEMENTS.md` re
 - [x] word-embeddings · Train & Debug Word2Vec
 - [x] similarity-search · Tune the Vector Index
 - [x] contrastive-learning · Tune Contrastive Training
-- [ ] rnns · Tame BPTT
-- [ ] lstms-grus · Wire the Gated Cell
-- [ ] seq2seq-attention · Break the Bottleneck
-- [ ] autoencoders · The Face Printer
-- [ ] diffusion · Spend the Step Budget
-- [ ] guidance · Tune the Guidance
-- [ ] rag · Tune the Retriever
-- [ ] tool-calling · Harden the Agent Pipeline
-- [ ] evaluation · Size Your Eval Suite
+- [x] rnns · Tame BPTT
+- [x] lstms-grus · Wire the Gated Cell
+- [x] seq2seq-attention · Break the Bottleneck
+- [x] autoencoders · The Face Printer
+- [x] diffusion · Spend the Step Budget
+- [x] guidance · Tune the Guidance
+- [x] rag · Tune the Retriever
+- [x] tool-calling · Harden the Agent Pipeline
+- [x] evaluation · Size Your Eval Suite
 
 **After each lab:** `npx tsc --noEmit -p .`, the lesson's tests, then screenshots with `node scripts/drive-widget.cjs <lessonId> 0 '[{"shot":"x"}]' --title="<widget title text>"` in light, dark and matrix, and at `--width=390`. Commit with the `Authored-by` trailer and push. **At the end:** run `npm test`, `npm run build` (then check the watermark is absent from `dist/`), `node scripts/check-pages.cjs` and `--theme=matrix`. Update `docs/ROADMAP.md` "Current state" and tick this list.
 

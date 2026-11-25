@@ -132,6 +132,10 @@ The exact code wins outright; the reworded question scores zero against everythi
 
 Three knobs, one trade-off: find the answers, and pay for as little context as possible. Chunk size, hybrid weight and $k$ are evaluated exactly on all 34 questions every time you change one. The optional goal in every brief is the fewest words of retrieved text per question.
 
+<LabJob>
+  You own the retrieval layer for a customer-support RAG bot answering 34 real user questions across warranty, returns, error codes, and troubleshooting. Every extra retrieved word burns prompt tokens and latency, so tune chunk size, top-k, and hybrid lexical/semantic weight λ to hit each tier's recall target with the leanest possible context.
+</LabJob>
+
 <RetrieverLab />
 
 <Deeper title="Debrief: what the lab shows" tag="Spoiler">
@@ -145,6 +149,12 @@ Three knobs, one trade-off: find the answers, and pay for as little context as p
 **An honest warning.** We tuned these settings on the same 34 questions we scored them on. With so few questions, the best setting is partly fitted to their quirks, exactly the overfitting from Module 7. In practice you'd tune on one set of questions and report on another that you never looked at while tuning. That's the subject of the evaluation lesson.
 
 </Deeper>
+
+<ForReal>
+  Production RAG stacks (Weaviate `alpha` hybrid search, Qdrant sparse+dense prefetch, Elasticsearch RRF, or `pgvector` + `tsvector`) face this exact three-way tension: pure vector search drops exact product IDs and error codes, pure BM25 drops paraphrased questions, and over-fetching `top_k` or bloated chunks inflates token bills and distracts the generator. Teams tune chunking, hybrid weighting, and top-k on an offline labelled retrieval eval before touching the LLM prompt.
+</ForReal>
+
+<HistoryCard id="rag" />
 
 <Quiz questions={questions} />
 
