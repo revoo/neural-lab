@@ -1,0 +1,214 @@
+{/* authored-by: Gemini Antigravity */}
+import { PairedComparisonWidget, EvalOverfitWidget, JudgeBiasWidget, EvalSizingLab } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: "Our new prompt jumped from 82% to 88%!"
+
+You changed the system prompt of our Kestrel K2 support agent, ran it on 50 support tickets, and accuracy jumped from 82% to 88%. Six full percentage points! Time to ship?
+
+Before you merge the pull request, ask three uncomfortable questions:
+
+1. **Could that +6 points just be noise?** In the statistics lesson you saw that a test score wobbles like $\sqrt{p(1 - p)/n}$ — on 50 examples around 85%, one standard error is already 5 percentage points.
+2. **How many prompts did you try before you saw 88%?** If you tweaked the prompt twenty times on those same 50 questions and kept the best one, you almost certainly overfitted your eval set.
+3. **Who graded the answers?** If an LLM judge scored free-text responses, did it prefer the new prompt because it was genuinely better — or because it sat in Slot 1, or wrote twice as many words?
+
+In AI systems engineering, **evaluation is the feedback loop**. A broken eval doesn't merely waste time; it actively guides your team in the wrong direction while displaying green charts the whole way. This lesson makes all three traps exact and measurable.
+
+## Paired comparisons: why the *same* test set is worth 3× the data
+
+Suppose Model A scores **84%** and Model B scores **78%** on 100 questions. If you evaluated Model A on one random sample of 100 questions and Model B on a *different* 100 questions, how surprising is a 6-point gap? Not surprising at all: two identical 81% models on separate 100-question samples produce a gap of 6 points or more **32.1%** of the time ($p = 0.321$). You learned nothing.
+
+Now run **both** models on the **exact same 100 questions** — a **<Term id="paired-eval">paired evaluation</Term>**. Every question falls into one of four boxes: both right ($n_{11}$), both wrong ($n_{00}$), only A right ($n_{10}$), or only B right ($n_{01}$).
+
+Think about the questions where both models agreed. Easy questions ("What's the warranty?") get answered right by both; impossible questions get missed by both. Neither tells you which model is better. **Only the disagreements carry signal.** If A and B are truly equally good, each disagreement is a fair coin flip — 50% chance A wins, 50% chance B wins. Checking how lopsided the coin flips are is **McNemar's exact test**:
+
+<Eq
+  words="\cc{\text{chance of seeing a split this lopsided by luck}} = 2 \sum_{k = \max(\ca{n_{10}}, \cb{n_{01}})}^{\cp{m}} \binom{\cp{m}}{k} \Big(\frac{1}{2}\Big)^{\cp{m}}"
+  tex="\cc{p_{\text{McNemar}}} = 2 \sum_{k = \max(\ca{n_{10}},\, \cb{n_{01}})}^{\cp{m}} \binom{\cp{m}}{k} 2^{-\cp{m}}, \qquad \cp{m} = \ca{n_{10}} + \cb{n_{01}}"
+>
+
+- $\ca{n_{10}}$ — questions **only A** got right (A's wins)
+- $\cb{n_{01}}$ — questions **only B** got right (B's wins / regressions)
+- $\cp{m} = \ca{n_{10}} + \cb{n_{01}}$ — total **disagreements** between the two models
+- $\cc{p_{\text{McNemar}}}$ — exact probability that $\cp{m}$ fair coin flips land at least as lopsided as what you observed
+
+</Eq>
+
+Watch how dramatically the exact same 84% vs 78% headline changes depending on the disagreement structure underneath:
+
+<PairedComparisonWidget />
+
+Compare the two presets at 84% vs 78%:
+- **Pure improvement ($n_{10} = 6, n_{01} = 0$):** Model A kept every single answer Model B got right and fixed 6 failures. Six heads in a row out of six fair coins happens only $2 \times (1/2)^6 = \mathbf{0.031}$ of the time! Unpaired said $p = 0.321$; paired reveals real evidence.
+- **Trading wins ($n_{10} = 18, n_{01} = 12$):** Model A fixed 18 questions and *broke* 12 others. An 18–12 split out of 30 fair coins has $p = \mathbf{0.362}$ — pure churn.
+
+The engineering rule is immediate: **always evaluate competing prompts or models on the exact same frozen questions, and always log $(n_{10}, n_{01})$ — never just two aggregate percentages.**
+
+## The winner's curse: overfitting your eval set
+
+At the end of the RAG lesson, we warned that tuning 125 retriever settings on 34 questions and reporting the best score is optimistic. Let's put an exact number on *how* optimistic.
+
+<Predict
+  question="You try 20 prompt tweaks on a 50-question eval set and keep the highest-scoring one. Secretly, every single prompt has the exact same true accuracy of 80% — none of them helped at all. Roughly what score do you expect the 'winning' prompt to get on those 50 questions?"
+  options={[
+    'About 80% — the true accuracy is 80%',
+    'About 83% — a small bump from luck',
+    'About 90% — a massive +10 percentage point mirage',
+  ]}
+  answer={2}
+>
+
+Each 50-question run has a standard error of $\sqrt{0.8 \times 0.2 / 50} = 5.7$ points. Draw 20 independent runs and pick the luckiest one, and the exact expected maximum is **89.9%** — a **+9.9 percentage point mirage**! In fact, **98.5%** of the time, the "winner" looks at least +5 points better than truth, even though it's worth zero on fresh data.
+
+</Predict>
+
+Because the maximum of $K$ independent draws is $\le k$ only if *all* $K$ draws are $\le k$, we get the exact distribution of **<Term id="eval-overfitting">eval overfitting</Term>** in one line:
+
+<Eq
+  words="\cc{P(\text{best of } \cb{K} \text{ prompts} \le k)} = \Big(\ca{P(\text{one prompt} \le k)}\Big)^{\cb{K}}"
+  tex="\cc{F_{\max}(k)} = \big(\ca{F_{\text{Bin}(n, p)}(k)}\big)^{\cb{K}}"
+>
+
+- $\ca{F_{\text{Bin}(n, p)}(k)}$ — probability a **single** prompt scores at most $k$ right out of $n$ questions
+- $\cb{K}$ — number of **candidate prompts or configs** tried on the same eval set
+- $\cc{F_{\max}(k)}$ — exact cumulative probability for the **highest score** among all $K$ tries
+
+</Eq>
+
+Try different eval sizes $n$ and search counts $K$ below:
+
+<EvalOverfitWidget />
+
+Notice two things:
+- On $n = 50$ at true accuracy 80%, even trying just **5** prompts creates a **+6.4 pp** average mirage (65.2% chance of ≥ +5 pp). Trying **20** creates **+9.9 pp** (98.5% chance of ≥ +5 pp).
+- Raising $n$ to **500** shrinks the $K = 20$ mirage from +9.9 pp down to **+3.3 pp**, which is still larger than many real prompt improvements!
+
+The cure is identical to Module 7's train/validation/test split: keep a **dev eval** you iterate on freely, and a **locked held-out test set** you touch only once before shipping a major change (and refresh periodically from fresh production logs).
+
+## LLM-as-a-judge and position bias
+
+Exact string matching works for multiple choice, tool-call arguments, or unit tests. It fails completely for open-ended prose ("was this refund refusal polite, accurate and concise?"). So teams increasingly use **<Term id="llm-as-a-judge">LLM-as-a-judge</Term>**: show a strong language model a question alongside Response A and Response B, and ask which is better.
+
+It scales cheaply — and introduces systematic judge biases that don't average out as you add more questions:
+
+- **Position bias:** many judges favour whichever response sits in Slot 1 (or Slot 2) whenever the pair is close.
+- **Verbosity bias:** judges often prefer longer, more formatted answers even when shorter ones are more accurate.
+- **Self-preference:** a model judging its own family's writing tends to score it higher than rival models of equal quality.
+
+Explore position bias directly in the explicit probabilistic judge model below:
+
+<JudgeBiasWidget />
+
+Leave the true advantage at **0 pp** (two identical models) with a +20 pp Slot-1 bias:
+- **A always first:** the judge reports A wins **65.0%** to **35.0%** — a completely fabricated 30-point landslide.
+- **B always first:** the exact same judge flips to B winning **65.0%** to **35.0%**.
+- **Position-swapped:** run every pair twice — `(A, B)` and `(B, A)` — and count a win only when both orderings agree. The bias cancels to **exact zero** (28.6% vs 28.6% for any bias $b$!), and the **42.8% flip rate** gives you a free alarm telling you how inconsistent your judge is.
+
+And now set true advantage to **+10 pp** (A truly better: 35% vs 25%) and choose **B always first**: position bias *reverses the truth* and declares B the winner 60.5% to 39.5%! Position swapping recovers A's real lead cleanly (33.6% vs 26.6%).
+
+### The hidden tax of a noisy binary grader
+
+Even when a binary pass/fail LLM judge has *no* directional bias — say it simply misgrades each answer with probability $1 - q$ (accuracy $q$) — noise silently shrinks every true improvement you try to measure:
+
+<Eq
+  words="\cc{\text{observed accuracy gap}} = \big(2\cb{q} - 1\big) \times \ca{\text{true accuracy gap}}"
+  tex="\cc{\Delta_{\text{obs}}} = (2\cb{q} - 1)\,\ca{\Delta}"
+>
+
+- $\ca{\Delta} = p_1 - p_0$ — the **true** accuracy improvement of the new system
+- $\cb{q}$ — the grader's **accuracy** ($0.5$ = random coin, $1.0$ = exact oracle)
+- $\cc{\Delta_{\text{obs}}}$ — the **attenuated gap** the noisy grader actually measures on average
+
+</Eq>
+
+At $q = 85\%$, $2q - 1 = 0.70$: a real +5.0% gain shrinks to **+3.5%** — and on a paired eval, independent grading errors also invent $2q(1 - q) \approx 25.5\%$ **fake disagreements** on questions where both models actually gave the same verdict! Does that mean LLM judges are useless? Not at all — because they cost a fraction of human grading, you can sometimes run 5× as many items and still come out ahead on cost. You'll discover the exact crossover in the lab.
+
+<Misconception>
+
+"An 85%-accurate LLM judge is good enough for any eval — 85% is pretty high!" It depends completely on the size of the gain you are trying to detect and how many questions you have. For a +5% lift with 2,000 cheap questions, an 85% judge works and saves money. For a subtle +3% lift — or a small 300-question benchmark — an 85% judge shrinks the signal to +2.1% and floods your McNemar test with fake disagreements, making it mathematically impossible to reach 85% detection power.
+
+</Misconception>
+
+## In code
+
+Both exact McNemar p-values and the exact Winner's Curse expectation take twenty lines of standard-library Python:
+
+```python
+import math
+
+def mcnemar_exact_p(n10, n01):
+    """Exact two-sided McNemar p-value from discordant counts."""
+    m = n10 + n01
+    if m == 0 or n10 == n01:
+        return 1.0
+    hi = max(n10, n01)
+    tail = sum(math.comb(m, k) for k in range(hi, m + 1)) * (0.5 ** m)
+    return min(1.0, 2.0 * tail)
+
+def winners_curse_expected_max(n, p, K):
+    """Exact expected highest accuracy among K identical Binomial(n, p) prompts."""
+    cdf, prev, exp_max = 0.0, 0.0, 0.0
+    for k in range(n + 1):
+        pk = math.comb(n, k) * (p ** k) * ((1 - p) ** (n - k))
+        cdf = min(1.0, cdf + pk)
+        pow_k = cdf ** K
+        exp_max += (pow_k - prev) * (k / n)
+        prev = pow_k
+    return exp_max
+
+print(f"McNemar (6 wins, 0 losses):   p = {mcnemar_exact_p(6, 0):.4f}")
+print(f"McNemar (18 wins, 12 losses): p = {mcnemar_exact_p(18, 12):.4f}")
+for K in (1, 5, 20):
+    em = winners_curse_expected_max(50, 0.80, K)
+    print(f"Best of {K:2d} identical prompts (n=50, true 80%): expected max = {100*em:.1f}% (+{100*max(0.0, em-0.80):.1f} pp)")
+```
+
+Running it prints:
+
+```text
+McNemar (6 wins, 0 losses):   p = 0.0312
+McNemar (18 wins, 12 losses): p = 0.3616
+Best of  1 identical prompts (n=50, true 80%): expected max = 80.0% (+0.0 pp)
+Best of  5 identical prompts (n=50, true 80%): expected max = 86.4% (+6.4 pp)
+Best of 20 identical prompts (n=50, true 80%): expected max = 89.9% (+9.9 pp)
+```
+
+## Lab: Size Your Eval Suite
+
+Every eval suite balances three numbers: **<Term id="statistical-power">statistical power</Term>** (probability you detect a real improvement when one exists), **false-positive rate** (probability you ship a no-op change by luck), and **grading cost**.
+
+For each brief below, pick **Unpaired** or **Paired**, a grader (**Exact 100%** at 5 cr/item, **Dual-pass LLM 93%** at 1 cr, or **Fast LLM 85%** at 0.4 cr), the number of test questions $n$, and your false-positive cap. Every power and false-positive number is computed by exact binomial / McNemar sums. Meet all three briefs — and optionally, find the cheapest suite for each.
+
+<EvalSizingLab />
+
+<Deeper title="Debrief: one winning grader per brief" tag="Spoiler">
+
+Each brief has a unique cheapest optimum — and **all three graders win one brief**, each for a concrete statistical reason:
+
+- **Brief 1 (Routine Release Gate: +5% gain, power ≥ 85%, FPR ≤ 5%, $n \le 2{,}000$):** 32 of 264 designs pass. The cheapest costs **1,200 credits**: **Paired + Fast LLM judge at $n = 2{,}000$, cap 5%** (86.3% power, 4.60% FPR). Even though the 85% judge attenuates +5% to +3.5% and needs 2,000 items, at 0.4 cr/item sheer volume beats Dual LLM (1,500 cr) and Exact human grading (3,000 cr)!
+- **Brief 2 (Capped Benchmark: +5% gain, $n \le 1{,}000$):** 10 of 216 designs pass — and **zero** unpaired designs and **zero** Fast LLM designs pass. The cheapest costs **1,500 credits**: **Paired + Dual-pass LLM judge at $n = 1{,}000$, cap 5%** (87.7% power, 4.31% FPR), half the cost of Exact human grading (3,000 cr). Once you run out of questions, reducing judge noise beats collecting more volume.
+- **Brief 3 (High-Stakes +3% Lift: power ≥ 85%, strict FPR ≤ 2%):** Only 5 of 264 designs pass — **zero** unpaired designs and **zero** LLM-judge designs pass at any $n \le 2{,}000$! The cheapest costs **7,500 credits**: **Paired + Exact human/unit test at $n = 1{,}000$, cap 2%** (85.4% power, 1.47% FPR). When the effect is small and false alarms are expensive, only exact paired grading preserves enough signal-to-noise ratio.
+
+Notice one pattern across all three briefs: **every single optimum is Paired.** Paying 1.5× per item to evaluate both models on the same frozen questions beats unpaired grading every time.
+
+</Deeper>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- **Always run paired evals** on the exact same frozen questions and track $(n_{10}, n_{01})$ disagreements with McNemar's test. Shared easy and hard questions cancel out, giving far sharper statistical power than two separate samples.
+- **Beware the winner's curse:** choosing the best of $K = 20$ identical prompts on 50 questions creates a **+9.9 pp** mirage on average. Keep a dev eval for iteration and a locked held-out test set for release decisions.
+- **Position bias doesn't average out with bigger $n$.** Always position-swap pairwise LLM judges `(A, B)` and `(B, A)`, count only consistent verdicts, and monitor the flip rate as a health check.
+- **Noisy graders attenuate signal by $(2q - 1)$** and inject fake disagreements into paired tests. Cheap LLM judges win when questions are abundant and gains are ≥ 5%; exact deterministic tests or human grading become mandatory for small benchmarks or subtle ≤ 3% lifts.
+- **Size your eval suite before you run experiments**, using power and false-positive targets — otherwise you can't tell whether a flat chart means your idea failed or your eval was too small to see it.
+
+</Takeaways>
+
+<InTheWild>
+
+Mature AI engineering teams treat evals as a tiered test pyramid, just like software testing: (1) fast **deterministic assertions** (schema validity, regex/code checks, exact SQL or unit-test pass rates — $q = 1$, pennies to run in CI on every commit), (2) **paired LLM-as-a-judge** suites with position-swapping and calibration against a human-labelled golden set (measuring judge agreement $q$ and flip rate before trusting it), and (3) **periodic human review** plus online A/B metrics on real user traffic. Public leaderboards (LMSYS Chatbot Arena, SWE-bench, GPQA) wrestle with every phenomenon in this lesson: contamination and eval overfitting force labs to build fresh private held-out benchmarks (like SWE-bench Verified and LiveBench), and Chatbot Arena uses blind randomised slot ordering with Bradley–Terry / Elo ratings specifically to neutralise position bias.
+
+</InTheWild>
+
+That wraps up **Module 18 · AI Systems Engineering** — from retrieval (RAG), to tool-calling agents, to evaluating whether any of it actually works. You now have the full arc from a single vector to production AI systems.

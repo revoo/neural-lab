@@ -188,8 +188,8 @@ export const MODULES: ModuleMeta[] = [
     lessons: [
       { id: 'rag', title: 'Retrieval-Augmented Generation', summary: 'Why models need to look things up, lexical vs semantic vs hybrid search computed on a real labelled set, chunk size against prompt cost, recall at k — and Lab: Tune the Retriever.', minutes: 35, load: () => import('./lessons/rag/index.mdx') },
       { id: 'tool-calling', title: 'Tool Calling and Agents', summary: 'How a next-token predictor acts on the world through a host-run agent loop, why structured outputs aren’t enough without backend guards, compounding reliability pⁿ and verifiers — and Lab: Harden the Agent Pipeline.', minutes: 35, load: () => import('./lessons/tool-calling/index.mdx') },
+      { id: 'evaluation', title: 'Evaluation: Measuring AI Without Fooling Yourself', summary: 'Paired McNemar comparisons vs unpaired noise, the exact winner’s curse of eval overfitting, LLM-as-a-judge position bias and attenuation — and Lab: Size Your Eval Suite.', minutes: 35, load: () => import('./lessons/evaluation/index.mdx') },
     ],
-    planned: ['Evaluation'],
   },
 ];
 
