@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Widget } from '../../components/Widget';
+import { MachineLog, useMachineLog } from '../../components/MachineLog';
 import { Segmented, Slider, Toggle } from '../../components/controls';
 import { Handle, Plot, usePlot } from '../../components/plot';
 import { Heatmap, diverging, fieldImage, sequential } from '../../components/heatmap';
@@ -93,6 +94,8 @@ export function Playground() {
   const [showImp, setShowImp] = useState(false);
   const [bgNeuron, setBgNeuron] = useState(true);
   const [bestKept, setBestKept] = useState<number | null>(null);
+  const [bestMask, setBestMask] = useState<Mask | null>(null);
+  const log = useMachineLog();
   const [optimum, setOptimum] = useState<ReturnType<typeof minimalNeurons> | 'pending' | undefined>(undefined);
   const revealed = useRef(false); // once the optimum is shown, the learner's "best" stops updating
 
@@ -152,8 +155,11 @@ export function Playground() {
   const totalHidden = hidden.reduce((s, v) => s + v, 0);
   const keptHidden = m.slice(1, -1).reduce((s, c) => s + c.filter(Boolean).length, 0);
   useEffect(() => {
-    if (!running && !revealed.current && acc >= 0.95 && keptHidden < totalHidden) setBestKept((b) => (b === null ? keptHidden : Math.min(b, keptHidden)));
-  }, [acc, keptHidden, totalHidden, running]);
+    if (!running && !revealed.current && acc >= 0.95 && keptHidden < totalHidden && (bestKept === null || keptHidden < bestKept)) {
+      setBestKept(keptHidden);
+      setBestMask(m.map((c) => c.slice()));
+    }
+  }, [acc, keptHidden, totalHidden, running]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Thumbnails of every node over the input square.
   const thumbs = useMemo(() => {
@@ -200,6 +206,14 @@ export function Playground() {
     const next = m.map((r) => r.slice());
     next[col][j] = !next[col][j];
     setMask(next);
+    if (col > 0 && col < sizes.length - 1) {
+      const after = accuracy(n, data, next);
+      const kept = next.slice(1, -1).reduce((s2, c) => s2 + c.filter(Boolean).length, 0);
+      log.push(
+        `layer ${col} neuron ${j + 1} ${next[col][j] ? 'back on' : 'off'}: accuracy ${pct(acc)} → ${pct(after)} ${after >= 0.95 ? '✓' : '✕'} · ${kept} of ${totalHidden} neurons on`,
+        after >= 0.95 ? 'good' : 'bad',
+      );
+    }
   };
   const setWeight = (l: number, j: number, i: number, w: number) => {
     setRunning(false);
@@ -441,6 +455,7 @@ export function Playground() {
         total={totalHidden}
         acc={acc}
         best={bestKept}
+        bestMask={bestMask}
         optimum={optimum}
         onCompute={() => {
           setOptimum('pending');
@@ -452,6 +467,7 @@ export function Playground() {
         }}
         tooMany={totalHidden > 14}
       />
+      <MachineLog lines={log.lines} onClear={log.clear} empty="Switch hidden neurons off and on: each change and its accuracy is logged here." />
     </Widget>
   );
 }
@@ -479,6 +495,7 @@ function PruneBox({
   total,
   acc,
   best,
+  bestMask,
   optimum,
   onCompute,
   onShow,
@@ -489,6 +506,7 @@ function PruneBox({
   total: number;
   acc: number;
   best: number | null;
+  bestMask: Mask | null;
   optimum: ReturnType<typeof minimalNeurons> | 'pending' | undefined;
   onCompute: () => void;
   onShow: (m: Mask) => void;
@@ -525,11 +543,35 @@ function PruneBox({
                 <button className="btn small" onClick={() => onShow(optimum.mask)}>
                   Show it
                 </button>
+                {bestMask && <WhichSurvive yours={bestMask} min={optimum.mask} />}
               </span>
             )}
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Which neurons survive: your best pruning beside the exhaustive minimum, layer by layer. */
+function WhichSurvive({ yours, min }: { yours: Mask; min: Mask }) {
+  const layers = yours.slice(1, -1).map((col, k) => ({ col, mcol: min[k + 1] ?? [] }));
+  const shared = layers.reduce((s, { col, mcol }) => s + col.filter((on, j) => on && mcol[j]).length, 0);
+  const dot = (on: boolean, both: boolean) => (
+    <span style={{ display: 'inline-block', width: 14, height: 14, borderRadius: 7, margin: '0 2px', background: on ? (both ? 'var(--c-good)' : 'var(--accent)') : 'transparent', border: '1.5px solid var(--border-strong)' }} />
+  );
+  return (
+    <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 10px', alignItems: 'center', fontSize: 12.5 }}>
+      {layers.map(({ col, mcol }, k) => (
+        <div key={k} style={{ display: 'contents' }}>
+          <span className="muted">layer {k + 1}, yours</span>
+          <span>{col.map((on, j) => <span key={j}>{dot(on, on && !!mcol[j])}</span>)}</span>
+          <span className="muted">layer {k + 1}, minimum</span>
+          <span>{mcol.map((on, j) => <span key={j}>{dot(on, on && !!col[j])}</span>)}</span>
+        </div>
+      ))}
+      <span />
+      <span className="muted">Green: kept by both ({shared}). Your best kept the others in purple; neurons are in the same order as in the diagram.</span>
     </div>
   );
 }
