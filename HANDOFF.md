@@ -124,3 +124,22 @@ Assume the session can disconnect at any moment and someone else will continue f
 - **Uppercase labels again:** `Segmented` labels are uppercased, so `(k)` becomes `(K)` and `ᾱ` becomes `Ā`. Keep symbols out of labels.
 - **Heredocs with `${…}` or `rm`-like text can be refused by the command-safety check** even when nothing is deleted: write the script with the file tool instead.
 
+
+## Lab improvements plan: progress (`docs/LAB_IMPROVEMENTS.md`)
+
+The owner asked for the plan in `docs/LAB_IMPROVEMENTS.md` to be implemented in its "Suggested order of work", one step per commit. Tick a step when its commit is pushed; mark the step you are in the middle of as **IN PROGRESS** with a note of what is done so far, so another agent can resume after a disconnect.
+
+- [x] 1. Quick fixes: two hints naming locked options; five early answer reveals gated behind a solve or an explicit "I'm stuck" step.
+- [ ] 2. A real job in every brief, "where this happens for real" debrief lines, live code lines in the six tuning labs.
+- [ ] 3. History cards: `src/history.ts` + test, collapsed card after each lab.
+- [ ] 4. Solution maps: Attention puzzles (11×11 query map), Build a previous-word head (180-speed strip).
+- [ ] 5. Shared pieces: `LabShell`, `MachineLog`, reduced-motion hook; Dice Workshop and Tune the Q-Learner moved onto them.
+- [ ] 6. Machinery for the four "needs work" labs: Q-Learner maze replay, live sampler text, compute-budget map, alignment reply bars.
+- [ ] 7. Timeline page built from `src/history.ts`.
+- [ ] 8. Decision lines in the Logic workbench.
+- [ ] 9. Replay helper; reward hacking, Wire the Policy, golf labs, VRAM Tetris falling blocks.
+- [ ] 10. Remaining rows of the three tables.
+
+Notes for whoever continues:
+- Step 1 added `src/components/AnswerReveal.tsx` (`AnswerReveal`, `StuckButton`, `useStuck`): use it for any answer/optimum reveal so it appears only after a solve or an explicit, remembered "I'm stuck". Hints that depend on the brief live in the lesson's `.ts` (`rescueHint`, `alignmentHint`) with a `hints.test.ts` checking they never name a locked control.
+- `scripts/drive-widget.cjs` takes `--title=<text>` to pick a widget by title instead of index.

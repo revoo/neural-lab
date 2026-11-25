@@ -1,9 +1,11 @@
 // authored-by: Neon High
 import { useEffect, useMemo, useState } from 'react';
 import { Widget } from '../../components/Widget';
+import { AnswerReveal } from '../../components/AnswerReveal';
 import { Segmented, Slider } from '../../components/controls';
 import {
   ALIGNMENT_BRIEFS,
+  alignmentHint,
   CANDIDATE_REPLIES,
   LAB_BETAS,
   LAB_STEPS,
@@ -443,7 +445,6 @@ function loadAlignLab(): SavedAlignLab {
 export function AlignmentLab() {
   const [briefIdx, setBriefIdx] = useState(0);
   const [state, setState] = useState<SavedAlignLab>(() => loadAlignLab());
-  const [showOpt, setShowOpt] = useState(false);
 
   const brief = ALIGNMENT_BRIEFS[briefIdx];
   const cfg = state.configs[brief.id] ?? brief.defaultConfig;
@@ -493,7 +494,6 @@ export function AlignmentLab() {
               className={briefIdx === i ? 'btn primary' : 'btn'}
               onClick={() => {
                 setBriefIdx(i);
-                setShowOpt(false);
               }}
             >
               {state.solved[b.id] ? '✓ ' : ''}
@@ -603,23 +603,16 @@ export function AlignmentLab() {
         ) : (
           <>
             <strong>Not yet aligned.</strong>{' '}
-            {!ev.checks.meetsHack
-              ? 'Hack probability is too high — tighten β (larger KL leash) or switch to DPO so rejected hacks are explicitly pushed down.'
-              : !ev.checks.meetsKl
-                ? 'KL divergence wandered too far from the SFT reference — increase β or use fewer steps.'
-                : 'True helpfulness is too low — loosen β slightly or train DPO longer.'}
+            {alignmentHint(brief, cfg, ev)}
           </>
         )}
       </div>
 
       <div className="btn-row" style={{ marginTop: 10 }}>
         <button className="btn" onClick={() => update(brief.defaultConfig)}>Reset brief</button>
-        <button className="btn" onClick={() => setShowOpt((s) => !s)}>
-          {showOpt ? 'Hide exhaustive optimum' : 'Show exhaustive optimum'}
-        </button>
       </div>
 
-      {showOpt && (
+      <AnswerReveal solved={!!state.solved[brief.id] || ev.passes} stuckKey={`alignment-lab:${brief.id}`} label="the exhaustive optimum">
         <div className="mono" style={{ marginTop: 8, padding: '8px 10px', borderRadius: 6, background: 'var(--bg-sunken)', border: '1px solid var(--border)', fontSize: 12 }}>
           Exhaustive search over all {sol.totalConfigs} grid configs ({sol.passingCount} pass): best is{' '}
           <strong>
@@ -629,7 +622,7 @@ export function AlignmentLab() {
           </strong>{' '}
           → True R* = <strong>+{sol.bestEval.metrics.expectedTrue.toFixed(3)}</strong>, KL = {sol.bestEval.metrics.klNats.toFixed(2)} nats, Hack = {(sol.bestEval.metrics.hackProb * 100).toFixed(2)}%.
         </div>
-      )}
+      </AnswerReveal>
     </Widget>
   );
 }

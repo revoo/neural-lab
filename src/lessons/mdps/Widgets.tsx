@@ -1,6 +1,7 @@
 // authored-by: Gemini Antigravity
 import { useEffect, useMemo, useState } from 'react';
 import { Widget } from '../../components/Widget';
+import { StuckButton, useStuck } from '../../components/AnswerReveal';
 import { Segmented, Slider } from '../../components/controls';
 import {
   ACTION_ARROWS,
@@ -652,6 +653,8 @@ export function PolicyArchitectLab() {
     updatePolicy(nextPol);
   };
 
+  const [stuck, markStuck] = useStuck(`wire-policy:${level.id}`);
+
   const displayPolicy = showOptimal ? curEval.optimal.policy : currentPolicy;
   const displayV = showOptimal ? curEval.optimal.V : curEval.evalResult.V;
   const displayEv = useMemo(
@@ -799,9 +802,20 @@ export function PolicyArchitectLab() {
             <button type="button" className="btn" onClick={() => setShowHint((h) => !h)}>
               {showHint ? 'Hide hint' : 'Hint'}
             </button>
-            <button type="button" className="btn" onClick={() => setShowOptimal((s) => !s)}>
-              {showOptimal ? 'Back to mine' : 'Inspect π*'}
-            </button>
+            {curEval.passed || stuck ? (
+              <button type="button" className="btn" onClick={() => setShowOptimal((s) => !s)}>
+                {showOptimal ? 'Back to mine' : 'Inspect π*'}
+              </button>
+            ) : (
+              <StuckButton
+                stuckKey={`wire-policy:${level.id}`}
+                label="the optimal policy π*"
+                onStuck={() => {
+                  markStuck();
+                  setShowOptimal(true);
+                }}
+              />
+            )}
           </div>
 
           {showHint && (

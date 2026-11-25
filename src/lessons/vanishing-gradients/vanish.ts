@@ -795,3 +795,24 @@ export function solveRescueLevel(level: RescueLevel): RescueSolution {
     bestEval: bestEval!,
   };
 }
+
+/**
+ * Hint for an unsolved recipe. Hints point at evidence on the two charts and
+ * only ever name controls the level actually unlocks (pinned by a test).
+ */
+export function rescueHint(level: RescueLevel, recipe: RescueRecipe, ev: RescueEval): string {
+  const lifelines = level.allowLayerNorm && level.allowResidual;
+  const plain = !recipe.useLayerNorm && !recipe.useResidual;
+  if (level.id === 'sigmoid-trap' && plain) {
+    return 'Try every initialisation scale and watch the gradient chart: none of the five keeps layer 1 alive in a plain Sigmoid stack. Something has to change the shape of the network itself.';
+  }
+  const gradLo = level.id === 'deep-32' ? 0.4 : 0.25;
+  if (!ev.trace.overflowed && ev.trace.gradRatio < gradLo) {
+    return lifelines
+      ? 'Gradients are vanishing: the gradient chart sinks towards layer 1. What would give the gradient a path back that skips the layers squashing it?'
+      : 'Gradients are vanishing: the gradient chart sinks towards layer 1. Which activation has a slope that does not shrink the signal, and which scale keeps its variance steady?';
+  }
+  return lifelines
+    ? 'The signal is exploding: the RMS chart climbs layer after layer. Look at how big a scale you chose, and at what could re-centre each layer.'
+    : 'The signal is exploding: the RMS chart climbs layer after layer. Look at how big a scale you chose for this activation.';
+}

@@ -1,6 +1,7 @@
 // authored-by: Neon High
 import { useEffect, useMemo, useState } from 'react';
 import { Widget } from '../../components/Widget';
+import { AnswerReveal } from '../../components/AnswerReveal';
 import { Segmented, Slider } from '../../components/controls';
 import {
   LAB_ERR_GOAL,
@@ -505,7 +506,13 @@ export function LoraBudgetLab() {
     }
     return [1, 1, 1];
   });
-  const [showOpt, setShowOpt] = useState(false);
+  const [solvedOnce, setSolvedOnce] = useState(() => {
+    try {
+      return localStorage.getItem(LAB_KEY + ':solved') === '1';
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     try {
@@ -518,6 +525,17 @@ export function LoraBudgetLab() {
   const ev = useMemo(() => evaluateLoraLab(ranks), [ranks]);
   const sol = useMemo(() => solveLoraLab(), []);
   const hitOpt = ev.passes && ev.avgMse <= sol.best.avgMse + 1e-6;
+
+  useEffect(() => {
+    if (ev.passes && !solvedOnce) {
+      setSolvedOnce(true);
+      try {
+        localStorage.setItem(LAB_KEY + ':solved', '1');
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [ev.passes, solvedOnce]);
 
   const setLayerRank = (idx: number, r: number) => {
     const next: [number, number, number] = [...ranks] as [number, number, number];
@@ -617,9 +635,6 @@ export function LoraBudgetLab() {
         <button className="btn" onClick={() => setRanks([2, 2, 2])}>
           Uniform r=2 (96p)
         </button>
-        <button className="btn" onClick={() => setShowOpt((s) => !s)}>
-          {showOpt ? 'Hide exhaustive optimum' : 'Show exhaustive optimum'}
-        </button>
       </div>
 
       <div
@@ -652,13 +667,13 @@ export function LoraBudgetLab() {
         )}
       </div>
 
-      {showOpt && (
+      <AnswerReveal solved={solvedOnce || ev.passes} stuckKey="lora-lab" label="the exhaustive optimum">
         <div className="mono" style={{ marginTop: 8, padding: '8px 10px', borderRadius: 6, background: 'var(--bg-sunken)', border: '1px solid var(--border)', fontSize: 12 }}>
           Exhaustive check of all {sol.totalConfigs} allocations ({sol.passingCount} pass): optimum is{' '}
           <strong>r = [{sol.best.ranks.join(', ')}]</strong> ({sol.best.totalParams} params) → Avg MSE{' '}
           <strong>{sol.best.avgMse.toFixed(5)}</strong> (16× lower than uniform [1,1,1]’s {sol.uniformR1.avgMse.toFixed(5)}!).
         </div>
-      )}
+      </AnswerReveal>
     </Widget>
   );
 }

@@ -1,6 +1,7 @@
 // authored-by: Neon High
 import { useEffect, useMemo, useState } from 'react';
 import { Widget } from '../../components/Widget';
+import { AnswerReveal } from '../../components/AnswerReveal';
 import { Segmented, Slider } from '../../components/controls';
 import {
   DEMO_TOKENS,
@@ -778,7 +779,6 @@ function loadLabState(): SavedLabState {
 export function VramTetrisLab() {
   const [briefIdx, setBriefIdx] = useState(0);
   const [state, setState] = useState<SavedLabState>(() => loadLabState());
-  const [showOpt, setShowOpt] = useState(false);
 
   const brief = TETRIS_BRIEFS[briefIdx];
   const gpu = GPU_BY_ID[brief.gpuId];
@@ -841,7 +841,6 @@ export function VramTetrisLab() {
               className={briefIdx === i ? 'btn primary' : 'btn'}
               onClick={() => {
                 setBriefIdx(i);
-                setShowOpt(false);
               }}
             >
               {state.solved[b.id] ? '✓ ' : ''}
@@ -1019,12 +1018,9 @@ export function VramTetrisLab() {
         <button className="btn" onClick={() => updateCfg(brief.defaultConfig)}>
           Reset brief
         </button>
-        <button className="btn" onClick={() => setShowOpt((s) => !s)}>
-          {showOpt ? 'Hide exhaustive optimum' : 'Show exhaustive optimum'}
-        </button>
       </div>
 
-      {showOpt && (
+      <AnswerReveal solved={!!state.solved[brief.id] || ev.passes} stuckKey={`vram-tetris:${brief.id}`} label="the exhaustive optimum">
         <div className="mono" style={{ marginTop: 8, padding: '8px 10px', borderRadius: 6, background: 'var(--bg-sunken)', border: '1px solid var(--border)', fontSize: 12 }}>
           Exhaustive search over all {sol.totalConfigs} grid configs ({sol.passingCount} pass): best is{' '}
           <strong>
@@ -1033,7 +1029,7 @@ export function VramTetrisLab() {
           → {sol.bestEval.totalGiB.toFixed(2)} GiB VRAM, {sol.bestEval.roofline.tokensPerSecPerUser.toFixed(1)} tok/s/user,{' '}
           {sol.bestEval.roofline.totalTokensPerSec.toFixed(1)} tok/s total.
         </div>
-      )}
+      </AnswerReveal>
     </Widget>
   );
 }

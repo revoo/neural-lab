@@ -1,6 +1,7 @@
 // Drive one widget through a sequence of actions and screenshot it along the way, in each colour theme (light, dark, matrix).
 // Usage (dev server running):
-//   node scripts/drive-widget.cjs <lessonId> <widgetIndex> '<actions JSON>' [--width=1300] [--themes=light,dark,matrix]
+//   node scripts/drive-widget.cjs <lessonId> <widgetIndex> '<actions JSON>' [--width=1300] [--themes=light,dark,matrix] [--title=Lab]
+//   (--title=<text> selects the first widget whose title contains <text>; widgetIndex is then ignored, pass 0)
 // Actions (array, run in order inside the widget's <figure>):
 //   {"click": "button:has-text('Next')", "times": 3}   click a Playwright selector (scoped to the widget)
 //   {"clickAt": [x, y], "on": "svg >> nth=0"}            click at element-relative coordinates
@@ -39,7 +40,10 @@ fs.mkdirSync(outDir, { recursive: true });
     await page.goto(`${base}/#/learn/${lesson}`, { waitUntil: 'networkidle' });
     await page.evaluate((t) => (document.documentElement.dataset.theme = t), theme);
     await page.waitForTimeout(300);
-    const widget = page.locator('figure.widget').nth(Number(idx));
+    // --title=<text> picks the first widget whose title contains <text>, instead of the index.
+    const widget = flags.title
+      ? page.locator('figure.widget', { has: page.locator('.widget-title', { hasText: flags.title }) }).first()
+      : page.locator('figure.widget').nth(Number(idx));
     await widget.scrollIntoViewIfNeeded();
     for (const a of actions) {
       if (a.click) for (let i = 0; i < (a.times || 1); i++) await widget.locator(a.click).first().click();

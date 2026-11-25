@@ -1,6 +1,7 @@
 // authored-by: Neon High
 import { useEffect, useMemo, useState } from 'react';
 import { Widget } from '../../components/Widget';
+import { AnswerReveal } from '../../components/AnswerReveal';
 import { Segmented, Slider } from '../../components/controls';
 import {
   DEEP_RACE_PRESETS,
@@ -14,6 +15,7 @@ import {
   probeSignal,
   runDeepTrainingRace,
   solveRescueLevel,
+  rescueHint,
   type ActName,
   type InitName,
   type RescueRecipe,
@@ -595,7 +597,6 @@ function loadVanishLab(): SavedVanishLab {
 export function RescueDeepNetLab() {
   const [lvlIdx, setLvlIdx] = useState(0);
   const [state, setState] = useState<SavedVanishLab>(() => loadVanishLab());
-  const [showOpt, setShowOpt] = useState(false);
 
   const level = RESCUE_LEVELS[lvlIdx];
   const recipe = state.recipes[level.id] ?? level.defaultRecipe;
@@ -646,7 +647,6 @@ export function RescueDeepNetLab() {
               className={lvlIdx === i ? 'btn primary' : 'btn'}
               onClick={() => {
                 setLvlIdx(i);
-                setShowOpt(false);
               }}
             >
               {state.solved[l.id] ? '✓ ' : ''}
@@ -785,11 +785,7 @@ export function RescueDeepNetLab() {
         ) : (
           <>
             <strong>Not yet balanced.</strong>{' '}
-            {level.id === 'sigmoid-trap' && !recipe.useResidual && !recipe.useLayerNorm
-              ? 'Notice: 0 of 5 initialisation scales can rescue a plain 16-layer Sigmoid stack — you need a residual highway!'
-              : ev.trace.gradRatio < gradLo
-                ? 'Gradients are vanishing — try ReLU + He init or switch on Residual skip.'
-                : 'Signal is exploding — reduce the initialisation scale (try Xavier or He) or add LayerNorm + Residual.'}
+            {rescueHint(level, recipe, ev)}
           </>
         )}
       </div>
@@ -798,12 +794,9 @@ export function RescueDeepNetLab() {
         <button className="btn" onClick={() => update(level.defaultRecipe)}>
           Reset level
         </button>
-        <button className="btn" onClick={() => setShowOpt((s) => !s)}>
-          {showOpt ? 'Hide exhaustive summary' : 'Show exhaustive summary'}
-        </button>
       </div>
 
-      {showOpt && (
+      <AnswerReveal solved={!!state.solved[level.id] || ev.passes} stuckKey={`vanishing-rescue:${level.id}`} label="the exhaustive summary">
         <div className="mono" style={{ marginTop: 8, padding: '8px 10px', borderRadius: 6, background: 'var(--bg-sunken)', border: '1px solid var(--border)', fontSize: 12 }}>
           Exhaustive check of all {sol.totalRecipes} legal recipes: <strong>{sol.passingCount}</strong> pass (
           <strong>{sol.plainPassingCount}</strong> plain without LN/Residual). Tightest grad balance:{' '}
@@ -814,7 +807,7 @@ export function RescueDeepNetLab() {
           </strong>{' '}
           (grad ratio {sol.bestEval.trace.gradRatio.toFixed(3)}×).
         </div>
-      )}
+      </AnswerReveal>
     </Widget>
   );
 }

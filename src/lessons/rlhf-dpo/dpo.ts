@@ -464,3 +464,28 @@ export function solveAlignmentBrief(brief: AlignmentBrief): {
     bestEval: bestEval!,
   };
 }
+
+/**
+ * Hint for an unsolved brief. It points at the failing check and only names a
+ * method the brief unlocks (pinned by a test: Brief 1 never mentions DPO).
+ */
+export function alignmentHint(brief: AlignmentBrief, cfg: AlignmentLabConfig, ev: AlignmentLabEval): string {
+  const method: LabMethod = brief.allowDpo ? cfg.method : 'rlhf-proxy';
+  if (method === 'sft') {
+    return 'SFT only imitates the chosen replies: it never sees which replies people rejected. Compare its hack bar with the other methods.';
+  }
+  if (!ev.checks.meetsHack) {
+    const base = 'The hack bar is too tall: the policy is chasing the loophole replies the reward model overrates. Which way does β move the leash back to the reference?';
+    return method === 'rlhf-proxy' && brief.allowDpo
+      ? `${base} Or try a method that learns from explicit rejections instead of the proxy score.`
+      : base;
+  }
+  if (!ev.checks.meetsKl) {
+    return method === 'rlhf-proxy'
+      ? 'KL is too high: the policy has wandered too far from the reference. A larger β pulls it back.'
+      : 'KL is too high: the policy has wandered too far from the reference. A larger β or fewer steps pulls it back.';
+  }
+  return method === 'rlhf-proxy'
+    ? 'Safe but timid: true helpfulness is too low because the leash is tight. Loosen β one notch at a time and watch the hack bar.'
+    : 'Safe but timid: true helpfulness is too low. Loosen β a little, or train for more steps.';
+}
