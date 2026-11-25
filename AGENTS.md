@@ -1,6 +1,6 @@
 # Neural Lab — instructions for coding agents
 
-This file is for any AI coding agent (Codex, Claude Code, Cursor, Aider, Gemini CLI, …). `CLAUDE.md` holds the same rules; if you change one, change the other.
+This file is for any AI coding agent (Claude Code, Codex, Cursor, Aider, Gemini CLI, …). `CLAUDE.md`, `AGENTS.md` and `AGENT.md` (a link to `AGENTS.md`) hold **identical** text: if you change one, make the same change to the other, and `src/agent-docs.test.ts` checks that they match.
 
 Neural Lab is an interactive website that teaches AI from first principles to software engineers and lifelong learners: Feynman-style explanation, 3Blue1Brown-style visuals, Zachtronics-style labs. **Every visualisation computes real numbers.** Stack: Vite + React + TypeScript + MDX, KaTeX for maths, Vitest for tests, no ML framework (plain-array maths in `src/lib/`).
 
@@ -11,6 +11,7 @@ Neural Lab is an interactive website that teaches AI from first principles to so
 3. **`docs/VISION.md`**: the owner's brief. The "Owner's clarifications" section overrides anything that seems to conflict.
 4. **`docs/STYLE_GUIDE.md`**: voice, lesson structure, how to present maths, lab design, and the rules on **fairness and honesty in experiments**.
 5. One or two finished lessons, to match the voice: `src/lessons/neuron/index.mdx`, `src/lessons/overfitting/index.mdx`, `src/lessons/attention/index.mdx`. For a lab, read `src/lessons/diagnosis-lab/` or `src/lessons/training-lab/`.
+6. **`docs/CURRICULUM_PLAN.md`**, if the owner has asked you to implement it: the step-by-step plan (WP0–WP9) for restructuring the curriculum. Its progress checklist lives in `HANDOFF.md`.
 
 ## Non-negotiables
 
@@ -55,6 +56,6 @@ The scripts use Playwright with a preinstalled Chromium (`require('playwright')`
 - **MDX:** no raw `{`, `}` or `<` in prose. JSX attribute strings don't process escapes, so `tex="\frac{a}{b}"` works as written; in JS strings (e.g. `quiz.ts`), backslashes must be doubled.
 - **Committed searches:** labs' recorded optimums live in files like `results.ts` and `fixes.ts`, produced by `search.run.ts` scripts. Re-run the script if you change the engine, and keep the tests that re-verify them.
 - **Node vs browser floating point:** they can differ in the last bit of `Math.exp`, which long training runs amplify. Pin numbers with Node tests and quote them to sensible precision.
-- **Branches:** work on the branch you were given, and don't push to `main` without the owner's say-so.
+- **Branches:** work on, commit to and push to `claude/cool-feynman-4hci4d`, which is the repository's default branch (there is no `main`). Don't open pull requests or create other branches. The details are in `HANDOFF.md`, "Owner's standing instructions".
 
 More gotchas are listed in `HANDOFF.md`.
