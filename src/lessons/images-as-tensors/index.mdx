@@ -1,0 +1,138 @@
+{/* authored-by: Gemini Antigravity */}
+import { Eq } from '../../components/Eq';
+import { Predict } from '../../components/Predict';
+import { Callout, Deeper } from '../../components/Callout';
+import { Term } from '../../components/Term';
+import { Quiz } from '../../components/Quiz';
+import { PixelTensorWidget, ColorSpaceWidget, AliasingWidget, VisionPreprocessorLab } from './Widgets';
+import { questions } from './quiz';
+
+# Images as Tensors
+
+To your eyes, a photograph of a yellow sun over a green meadow is an effortless scene. To a computer — and to every neural network ever built — it is nothing but a giant brick of numbers.
+
+Specifically, a single colour image is a **3D <Term id="image-tensor">image tensor</Term>** of shape `(Height, Width, Channels)`. Each pixel at row $r$ and column $c$ holds three integers from `0` to `255` (`uint8`) telling a screen how hard to light up its **Red**, **Green**, and **Blue** sub-pixels. Stack $N$ images together for a GPU training batch and you get a **4D tensor**: `(N, H, W, C)` in NumPy/OpenCV/TensorFlow, or **channels-first** `(N, C, H, W)` in PyTorch.
+
+Before we ever slide a convolution kernel across an image, four deceptively simple details about this brick of numbers trip up vision pipelines in production every day: **channel layout & memory**, **human luminance**, **lighting invariance**, and **spatial aliasing**. Let’s open the brick up and measure every single one.
+
+---
+
+## 1. Opening the brick: pixels, channels and memory
+
+Click around the `12×12` sprites below and mute individual channels. Notice how colours you think of as “primary” behave inside the tensor: the bright yellow sun is **Red (`250`) + Green (`215`)** with almost no Blue (`35`), so muting either Red or Green kills the yellow instantly, while the white cloud needs all three channels near `250`.
+
+<PixelTensorWidget />
+
+Notice the memory jump in the calculator at the bottom of the widget. A single uncompressed 4K UHD frame (`2160 × 3840 × 3`) is **24.88 MB** in `uint8` — and quadruples to **94.92 MiB** the instant you cast it to `FP32`! Likewise, a standard ImageNet training batch of `64 × 3 × 224 × 224` takes **36.75 MiB** in `FP32` versus **18.375 MiB** in `FP16` (just for the input batch, before storing a single intermediate feature map).
+
+<Eq
+  words="batch tensor memory  =  batch size × channels × height × width × bytes per number"
+  tex="\ca{\text{Bytes}} = \cb{N} \cdot \cc{C} \cdot \cg{H} \cdot \cp{W} \cdot \cv{b}"
+>
+  - $\ca{\text{Bytes}}$ — exact raw memory footprint (divide by $1024^2 = 1,048,576$ for MiB)
+  - $\cb{N}$ — number of images in the mini-batch
+  - $\cc{C}$ — number of channels (`3` for RGB, `1` for grayscale)
+  - $\cg{H}, \cp{W}$ — image height and width in pixels
+  - $\cv{b}$ — bytes per scalar (`1` for `uint8`, `2` for `FP16`/`BF16`, `4` for `FP32`)
+</Eq>
+
+---
+
+## 2. Colour spaces: why your eyes — and shadows — disagree with RGB
+
+Suppose you want to convert a colour image to grayscale. The obvious formula is the unweighted mean $(R + G + B)/3$. Wait — test that on pure Red `[255, 0, 0]`, pure Green `[0, 255, 0]`, and pure Blue `[0, 0, 255]`: naive averaging gives every single one of them the exact same grey (`85.0`)!
+
+Look at a pure green LED next to a pure blue LED at the same power: your eyes scream that green is dazzlingly brighter than blue. Human M-cones and L-cones peak right in the yellow-green band, so broadcast and vision standards use **<Term id="luminance">Rec. 709 luminance</Term>**:
+
+<Eq
+  words="perceived brightness  =  21% Red  +  72% Green  +  7% Blue"
+  tex="\ca{Y} = 0.2126\,\cb{R} + 0.7152\,\cg{G} + 0.0722\,\cc{B}"
+>
+  - $\ca{Y}$ — perceptual luminance (0 = black, 255 = pure white)
+  - $\cb{R}, \cg{G}, \cc{B}$ — red, green, and blue channel intensities
+</Eq>
+
+Under Rec. 709, pure Green has luminance **182.4**, pure Red **54.2**, and pure Blue just **18.4** — Green looks **9.9× brighter** to human eyes than Blue!
+
+Even more important for machine learning is **what happens when a cloud passes over the sun**. Dim a red traffic light `[235, 38, 38]` by 50% to `[118, 19, 19]`. Every RGB number halves, pushing the pixel **120.0 units** away in Euclidean RGB space — further from daylight red than from dark grey! Yet in **<Term id="colour-space">HSV</Term>** (Hue, Saturation, Value) or normalised chromaticity (`R / (R+G+B)`), scaling all three channels by the same factor cancels out completely: **Value** drops by half, while **Hue** shifts by exactly **0.0°**.
+
+<ColorSpaceWidget />
+
+---
+
+## 3. Spatial aliasing: the peril of `img[::2, ::2]`
+
+Before feeding photos into a neural network, you almost always resize them to a fixed resolution (say `224 × 224`). A tempting shortcut in NumPy is strided slicing: take every second row and every second column (`img[::2, ::2]`).
+
+<Predict
+  question="Take a 16×16 1-pixel black-and-white checkerboard (mean brightness 127.5) and downsample it 2× using NumPy strided slicing img[::2, ::2]. What does the resulting 8×8 image look like?"
+  options={[
+    'A sharp 8×8 checkerboard with half as many squares.',
+    'Uniform 50% grey (every pixel = 127.5).',
+    'A completely solid white (255) square — every single black pixel vanishes.',
+  ]}
+  answer={2}
+>
+  Because every even row + even column satisfies `(r + c) % 2 == 0`, `img[::2, ::2]` lands exclusively on white squares and skips every single black square! The 50% grey checkerboard collapses into solid **255.0** white.
+</Predict>
+
+Try it yourself on all three patterns below.
+
+<AliasingWidget />
+
+That catastrophic failure is **<Term id="aliasing">spatial aliasing</Term>**. Whenever an image contains detail finer than the new pixel spacing (above the Nyquist limit), blind point-sampling folds high-frequency stripes into bogus solid blocks or shimmering moiré fringes. The fix is to **low-pass filter (average) each $s \times s$ block first** before keeping one pixel per block — which is why real libraries (`PIL.Image.Resampling.BOX` / `LANCZOS`, `cv2.INTER_AREA`, PyTorch `antialias=True`) integrate neighbourhoods instead of striding blindly.
+
+<Callout kind="info" title="Why we normalise inputs to float — and why uint8 breaks z-scoring">
+  Neural networks want centred, unit-scale inputs (`mean ≈ 0`, `SD ≈ 1`), typically using dataset channel means and standard deviations (such as ImageNet’s `mean = [0.485, 0.456, 0.406]`, `std = [0.229, 0.224, 0.225]`). That immediately creates **negative** pixel values — which an unsigned `uint8` tensor cannot store! Casting to `FP16` or `FP32` *before* subtracting the mean is mandatory.
+</Callout>
+
+---
+
+## 4. Lab: Build the Vision Preprocessor
+
+Configure three real vision input pipelines. Every brief is checked exhaustively over all combinations so you can see exactly why each choice passes or fails.
+
+<VisionPreprocessorLab />
+
+<Deeper title="What the three lab briefs show">
+  - **Brief 1 (Shadow-proof traffic signals):** Raw RGB gets **100.0%** in daylight but collapses to **66.7%** in tunnel shadow (**83.3%** overall). Grayscale drops even further (**56.7%** avg, **62.2%** Rec. 709) because brightness cannot separate red from green once lighting varies. Both brightness-invariant colour encodings — **Chromaticity (`RGB / sum`)** and **HSV Hue** — hit **100.0%** across daylight and shadow (`2/5` pass).
+  - **Brief 2 (Anti-aliased thumbnailer):** On the thin 1-px blueprint grid (true mean `125.0`), strided `[::4, ::4]` lands in dark gaps (mean error **96.3**, RMSE **100.9**), while `[1::4, 1::4]` and `4×4 Max Pool` land on bright grid lines (mean error **115.0**, RMSE **116.0**). Only **4×4 Box Average** preserves the true block brightness (`1/4` pass, error `0.0`).
+  - **Brief 3 (PyTorch batch under 24 MiB):** `FP32` blows the budget (**36.750 MiB**), `uint8` fits in **9.188 MiB** but cannot represent negative z-scores, and `NHWC` fails PyTorch’s channels-first convention. Out of 18 configurations, **`NCHW` + `FP16` + channel z-score** (**18.375 MiB**) is the unique winner.
+</Deeper>
+
+---
+
+## 5. Seeing it in 12 lines of NumPy
+
+Every calculation above — aliasing, box averaging, and batch tensor memory — takes a dozen lines of NumPy:
+
+```python
+import numpy as np
+
+# 16x16 1-pixel checkerboard (uint8: 0 and 255)
+r, c = np.indices((16, 16))
+checker = ((r + c) % 2 == 0).astype(np.uint8) * 255
+
+# Strided slice (nearest neighbour) vs 2x2 box average
+aliased = checker[::2, ::2]
+box_avg = checker.reshape(8, 2, 8, 2).mean(axis=(1, 3))
+
+print(f"Original mean: {checker.mean():.1f}, std: {checker.std():.1f}")
+print(f"Stride [::2,::2] mean: {aliased.mean():.1f}, std: {aliased.std():.1f}  <-- aliased solid white!")
+print(f"2x2 box average  mean: {box_avg.mean():.1f}, std: {box_avg.std():.1f}")
+
+# Batch tensor memory: 64 RGB 224x224 images (PyTorch NCHW)
+batch_fp32 = np.zeros((64, 3, 224, 224), dtype=np.float32)
+batch_fp16 = batch_fp32.astype(np.float16)
+print(f"NCHW FP32: {batch_fp32.nbytes / 1024**2:.3f} MiB | FP16: {batch_fp16.nbytes / 1024**2:.3f} MiB")
+# Original mean: 127.5, std: 127.5
+# Stride [::2,::2] mean: 255.0, std: 0.0  <-- aliased solid white!
+# 2x2 box average  mean: 127.5, std: 0.0
+# NCHW FP32: 36.750 MiB | FP16: 18.375 MiB
+```
+
+---
+
+## Check your understanding
+
+<Quiz questions={questions} />
