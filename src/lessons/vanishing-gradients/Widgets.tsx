@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Widget } from '../../components/Widget';
 import { AnswerReveal } from '../../components/AnswerReveal';
+import { MachineLog, useMachineLog } from '../../components/MachineLog';
 import { Segmented, Slider } from '../../components/controls';
 import {
   DEEP_RACE_PRESETS,
@@ -617,11 +618,30 @@ export function RescueDeepNetLab() {
     }
   }, [state]);
 
+  const log = useMachineLog();
   const update = (patch: Partial<RescueRecipe>) => {
+    const next = { ...recipe, ...patch };
     setState((prev) => ({
       ...prev,
-      recipes: { ...prev.recipes, [level.id]: { ...recipe, ...patch } },
+      recipes: { ...prev.recipes, [level.id]: next },
     }));
+    const e = evaluateRescue(level, next);
+    const t = e.trace;
+    const name = `${(level.lockedAct ?? next.act).toUpperCase()} + ${INIT_BY_ID[next.init].shortLabel}${level.allowLayerNorm && next.useLayerNorm ? ' + LN' : ''}${level.allowResidual && next.useResidual ? ' + Res' : ''}`;
+    log.push(`${name}: ${t.overflowed ? 'overflowed' : `layer-1 gradient ratio ${t.gradRatio.toExponential(2)}, hidden RMS ${t.minActRms.toFixed(2)}..${t.maxActRms.toFixed(2)}`}${e.passes ? ' · passes' : ''}`, e.passes ? 'good' : 'bad');
+    if (!t.overflowed) {
+      const L = level.depth;
+      const at = [L, Math.round((3 * L) / 4), Math.round(L / 2), Math.round(L / 4), 0];
+      log.push(
+        '   ' +
+          at
+            .map((l) => {
+              const g = t.gradRms[l] / t.gradRms[L];
+              return `L${l}: grad ×${g < 0.01 || g > 100 ? g.toExponential(1) : g.toFixed(2)}${g < 0.25 ? ' (vanishing)' : g > 4 ? ' (exploding)' : ''}`;
+            })
+            .join(' · '),
+      );
+    }
   };
 
   const gradLo = level.id === 'deep-32' ? 0.4 : 0.25;
@@ -808,6 +828,7 @@ export function RescueDeepNetLab() {
           (grad ratio {sol.bestEval.trace.gradRatio.toFixed(3)}×).
         </div>
       </AnswerReveal>
+      <MachineLog lines={log.lines} onClear={log.clear} empty="Change a setting: the gradient at a few layers, relative to the top, is logged here." />
     </Widget>
   );
 }

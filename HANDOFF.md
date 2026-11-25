@@ -150,7 +150,7 @@ The owner asked for the plan in `docs/LAB_IMPROVEMENTS.md` to be implemented in 
   - [x] Superposition: rotatable cube for Brief 1, clash log
   - [x] Write the backward pass: collection of the correct versions, wrong-but-trains call-out, gradient-check log
   - [x] Training-lab challenges: reference network's neuron maps after a challenge
-  - [ ] Rescue the deep network: per-layer log
+  - [x] Rescue the deep network: per-layer log
   - [ ] Attention puzzles: worked q·k → ÷√2 → exp → share table
   - [ ] The model clinic: train.log tail per case; two-cause cases
 
