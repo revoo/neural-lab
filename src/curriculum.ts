@@ -136,7 +136,16 @@ export const MODULES: ModuleMeta[] = [
       { id: 'scaling-laws', title: 'Scaling Laws & Compute-Optimal Training', summary: 'Why training costs 6ND FLOPs, how Chinchilla balances parameters against tokens, why Llama 3 breaks Chinchilla on purpose — and a compute-budget lab.', minutes: 30, load: () => import('./lessons/scaling-laws/index.mdx') },
     ],
   },
-  { id: 'finetuning', number: 14, title: 'Training & Fine-Tuning', blurb: 'Pretraining, fine-tuning, LoRA, RLHF and the rest of the post-training toolkit.', lessons: [], planned: ['Transfer learning', 'LoRA', 'RLHF and DPO'] },
+  {
+    id: 'finetuning',
+    number: 14,
+    title: 'Training & Fine-Tuning',
+    blurb: 'Pretraining, fine-tuning, LoRA, RLHF and the rest of the post-training toolkit.',
+    lessons: [
+      { id: 'lora', title: 'LoRA & Low-Rank Fine-Tuning', summary: 'Why full fine-tuning blows up VRAM, how factoring ΔW = BA compresses updates 128×, why B=0 & A~N breaks symmetry — and a rank-allocation budget lab.', minutes: 30, load: () => import('./lessons/lora/index.mdx') },
+    ],
+    planned: ['RLHF and DPO'],
+  },
   {
     id: 'inference',
     number: 15,
