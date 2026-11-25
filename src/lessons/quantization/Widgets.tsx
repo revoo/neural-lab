@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { LiveCode } from '../../components/LabJob';
 import { llamaCppLines } from './realCode';
 import { Widget } from '../../components/Widget';
+import { MachineLog, useMachineLog } from '../../components/MachineLog';
 import { Segmented, Slider } from '../../components/controls';
 import { Plot } from '../../components/plot';
 import {
@@ -388,6 +389,38 @@ function loadBestRmse(): number | null {
   return null;
 }
 
+
+/**
+ * One block's 64 weights on a number line (bottom row) and where the chosen
+ * format puts each of them (top row), joined by a line: the levels the format
+ * can represent are the distinct places the top row lands.
+ */
+function SnapLine({ weights, recon, max }: { weights: readonly number[]; recon: number[]; max: number }) {
+  const W = 520;
+  const H = 86;
+  const x = (v: number) => 14 + ((W - 28) * (v + max)) / (2 * max);
+  const levels = [...new Set(recon.map((v) => v.toFixed(6)))].map(Number);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }} role="img" aria-label="Weights and where quantisation puts them">
+      {levels.map((v, k) => (
+        <line key={k} x1={x(v)} x2={x(v)} y1={8} y2={24} stroke="var(--c-b)" strokeWidth={1} opacity={0.5} />
+      ))}
+      <line x1={14} x2={W - 14} y1={64} y2={64} stroke="var(--border-strong)" />
+      <line x1={x(0)} x2={x(0)} y1={58} y2={70} stroke="var(--text-faint)" />
+      {weights.map((w, i) => (
+        <g key={i}>
+          <line x1={x(w)} y1={60} x2={x(recon[i])} y2={22} stroke={Math.abs(w - recon[i]) > 0.15 ? 'var(--c-bad)' : 'var(--text-faint)'} strokeWidth={Math.abs(w - recon[i]) > 0.15 ? 1.4 : 0.6} opacity={0.7} />
+          <circle cx={x(w)} cy={64} r={2.4} fill="var(--text)" />
+          <circle cx={x(recon[i])} cy={18} r={2.4} fill="var(--c-b)" />
+        </g>
+      ))}
+      <text x={14} y={82} fontSize={10} className="plot-tick">{(-max).toFixed(1)}</text>
+      <text x={W - 14} y={82} fontSize={10} textAnchor="end" className="plot-tick">{max.toFixed(1)}</text>
+      <text x={W / 2} y={82} fontSize={10} textAnchor="middle" className="plot-tick">0</text>
+    </svg>
+  );
+}
+
 export function QuantLab() {
   const [choices, setChoices] = useState<[number, number, number, number]>([2, 2, 2, 2]); // start at uniform INT4 tensor
   const [bestSaved, setBestSaved] = useState<number | null>(loadBestRmse);
@@ -414,13 +447,21 @@ export function QuantLab() {
     }
   }, [passes, res.avgRmse]);
 
+  const [inspect, setInspect] = useState(0);
+  const log = useMachineLog();
   const setBlock = (bIdx: number, sIdx: number) => {
-    setChoices((prev) => {
-      const next = [...prev] as [number, number, number, number];
-      next[bIdx] = sIdx;
-      return next;
-    });
+    const next = [...choices] as [number, number, number, number];
+    next[bIdx] = sIdx;
+    setChoices(next);
+    setInspect(bIdx);
+    const after = evaluateMix(next);
+    log.push(
+      `${LAB_BLOCKS[bIdx].name}: ${LAB_SCHEMES[choices[bIdx]].label} → ${LAB_SCHEMES[sIdx].label} · block RMSE ${res.perBlock[bIdx].rmse.toFixed(4)} → ${after.perBlock[bIdx].rmse.toFixed(4)} · average ${after.avgBits.toFixed(3)} bits/w, RMSE ${after.avgRmse.toFixed(4)}`,
+      after.avgBits <= LAB_BIT_BUDGET + 1e-9 && after.avgRmse <= LAB_RMSE_GOAL ? 'good' : 'info',
+    );
   };
+  const blk = LAB_BLOCKS[inspect];
+  const recon = useMemo(() => LAB_SCHEMES[choices[inspect]].apply(blk.weights), [blk, choices, inspect]);
 
   return (
     <Widget
@@ -501,6 +542,21 @@ export function QuantLab() {
         })}
       </div>
 
+      <div style={{ marginBottom: 12, padding: '9px 12px', borderRadius: 'var(--radius-sm)', background: 'var(--bg-sunken)', border: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 4 }}>
+          <strong style={{ fontSize: 13 }}>Inside a block:</strong>
+          {LAB_BLOCKS.map((b, i) => (
+            <button key={b.id} type="button" className={`btn small${i === inspect ? ' primary' : ''}`} onClick={() => setInspect(i)}>
+              {b.name}
+            </button>
+          ))}
+        </div>
+        <SnapLine weights={blk.weights} recon={recon} max={Math.ceil(blk.maxAbs)} />
+        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+          Bottom: the block’s 64 weights. Top: where {LAB_SCHEMES[choices[inspect]].label} puts each one; the short ticks along the top are the levels it actually uses. Red lines are weights moved by more than 0.15.
+        </div>
+      </div>
+
       <div className="btn-row" style={{ marginBottom: 10 }}>
         <button className="btn" onClick={() => setChoices([2, 2, 2, 2])}>
           Uniform INT4 tensor (4.25 b)
@@ -523,14 +579,15 @@ export function QuantLab() {
           </>
         ) : !bitsOk ? (
           <>
-            <strong>Over bit budget ({res.avgBits.toFixed(3)} &gt; {LAB_BIT_BUDGET} bits/w).</strong> Smooth FFN blocks barely lose accuracy in INT4 — save your extra bits for the outlier-heavy attention blocks.
+            <strong>Over bit budget ({res.avgBits.toFixed(3)} &gt; {LAB_BIT_BUDGET} bits/w).</strong> Some blocks are spending bits they don’t need: check which blocks keep a small RMSE even in the cheapest format.
           </>
         ) : (
           <>
-            <strong>Within budget, but RMSE ({res.avgRmse.toFixed(4)}) is too high.</strong> Look at which single block is dominating the error (right now <code>Attn QKV</code> = {res.perBlock[0].rmse.toFixed(4)}) and upgrade it!
+            <strong>Within budget, but RMSE ({res.avgRmse.toFixed(4)}) is too high.</strong> Look at each block’s RMSE and at the number line: in which block do most weights get crushed onto just one or two levels, and what is stretching that block’s scale?
           </>
         )}
       </div>
+      <MachineLog lines={log.lines} onClear={log.clear} empty="Change a block's format: its error and the running average are logged here." />
     </Widget>
   );
 }

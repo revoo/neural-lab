@@ -143,7 +143,7 @@ The owner asked for the plan in `docs/LAB_IMPROVEMENTS.md` to be implemented in 
   - [x] Design a schedule: 20 seeded runs behind the average, best cosine ghost after a solve (moving marker not done)
   - [x] Prune it: the exhaustive minimum's kept neurons beside yours, log
   - [x] LoRA: per-layer captured vs missed heatmaps, log
-  - [ ] Mixed-precision quantisation: selected block on a number line with the format's levels; evidence hint; per-block log
+  - [x] Mixed-precision quantisation: selected block on a number line with the format's levels; evidence hint; per-block log
   - [ ] Shannon's betting game: per-word bits-lost strip (you, neural LM, unigram) + log
   - [ ] Compress the corpus: live re-segmenting sample sentence + merge log; settle the "optimum" label question
   - [ ] Build a previous-word head: clock hands under the bars
