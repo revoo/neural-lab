@@ -19,6 +19,7 @@ export function Sidebar({ route, open }: { route: Route; open: boolean }) {
         <a className={`nav-link${route.page === 'home' ? ' active' : ''}`} href="#/">⌂ Overview</a>
         <a className={`nav-link${route.page === 'review' ? ' active' : ''}`} href="#/review">↻ Review & practice</a>
         <a className={`nav-link${route.page === 'glossary' ? ' active' : ''}`} href="#/glossary">≡ Glossary</a>
+        <a className={`nav-link${route.page === 'timeline' ? ' active' : ''}`} href="#/timeline">◷ Timeline of AI</a>
       </div>
       {MODULES.map((m) => {
         const done = m.lessons.filter((l) => progress.completed[l.id]).length;

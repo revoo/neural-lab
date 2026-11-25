@@ -513,3 +513,37 @@ export function historyById(id: string): HistoryEntry | undefined {
 export function claimsOf(h: HistoryEntry): Claim[] {
   return [...h.who, ...(h.mood ? [h.mood] : []), h.story.before, h.story.this, h.story.after, ...(h.dispute ? [h.dispute] : [])];
 }
+
+// ------------------------------------------------------------------ Timeline layout (pure, tested)
+
+/** The overview axis: a compressed "earlier" stub for pre-1940 ideas, then 1940 → 2026 linearly. */
+export const TIMELINE = { stubWidth: 70, start: 1940, end: 2026, width: 900 } as const;
+
+export function timelineX(year: number): number {
+  const { stubWidth, start, end, width } = TIMELINE;
+  if (year < start) {
+    // pre-1940 ideas (1733 → 1847) share the stub, in order
+    const t = (year - 1700) / (start - 1700);
+    return 8 + Math.max(0, Math.min(1, t)) * (stubWidth - 20);
+  }
+  return stubWidth + ((year - start) / (end - start)) * (width - stubWidth - 12);
+}
+
+/**
+ * Stack labelled dots into lanes so no two in a lane are closer than `gap`
+ * pixels: the first lane with room wins (greedy, in x order).
+ */
+export function assignLanes(xs: number[], gap: number): number[] {
+  const order = xs.map((x, i) => ({ x, i })).sort((a, b) => a.x - b.x);
+  const laneEnd: number[] = [];
+  const lanes = new Array<number>(xs.length);
+  for (const { x, i } of order) {
+    let lane = laneEnd.findIndex((e) => x - e >= gap);
+    if (lane === -1) {
+      lane = laneEnd.length;
+      laneEnd.push(x);
+    } else laneEnd[lane] = x;
+    lanes[i] = lane;
+  }
+  return lanes;
+}

@@ -135,7 +135,7 @@ The owner asked for the plan in `docs/LAB_IMPROVEMENTS.md` to be implemented in 
 - [x] 4. Solution maps: Attention puzzles (11×11 query map), Build a previous-word head (180-speed strip).
 - [x] 5. Shared pieces: `LabShell`, `MachineLog`, reduced-motion hook; Dice Workshop and Tune the Q-Learner moved onto them.
 - [x] 6. Machinery for the four "needs work" labs: Q-Learner maze replay + curves + predict-then-train (6a), sampler live draws (6b), compute-budget map (6c), alignment reply bars + Goodhart dot + prediction + training log (6d). All four are on LabShell.
-- [ ] 7. Timeline page built from `src/history.ts`.
+- [x] 7. Timeline page built from `src/history.ts`.
 - [ ] 8. Decision lines in the Logic workbench.
 - [ ] 9. Replay helper; reward hacking, Wire the Policy, golf labs, VRAM Tetris falling blocks.
 - [ ] 10. Remaining rows of the three tables.
@@ -146,4 +146,5 @@ Notes for whoever continues:
 - Step 3 added `src/history.ts` (25 entries, one per reviewed lab; every sentence a `Claim` with its own source URL, plus `ERAS` and `MILESTONES` for the timeline) and `<HistoryCard id>` placed after each lab's `<ForReal>`. `src/history.test.ts` checks sources, dates and that every entry's card is in its lesson. All † affiliations were confirmed on the papers' title pages; entries without a sourced mood line simply omit it.
 - Step 4: `queryMap` (attention) and `speedStrip`/`speedPairMap` (positions) feed post-solve maps behind a "Show the map" button that appears once a puzzle is solved or declared impossible. The two-hand level gets a 180×180 canvas map (colours read from CSS variables, redrawn on theme change).
 - Step 5 added the shared lab pieces. `src/components/LabShell.tsx`: `LabShell` (brief tabs with ✓/★ and a count, brief text, body, status line, hint toggle, `reveal` gated by AnswerReveal, `log`, `actions`) and `useLabProgress(key, seed?)` (solved/optimal per brief in localStorage; `seed` carries over progress saved in an older format). `src/components/MachineLog.tsx`: `useMachineLog()` + `<MachineLog>` (collapsible console, newest line shown in the summary). `src/components/motion.ts`: `usePrefersReducedMotion`, `useTweenedArray`/`useTweened`, `useFramePlayer`; global.css zeroes transitions inside widgets under reduced motion. The Dice Workshop (Roll 1,000 times + log) and Tune the Q-Learner (log, evidence hints, answer behind reveal) now use them.
+- Step 7: `#/timeline` (`src/pages/TimelinePage.tsx`, sidebar link "Timeline of AI") draws `HISTORY`, `ERAS` and `MILESTONES` from `src/history.ts`: era bands (click for the sourced mood), a dot per lab idea (filled when its lesson is completed), a "you are here" marker at the latest idea reached, and every card below (shared `HistoryBody`). `timelineX`/`assignLanes` are tested. Each lesson's history card links to `#/timeline/<id>`, which highlights it.
 - `scripts/drive-widget.cjs` takes `--title=<text>` to pick a widget by title instead of index.

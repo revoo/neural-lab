@@ -65,3 +65,21 @@ describe('history data', () => {
     expect(cards.size).toBe(HISTORY.length);
   });
 });
+
+describe('timeline layout', () => {
+  it('maps years left to right, with pre-1940 ideas in the stub', async () => {
+    const { timelineX, TIMELINE } = await import('./history');
+    expect(timelineX(1733)).toBeLessThan(timelineX(1847));
+    expect(timelineX(1847)).toBeLessThan(TIMELINE.stubWidth);
+    expect(timelineX(1940)).toBe(TIMELINE.stubWidth);
+    expect(timelineX(1986)).toBeLessThan(timelineX(2017));
+    expect(timelineX(2026)).toBeCloseTo(TIMELINE.width - 12, 9);
+  });
+  it('lanes keep same-lane dots at least the gap apart', async () => {
+    const { assignLanes, timelineX } = await import('./history');
+    const xs = HISTORY.map((h) => timelineX(h.years[0]));
+    const lanes = assignLanes(xs, 60);
+    for (let i = 0; i < xs.length; i++)
+      for (let j = i + 1; j < xs.length; j++) if (lanes[i] === lanes[j]) expect(Math.abs(xs[i] - xs[j])).toBeGreaterThanOrEqual(60);
+  });
+});

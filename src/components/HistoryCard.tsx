@@ -1,5 +1,6 @@
 // authored-by: Claude Opus 5.5
-import { claimsOf, historyById, type Claim } from '../history';
+import { claimsOf, historyById, type Claim, type HistoryEntry } from '../history';
+import { timelineHref } from '../router';
 
 /**
  * The history of a lab's idea, collapsed by default and placed after the lab:
@@ -9,6 +10,26 @@ import { claimsOf, historyById, type Claim } from '../history';
 export function HistoryCard({ id }: { id: string }) {
   const h = historyById(id);
   if (!h) return null;
+  return (
+    <details className="deeper history-card">
+      <summary>
+        <span style={{ flex: 1 }}>
+          History: {h.idea} <span className="history-when">{h.when}</span>
+        </span>
+        <span className="tag">History</span>
+      </summary>
+      <div className="deeper-body">
+        <HistoryBody h={h} />
+        <p className="history-timeline">
+          <a href={timelineHref(h.id)}>See it on the timeline of AI →</a>
+        </p>
+      </div>
+    </details>
+  );
+}
+
+/** The card's contents, shared with the timeline page. */
+export function HistoryBody({ h }: { h: HistoryEntry }) {
   const sources: string[] = [];
   for (const c of claimsOf(h)) if (!sources.includes(c.source)) sources.push(c.source);
   const Cite = ({ c }: { c: Claim }) => {
@@ -25,44 +46,36 @@ export function HistoryCard({ id }: { id: string }) {
     );
   };
   return (
-    <details className="deeper history-card">
-      <summary>
-        <span style={{ flex: 1 }}>
-          History: {h.idea} <span className="history-when">{h.when}</span>
-        </span>
-        <span className="tag">History</span>
-      </summary>
-      <div className="deeper-body">
-        <p className="history-who">
-          {h.who.map((c, i) => (
-            <span key={i}>
-              {i > 0 && ' '}
-              <Cite c={c} />
-            </span>
-          ))}
+    <div className="history-card">
+      <p className="history-who">
+        {h.who.map((c, i) => (
+          <span key={i}>
+            {i > 0 && ' '}
+            <Cite c={c} />
+          </span>
+        ))}
+      </p>
+      {h.mood && (
+        <p className="history-mood">
+          <strong>The mood of the moment.</strong> <Cite c={h.mood} />
         </p>
-        {h.mood && (
-          <p className="history-mood">
-            <strong>The mood of the moment.</strong> <Cite c={h.mood} />
-          </p>
-        )}
-        <ol className="history-story">
-          <li>
-            <span className="history-step">Before</span> <Cite c={h.story.before} />
-          </li>
-          <li>
-            <span className="history-step">This</span> <Cite c={h.story.this} />
-          </li>
-          <li>
-            <span className="history-step">After</span> <Cite c={h.story.after} />
-          </li>
-        </ol>
-        {h.dispute && (
-          <p className="history-dispute">
-            <strong>Disputed.</strong> <Cite c={h.dispute} />
-          </p>
-        )}
-      </div>
-    </details>
+      )}
+      <ol className="history-story">
+        <li>
+          <span className="history-step">Before</span> <Cite c={h.story.before} />
+        </li>
+        <li>
+          <span className="history-step">This</span> <Cite c={h.story.this} />
+        </li>
+        <li>
+          <span className="history-step">After</span> <Cite c={h.story.after} />
+        </li>
+      </ol>
+      {h.dispute && (
+        <p className="history-dispute">
+          <strong>Disputed.</strong> <Cite c={h.dispute} />
+        </p>
+      )}
+    </div>
   );
 }
