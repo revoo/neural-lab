@@ -1054,8 +1054,18 @@ export const ERAS: Era[] = [
 
 /** Field-wide milestones that aren't a lab's own idea but anchor the timeline. */
 export const MILESTONES: { year: number; label: string; source: string }[] = [
+  { year: 1950, label: 'Turing’s "Computing Machinery and Intelligence", ending with learning machines', source: WP('Computing_Machinery_and_Intelligence') },
   { year: 1956, label: 'Dartmouth workshop names "artificial intelligence"', source: WP('Dartmouth_workshop') },
+  { year: 1958, label: 'Press reports hail the perceptron', source: WP('Perceptron') },
+  { year: 1969, label: 'Minsky and Papert’s book Perceptrons', source: WP('Perceptrons_(book)') },
+  { year: 1973, label: 'The Lighthill report on AI research', source: WP('Lighthill_report') },
+  { year: 1986, label: 'Backpropagation paper in Nature', source: WP('Backpropagation') },
+  { year: 1997, label: 'Long short-term memory (LSTM)', source: WP('Long_short-term_memory') },
+  { year: 2009, label: 'ImageNet first presented', source: WP('ImageNet') },
   { year: 2012, label: 'AlexNet wins ImageNet', source: WP('History_of_artificial_intelligence') },
+  { year: 2017, label: 'The transformer: "Attention Is All You Need"', source: WP('Attention_Is_All_You_Need') },
+  { year: 2022, label: 'ChatGPT released (30 November)', source: WP('ChatGPT') },
+  { year: 2024, label: 'Nobel Prize in Physics to John Hopfield and Geoffrey Hinton', source: 'https://www.nobelprize.org/prizes/physics/2024/summary/' },
 ];
 
 export function historyById(id: string): HistoryEntry | undefined {

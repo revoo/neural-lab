@@ -1,6 +1,7 @@
 // authored-by: Claude Opus 5.5
 import { describe, expect, it } from 'vitest';
 import { ALL_LESSONS, MODULES } from './curriculum';
+import { HISTORY } from './history';
 
 type Fs = { readdirSync: (p: string) => string[]; existsSync: (p: string) => boolean; readFileSync: (p: string, enc: string) => string };
 // node:fs through a computed specifier: the app's tsconfig has no Node types.
@@ -81,5 +82,27 @@ describe('curriculum guard rails', () => {
     const symbols = /[\u0370-\u03ff\u1d00-\u1dbf\u2070-\u209f=^_~²³]/;
     const bad = ALL_LESSONS.filter((l) => l.summary.split(/\s+/).length > 30 || symbols.test(l.summary)).map((l) => `${l.id}: ${l.summary}`);
     expect(bad).toEqual([]);
+  });
+  it('every module has an era, and every history card of its lessons falls inside it', () => {
+    const THIS_YEAR = 2026;
+    /** "1960s to 2018, then …" → [[1960, 2018], …]; a decade starts at its first year and ends at its last. */
+    const spans = (era: string) =>
+      era.split(', then ').map((seg) => {
+        const ends = seg.split(' to ').map((t, k) => {
+          if (t === 'today') return THIS_YEAR;
+          const m = /^(\d{4})(s?)$/.exec(t);
+          if (!m) throw new Error(`bad era segment "${seg}"`);
+          return Number(m[1]) + (m[2] && k === 1 ? 9 : 0);
+        });
+        return [ends[0], ends[ends.length - 1]];
+      });
+    for (const m of MODULES) {
+      expect(m.era, m.id).toBeTruthy();
+      const ss = spans(m.era!);
+      for (const [a, b] of ss) expect(b, m.id).toBeGreaterThanOrEqual(a);
+      const ids = new Set(m.lessons.map((l) => l.id));
+      for (const h of HISTORY.filter((x) => ids.has(x.lessonId)))
+        for (const y of h.years) expect(ss.some(([a, b]) => y >= a && y <= b), `${m.id} (${m.era}) vs ${h.id} ${y}`).toBe(true);
+    }
   });
 });

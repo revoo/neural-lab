@@ -2,9 +2,9 @@
 
 You're picking up **Neural Lab**, an interactive website that teaches AI from first principles: Feynman-style explanation, 3Blue1Brown-style visuals, Zachtronics-style labs. This file is the onboarding procedure. Follow it in order. (Agent rules in brief: `AGENTS.md` / `CLAUDE.md`.)
 
-## 0. Resume here: curriculum plan, WP1 complete, paused before WP2
+## 0. Resume here: curriculum plan, WP5 complete, paused before WP6
 
-The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented step by step (WP0 → WP9). WP0 and all of WP1 are done and pushed on `claude/cool-feynman-4hci4d`: Claude Opus 5.5 did WP0–WP1.7, Labs 1–2, WP1.10 and WP1.9; Codex Meridian 6 did Labs 3–9. **The owner asked for a stop before WP2. Don't start WP2 until the owner says so.**
+The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented step by step (WP0 → WP9). WP0 to WP5 are done and pushed on `claude/cool-feynman-4hci4d`: Claude Opus 5.5 did WP0–WP1.7, Labs 1–2, WP1.10, WP1.9 and WP2–WP5; Codex Meridian 6 did Labs 3–9. After WP1 the owner said to do WP2 to WP5 without pausing. **WP5 is the end of that run: don't start WP6 until the owner says so.**
 
 **Read first, in this order:** `AGENTS.md`, this file (especially "Owner's standing instructions" and "Curriculum plan: progress" at the end), `docs/CURRICULUM_PLAN.md` §0 and §1 and the section for your step, and the "Current state" block at the top of `docs/ROADMAP.md`.
 
@@ -29,12 +29,16 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented step by step (WP
 | WP1.8 Lab 3 | `src/lessons/matrices/untangleLab.ts`, solver tests and `UntangleLab.tsx`. History entry `untangle`. |
 | WP1.8 Labs 4–9 | Build the Pipeline, The Sensitivity Probe, Which Knob, and How Far?, Find the Slipping Gear, Calibrate the Forecaster, and Twenty Questions Compressor. Lab logic, tests and widgets are in their lesson directories. |
 | WP1.10 | `src/components/RivalTable.tsx` (cards judged on the three tests; registered in `src/mdxComponents.tsx`, styles under `.rival-table` in `global.css`). Each toolkit lesson has `rivals.ts` + `rivals.test.ts` (every number in the cards and the section's `Predict` is computed there and pinned) and a `## Why this, and not something else?` section before its lab. The three tests are stated once, in `vectors`, as an `Insight`. `src/curriculum.test.ts` test 6 now also requires that heading, before the lab, mentioning the three tests. |
+| WP2 | `rl` is Module 14 (before `finetuning`, `inference`); `similarity-search` opens `systems`; token notes in `one-hot-vs-dense` and `attention`; Appendix A summaries; summary test live. |
+| WP3 | Module 0 `prologue` (`src/lessons/prologue/`): sourced history, `PrologueDemo` (25-parameter net on two circles), winter dates from `ERAS` via `eraSpan`. Home button "Start with the prologue". |
+| WP4 | `src/lessons/perceptron/` after `logic-lab`: `perceptron.ts` (rule, `run`, `novikoffBound`, lab searches), `PerceptronStepper`, `MarkILab` (4 briefs), history `mark-i` (55 entries), glossary `perceptron`, `credit-assignment`. |
+| WP5 | `era` on every module in `curriculum.ts` (test: every history card's years fall inside its module's era); shown on Home cards and in the lesson kicker (linked to the timeline); 12 sourced `MILESTONES` in `src/history.ts`. |
 | WP1.9 | `minutes` +15 for each toolkit lesson; vectors' units section trimmed to point at Lab 1's brief 3; two closing teasers cut; consistent backprop cost (about three forward passes). Widget fixes: Sensitivity Probe chart legend and axes; Build the Pipeline counts every intermediate layer as hidden (`meets`, brief 2 optimum now 50,816); Calibrate the Forecaster's `shownPercent` never shows a positive probability as 0. |
 
 ### What to do next, in order
 
-1. **Wait for the owner.** WP1.10 and WP1.9 are done.
-2. **WP2.1–2.4, after the owner resumes.** Known fixes that belong there: `scaling-laws` ends "Next: Inference & Hardware", which becomes wrong once RL moves before fine-tuning (WP2.1); `similarity-search` says "In the RAG lesson we searched…" although RAG comes later (WP2.2: reword when it moves next to RAG). WP2.4 switches the summary test from `it.todo` to `it`.
+1. **Wait for the owner.** WP2–WP5 are done.
+2. **WP6.1 (opening hooks), after the owner resumes**, then WP6.2, WP7, WP8, WP9. WP6.2's "You are standing where they stood" notes have one example already, at the end of the perceptron lesson's "The wall" section. Eras with decades (`1670s`) must stay out of uppercase text: the kicker and Home render the era with `text-transform: none`.
 3. After each work package, update the "Current state" block in `docs/ROADMAP.md`.
 
 ### How each maths lab was built (copy this)
@@ -316,7 +320,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 �
 - [x] WP2.4 Plain-language lesson summaries
 - [x] WP3 The Prologue
 - [x] WP4 New lesson: the Perceptron
-- [ ] WP5 Era labels and the timeline
+- [x] WP5 Era labels and the timeline
 - [ ] WP6.1 Opening hooks
 - [ ] WP6.2 "You are standing where they stood"
 - [ ] WP7 Era interludes (EraStrip + four interludes)
@@ -325,7 +329,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 �
 - [ ] WP8.3 `open-questions`
 - [ ] WP9 Final documentation
 
-Notes for whoever continues: WP1 is complete (WP1.10 was done before WP1.9, which re-reads everything). WP2 waits for the owner.
+Notes for whoever continues: WP0–WP5 are complete (WP1.10 was done before WP1.9, which re-reads everything). WP6 waits for the owner.
 - Labs follow one pattern: logic and solver in `src/lessons/<id>/<name>Lab.ts` with a test written first; tune the level data (a scratch random-search script works well) until the test shows "solvable, more than one answer, a random setting usually fails"; then the UI on `LabShell`; then `## Lab: …` before "## In code" with `LabJob`, a spoiler `Deeper` debrief, `ForReal`, `HistoryCard`, and a "You've just…" line. Bump the count in `src/history.test.ts` for each new history entry.
 - Draw 2D lab plots with both axes on the same scale when distance matters (`equalScale` in `src/lessons/vectors/FeatureLab.tsx`): otherwise the picture lies about which points are close.
 - Writing scripts: heredocs containing `${…}` are refused by the command-safety check; write Python/TS helpers into `scratch/` with the file tool. A `<Predict>` placed between list items breaks the MDX parse: put it before or after the list.

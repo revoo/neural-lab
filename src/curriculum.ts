@@ -16,6 +16,12 @@ export type LessonMeta = {
 export type ModuleMeta = {
   id: string;
   number: number;
+  /**
+   * Approximate span of the module's central ideas, e.g. "1943 to 1969". Segments are
+   * joined with ", then "; "today" and decades ("1960s") are allowed. Every history
+   * card of the module's lessons falls inside it (checked in curriculum.test.ts).
+   */
+  era?: string;
   title: string;
   blurb: string;
   lessons: LessonMeta[];
@@ -27,6 +33,7 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'prologue',
     number: 0,
+    era: '1950 to today',
     title: 'Prologue',
     blurb: 'Before any maths: the question, the people, the hype, the winters, and the machine you are about to build.',
     lessons: [
@@ -36,6 +43,7 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'foundations',
     number: 1,
+    era: '1670s to 1990',
     title: 'The Maths Toolkit',
     blurb: 'Nine tools that every neural network is built from. Each lesson ends by showing exactly where the next modules use it — and each has a lab of its own.',
     lessons: [
@@ -53,6 +61,7 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'neuron',
     number: 2,
+    era: '1943 to 1969',
     title: 'The Artificial Neuron',
     blurb: 'The tiny computational unit everything else is assembled from.',
     lessons: [
@@ -65,6 +74,7 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'architecture',
     number: 3,
+    era: '1960s to 2018',
     title: 'Neural Network Architecture',
     blurb: 'Wiring neurons into layers, and layers into networks you can inspect neuron by neuron.',
     lessons: [
@@ -76,6 +86,7 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'optimization',
     number: 4,
+    era: '1733 to 2016',
     title: 'Loss Functions & Optimization',
     blurb: 'How a model measures its mistakes, and how it walks downhill to make fewer of them.',
     lessons: [
@@ -90,6 +101,7 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'backprop',
     number: 5,
+    era: '1970 to 2015',
     title: 'Backpropagation',
     blurb: 'Tracing an error backwards through a network to find out how every weight should change.',
     lessons: [
@@ -101,6 +113,7 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'training',
     number: 6,
+    era: '1988 to today',
     title: 'Neural Network Training Lab',
     blurb: 'A full browser-based training sandbox with live decision boundaries.',
     lessons: [
@@ -110,6 +123,7 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'generalization',
     number: 7,
+    era: '1990s to 2019',
     title: 'Generalization & Failure Modes',
     blurb: 'Why a model that aces its training data can still be useless.',
     lessons: [
@@ -121,6 +135,7 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'classical',
     number: 8,
+    era: '1805 to 2022',
     title: 'Classical Machine Learning',
     blurb: 'Trees, nearest neighbours, SVMs, clustering — and when they beat neural networks.',
     lessons: [
@@ -134,6 +149,7 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'vision',
     number: 9,
+    era: '1949 to 2017',
     title: 'Computer Vision',
     blurb: 'From pixels to convolutions to object detectors.',
     lessons: [
@@ -146,6 +162,7 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'embeddings',
     number: 10,
+    era: '1954 to 2021',
     title: 'Embeddings & Representations',
     blurb: 'Meaning as geometry: learned spaces where similar things sit close together.',
     lessons: [
@@ -157,6 +174,7 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'sequences',
     number: 11,
+    era: '1986 to 2017',
     title: 'Sequence Models',
     blurb: 'RNNs, LSTMs, and the bottleneck that motivated attention.',
     lessons: [
@@ -168,6 +186,7 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'transformers',
     number: 12,
+    era: '1994 to 2022',
     title: 'Transformers & Attention',
     blurb: 'The architecture behind modern language models, taken apart one tensor at a time.',
     lessons: [
@@ -181,6 +200,7 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'llms',
     number: 13,
+    era: '1948 to 1951, then 2018 to 2024',
     title: 'Large Language Models',
     blurb: 'From next-token prediction to assistants: sampling, scaling, and their failure modes.',
     lessons: [
@@ -192,6 +212,7 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'rl',
     number: 14,
+    era: '1953 to 2017',
     title: 'Reinforcement Learning',
     blurb: 'Agents that learn from consequences — and exploit badly specified rewards.',
     lessons: [
@@ -204,6 +225,7 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'finetuning',
     number: 15,
+    era: '2017 to 2023',
     title: 'Training & Fine-Tuning',
     blurb: 'Pretraining, fine-tuning, LoRA, RLHF and the rest of the post-training toolkit.',
     lessons: [
@@ -214,6 +236,7 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'inference',
     number: 16,
+    era: '2019 to 2023',
     title: 'Inference & Hardware',
     blurb: 'What actually happens on the GPU, and why memory bandwidth rules everything.',
     lessons: [
@@ -224,6 +247,7 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'generative',
     number: 17,
+    era: '1986 to 2023',
     title: 'Generative Models & Diffusion',
     blurb: 'VAEs, GANs and diffusion: how machines learn to create.',
     lessons: [
@@ -235,6 +259,7 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'systems',
     number: 18,
+    era: '1947 to today',
     title: 'AI Systems Engineering',
     blurb: 'Vector search, RAG, tools, agents and evaluation: models inside real software.',
     lessons: [

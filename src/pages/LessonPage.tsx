@@ -1,12 +1,20 @@
 import { Component, lazy, Suspense, useMemo, type ComponentType, type ReactNode } from 'react';
 import { neighbours, type LessonMeta, type ModuleMeta } from '../curriculum';
 import { progressStore, useProgress } from '../progress';
-import { lessonHref } from '../router';
+import { lessonHref, timelineHref } from '../router';
+import { HISTORY } from '../history';
 
 const cache = new Map<string, ComponentType>();
 function lessonComponent(l: LessonMeta): ComponentType {
   if (!cache.has(l.id)) cache.set(l.id, lazy(l.load!));
   return cache.get(l.id)!;
+}
+
+/** The timeline, focused on the first history card from this module's lessons (or unfocused if it has none). */
+function eraHref(m: ModuleMeta): string {
+  const ids = new Set(m.lessons.map((l) => l.id));
+  const first = HISTORY.find((h) => ids.has(h.lessonId));
+  return timelineHref(first?.id);
 }
 
 export function LessonPage({ lesson }: { lesson: LessonMeta & { module: ModuleMeta } }) {
@@ -19,7 +27,16 @@ export function LessonPage({ lesson }: { lesson: LessonMeta & { module: ModuleMe
     <div className="page">
       <header className="lesson-header">
         <div className="lesson-kicker">
-          Module {lesson.module.number} · {lesson.module.title} · Lesson {idx}
+          Module {lesson.module.number} · {lesson.module.title}
+          {lesson.module.era && (
+            <>
+              {' · '}
+              <a href={eraHref(lesson.module)} title="Where this module sits on the timeline of AI">
+                {lesson.module.era}
+              </a>
+            </>
+          )}
+          {' · '}Lesson {idx}
         </div>
         <h1>{lesson.title}</h1>
         <p className="summary">{lesson.summary}</p>

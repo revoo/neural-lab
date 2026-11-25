@@ -185,6 +185,8 @@ code, kbd, pre { font-family: var(--font-mono); }
 
 .lesson-header { margin-bottom: 36px; }
 .lesson-kicker { font-size: 13px; font-weight: 600; color: var(--accent-text); letter-spacing: 0.03em; text-transform: uppercase; }
+.lesson-kicker a { color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; text-transform: none; }
+.lesson-kicker a:hover { text-decoration-style: solid; }
 .lesson-header h1 { font-size: clamp(30px, 4vw, 42px); line-height: 1.12; margin: 8px 0 12px; letter-spacing: -0.02em; }
 .lesson-header .summary { font-family: var(--font-prose); font-size: 20px; color: var(--text-muted); line-height: 1.5; margin: 0; }
 .lesson-meta { display: flex; gap: 16px; margin-top: 14px; font-size: 13px; color: var(--text-faint); }

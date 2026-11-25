@@ -40,6 +40,7 @@ describe('history data', () => {
     expect(y('descent-golf')).toEqual([1847]);
     expect(y('shannon')).toEqual([1948, 1951]);
     expect(ERAS.filter((e) => e.kind === 'winter').map((e) => [e.from, e.to])).toEqual([[1974, 1980], [1987, 2000]]);
+    expect(MILESTONES.map((m) => m.year)).toEqual([1950, 1956, 1958, 1969, 1973, 1986, 1997, 2009, 2012, 2017, 2022, 2024]);
   });
 
   it('each entry points at a real lesson whose MDX shows its card', async () => {

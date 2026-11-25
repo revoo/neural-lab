@@ -43,7 +43,7 @@ export function Home() {
           const planned = m.lessons.length === 0;
           return (
             <div key={m.id} className={`module-card${planned ? ' planned' : ''}`}>
-              <div className="n">Module {m.number} {planned && <span className="pill" style={{ marginLeft: 6 }}>in development</span>}</div>
+              <div className="n">Module {m.number}{m.era && <> · <span style={{ textTransform: 'none' }}>{m.era}</span></>} {planned && <span className="pill" style={{ marginLeft: 6 }}>in development</span>}</div>
               <h3>{m.title}</h3>
               <p>{m.blurb}</p>
               {!planned && (
