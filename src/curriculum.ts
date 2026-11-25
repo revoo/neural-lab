@@ -153,8 +153,8 @@ export const MODULES: ModuleMeta[] = [
     lessons: [
       { id: 'rnns', title: 'Recurrent Neural Networks & BPTT', summary: 'Weight sharing across time, unrolling BPTT step-by-step, the ρᵏ vanishing/exploding Jacobian law, Pascanu’s exploding cliff rescued by gradient clipping, long-lag memory decay — and Lab: Tame BPTT.', minutes: 35, load: () => import('./lessons/rnns/index.mdx') },
       { id: 'lstms-grus', title: 'LSTMs and GRUs', summary: 'How the additive cell-state highway and three gates carry cues past hostile distractors, why forget-gate bias b_f = +2 boosts 25-step gradients 5M×, fair RNN vs GRU vs LSTM race & 25% GRU parameter discount — and Lab: Wire the Gated Cell.', minutes: 35, load: () => import('./lessons/lstms-grus/index.mdx') },
+      { id: 'seq2seq-attention', title: 'Encoder–Decoder and Early Attention', summary: 'Why squeezing a 24-word sentence into one vector crashes accuracy to 31.3%, Bahdanau & Luong cross-attention alignment heatmaps reordering English → French, why O(L) serial depth motivated Transformers — and Lab: Break the Bottleneck.', minutes: 35, load: () => import('./lessons/seq2seq-attention/index.mdx') },
     ],
-    planned: ['Encoder–decoder and early attention'],
   },
   {
     id: 'transformers',
