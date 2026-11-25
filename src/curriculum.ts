@@ -85,8 +85,8 @@ export const MODULES: ModuleMeta[] = [
     lessons: [
       { id: 'backpropagation', title: 'Backpropagation, One Step at a Time', summary: 'Walk a real computational graph forwards and backwards, number by number.', minutes: 35, load: () => import('./lessons/backpropagation/index.mdx') },
       { id: 'network-from-scratch', title: 'A Neural Network from Scratch', summary: 'A whole network in fifteen lines of matrix code — and a lab where you write the backward pass yourself, checked against measured gradients.', minutes: 35, load: () => import('./lessons/network-from-scratch/index.mdx') },
+      { id: 'vanishing-gradients', title: 'Vanishing & Exploding Gradients', summary: 'Why deep networks freeze or blow up to NaN, how Xavier and He initialisation conserve variance, why residual skips rescue 32-layer stacks — and a deep-stack rescue lab.', minutes: 35, load: () => import('./lessons/vanishing-gradients/index.mdx') },
     ],
-    planned: ['Vanishing and exploding gradients, in depth'],
   },
   {
     id: 'training',
