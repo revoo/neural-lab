@@ -1,8 +1,30 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Widget } from '../../components/Widget';
 import { Toggle } from '../../components/controls';
 import { Arrow, Handle, Label, Plot, Seg, usePlot } from '../../components/plot';
 import { Tex, col, fmt, pn } from '../../components/Tex';
+import { useFramePlayer } from '../../components/motion';
+
+/** The 'rotate' animation: b sweeps once around, in 5° steps, keeping its length. */
+export const ROTATE_FRAMES = 72;
+/** b after turning `deg` degrees anticlockwise from a's direction, at length `len`. */
+export function rotatedFrom(a: [number, number], len: number, deg: number): [number, number] {
+  const t = Math.atan2(a[1], a[0]) + (deg * Math.PI) / 180;
+  return [len * Math.cos(t), len * Math.sin(t)];
+}
+
+/** The recorded dot products, drawn as a curve against the angle. */
+function TraceLine({ pts }: { pts: [number, number][] }) {
+  const { x, y } = usePlot();
+  if (pts.length < 2) return null;
+  const last = pts[pts.length - 1];
+  return (
+    <g>
+      <polyline points={pts.map(([t, v]) => `${x(t)},${y(v)}`).join(' ')} fill="none" stroke="var(--c-c)" strokeWidth={2.5} />
+      <circle cx={x(last[0])} cy={y(last[1])} r={4.5} fill="var(--c-c)" />
+    </g>
+  );
+}
 
 type V = [number, number];
 
@@ -71,6 +93,22 @@ export function DotExplorer() {
   const [showHalf, setShowHalf] = useState(true);
   const [showProj, setShowProj] = useState(true);
   const [unit, setUnit] = useState(false);
+  const [trace, setTrace] = useState<[number, number][] | null>(null);
+  const sweep = useRef<{ a: [number, number]; len: number }>({ a: [3, 1], len: 1 });
+  const player = useFramePlayer(ROTATE_FRAMES, 40, (i) => {
+    const { a: a0, len } = sweep.current;
+    const deg = (360 * i) / ROTATE_FRAMES;
+    const nb = rotatedFrom(a0, len, deg);
+    setB(nb);
+    setTrace((t) => [...(t ?? [[0, Math.hypot(...a0) * len]]), [deg, a0[0] * nb[0] + a0[1] * nb[1]]]);
+  });
+  const playRotate = () => {
+    const len = Math.hypot(...b) || 3;
+    sweep.current = { a: [a[0], a[1]], len };
+    setB(rotatedFrom(a, len, 0));
+    setTrace([[0, Math.hypot(...a) * len]]);
+    player.start();
+  };
 
   const la = Math.hypot(...a);
   const lb = Math.hypot(...b);
@@ -83,7 +121,15 @@ export function DotExplorer() {
   const ub: V = lb ? [b[0] / lb, b[1] / lb] : [0, 0];
 
   let verdict: React.ReactNode;
-  if (Math.abs(d) < 0.05)
+  const lastAngle = trace ? trace[trace.length - 1][0] : 0;
+  if (player.running)
+    verdict = (
+      <>
+        <strong>b has turned {lastAngle.toFixed(0)}° from a</strong>: dot product {fmt(d)}
+        {Math.abs(d) < 0.05 ? ', no agreement at all' : d > 0 ? ', agreeing' : ', disagreeing'}. Watch the curve below: it is |a| |b| cos θ, a cosine wave.
+      </>
+    );
+  else if (Math.abs(d) < 0.05)
     verdict = (
       <>
         <strong>Zero.</strong> The vectors are perpendicular (θ = 90°). Moving along <span className="c-b">b</span> gets you no closer to, or further
@@ -142,8 +188,17 @@ export function DotExplorer() {
             <Label at={a} dx={10} dy={4} color="var(--c-a)">a</Label>
             <Label at={b} dx={10} dy={4} color="var(--c-b)">b</Label>
             <Handle x={a[0]} y={a[1]} onDrag={(x, y) => setA([x, y])} color="var(--c-a)" snap={0.25} label="tip of a" />
-            <Handle x={b[0]} y={b[1]} onDrag={(x, y) => setB([x, y])} color="var(--c-b)" snap={0.25} label="tip of b" />
+            <Handle x={b[0]} y={b[1]} onDrag={(x, y) => { setTrace(null); setB([x, y]); }} color="var(--c-b)" snap={0.25} label="tip of b" />
           </Plot>
+          {trace && (
+            <>
+              <div className="field-label" style={{ marginTop: 8 }}>The dot product as b turns (angle from a, in degrees)</div>
+              <Plot x={[0, 360]} y={[-la * Math.hypot(...b) * 1.15 - 0.1, la * Math.hypot(...b) * 1.15 + 0.1]} width={440} height={140} ariaLabel="Dot product against the angle between the vectors">
+                <Seg from={[0, 0]} to={[360, 0]} dash="3 3" />
+                <TraceLine pts={trace} />
+              </Plot>
+            </>
+          )}
         </div>
         <div className="widget-col controls">
           <div style={{ fontSize: 15 }}>
@@ -155,6 +210,9 @@ export function DotExplorer() {
             <span className="k">cos θ (cosine similarity)</span> {cos.toFixed(3)}<br />
             <span className="k">shadow of b on a </span> <span className="c-c">{proj.toFixed(2)}</span> = a·b / |a|
           </div>
+          <button type="button" className="btn primary" onClick={playRotate} disabled={player.running || la === 0}>
+            {player.running ? 'Rotating…' : '▶ Play: rotate b all the way round'}
+          </button>
           <div className="live-note">{verdict}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <Toggle label="Shade positive / negative regions" checked={showHalf} onChange={setShowHalf} />

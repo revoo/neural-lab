@@ -3,6 +3,11 @@ import { Widget } from '../../components/Widget';
 import { Segmented, Slider, Toggle } from '../../components/controls';
 import { Dot, FnPath, Handle, Label, Plot, Seg } from '../../components/plot';
 import { Tex, col, fmt } from '../../components/Tex';
+import { useFramePlayer } from '../../components/motion';
+
+/** The 'shrink the nudge' animation: h goes from 1 to 0.001 on a log scale, frame by frame. */
+export const SHRINK_FRAMES = 60;
+export const shrinkLogH = (i: number) => (-3 * i) / SHRINK_FRAMES;
 
 type Fn = { label: string; tex: string; dtex: string; f: (x: number) => number; df: (x: number) => number; y: [number, number] };
 
@@ -29,6 +34,13 @@ export function TangentExplorer() {
   const [zoom, setZoom] = useState(1);
   const [showDeriv, setShowDeriv] = useState(true);
 
+  const player = useFramePlayer(SHRINK_FRAMES, 50, (i) => setLogH(shrinkLogH(i)));
+  const playShrink = () => {
+    setZoom(1);
+    setLogH(0);
+    player.start();
+  };
+
   const h = 10 ** logH;
   const y0 = fn.f(x0);
   const y1 = fn.f(x0 + h);
@@ -43,7 +55,14 @@ export function TangentExplorer() {
 
   const kink = key === 'relu' && Math.abs(x0) < 0.01;
   let note: React.ReactNode;
-  if (kink)
+  if (player.running)
+    note = (
+      <>
+        <strong>h = {h >= 0.01 ? h.toFixed(3) : h.toExponential(1)}</strong>: secant slope <span className="c-grad">{secant.toFixed(4)}</span> → true slope{' '}
+        <span className="c-c">{slope.toFixed(4)}</span>. The dashed line is turning into the tangent as the second point slides in.
+      </>
+    );
+  else if (kink)
     note = (
       <>
         <strong>Right on the kink.</strong> Nudge right and the slope is 1; nudge left and it’s 0. There’s no single tangent line here, so strictly speaking the
@@ -114,6 +133,9 @@ export function TangentExplorer() {
             <Tex block>{col('c-c', fn.dtex)}</Tex>
           </div>
           <Slider label={<>nudge size <em>h</em></>} value={logH} min={-15} max={0.3} step={0.1} onChange={setLogH} format={() => (h >= 0.01 ? h.toFixed(2) : h.toExponential(0))} color="c-grad" />
+          <button type="button" className="btn primary" onClick={playShrink} disabled={player.running}>
+            {player.running ? 'Shrinking…' : '▶ Play: shrink the nudge'}
+          </button>
           <Segmented label="Zoom" value={zoom} onChange={setZoom} options={[{ value: 1, label: '1×' }, { value: 10, label: '10×' }, { value: 100, label: '100×' }, { value: 1000, label: '1000×' }]} />
           <div style={{ fontSize: 14.5 }}>
             <Tex block>{`\\frac{f(x+h) - f(x)}{h} = \\frac{${fmt(y1, 4)} - ${fmt(y0, 4)}}{${h >= 0.01 ? fmt(h, 2) : `10^{${logH.toFixed(1)}}`}} = ${col('c-grad', Number.isFinite(secant) ? fmt(secant, 4) : '?')}`}</Tex>

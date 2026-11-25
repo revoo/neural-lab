@@ -2,6 +2,13 @@ import { useState } from 'react';
 import { Widget } from '../../components/Widget';
 import { Slider } from '../../components/controls';
 import { Tex, col, fmt, pn } from '../../components/Tex';
+import { useFramePlayer } from '../../components/motion';
+
+/** Running products of the local derivatives: how big a nudge of 1 at w is on arrival at w, z, a and L. */
+export function nudgeTrail(w: number): number[] {
+  const s = forward(w);
+  return [1, s.dz, s.dz * s.da, s.dz * s.da * s.dL];
+}
 
 // A real neuron with a loss: w → z = w·x + b → a = tanh(z) → L = (a − t)²
 const X = 1.5;
@@ -15,12 +22,25 @@ export function forward(w: number) {
   return { z, a, L, dz: X, da: 1 - a * a, dL: 2 * (a - T) };
 }
 
-function Stage({ name, value, color, sub }: { name: string; value: number; color: string; sub: string }) {
+function Stage({ name, value, color, sub, pulse }: { name: string; value: number; color: string; sub: string; pulse?: number | null }) {
   return (
     <div style={{ border: `2px solid ${color}`, borderRadius: 10, padding: '8px 10px', minWidth: 92, textAlign: 'center', background: 'var(--bg)' }}>
       <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{sub}</div>
       <div className="mono" style={{ fontWeight: 700, fontSize: 16, color }}>
         {name} = {value.toFixed(3)}
+      </div>
+      <div style={{ height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }} aria-hidden={pulse == null}>
+        {pulse != null && (
+          <>
+            <span
+              className="nudge-pulse"
+              style={{ width: Math.max(3, Math.min(60, 30 * Math.sqrt(Math.abs(pulse)))), height: 8, borderRadius: 4, background: 'var(--c-grad)', display: 'inline-block' }}
+            />
+            <span className="mono" style={{ fontSize: 11, color: 'var(--c-grad)' }}>
+              {pulse.toFixed(3)}ε
+            </span>
+          </>
+        )}
       </div>
     </div>
   );
@@ -45,6 +65,23 @@ export function ChainExplorer() {
   const chain = s.dL * s.da * s.dz;
   const measured = (s2.L - s.L) / eps;
   const saturated = Math.abs(s.da) < 0.05;
+  const trail = nudgeTrail(w);
+  const [at, setAt] = useState<number | null>(null);
+  const player = useFramePlayer(3, 800, (i) => setAt(i));
+  const sendNudge = () => {
+    setAt(0);
+    player.start();
+  };
+  const factors = [s.dz, s.da, s.dL].slice(0, at ?? 0).map((f) => f.toFixed(3));
+  const pulseNote =
+    at === null ? null : at === 0 ? (
+      <>A nudge ε arrives at w. Watch it travel: each stage multiplies it by its local derivative.</>
+    ) : (
+      <>
+        <strong>After stage {at}:</strong> nudge × {factors.join(' × ')} = {trail[at].toFixed(3)} × ε
+        {at === 3 ? <>. That final size is the gradient ∂L/∂w: the chain rule is just this journey, written down.</> : '.'}
+      </>
+    );
 
   return (
     <Widget
@@ -60,20 +97,23 @@ export function ChainExplorer() {
       }
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 14 }}>
-        <Stage name="w" value={w} color="var(--c-a)" sub="weight" />
+        <Stage name="w" value={w} color="var(--c-a)" sub="weight" pulse={at !== null && at >= 0 ? trail[0] : null} />
         <Link ratio={s.dz} label="∂z/∂w = x" />
-        <Stage name="z" value={s.z} color="var(--text-muted)" sub="z = w·x + b" />
+        <Stage name="z" value={s.z} color="var(--text-muted)" sub="z = w·x + b" pulse={at !== null && at >= 1 ? trail[1] : null} />
         <Link ratio={s.da} label="∂a/∂z = 1 − a²" />
-        <Stage name="a" value={s.a} color="var(--text-muted)" sub="a = tanh(z)" />
+        <Stage name="a" value={s.a} color="var(--text-muted)" sub="a = tanh(z)" pulse={at !== null && at >= 2 ? trail[2] : null} />
         <Link ratio={s.dL} label="∂L/∂a = 2(a − t)" />
-        <Stage name="L" value={s.L} color="var(--c-c)" sub="L = (a − t)²" />
+        <Stage name="L" value={s.L} color="var(--c-c)" sub="L = (a − t)²" pulse={at !== null && at >= 3 ? trail[3] : null} />
       </div>
       <div className="widget-row">
         <div className="widget-col controls">
-          <Slider label="weight w" value={w} min={-3} max={3} step={0.01} onChange={setW} color="c-a" />
+          <Slider label="weight w" value={w} min={-3} max={3} step={0.01} onChange={(v) => { setAt(null); setW(v); }} color="c-a" />
+          <button type="button" className="btn primary" onClick={sendNudge} disabled={player.running}>
+            {player.running ? 'Sending…' : '▶ Play: send a nudge'}
+          </button>
           <Slider label="test nudge ε" value={eps} min={0.001} max={0.5} step={0.001} onChange={setEps} format={(v) => v.toFixed(3)} />
           <div className="live-note">
-            {saturated ? (
+            {pulseNote ? pulseNote : saturated ? (
               <>
                 <strong>The tanh has saturated.</strong> With z = {s.z.toFixed(2)}, tanh is almost perfectly flat, so its local derivative is only {s.da.toFixed(4)}.
                 Multiplying by that nearly-zero link crushes the whole chain: the loss is {s.L.toFixed(3)}, far from zero, yet the gradient says “changing w hardly
