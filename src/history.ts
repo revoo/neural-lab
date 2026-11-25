@@ -724,6 +724,25 @@ export const HISTORY: HistoryEntry[] = [
       after: { text: 'LSTMs and GRUs powered Google Translate, speech recognition, and game-playing agents throughout the 2010s until attention removed the final sequential bottleneck.', source: WP('Long_short-term_memory') },
     },
   },
+  {
+    id: 'seq2seq-attention',
+    lessonId: 'seq2seq-attention',
+    lab: 'Break the Bottleneck',
+    idea: 'Seq2Seq Encoder–Decoder, Bahdanau & Luong Cross-Attention, and the Jump to Transformers',
+    years: [2014, 2015, 2017],
+    when: '2014 · 2015 · 2017',
+    who: [
+      { text: 'Kyunghyun Cho et al. (June 2014) and Ilya Sutskever, Oriol Vinyals, and Quoc Le (September 2014) introduce RNN/LSTM Encoder–Decoder models for machine translation, compressing a whole sentence into one fixed vector.', source: 'https://arxiv.org/abs/1409.3215' },
+      { text: 'Dzmitry Bahdanau, Kyunghyun Cho, and Yoshua Bengio (September 2014) diagnose the fixed-length vector as a bottleneck and introduce additive soft-alignment attention over all encoder states.', source: 'https://arxiv.org/abs/1409.0473' },
+      { text: 'Minh-Thang Luong, Hieu Pham, and Christopher Manning (2015) compare global and local attention and introduce fast dot-product scoring, gaining 5.0 BLEU over non-attentional NMT.', source: 'https://arxiv.org/abs/1508.04025' },
+      { text: 'Ashish Vaswani and colleagues at Google (2017) remove the remaining O(L) recurrent loop altogether in Attention Is All You Need, training all positions in parallel with multi-head attention.', source: 'https://arxiv.org/abs/1706.03762' },
+    ],
+    story: {
+      before: { text: 'Early neural translation models compressed an entire source sentence into one final hidden vector, causing accuracy to crumble on long sentences.', source: 'https://arxiv.org/abs/1409.0473' },
+      this: { text: 'Letting the decoder attend directly to every encoder hidden state broke the fixed-vector bottleneck and learned crisp cross-lingual word alignments end to end.', source: 'https://arxiv.org/abs/1508.04025' },
+      after: { text: 'Once attention proved it could route information in O(1) hops, dropping recurrence completely produced the Transformer architecture behind modern LLMs.', source: 'https://arxiv.org/abs/1706.03762' },
+    },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */

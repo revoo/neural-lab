@@ -4,6 +4,8 @@ import { Predict } from '../../components/Predict';
 import { Callout, Deeper } from '../../components/Callout';
 import { Term } from '../../components/Term';
 import { Quiz } from '../../components/Quiz';
+import { LabJob, ForReal } from '../../components/LabJob';
+import { HistoryCard } from '../../components/HistoryCard';
 import { BottleneckWidget, AlignmentHeatmapWidget, ParallelismWidget, Seq2SeqLab } from './Widgets';
 import { questions } from './quiz';
 
@@ -86,7 +88,9 @@ At `L = 512` tokens, **LSTM + Cross-Attention** still executes **`1,024` sequent
 
 ## 4. Lab: Break the Bottleneck
 
-Solve three real sequence-architecture briefs — escaping the 20-token bottleneck, sharpening cross-attention safely, and hitting a 20 ms GPU training SLA at `L = 512`.
+<LabJob>
+  You are migrating a legacy neural machine translation stack from a fixed-vector LSTM encoder–decoder onto attention. Fix the 20-token copy collapse without bloating state width, tune cross-attention sharpness on a French–English word-order swap without FP16 logit overflow, and hit a 20 ms GPU training SLA on 512-token documents.
+</LabJob>
 
 <Seq2SeqLab />
 
@@ -95,6 +99,12 @@ Solve three real sequence-architecture briefs — escaping the 20-token bottlene
   - **Brief 2 (Sharp alignment without overflow):** `τ = 0.05` overflows `max |logit| > 15`; `τ ≥ 0.40` smears weight below `85%`. **`Luong dot at τ = 0.15`** is the unique winner (`1/8` pass: `96.0%` mean gold weight, `max |e| = 6.67`).
   - **Brief 3 (512-token 20 ms GPU SLA):** Fixed LSTM fails both path (`512`) and latency (`81.92 ms`); LSTM + Cross-Attention fixes path (`1`) but still serialises at `85.07 ms`. **Transformer** is the unique winner (`1/3` pass: `7.75 ms`, serial depth `1`, max path `1`).
 </Deeper>
+
+<ForReal>
+  Google's 2016 Neural Machine Translation (GNMT) system bridged the exact middle ground in Brief 1 and Brief 2 — deep stacked LSTMs plus Bahdanau/Luong cross-attention — before Vaswani et al. (2017) dropped the sequential recurrent layers altogether in favour of `nn.TransformerEncoder` and `F.scaled_dot_product_attention`. Modern encoder–decoder models like T5, BART, and Whisper still use cross-attention between encoder states and decoder queries to align audio frames or source text directly onto output tokens.
+</ForReal>
+
+<HistoryCard id="seq2seq-attention" />
 
 ---
 

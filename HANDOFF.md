@@ -210,7 +210,7 @@ The owner asked for this next, in a fresh session. `docs/LAB_IMPROVEMENTS.md` re
 - [x] contrastive-learning · Tune Contrastive Training
 - [x] rnns · Tame BPTT
 - [x] lstms-grus · Wire the Gated Cell
-- [ ] seq2seq-attention · Break the Bottleneck
+- [x] seq2seq-attention · Break the Bottleneck
 - [ ] autoencoders · The Face Printer
 - [ ] diffusion · Spend the Step Budget
 - [ ] guidance · Tune the Guidance
