@@ -275,6 +275,22 @@ export const MODULES: ModuleMeta[] = [
       { id: 'evaluation', title: 'Evaluation: Measuring AI Without Fooling Yourself', summary: 'Is model B really better, or just lucky? Fair comparisons, the trap of tuning on your test, judges that play favourites — and Lab: Size Your Eval Suite.', minutes: 35, load: () => import('./lessons/evaluation/index.mdx') },
     ],
   },
+  {
+    id: 'epilogue',
+    number: 19,
+    era: '2018 to today',
+    title: 'Epilogue',
+    blurb: 'Where the textbook stops and active research begins: five puzzles the field still cannot fully explain.',
+    lessons: [
+      {
+        id: 'open-questions',
+        title: 'What Nobody Understands Yet',
+        summary: 'The field’s best minds are still puzzled. Why big networks generalise, why abilities seem to appear suddenly, and what is really stored inside a model.',
+        minutes: 20,
+        load: () => import('./lessons/open-questions/index.mdx'),
+      },
+    ],
+  },
 ];
 
 export const ALL_LESSONS: (LessonMeta & { module: ModuleMeta })[] = MODULES.flatMap((m) => m.lessons.map((l) => ({ ...l, module: m })));

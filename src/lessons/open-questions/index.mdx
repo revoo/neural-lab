@@ -1,0 +1,82 @@
+{/* authored-by: Gemini Antigravity */}
+import { RandomFeaturesWidget } from './RandomFeaturesWidget'
+import { questions } from './quiz'
+
+You have spent this course taking modern AI apart piece by piece — from a single vector to a transformer, from backprop to reinforcement learning, from GANs and diffusion to production evals. It is tempting to leave a course like this thinking the story is finished and the scientists have it all wrapped up.
+
+They do not. Beneath the working engineering sits a set of genuine scientific puzzles that nobody has fully solved. Five of them are famous enough that if you walk into any AI research lab today, you will hear people arguing about them over coffee.
+
+## Why does it generalise at all?
+
+Classical statistics taught a clean moral: once a model has more tunable parameters than training examples, it can memorise every noisy label by heart and ought to fail badly on fresh data. In <LessonLink to="overfitting">the overfitting lesson</LessonLink>, you saw both the textbook U-shaped error curve and a first hint of something stranger in a polynomial side-experiment: test error peaking where exact memorisation first becomes possible, then falling *again* as the model grows larger still.
+
+Mikhail Belkin and colleagues brought that phenomenon to the centre of deep-learning theory in 2019 under the name **double descent**.<Src href="https://arxiv.org/abs/1812.11118" /> To see it in a setting much closer to a neural network than high-degree polynomials, take a frozen hidden layer of $p$ random cosine features $\phi_j(x) = \sqrt{2/p}\cos(w_j x + b_j)$ and fit only the $p$ linear output weights $c_1, \dots, c_p$ to $n = 24$ noisy training points. Up to $p = 24$ we use ordinary least squares; beyond $p = 24$ infinitely many exact interpolators exist, and we pick the one with the **smallest total weight norm** $\|c\|_2$.
+
+<Predict
+  question="With n = 24 noisy training points and p frozen random features, what happens to test error as you push p from 16 to 24 and then all the way to 160?"
+  options={[
+    { label: 'It rises smoothly from 16 onwards and is worst at p = 160', explanation: 'That is the classical textbook curve, which assumed the story ended once training error hit zero. Here the error explodes right at p = 24 and then drops more than a hundredfold by p = 160.' },
+    { label: 'It spikes sharply right at p = 24, then falls again as p grows to 160', correct: true, explanation: 'Right on target. At p = n = 24 there is only one exact fit, so forcing it through noisy dots blows the weights up. Past 24, extra features give the minimum-norm rule room to choose a calmer curve.' },
+    { label: 'It drops steadily all the way from p = 2 to p = 160 with no peak at all', explanation: 'That only happens if the training labels have zero noise! With noisy labels (σ = 0.25), the single exact interpolator at p = 24 suffers a massive spike.' },
+  ]}
+/>
+
+<RandomFeaturesWidget />
+
+Look closely at the 41-trial medians in the widget above:
+
+- At **$p = 16$** (the classical sweet spot), median test MSE is **0.056** with a modest weight norm of **24.1**.
+- Right at the **interpolation threshold $p = n = 24$**, training MSE collapses to effectively zero ($5.5 \times 10^{-22}$), but median weight norm explodes to **395,316** and median test MSE spikes to **9.35** — more than 160× worse than $p = 16$.
+- Push further to **$p = 160$**, and training MSE stays zero while the extra features let the minimum-norm solution relax back to a weight norm of **4.2** and pull median test MSE down more than 130× to **0.070**.
+
+Two honest caveats matter just as much as the surprise. First, toggle **Noiseless ($\sigma = 0$)** in the widget and watch the spike at $p = 24$ disappear: the crisis at $p = n$ is caused by forcing a brittle exact fit through label *noise*. Second, even at $p = 160$, the minimum-norm interpolator (**0.070**) still sits slightly above the classical sweet spot (**0.056** at $p = 16$) on this noisy 1D task. Real deep networks trained with SGD often go further — over-parameterised models routinely beat every smaller model — and theorists still do not have one clean, predictive theorem explaining why gradient descent on huge networks lands on such gentle functions across real-world data.
+
+## Grokking: generalisation long after memorising
+
+Even the timing of generalisation has broken the textbook intuition. In <LessonLink to="regularization">the regularisation lesson</LessonLink>, early stopping rested on a sensible picture: once a network has memorised the training set while validation error sits flat and awful, keeping the optimiser running can only make things worse.
+
+In 2022, Alethea Power and colleagues studied neural networks trained on small algorithmically generated datasets and documented the opposite: a phenomenon they named **grokking**.<Src href="https://arxiv.org/abs/2201.02177" /> Long *after* a network had already overfit the finite training set — sitting at random-chance performance on held-out examples — continued optimisation caused its generalisation performance to jump from chance all the way to perfect generalisation.<Src href="https://arxiv.org/abs/2201.02177" /> They also measured how this delay depended on dataset size and found that smaller datasets required increasing amounts of optimisation before generalisation appeared.<Src href="https://arxiv.org/abs/2201.02177" />
+
+Why does a network spend thousands of extra steps reshaping weights that already have near-zero training loss, until an internal circuit suddenly clicks into place? Researchers have proposed partial mechanisms — weight decay slowly preferring simpler, lower-norm circuits over brittle lookup tables — yet grokking remains a vivid reminder that our picture of over-parameterised training dynamics is still incomplete.<Src href="https://arxiv.org/abs/2201.02177" />
+
+## What’s really inside?
+
+Suppose you train a model that generalises beautifully. Can you open it up and read what it knows?
+
+The naive hope was one neuron, one concept: a "cat" neuron, a "French" neuron, a "closing-bracket" neuron. In <LessonLink to="high-dimensions">High-Dimensional Geometry</LessonLink> and its superposition lab, you already saw why high-dimensional space tempts a network to break that rule: you can pack far more nearly-perpendicular directions into $d$ dimensions than $d$ itself.
+
+In 2022, Nelson Elhage and colleagues demonstrated this directly in *Toy Models of Superposition*, showing that small neural networks pack more sparse features than they have dimensions by storing them in **superposition** along almost-orthogonal directions.<Src href="https://arxiv.org/abs/2209.10652" /> Individual neurons then become *polysemantic*: a single unit fires for several unrelated concepts at once. Follow-up interpretability work in 2023 used sparse dictionary learning to pull those overlapped directions back apart into cleaner, more monosemantic features.<Src href="https://transformer-circuits.pub/2023/monosemantic-features" />
+
+That is genuine progress, not a solved problem. Even on small transformers, dictionary-learning reconstructions leave unexplained error, features split and merge depending on dictionary size, and turning a list of active features into a complete mechanistic account of how a frontier model plans or reasons remains wide open.
+
+## Do abilities really “emerge”?
+
+Watch benchmark charts as language models grow by orders of magnitude and you will often see a flat line near zero suddenly shoot upward at some large scale. In 2022, Jason Wei and colleagues called these **emergent abilities of large language models**: abilities absent in smaller models that appear in larger ones, and therefore cannot be predicted simply by extrapolating small-model performance.<Src href="https://arxiv.org/abs/2206.07682" /> If capabilities genuinely jump unpredictably with scale, both forecasting and safety become much harder.
+
+A year later, Rylan Schaeffer, Brando Miranda and Sanmi Koyejo pushed back with a sharp alternative hypothesis: *Are Emergent Abilities of Large Language Models a Mirage?*<Src href="https://arxiv.org/abs/2304.15004" /> Looking at fixed model outputs, they argued that apparent cliffs come from the researcher’s choice of **metric** rather than a sudden phase transition inside the model.<Src href="https://arxiv.org/abs/2304.15004" /> Nonlinear or discontinuous metrics — such as exact string match across an entire multi-step answer, which awards 0 until every token is right — turn smooth per-token probability gains into an abrupt cliff; switch to a linear or continuous metric on the exact same outputs and performance changes smoothly and predictably.<Src href="https://arxiv.org/abs/2304.15004" /> They tested those predictions on the InstructGPT/GPT-3 family and BIG-Bench, and even manufactured brand-new "emergent" jumps in vision networks simply by picking discontinuous metrics.<Src href="https://arxiv.org/abs/2304.15004" />
+
+Both sides carry a real lesson, and the debate is not closed. Continuous metrics often reveal smooth underlying improvement — yet downstream users and real software frequently *care* about discontinuous thresholds (a program either compiles and passes its tests or it does not). Knowing that per-token loss improves smoothly still does not tell us in advance which complex multi-step tasks will cross the usefulness threshold at the next order of magnitude of compute.
+
+## Why do scaling laws hold?
+
+In <LessonLink to="scaling-laws">Scaling Laws & Compute-Optimal Training</LessonLink>, you saw one of the eeriest empirical regularities in modern computing: plot cross-entropy loss against model size, dataset size, and compute on log–log axes, and across many orders of magnitude the points fall along clean power laws. Engineers bet hundreds of millions of dollars on extrapolating those lines before launching a training run.
+
+Yet if you ask *why* natural language, images, and code all obey smooth power laws with the particular exponents we observe, there is still **no single agreed theoretical explanation**. Several candidate stories exist — approximating a data manifold of some intrinsic dimension, learning a Zipf-like hierarchy of independent subtasks, or finite-width corrections to an infinite-width limit — and each reproduces power laws in toy models. None yet predicts the real exponents from first principles before you measure them. We have Kepler’s laws of planetary motion, in other words, without Newton’s derivation.
+
+## Back where we started
+
+Look back to <LessonLink to="prologue">the prologue</LessonLink>. Seventy years ago, Turing asked whether a machine could learn, and the Dartmouth proposal hoped a summer’s work would crack the problem. Since then, brilliant people spent decades building machines that failed, abandoning ideas that later turned out to work, and stumbling onto engineering breakthroughs whose mathematics they only partly understood.
+
+That pattern has not ended. You started this course wondering how any of this could possibly work; you are leaving it able to build, train, debug, and measure every major architecture in the field — and able to see right up to the edge where our textbooks stop. The best minds in AI are still genuinely puzzled by double descent, grokking, superposition, emergence, and scaling laws. The difference now is that you know enough to be puzzled by the exact same questions.
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- **Double descent** breaks the classical textbook assumption that passing the interpolation threshold ($p = n$) is always fatal: with noisy labels, minimum-norm random-features regression spikes sharply at $p = n = 24$ (median test MSE **9.35**), then drops more than 130× to **0.070** by $p = 160$ as excess freedom lets weights relax.
+- **Grokking** shows that on small algorithmic datasets, networks can jump from random-chance to perfect generalisation long *after* memorising the training set, with smaller datasets needing more optimisation.
+- **Superposition** means networks pack more sparse features than they have neurons along nearly-perpendicular directions; sparse dictionary learning can pry many of them apart, but full mechanistic interpretability remains open.
+- **Emergence** is actively contested: abilities can appear abruptly under strict all-or-nothing metrics while continuous metrics on the same model outputs improve smoothly with scale.
+- **Scaling laws** are remarkably reliable empirically, yet still lack one universally accepted first-principles derivation of their exponents.
+
+</Takeaways>
