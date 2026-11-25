@@ -193,4 +193,4 @@ Every large language model is trained with exactly one loss: cross-entropy on th
 
 </InTheWild>
 
-We've been computing the loss over the *whole* dataset before every step. For a dataset of millions of examples, that's impossibly slow. Next: why it's fine — even better — to estimate it from a handful.
+We've been computing the loss over the *whole* dataset before every step. For a dataset of millions of examples, that's impossibly slow. Soon we'll see why it's fine — even better — to estimate it from a handful. The answer is about how much an average of noisy pieces wobbles, so first a short stop at <LessonLink to="statistics">statistics</LessonLink>, then <LessonLink to="sgd-minibatch">mini-batches</LessonLink>.

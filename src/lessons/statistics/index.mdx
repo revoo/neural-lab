@@ -10,6 +10,8 @@ Not so fast. Each score came from 500 particular examples. A different 500, draw
 
 These ideas aren't just for evaluating models. They're why networks normalise their inputs and activations, why weights are initialised with a carefully chosen spread (the vanishing-gradients lesson), and why bigger mini-batches give smoother gradients (the SGD lesson). By the end you'll be able to answer the opening question yourself.
 
+You'll need this straight away in <LessonLink to="sgd-minibatch">the mini-batch lesson</LessonLink>: a mini-batch gradient is an average of noisy pieces, and how much an average wobbles is exactly what this lesson measures.
+
 ## Two numbers that summarise a pile of numbers
 
 Suppose you time the same API call seven times: 2, 3, 4, 5, 6, 7 and 8 hundred milliseconds. Two questions come first: *where* is the pile, and *how wide* is it?
@@ -94,7 +96,7 @@ Now look at the readout's spreads. The mean of the total grows in proportion to 
 
 </Eq>
 
-This one line runs through the whole course. It's why the SGD lesson measured gradient noise shrinking like $1/\sqrt{B}$ with batch size $B$: a mini-batch gradient is an average of $B$ per-example gradients. It's why He initialisation scales weights by $\sqrt{2/n}$: a neuron's input is a sum of $n$ terms, so its variance grows with $n$ unless each weight's variance shrinks to compensate. And it's how to answer the opening question.
+This one line runs through the whole course. It's why, in <LessonLink to="sgd-minibatch">the mini-batch lesson</LessonLink>, gradient noise will shrink like $1/\sqrt{B}$ with batch size $B$: a mini-batch gradient is an average of $B$ per-example gradients. It's why He initialisation scales weights by $\sqrt{2/n}$: a neuron's input is a sum of $n$ terms, so its variance grows with $n$ unless each weight's variance shrinks to compensate. And it's how to answer the opening question.
 
 ## Back to 91.2% versus 90.6%
 
@@ -132,7 +134,7 @@ One more tool falls out of mean and SD. To say how unusual a value is, measure i
 
 </Eq>
 
-After standardising, every feature has mean 0 and SD 1. A house's floor area (in the hundreds) and its number of bathrooms (one to four) arrive at a network on comparable scales, so neither dominates the weighted sums and one step size suits every weight. The model clinic's "unscaled inputs" case was what happens without it. **<Term id="layer-norm">Layer normalisation</Term>** in a transformer is this same formula applied inside the network, to each token's vector at every layer. And for a bell-shaped quantity, the z-score tells you how rare a value is: about 68% of values land within ±1 SD of the mean, about 95% within ±2.
+After standardising, every feature has mean 0 and SD 1. A house's floor area (in the hundreds) and its number of bathrooms (one to four) arrive at a network on comparable scales, so neither dominates the weighted sums and one step size suits every weight. <LessonLink to="diagnosis-lab">The model clinic</LessonLink>, later in the course, has an "unscaled inputs" case that shows what happens without it. **<Term id="layer-norm">Layer normalisation</Term>** in a transformer is this same formula applied inside the network, to each token's vector at every layer. And for a bell-shaped quantity, the z-score tells you how rare a value is: about 68% of values land within ±1 SD of the mean, about 95% within ±2.
 
 ## Lab: The Dice Workshop
 
@@ -224,4 +226,4 @@ Every serious benchmark table should come with error bars, and many don't. When 
 
 </InTheWild>
 
-Means and spreads describe numbers in one dimension. Machine learning lives in hundreds or thousands of dimensions, where distances and angles behave in ways that genuinely defy intuition. Next: **high-dimensional geometry**.
+Back to training. A gradient measured on a handful of examples is an average, so it wobbles by exactly the amount this lesson taught you to size. Next: <LessonLink to="sgd-minibatch">stochastic gradient descent and mini-batches</LessonLink>, where that wobble turns out to be cheap, and even useful.

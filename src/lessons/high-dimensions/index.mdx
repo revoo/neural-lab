@@ -4,7 +4,7 @@ import { questions } from './quiz'
 
 ## The problem: your intuition was trained in three dimensions
 
-Every embedding in this course is a point in a space with hundreds or thousands of dimensions. GPT-2 represents each token with 768 numbers; sentence embeddings used for search have 384 to 3,072. We draw them as arrows on a flat page, and the vectors lesson promised that the rules (dot products, lengths, angles) work the same in any number of dimensions.
+Before we meet <LessonLink to="knn">k-nearest neighbours</LessonLink>, which judges similarity by distance, it's worth finding out how strange distance becomes when there are hundreds of numbers per point. Such spaces are everywhere in AI. A hidden layer of 768 neurons turns each input into a point in 768 dimensions, and later in the course every word and sentence becomes a point like that, an <Term id="embedding">embedding</Term>: GPT-2 represents each piece of text with 768 numbers, and embeddings used for search have 384 to 3,072. We draw them as arrows on a flat page, and the vectors lesson promised that the rules (dot products, lengths, angles) work the same in any number of dimensions.
 
 The rules do. The *intuitions* don't. Here are three statements that are obviously false in the world you live in, and true in 768 dimensions:
 
@@ -103,7 +103,7 @@ You can feel the effect with vectors simple enough to search exhaustively: every
 
 Each brief gives a dimension and a limit on how much any two vectors may overlap. Your job is to fit the required number of ±1 concept vectors. One brief is impossible, and you can declare it so. The maximum for every brief was found by searching every possible set of ±1 vectors, so the optional goal (fit as many as possible) has a known answer.
 
-<LabJob>A language model has to represent far more concepts (*is code*, *is French*, *is a question*, …) than it has neurons. Your job is the same squeeze in miniature: pack more directions than dimensions while keeping them from clashing.</LabJob>
+<LabJob>A large language model (the kind of network behind chatbots, which this course builds later) has to represent far more concepts (*is code*, *is French*, *is a question*, …) than it has neurons. Your job is the same squeeze in miniature: pack more directions than dimensions while keeping them from clashing.</LabJob>
 
 <PackLab />
 
@@ -167,7 +167,7 @@ d= 768  cosine spread 0.037 (1/sqrt(d) = 0.036)  farthest/nearest   1.15  volume
 
 - Distances and dot products are **sums over d fields**. Sums concentrate: the total grows like d, the wobble like √d. That one fact drives the whole lesson.
 - **Volume lives at the surface**: the outer 1% of a ball holds 3% of its volume in 3D, 63% in 100D and 99.96% in 768D. A ball fills a vanishing sliver of its cube, because the cube's volume is in its √d-distant corners.
-- **Random directions are nearly perpendicular**: their cosine has spread exactly 1/√d (0.036 in 768D). So a cosine of 0.3 between embeddings is a strong signal, and attention divides by √d.
+- **Random directions are nearly perpendicular**: their cosine has spread exactly 1/√d (0.036 in 768D). So a cosine of 0.3 between embeddings is a strong signal, and the attention mechanism in transformers (later in the course) divides by √d for this reason.
 - **Distances concentrate**: for random points in 1,000D the farthest is only about 12% farther than the nearest. Real data escapes this because it has structure.
 - Only d directions can be exactly perpendicular, but **far more can be nearly perpendicular**: 16 ±1 vectors in 6D with every |cos| ≤ 1/3. Networks seem to exploit this to store more features than they have neurons (superposition).
 
@@ -179,4 +179,4 @@ Vector databases face distance concentration head-on. Exact nearest-neighbour se
 
 </InTheWild>
 
-That completes the mathematical foundations. You now have every tool the rest of the course leans on: vectors and the spaces they live in, how sensitivity flows through a calculation, probability, surprise, and the statistics of sums.
+Keep these strange facts in mind. k-nearest neighbours, coming up in this module, trusts distances completely, and it's exactly where they bite. First, though, the oldest learning machine of all: <LessonLink to="linear-regression">linear and logistic regression</LessonLink>.

@@ -27,8 +27,8 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'foundations',
     number: 1,
-    title: 'Mathematical Foundations',
-    blurb: 'The handful of mathematical ideas that nearly all of AI is built from — each one introduced through something you can drag, twist, and break.',
+    title: 'The Maths Toolkit',
+    blurb: 'Nine tools that every neural network is built from. Each lesson ends by showing exactly where the next modules use it — and each has a lab of its own.',
     lessons: [
       { id: 'vectors', title: 'Vectors: Lists That Point Somewhere', summary: 'Why a list of numbers can also be an arrow, and why that double life matters for AI.', minutes: 15, load: () => import('./lessons/vectors/index.mdx') },
       { id: 'dot-product', title: 'The Dot Product: Measuring Agreement', summary: 'The single most important operation in deep learning, and the reason it measures alignment.', minutes: 20, load: () => import('./lessons/dot-product/index.mdx') },
@@ -39,8 +39,6 @@ export const MODULES: ModuleMeta[] = [
       { id: 'chain-rule', title: 'The Chain Rule: Sensitivity Through a Pipeline', summary: 'How sensitivities multiply through a chain of functions — the engine underneath backpropagation.', minutes: 20, load: () => import('./lessons/chain-rule/index.mdx') },
       { id: 'probability', title: 'Probability Distributions & Softmax', summary: 'Turning arbitrary scores into well-behaved probabilities, and what temperature actually does.', minutes: 20, load: () => import('./lessons/probability/index.mdx') },
       { id: 'information', title: 'Logarithms, Surprise & Cross-Entropy', summary: 'Why “how surprised were you?” is the loss function behind every classifier and language model.', minutes: 25, load: () => import('./lessons/information/index.mdx') },
-      { id: 'statistics', title: 'Statistics: Mean, Variance & the Bell Curve', summary: 'Spread as an average of squares, why variances add, where the bell curve comes from, how much a test score wobbles — and Lab: The Dice Workshop.', minutes: 30, load: () => import('./lessons/statistics/index.mdx') },
-      { id: 'high-dimensions', title: 'High-Dimensional Geometry', summary: 'Why almost all of an orange is peel in 768 dimensions, why random arrows are perpendicular, why neighbours look alike — and Lab: Superposition.', minutes: 30, load: () => import('./lessons/high-dimensions/index.mdx') },
     ],
   },
   {
@@ -73,6 +71,7 @@ export const MODULES: ModuleMeta[] = [
     lessons: [
       { id: 'gradient-descent', title: 'Gradient Descent: Walking Downhill in the Fog', summary: 'The algorithm behind nearly all of modern AI training, and why the step size can make or break it.', minutes: 25, load: () => import('./lessons/gradient-descent/index.mdx') },
       { id: 'loss-functions', title: 'Loss Functions: What Does “Wrong” Mean?', summary: 'Squared error, absolute error and cross-entropy — what each one really asks the model for, and why the choice matters.', minutes: 25, load: () => import('./lessons/loss-functions/index.mdx') },
+      { id: 'statistics', title: 'Statistics: Mean, Variance & the Bell Curve', summary: 'Spread as an average of squares, why variances add, where the bell curve comes from, how much a test score wobbles — and Lab: The Dice Workshop.', minutes: 30, load: () => import('./lessons/statistics/index.mdx') },
       { id: 'sgd-minibatch', title: 'Stochastic Gradient Descent and Mini-Batches', summary: 'Why a noisy gradient from a handful of examples beats an exact one from millions.', minutes: 25, load: () => import('./lessons/sgd-minibatch/index.mdx') },
       { id: 'optimizers', title: 'Momentum, RMSProp and Adam', summary: 'Two simple fixes for gradient descent’s weaknesses, and the optimizer that combines them — racing on the same landscapes.', minutes: 30, load: () => import('./lessons/optimizers/index.mdx') },
       { id: 'lr-schedules', title: 'Learning-Rate Schedules', summary: 'Fast or precise? Why the best step size changes during training — and how to design a schedule yourself.', minutes: 25, load: () => import('./lessons/lr-schedules/index.mdx') },
@@ -115,6 +114,7 @@ export const MODULES: ModuleMeta[] = [
     title: 'Classical Machine Learning',
     blurb: 'Trees, nearest neighbours, SVMs, clustering — and when they beat neural networks.',
     lessons: [
+      { id: 'high-dimensions', title: 'High-Dimensional Geometry', summary: 'Why almost all of an orange is peel in 768 dimensions, why random arrows are perpendicular, why neighbours look alike — and Lab: Superposition.', minutes: 30, load: () => import('./lessons/high-dimensions/index.mdx') },
       { id: 'linear-regression', title: 'Linear and Logistic Regression', summary: 'Exact normal equations and the collinearity trap, why OLS breaks on classification, calibrated log-odds, precision/recall & ROC AUC — and a feature-engineering lab.', minutes: 35, load: () => import('./lessons/linear-regression/index.mdx') },
       { id: 'knn', title: 'k-Nearest Neighbours', summary: 'Zero-training lazy learning, clickable neighbour voting and the bias–variance dial k, the feature-scaling disaster, curse of dimensionality — and Lab: Rescue the kNN Classifier.', minutes: 30, load: () => import('./lessons/knn/index.mdx') },
       { id: 'decision-trees', title: 'Decision Trees and Random Forests', summary: 'Gini impurity splits, scale invariance, how Random Forests average variance away, how Gradient Boosted Trees fit residuals — and Lab: Build the Tabular Ensemble.', minutes: 35, load: () => import('./lessons/decision-trees/index.mdx') },
