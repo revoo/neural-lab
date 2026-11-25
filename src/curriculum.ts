@@ -39,8 +39,9 @@ export const MODULES: ModuleMeta[] = [
       { id: 'chain-rule', title: 'The Chain Rule: Sensitivity Through a Pipeline', summary: 'How sensitivities multiply through a chain of functions — the engine underneath backpropagation.', minutes: 20, load: () => import('./lessons/chain-rule/index.mdx') },
       { id: 'probability', title: 'Probability Distributions & Softmax', summary: 'Turning arbitrary scores into well-behaved probabilities, and what temperature actually does.', minutes: 20, load: () => import('./lessons/probability/index.mdx') },
       { id: 'information', title: 'Logarithms, Surprise & Cross-Entropy', summary: 'Why “how surprised were you?” is the loss function behind every classifier and language model.', minutes: 25, load: () => import('./lessons/information/index.mdx') },
+      { id: 'statistics', title: 'Statistics: Mean, Variance & the Bell Curve', summary: 'Spread as an average of squares, why variances add, where the bell curve comes from, how much a test score wobbles — and Lab: The Dice Workshop.', minutes: 30, load: () => import('./lessons/statistics/index.mdx') },
     ],
-    planned: ['Statistics: mean, variance and the bell curve', 'High-dimensional geometry'],
+    planned: ['High-dimensional geometry'],
   },
   {
     id: 'neuron',

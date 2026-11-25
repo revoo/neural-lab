@@ -1,0 +1,217 @@
+{/* authored-by: Claude Opus 5.5 */}
+import { SpreadExplorer, BellFactory, TestSetNoise, DiceWorkshop } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: is 91.2% better than 90.6%?
+
+You've trained two models. You score both on a test set of 500 examples. Model A gets 91.2% right, model B gets 90.6%. A is better. Ship A?
+
+Not so fast. Each score came from 500 particular examples. A different 500, drawn from the same kind of data, would give slightly different scores, and nobody guarantees A would still come out ahead. A single number measured from random data is itself a little bit random. The question is *how* random, and you can't answer it without two ideas this lesson builds from scratch: **spread**, and what happens to spread when you **add things up**.
+
+These ideas aren't just for evaluating models. They're why networks normalise their inputs and activations, why weights are initialised with a carefully chosen spread (the vanishing-gradients lesson), and why bigger mini-batches give smoother gradients (the SGD lesson). By the end you'll be able to answer the opening question yourself.
+
+## Two numbers that summarise a pile of numbers
+
+Suppose you time the same API call seven times: 2, 3, 4, 5, 6, 7 and 8 hundred milliseconds. Two questions come first: *where* is the pile, and *how wide* is it?
+
+The "where" is usually the **<Term id="mean">mean</Term>**: add them up and divide by how many there are. Here 35 ÷ 7 = 5. Physically, it's the balance point: put equal weights at each value on a ruler, and the mean is where the ruler balances.
+
+<Eq
+  words="\ca{\text{mean}} = \frac{\text{add up every value}}{\cb{\text{how many values}}}"
+  tex="\ca{\bar{x}} = \frac{1}{\cb{n}} \sum_{i=1}^{\cb{n}} x_i"
+>
+
+- $x_i$ — the $i$-th value (the $i$-th timing)
+- $\cb{n}$ — **how many** values there are
+- $\sum_{i=1}^{n}$ — a `for` loop that adds up the values from the first to the last
+- $\ca{\bar{x}}$ — the **mean** (the bar on top is the traditional "average of" mark)
+
+</Eq>
+
+The "how wide" is harder. The obvious idea is the average distance from the mean, and that's a perfectly sensible number. But the standard choice is stranger: square each distance, average the squares, and take the square root at the end. Why the detour? Try it first.
+
+<SpreadExplorer />
+
+The squared distances are drawn as literal squares. Their average area is the **<Term id="variance">variance</Term>**, and the side of a square with that area is the **<Term id="standard-deviation">standard deviation</Term>** (SD), back in the original units. For the timings 2 to 8 the variance is exactly 4 and the SD exactly 2: a typical timing sits about 2 away from the mean.
+
+Then one request hits a cold cache and takes 15. The mean moves from 5 to 6. The median (the middle value) stays at 5. And the SD *doubles*, to 4, because that one point's square is bigger than all the others put together.
+
+<Eq
+  words="\cv{\text{variance}} = \text{the average of } (\text{each value} - \ca{\text{mean}})^2, \qquad \cv{\text{SD}} = \sqrt{\cv{\text{variance}}}"
+  tex="\cv{\sigma^2} = \frac{1}{n} \sum_{i=1}^{n} \big(x_i - \ca{\bar{x}}\big)^2, \qquad \cv{\sigma} = \sqrt{\cv{\sigma^2}}"
+>
+
+- $x_i - \ca{\bar{x}}$ — how far value $i$ sits from the mean (positive above, negative below)
+- $(\cdot)^2$ — **squaring**: makes every distance positive and makes big distances count for much more
+- $\cv{\sigma^2}$ — the **variance**: the average squared distance (σ is the Greek letter sigma)
+- $\cv{\sigma}$ — the **standard deviation**: the square root of the variance, in the same units as the data
+
+</Eq>
+
+So why squares, when they let one outlier take over? You met the trade-off already in the loss-functions lesson, where squared error made the fitted line chase outliers and absolute error didn't. Squares earn their place for a reason you're about to see: **variances add up**. The average distance doesn't. That one property is what makes everything in the rest of this lesson work.
+
+<Deeper title="Why do some formulas divide by n − 1?" tag="Fine print">
+
+If your seven timings are a *sample* from a larger population and you want to estimate the population's variance, dividing by $n$ comes out slightly too small on average. The sample's own mean is, by construction, the point the sample sits closest to, so distances measured from it are a little smaller than distances from the true mean would be. Dividing by $n - 1$ instead exactly corrects this (it's called Bessel's correction). NumPy's `np.var` divides by $n$ by default; pass `ddof=1` for $n - 1$. With hundreds of values the difference is negligible. In this lesson we describe the numbers in front of us, so we divide by $n$.
+
+</Deeper>
+
+## Where the bell curve comes from
+
+Here's a puzzle to predict before you look.
+
+<Predict
+  question="A single die is flat: each face 1 to 6 comes up 1/6 of the time. Roll two dice and add them. What shape is the distribution of the total?"
+  options={[
+    'Flat again: every total from 2 to 12 equally likely',
+    'A triangle: 7 is the most likely, 2 and 12 the least',
+    'U-shaped: extremes are more likely',
+  ]}
+  answer={1}
+>
+
+There's one way to roll a 2 (1 and 1) and one way to roll a 12. A 7 can happen six ways: 1+6, 2+5, 3+4, 4+3, 5+2, 6+1. Out of 36 equally likely pairs, the total is a triangle peaking at 7 with probability 6/36. Add a third die and the triangle rounds off into something that already looks remarkably like a bell.
+
+</Predict>
+
+The reason is almost embarrassingly simple: an extreme total needs *every* die to go the same way at once, while a middling total can happen in many ways. Keep adding independent pieces and probability piles up in the middle. Watch it happen, with the exact distribution of the total (computed by working through every combination, not by sampling):
+
+<BellFactory />
+
+That pile-up is the **central limit theorem**: add up enough independent random things and the total's distribution approaches the same shape every time, the **<Term id="normal-distribution">bell curve</Term>** (or normal distribution), whatever the shape of the pieces. A flat die gets within 1.5% of a perfect bell (measured as the share of probability in the wrong place) after just 5 copies. The lopsided long shot is far slower. It actually gets *worse* at first, and after 100 copies still has 3.4% out of place. The theorem promises a destination, not a speed.
+
+Now look at the readout's spreads. The mean of the total grows in proportion to $n$, which is no surprise. But its SD grows only like $\sqrt{n}$: 30 dice don't spread 30 times wider than one die, only √30 ≈ 5.5 times. Highs on some dice cancel lows on others. In the language of the last section, it's the *variances* that add:
+
+<Eq
+  words="\cv{\text{spread of an average of } n \text{ independent measurements}} = \frac{\cb{\text{spread of one}}}{\sqrt{\cp{n}}}"
+  tex="\operatorname{Var}\big(x_1 + \dots + x_{\cp{n}}\big) = \cp{n}\,\cb{\sigma^2} \quad\Longrightarrow\quad \cv{\sigma_{\text{avg}}} = \frac{\sqrt{\cp{n}\,\cb{\sigma^2}}}{\cp{n}} = \frac{\cb{\sigma}}{\sqrt{\cp{n}}}"
+>
+
+- $\cb{\sigma}$ — the SD of **one** measurement (one die, one test example, one gradient from one training example)
+- $\cp{n}$ — **how many** independent measurements are added up or averaged
+- $\operatorname{Var}(\cdot)$ — variance. For independent things, the variance of a sum is the sum of the variances
+- $\cv{\sigma_{\text{avg}}}$ — the SD of their **average**, often called the **<Term id="standard-error">standard error</Term>**: dividing the sum by $n$ divides its SD by $n$, leaving $\sigma/\sqrt{n}$
+
+</Eq>
+
+This one line runs through the whole course. It's why the SGD lesson measured gradient noise shrinking like $1/\sqrt{B}$ with batch size $B$: a mini-batch gradient is an average of $B$ per-example gradients. It's why He initialisation scales weights by $\sqrt{2/n}$: a neuron's input is a sum of $n$ terms, so its variance grows with $n$ unless each weight's variance shrinks to compensate. And it's how to answer the opening question.
+
+## Back to 91.2% versus 90.6%
+
+Each test example is a tiny experiment that scores 1 (right) or 0 (wrong). A model that's truly right a fraction $p$ of the time gives scores with SD $\sqrt{p(1-p)}$, and the accuracy is the average of $n$ of them. So the measured accuracy wobbles by about $\sqrt{p(1-p)/n}$ from one test set to the next.
+
+<TestSetNoise />
+
+With 500 examples and accuracy around 91%, that wobble (the standard error) is about **1.3 percentage points**. The gap between the two models is 0.6 points, less than half of one standard error. To make it vivid: if A and B were *exactly equally good*, scoring each on its own 500 examples would produce a gap of 0.6 points or more, one way or the other, **78%** of the time. The opening numbers are no evidence at all. And because the wobble shrinks only like $1/\sqrt{n}$, it takes something like 20,000 examples before equal models show a 0.6-point gap less than 4% of the time.
+
+<Misconception>
+
+"The spreads add, so two noisy measurements together are twice as noisy." For independent noise, the *variances* add, not the spreads (SDs). Two dice spread √2 ≈ 1.41 times as wide as one, not twice. That's also why averaging helps: four measurements averaged together are half as noisy as one, not a quarter. And it's why "just double the test set" buys less than you'd hope: it shrinks your error bars by only 29%.
+
+</Misconception>
+
+<Deeper title="Fine print: same test set, or different ones?" tag="Honesty">
+
+The widget scores each model on its *own* random test set. In practice you'd score both on the *same* test set, and then many examples are easy for both or hard for both, which cancels some of the noise. The sharper comparison counts only the examples where the two models disagree (McNemar's test), and can sometimes detect a 0.6-point difference that two independent test sets couldn't. But it can only do so if the disagreements are lopsided enough, and you need to know how many disagreements there were. A bare pair of accuracies, with nothing else, still can't settle it.
+
+</Deeper>
+
+## Standardising: putting everything on the same ruler
+
+One more tool falls out of mean and SD. To say how unusual a value is, measure its distance from the mean *in units of SD*:
+
+<Eq
+  words="\cc{\text{standardised value}} = \frac{\text{value} - \ca{\text{mean}}}{\cv{\text{SD}}}"
+  tex="\cc{z} = \frac{x - \ca{\mu}}{\cv{\sigma}}"
+>
+
+- $x$ — the raw value, in whatever units it came in (square metres, milliseconds, pixel brightness)
+- $\ca{\mu}$ — the **mean** of that feature (μ, "mu", is the usual name when talking about a whole population)
+- $\cv{\sigma}$ — its **standard deviation**
+- $\cc{z}$ — the **standardised** value, or z-score: 0 means "exactly typical", ±1 "a typical distance away", ±3 "rare"
+
+</Eq>
+
+After standardising, every feature has mean 0 and SD 1. A house's floor area (in the hundreds) and its number of bathrooms (one to four) arrive at a network on comparable scales, so neither dominates the weighted sums and one step size suits every weight. The model clinic's "unscaled inputs" case was what happens without it. **<Term id="layer-norm">Layer normalisation</Term>** in a transformer is this same formula applied inside the network, to each token's vector at every layer. And for a bell-shaped quantity, the z-score tells you how rare a value is: about 68% of values land within ±1 SD of the mean, about 95% within ±2.
+
+## Lab: The Dice Workshop
+
+Game designers face a version of this lesson every day: they need random numbers with a particular average, a particular spread and a pleasing bell shape, and all they have is dice. Your primitives are six kinds of dice (d2, a coin showing 1 or 2, up to d20) and, in some briefs, a constant to add. Mean, SD and shape are computed exactly as you build.
+
+Each brief has several working recipes. The optional goal is to use the **fewest dice**, and among recipes with that few, the most bell-shaped. The optimum was found by trying every recipe with up to 8 of each die.
+
+<DiceWorkshop />
+
+<Deeper title="Debrief: the arithmetic that solves every brief" tag="Spoiler">
+
+A $k$-sided die has mean $(k+1)/2$ and variance $(k^2 - 1)/12$, and both add up across dice. So you can design on paper: pick dice to hit the variance, then use the constant to fix the mean. The bell shape is the only part that needs trying out: it wants several dice of similar size, so no single die dominates.
+
+**Brief 1** (mean 10.5, no constants): exactly 3 recipes work, all with 3 dice: 3d6, d4 + d6 + d8, and d2 + 2d8. The most bell-like is 3d6 (2.8% out of place). A single d20 has the right mean (10.5) but is flat, with nearly 20% of its probability in the wrong place.
+
+**Brief 2** (mean 30, SD 4–5): 451 recipes work. The fewest dice is 4, and 4 recipes tie. The most bell-like is **4d8 + 12** (1.9% out of place). 2d12 + 17 has the right mean and SD, but two dice are too few to make a convincing bell.
+
+**Brief 3** (mean 50, SD 1.5–2): only 5 recipes work, because a small spread with a bell shape needs *several small* dice. The one optimum is **d2 + 3d4 + 41**. The variances 0.25 + 3 × 1.25 = 4 give an SD of exactly 2, right on the edge.
+
+</Deeper>
+
+## In code
+
+NumPy computes the summaries in one call each, and `np.convolve` gives the exact distribution of a total:
+
+```python
+import numpy as np
+
+x = np.array([2, 3, 4, 5, 6, 7, 15])
+print("mean", x.mean(), "median", np.median(x))
+print("variance", x.var(), "SD", x.std())          # numpy's default: divide by n
+
+# exact distribution of the total of n dice, by repeated convolution
+die = np.ones(6) / 6                               # P(1) ... P(6)
+total = np.array([1.0])
+for n in range(1, 4):
+    total = np.convolve(total, die)
+    values = np.arange(n, 6 * n + 1)
+    mean = (values * total).sum()
+    sd = np.sqrt(((values - mean) ** 2 * total).sum())
+    print(f"{n} dice: mean {mean:.2f}, SD {sd:.3f} = sqrt({n}) x {sd / np.sqrt(n):.3f}")
+
+# how much a 91% accuracy wobbles from test set to test set
+p = 0.909
+for n in [500, 5000]:
+    print(f"n = {n}: standard error {100 * np.sqrt(p * (1 - p) / n):.2f} points")
+```
+
+Running it prints:
+
+```text
+mean 6.0 median 5.0
+variance 16.0 SD 4.0
+1 dice: mean 3.50, SD 1.708 = sqrt(1) x 1.708
+2 dice: mean 7.00, SD 2.415 = sqrt(2) x 1.708
+3 dice: mean 10.50, SD 2.958 = sqrt(3) x 1.708
+n = 500: standard error 1.29 points
+n = 5000: standard error 0.41 points
+```
+
+`np.convolve` is the "count every combination" step: convolving the total-so-far with one more die adds up every way each new total can happen.
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- The **mean** is the balance point; the **variance** is the average squared distance from it; the **standard deviation** is its square root, back in the original units.
+- Squares let outliers dominate (one point doubled the SD from 2 to 4), but they buy the crucial property: for independent things, **variances add**.
+- So the SD of a sum grows like $\sqrt{n}$, and the SD of an average shrinks like $\sigma/\sqrt{n}$: the **standard error**. Halving error bars costs 4× the data.
+- Adding independent pieces piles probability into the middle: the **central limit theorem**. Flat dice become a bell within a handful; lopsided sources take far longer.
+- A score from 500 test examples wobbles by about ±1.3 points; a 0.6-point gap between two models is no evidence either way.
+- **Standardising**, $(x - \mu)/\sigma$, puts every feature on the same ruler. It's how inputs are prepared, and what layer normalisation does inside a network.
+
+</Takeaways>
+
+<InTheWild>
+
+Every serious benchmark table should come with error bars, and many don't. When a new model beats an old one by half a point on a benchmark of a few hundred questions, the arithmetic of this lesson says that may be noise. Researchers increasingly report confidence intervals, run several random seeds, or use paired tests on the same questions. Inside the models, the same ideas are everywhere: Xavier and He initialisation choose weight variances so signals neither explode nor vanish as they pass through layers, batch and layer normalisation standardise activations on every forward pass, and Adam divides each gradient by the square root of a running average of its squares, a close cousin of its spread.
+
+</InTheWild>
+
+Means and spreads describe numbers in one dimension. Machine learning lives in hundreds or thousands of dimensions, where distances and angles behave in ways that genuinely defy intuition. Next: **high-dimensional geometry**.
