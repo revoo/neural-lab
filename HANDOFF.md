@@ -219,3 +219,48 @@ The owner asked for this next, in a fresh session. `docs/LAB_IMPROVEMENTS.md` re
 - [ ] evaluation · Size Your Eval Suite
 
 **After each lab:** `npx tsc --noEmit -p .`, the lesson's tests, then screenshots with `node scripts/drive-widget.cjs <lessonId> 0 '[{"shot":"x"}]' --title="<widget title text>"` in light, dark and matrix, and at `--width=390`. Commit with the `Authored-by` trailer and push. **At the end:** run `npm test`, `npm run build` (then check the watermark is absent from `dist/`), `node scripts/check-pages.cjs` and `--theme=matrix`. Update `docs/ROADMAP.md` "Current state" and tick this list.
+
+
+## Curriculum plan: progress (docs/CURRICULUM_PLAN.md)
+
+The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 → WP9, one numbered step per commit. Tick a step in the same commit that finishes it; mark a step you are in the middle of as **IN PROGRESS** with a note.
+
+- [x] WP0.1 `ModuleRef` and `Src` components
+- [ ] WP0.2 Replace hard-coded module numbers
+- [ ] WP0.3 Replace relative lesson references
+- [ ] WP0.4 `src/curriculum.test.ts` and `scripts/forward-links.cjs`
+- [ ] WP1.1 Move `statistics` and `high-dimensions` out of Module 1
+- [ ] WP1.2 The Machine Map component
+- [ ] WP1.3 "Where this is going" openers
+- [ ] WP1.4 `Bridge` sections
+- [ ] WP1.5 Predict-first moments
+- [ ] WP1.6 KL divergence in `information`
+- [ ] WP1.7 Motion: the 3Blue1Brown pass
+- [ ] WP1.8 Nine maths labs:
+  - [ ] Lab 1 vectors · The Feature Workbench
+  - [ ] Lab 2 dot-product · Tune the Spam Scorer
+  - [ ] Lab 3 matrices · Untangle the Data
+  - [ ] Lab 4 matrix-multiplication · Build the Pipeline
+  - [ ] Lab 5 derivatives · The Sensitivity Probe
+  - [ ] Lab 6 gradients · Which Knob, and How Far?
+  - [ ] Lab 7 chain-rule · Find the Slipping Gear
+  - [ ] Lab 8 probability · Calibrate the Forecaster
+  - [ ] Lab 9 information · Twenty Questions Compressor
+- [ ] WP1.10 "Why this, and not something else?"
+- [ ] WP1.9 Re-read Module 1 as a learner
+- [ ] WP2.1 Move RL before fine-tuning
+- [ ] WP2.2 Move `similarity-search` into Module 18
+- [ ] WP2.3 Tokens, not words: two short notes
+- [ ] WP2.4 Plain-language lesson summaries
+- [ ] WP3 The Prologue
+- [ ] WP4 New lesson: the Perceptron
+- [ ] WP5 Era labels and the timeline
+- [ ] WP6.1 Opening hooks
+- [ ] WP6.2 "You are standing where they stood"
+- [ ] WP7 Era interludes (EraStrip + four interludes)
+- [ ] WP8.1 `svm`
+- [ ] WP8.2 `gans`
+- [ ] WP8.3 `open-questions`
+- [ ] WP9 Final documentation
+
+Notes for whoever continues: WP1.10 is done before WP1.9 (WP1.9 re-reads everything, so it comes last in WP1).

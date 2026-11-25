@@ -251,6 +251,7 @@ code, kbd, pre { font-family: var(--font-mono); }
 .callout p { margin: 0 0 0.6em; }
 .callout.analogy { border-left-color: #d79b1b; }
 .callout.analogy .callout-title { color: #b57d06; }
+.src-link a { font-size: 0.75em; }
 .callout.insight { border-left-color: var(--c-c); }
 .callout.insight .callout-title { color: var(--c-c); }
 .callout.misconception { border-left-color: var(--c-bad); }
