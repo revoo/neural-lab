@@ -1,5 +1,6 @@
 import { VectorPlayground } from './VectorPlayground'
 import { EmailSpace } from './EmailSpace'
+import { FeatureLab } from './FeatureLab'
 import { questions } from './quiz'
 
 ## The problem: computers only understand numbers
@@ -129,6 +130,34 @@ You can't picture a 768-dimensional space. Nobody can. But you don't need to pic
 This is one of the most useful habits in machine learning: build intuition in 2D or 3D where you can see it, then trust the algebra to carry it into dimensions you can't see. Most of the time the intuition survives. Occasionally it doesn't — high-dimensional spaces have some genuinely strange properties, like almost all random vectors being nearly perpendicular to each other — and we'll point those out as we meet them.
 
 </Deeper>
+
+## Lab: The Feature Workbench
+
+Turning a thing into a vector means choosing *which* measurements to take, and in *what units*. Both choices decide which things end up close together. Here are twelve emails, six of them spam, each measured six ways. You pick two measurements for the axes and a unit for each, and the workbench scores the result the simplest way there is: for each email, find its nearest other email and check whether they share a label.
+
+<LabJob>A mail team wants every email turned into two numbers so that similar emails end up close together. Choose the measurements, and the units.</LabJob>
+
+<FeatureLab />
+
+<Deeper title="Debrief: what the full search found" tag="Spoiler">
+
+Every one of the 375 settings (15 pairs of measurements, 5 units on each axis) was scored. Only **22** put every email next to one of its own kind, and they use just three pairs: links with length, exclamation marks with name mentions, and ALL-CAPS words with name mentions. No single measurement is enough: spam and real mail overlap on every one of them.
+
+**Brief 3** is the units trap. In raw units, length runs into the thousands while links stay in single digits, so length decides every distance and only 7 of 12 neighbours agree. Exactly two unit settings rescue it: standardise length (and leave links as they are, or standardise both). Standardising puts each measurement on the same ruler: distance from its average, counted in standard deviations.
+
+**Brief 4** has 20 solutions, all pairing name mentions with exclamation marks or capitals. Real mail mentions you by name; spam shouts.
+
+</Deeper>
+
+<ForReal>
+
+This is the first step of nearly every machine-learning project, and it has a name: **feature engineering**. The scaling half is routine enough to be built into the libraries: scikit-learn's `StandardScaler` does exactly what the "standardise" setting does, and it's usually placed in front of any method that measures distance, such as `KNeighborsClassifier`. Forget it, and whichever column has the biggest numbers quietly makes every decision.
+
+</ForReal>
+
+<HistoryCard id="feature-workbench" />
+
+You've just done feature engineering, and the nearest-neighbour score you used *is* the k-nearest-neighbours classifier, which you'll meet properly in <LessonLink to="knn">the k-nearest neighbours lesson</LessonLink>, in <ModuleRef id="classical" short />.
 
 ## In code
 

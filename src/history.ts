@@ -36,6 +36,23 @@ const WP = (page: string) => `https://en.wikipedia.org/wiki/${page}`;
 
 export const HISTORY: HistoryEntry[] = [
   {
+    id: 'feature-workbench',
+    lessonId: 'vectors',
+    lab: 'The Feature Workbench',
+    idea: 'Things measured as lists of numbers',
+    years: [1936],
+    when: '1936',
+    who: [
+      { text: 'The British statistician and biologist Ronald Fisher made the iris data famous in his 1936 paper "The use of multiple measurements in taxonomic problems".', source: WP('Iris_flower_data_set') },
+      { text: 'Two of the three species were collected in the Gaspé Peninsula, "all from the same pasture, and picked on the same day and measured at the same time by the same person with the same apparatus".', source: WP('Iris_flower_data_set') },
+    ],
+    story: {
+      before: { text: 'The botanist Edgar Anderson measured the flowers to quantify how three related iris species vary.', source: WP('Iris_flower_data_set') },
+      this: { text: 'Each flower became four numbers, the length and width of its sepals and petals in centimetres: 50 flowers from each of three species.', source: WP('Iris_flower_data_set') },
+      after: { text: 'It became a typical test case for many classification techniques in machine learning, and a beginner\'s data set to this day.', source: WP('Iris_flower_data_set') },
+    },
+  },
+  {
     id: 'dice',
     lessonId: 'statistics',
     lab: 'The Dice Workshop',
