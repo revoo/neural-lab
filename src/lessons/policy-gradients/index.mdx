@@ -1,0 +1,288 @@
+{/* authored-by: Claude Opus 5.5 */}
+import { AliasedCorridor, PushExplorer, HallwayRace, ClipObjective, BatchReuse, PGLab } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: an argmax can only ever pick one thing
+
+Q-learning gave us a beautifully simple recipe: learn a score for every action, then do whichever scores highest. That last step, the $\arg\max$, hides two assumptions.
+
+The first is that you *can* take a max. With four arrow keys that's four comparisons. With a steering wheel that can turn to any angle, or a language model choosing among 100,000 tokens at every step of a 500-token answer, "try every action and keep the best" stops being an operation and becomes a research problem.
+
+The second assumption is subtler: that the best thing to do is always one particular thing. An argmax is **deterministic**. Given the same situation, it does the same thing every time. Usually that's fine. But think about rock–paper–scissors: any fixed choice gets beaten every time, and the best strategy is to be unpredictable on purpose. You don't need an opponent for this to bite, though. All you need is an agent that can't see everything.
+
+Here is a tiny world, from Sutton and Barto's textbook, that makes the point brutally. Three grey squares and a goal. Every step costs −1. In square 1, Left bumps into a wall and Right moves you on. In square 3, Right reaches the goal. But in square 2 the controls are **swapped**: Right takes you back, Left takes you forward. And here's the catch: the agent's sensors can't tell the three squares apart. They all look the same. Whatever it decides to do, it has to decide once, for all three.
+
+<Predict
+  question="The agent's policy is a single rule used in every square. What's the best deterministic rule: always Left, or always Right?"
+  options={[
+    'Always Right — it reaches the goal in 3 of the squares',
+    'Always Left — it is safer',
+    'Neither: both never reach the goal at all',
+  ]}
+  answer={2}
+>
+
+Always Left gets stuck at the wall in square 1. Always Right goes 1 → 2, where Right is secretly "back", so 2 → 1, then 1 → 2 again, forever. Both deterministic policies never finish, and their return is −∞. Any policy you could read off a table of Q-values with an argmax is one of these two.
+
+</Predict>
+
+Now try a coin instead of a rule.
+
+<AliasedCorridor />
+
+Flipping a fair coin gets you to the goal in 12 steps on average. Weighting it 59 : 41 towards Right does a little better: **11.66 steps**, the best any policy can do here (the exact optimum is P(Right) = 2 − √2 ≈ 0.586). Even an ε-greedy agent, which does have some randomness, does badly: with ε = 0.1 its coin is stuck at 95 : 5, and it takes 44 steps. Its randomness is there for exploring, not because it's part of the best plan, so it's the wrong amount in the wrong place.
+
+So we want two things Q-learning can't give us: a policy that is a probability distribution in its own right, and a way to improve it that never needs an argmax. The idea that does both is wonderfully direct: **learn the policy itself**.
+
+## Learning the policy directly
+
+Make the policy a little machine with knobs. For each situation it holds one number per action, a **preference** or **logit**, and turns them into probabilities with the same softmax you met in the probability lesson: bigger preference, bigger share of a 100% budget. In the corridor there's just one knob (how much it prefers Right over Left); in a language model there are billions, and the "preferences" are the final layer's logits.
+
+How should the knobs move? Here's the whole idea in one sentence: **try something, and if it went well, make it more likely; if it went badly, make it less likely.**
+
+<Analogy title="Think of a coach adjusting a playbook">
+
+A football coach has a playbook and a habit of calling each play some fraction of the time. After each game, the coach looks at the plays that were called and at how the game went, and shifts the habits: plays from games that went well get called a bit more often, plays from games that went badly a bit less.
+
+The coach never needs to know *why* a play works, or how the opposing team will react. There's no model of football anywhere in this process, just "call it more" or "call it less". That's the policy gradient.
+
+Two weaknesses are already visible. If the team is paid the same appearance fee whether it wins or loses, "went well" is meaningless unless you compare with what you'd normally expect. And a single game's result is a blunt verdict on dozens of plays: most of them had nothing to do with the final score. Both weaknesses turn out to be the heart of this lesson.
+
+</Analogy>
+
+What does "make the chosen action more likely" mean for the knobs? Raising the chosen action's logit raises its probability. But all the probabilities share one budget, so every other action loses share, in proportion to how much it had. The exact derivative of the log-probability says just that, and it's one of the friendliest results in machine learning:
+
+<Eq
+  words="\cg{\text{push on the preferences}} = \ca{\text{one for the action you took}} - \cp{\text{everybody's current share}}"
+  tex="\cg{\nabla_\theta \log \pi_\theta(a \mid s)} = \ca{\mathbf{e}_a} - \cp{\boldsymbol{\pi}_\theta(\cdot \mid s)}"
+>
+
+- $\theta$ — the policy's **preferences** (logits): one knob per action in each situation
+- $\pi_\theta(a \mid s)$ — the **probability** the policy gives action $a$ in situation $s$ (a softmax of the preferences)
+- $\cg{\nabla_\theta \log \pi_\theta(a \mid s)}$ — the **direction** that makes action $a$ more likely, the fastest per unit of change (magenta, because it's a gradient)
+- $\ca{\mathbf{e}_a}$ — a vector of zeros with a single **1 at the action taken**
+- $\cp{\boldsymbol{\pi}_\theta}$ — the vector of **current probabilities**: every action gives up share in proportion to what it had
+
+</Eq>
+
+With π = (0.2, 0.5, 0.3) and the third action taken, the push is (0, 0, 1) − (0.2, 0.5, 0.3) = (−0.2, −0.5, +0.7). Notice the chosen action's own push is 1 − π(a): an action the policy thought unlikely gets a big push if it's chosen, while one it was already sure of barely moves. Surprises teach the most.
+
+Now scale that push by how well things went, and you have the oldest policy-gradient algorithm, Ronald Williams' **<Term id="policy-gradient">REINFORCE</Term>** (1992):
+
+<Eq
+  words="\text{change in preferences} = \cp{\text{step size}} \times (\cb{\text{how it went}} - \cc{\text{what I expected}}) \times \cg{\text{push towards what I did}}"
+  tex="\Delta\theta = \cp{\alpha}\,\big(\cb{G_t} - \cc{b(s_t)}\big)\,\cg{\nabla_\theta \log \pi_\theta(a_t \mid s_t)}"
+>
+
+- $\cp{\alpha}$ — the **step size**: how far to move per experience
+- $\cb{G_t}$ — the **return**: the (discounted) total reward collected from step $t$ to the end of the episode — "how it went"
+- $\cc{b(s_t)}$ — the **baseline**: what you'd normally expect from this situation. REINFORCE in its plainest form uses $b = 0$; we'll see in a moment why you shouldn't
+- $\cg{\nabla_\theta \log \pi_\theta(a_t \mid s_t)}$ — the push towards the action actually taken, from the equation above
+
+</Eq>
+
+That's the whole algorithm. No transition model, no max over actions, nothing differentiated through the world: the environment is a black box that hands back a number, and the only thing we differentiate is our own policy. The REINFORCE button in the corridor above runs exactly this, with a running-average return as its baseline.
+
+<MathExhibit title="Why this is the gradient of expected reward (the log-derivative trick)" teaser="Three lines, and the reason a baseline is free.">
+
+Write the expected reward of a one-step decision as a sum over actions: $J(\theta) = \sum_a \pi_\theta(a)\, R(a)$. Its gradient is $\sum_a R(a)\, \nabla_\theta \pi_\theta(a)$. That sum is over every action, which we can't afford to evaluate. The trick is to multiply and divide by $\pi_\theta(a)$, using $\nabla \log \pi = \nabla \pi / \pi$:
+
+$$\nabla_\theta J = \sum_a \pi_\theta(a)\, R(a)\, \nabla_\theta \log \pi_\theta(a) = \mathbb{E}_{a \sim \pi_\theta}\big[R(a)\, \nabla_\theta \log \pi_\theta(a)\big].$$
+
+Now it's an *average over actions the policy itself picks*, so a single sampled action gives an unbiased estimate. For multi-step episodes the same argument, applied to whole trajectories, gives the return $G_t$ in place of $R$ (actions can't affect rewards that came before them, so only the rewards from $t$ onwards appear).
+
+And the baseline? Subtracting $b$ adds $-b \sum_a \pi_\theta(a) \nabla_\theta \log \pi_\theta(a) = -b \sum_a \nabla_\theta \pi_\theta(a) = -b\, \nabla_\theta \sum_a \pi_\theta(a) = -b\, \nabla_\theta 1 = 0$. The probabilities always sum to one, so pushing all of them "up" on average is pushing nothing. Any baseline that doesn't depend on the action taken leaves the expected gradient exactly where it was.
+
+</MathExhibit>
+
+## Feel the problem: everybody gets paid
+
+If the baseline doesn't change the expected gradient, why bother with it? Because we never get the expected gradient. We get one sampled action at a time, and what matters is how far that single sample can be from the average.
+
+Here's a decision with three actions: Dull, Decent and Great, paying 1, 2 and 3 on average (plus noise of ±1).
+
+<Predict
+  question="Now add +50 to every reward, so the actions pay 51, 52 and 53. With no baseline, what happens when the policy samples Dull?"
+  options={[
+    'Dull is pushed down, because it is the worst action',
+    'Dull is pushed UP, strongly — and the expected gradient is unchanged',
+    'Nothing: the offset cancels out',
+  ]}
+  answer={1}
+>
+
+The reward is +51, so REINFORCE says "that went well, do it more", and Dull's own logit jumps by 51 × (1 − ⅓) = +34. Decent and Great get pushed *down*. The algorithm only gets the direction right on average, because Great, when it's sampled, gets pushed up slightly harder. The expected gradient is exactly the same as without the offset. But single samples now disagree with it violently: the variance of one sample is 2,029 times what it would be with a sensible baseline.
+
+</Predict>
+
+<PushExplorer />
+
+Two things are worth seeing in that cloud. First, with the offset at 0 the rewards are still all positive, so even here every sampled action gets pushed up; 61% of single draws push Great's logit the *wrong* way. Second, with the baseline switched on, the offset stops mattering at all: each reward is compared with what the policy usually gets (52 with the offset), so a 51 feels like a loss and a 53 feels like a win. The cloud collapses to a tight blob around the true gradient, and the variance stays at 0.89 whatever the offset.
+
+The difference between how it went and how it usually goes has a name: the **<Term id="advantage">advantage</Term>**. It's the number that should multiply the push. Positive advantage: more of that, please. Negative: less.
+
+<Misconception>
+
+"The baseline must be some kind of approximation that trades a bit of bias for less variance." Not this one. Any baseline that depends only on the situation, not on which action was taken, adds *exactly zero* bias. It doesn't change the average push; it only cancels the part of each push that was the same no matter what you did. (Bias does appear later in this lesson, with actor-critic. That's a different trick.)
+
+</Misconception>
+
+## Actor-critic: judging each step on its own
+
+So the ideal baseline for a situation is the return you'd normally expect from it: the value $V(s)$ from the MDP lesson. We don't know it, but we can learn it, with a second little model trained alongside the policy. Then there are two learners: an **actor** (the policy, which decides) and a **critic** (the value estimate, which judges).
+
+A per-state baseline fixes the "everybody gets paid" problem. It doesn't fix the coach's other problem: one game's final score is a blunt verdict on every play in it. The return $G_t$ adds up every reward from step $t$ to the end of the episode, so if each step's reward is noisy, the return for an early step carries the noise of every step that follows. Subtracting $V(s)$ removes the return's *average*; it can't remove that noise.
+
+The critic offers a way out. Instead of waiting for the whole episode, judge each step the moment it's over: you got reward $r$ and landed in $s'$, which the critic thinks is worth $V(s')$. Was that better or worse than the critic expected from $s$? That's the temporal-difference error from the Q-learning lesson, and here it plays the role of the advantage:
+
+<Eq
+  words="\cv{\text{surprise}} = \cb{\text{reward now}} + \cp{\gamma} \times \cc{\text{critic's value of where you landed}} - \cc{\text{critic's value of where you were}}"
+  tex="\cv{\delta_t} = \cb{r_t} + \cp{\gamma}\,\cc{V(s_{t+1})} - \cc{V(s_t)}, \qquad \Delta\theta = \alpha\,\cv{\delta_t}\,\nabla_\theta \log \pi_\theta(a_t \mid s_t)"
+>
+
+- $\cv{\delta_t}$ — the **TD error**: how much better this one step went than the critic expected. It replaces $G_t - b(s_t)$ as the advantage
+- $\cb{r_t}$ — the reward actually received on this step (one step of noise, not forty)
+- $\cp{\gamma}$ — the discount factor, as in the MDP lesson
+- $\cc{V(s)}$ — the **critic**: its current estimate of the return from state $s$, itself updated by $V(s_t) \mathrel{+}= \beta\,\cv{\delta_t}$ with its own step size $\beta$
+
+</Eq>
+
+There's a price. $V(s_{t+1})$ is only the critic's opinion, and while the critic is wrong, so is $\delta$: unlike the baseline, this *does* bias the gradient. What you buy is a signal with one step's noise in it instead of a whole episode's. Whether that trade is worth it is an empirical question, so let's ask it fairly.
+
+The world is a long, noisy hallway: eight squares to an exit worth +10, each step costing 0.5 on average but jittered by ±2. Three learners compete, each at its own best step size (and critic rate) from the same grid, averaged over 20 seeds:
+
+<HallwayRace />
+
+The honest result has two parts. Actor-critic wins clearly: an average return of **2.56** over the 150 training episodes against **1.37** for plain REINFORCE, and its seed-to-seed spread is five times smaller (0.53 against 2.84). In the last 50 episodes it averages 3.57, close to the 3.62 you'd get by walking straight to the exit.
+
+The per-state baseline, though, does *not* beat no baseline here: 0.97 against 1.37, a difference smaller than the noise between seeds. That isn't a contradiction of the push explorer. In this hallway the trouble isn't an offset that every action shares, it's noise in every step's reward, and the column on the right shows it: the spread of the number multiplying the push is 6.1 with no baseline, still 5.4 with one, and only 2.3 with the critic's one-step TD error. A baseline cancels what's common to all actions; only bootstrapping cancels the noise of the future.
+
+## PPO: reusing experience without falling off a cliff
+
+Policy gradients are **on-policy**: the formula is an average over actions *the current policy* picks. As soon as you update the policy, the batch you collected describes a policy that no longer exists. So the plain recipe is: collect a batch, take one gradient step, throw the batch away. In robotics, games or language-model training, where each batch costs real time or money, that's painfully wasteful.
+
+The obvious fix is to take several steps on the same batch. To keep the maths honest you weight each sample by the **probability ratio** $r = \pi_{\text{new}}(a) / \pi_{\text{old}}(a)$: if the new policy makes an action twice as likely as the policy that collected it, that sample counts twice. At the start of each batch the ratio is 1 and this is exactly the ordinary policy gradient. The danger is what happens next. The objective rewards making good-looking actions ever more likely, and nothing says stop — even though "good-looking" came from a handful of noisy samples, and the further the policy moves, the less the old batch says about it.
+
+John Schulman and colleagues' **<Term id="ppo">Proximal Policy Optimisation</Term>** (PPO, 2017) adds a fence:
+
+<Eq
+  words="\text{PPO's objective for one sample} = \text{the smaller of } (\cc{\text{ratio}} \times \cb{\text{advantage}}) \text{ and } (\cc{\text{ratio kept within } 1 \pm \cp{\varepsilon}} \times \cb{\text{advantage}})"
+  tex="L^{\text{CLIP}} = \min\Big(\cc{r}\,\cb{A},\; \operatorname{clip}\big(\cc{r},\, 1 - \cp{\varepsilon},\, 1 + \cp{\varepsilon}\big)\,\cb{A}\Big), \qquad \cc{r} = \frac{\pi_{\text{new}}(a \mid s)}{\pi_{\text{old}}(a \mid s)}"
+>
+
+- $\cc{r}$ — the **probability ratio**: how much more (above 1) or less (below 1) likely the updated policy makes the action that was tried
+- $\cb{A}$ — the **advantage** of that sample (for example the TD error, or the return minus a baseline)
+- $\cp{\varepsilon}$ — the **clip range**, typically 0.1–0.3: how far one batch is allowed to move any probability
+- $\min$ — take the more pessimistic of the two, so the clip can remove an incentive but never add one
+
+</Eq>
+
+<ClipObjective />
+
+Read the fence carefully, because it's lopsided on purpose. It only stops a sample from pulling *further in the direction it already pulled*. If an update accidentally made a good action rarer, or a bad action more common, the full gradient is still there to undo the mistake. Inside the fence, PPO is the plain policy gradient.
+
+Does it help? Here's a three-action policy reusing a batch of 8 noisy tries for up to 20 epochs:
+
+<BatchReuse />
+
+The single batch makes the danger vivid: on an unlucky draw, plain reuse squeezes 96% of the probability onto the wrong action, and with Great now chosen 2% of the time, it may take a long time to find out. The table on the right is the fair comparison, over 100 seeds of 20 batches each: at its best step size, plain reuse (2.91, 5 seeds stuck) is about as good as PPO at its best (2.93, 3 stuck). What the clip buys is **forgiveness**. Plain reuse stays good only for step sizes from 0.05 to 0.2 and falls apart above that (31 of 100 seeds stuck at step size 1), while PPO stays good from 0.05 all the way to 2, a range ten times wider. With a neural network and millions of parameters, where you can't afford to search for the perfect step size, that robustness is the whole point.
+
+## Lab: Stabilise the policy gradient
+
+Now you're the one keeping a policy gradient upright. Three briefs, one engine: a softmax policy, trained by pushing on its logits. Your two levers are **what to subtract from the reward before pushing** — nothing, one running average of everything, a separate learned value per state, or the actor-critic's TD error — and **the step size**.
+
+Each brief has more than one setting that works; each also retires one of the estimators. All runs are averaged over 20 fixed seeds, and once you've solved a brief you can see every one of the 32 settings tried exhaustively.
+
+<PGLab />
+
+<Deeper title="Debrief: what the three briefs were testing" tag="Spoiler">
+
+**Brief 1 · Everybody gets paid** (9 of 32 settings pass). With every reward near +50 and no baseline, the first button pressed gets a push of 50 × ⅔ ≈ 33 times the step size, and at any useful step size the agent marries it. The best no-baseline setting scores 60% on our 20 seeds, and that number is pure luck: those 20 seeds happen to press the 51-coin button first 12 times. Over 200 seeds the same setting picks the right button only 67 times, about a third. Any baseline at all fixes it, and with only one room, "one running average", "per-state" and "actor-critic" are the same thing.
+
+**Brief 2 · Four rooms, four payscales** (6 of 32 pass). One running average settles near +10, the average over the rooms. In the +40 room every press still looks wonderful, in the −20 room every press looks dreadful, and the agent is back to marrying its first choice in each room. It does *worse* than no baseline at all (52% at best, against 59%). A baseline per room, which is what the critic V(s) gives you, is what works. In one-step problems the actor-critic's TD error r − V(s) *is* that per-room advantage, so those two rows are the same algorithm, number for number.
+
+**Brief 3 · The long noisy hallway** (3 of 32 pass, all actor-critic). The Monte-Carlo estimators all top out between 2.5 and 2.9: they learn to walk to the exit, but their noisy updates keep knocking the policy off course. Only the TD error, with one step's noise in it instead of up to forty, clears 3.0. The optimum is actor-critic at α = 0.1, which averages 3.39 over the last 50 episodes; walking perfectly would give 3.62.
+
+Notice the pattern across the briefs: there was never one magic setting, but each brief had a *reason* some estimators couldn't work, and that reason told you which family to pick before you touched the step size.
+
+</Deeper>
+
+## In code
+
+Here's REINFORCE with a running-average baseline learning the aliased corridor, in plain Python. The whole policy is one number, `theta`, and P(Right) is its sigmoid (a two-action softmax).
+
+```python
+import math, random
+
+def step(square, right):
+    if square == 1: return 2 if right else 1    # left of square 1 is a wall
+    if square == 2: return 1 if right else 3    # controls swapped here!
+    return 4 if right else 2                    # square 3: right reaches the goal
+
+def episode(p, rng, cap=50):
+    square, actions = 1, []
+    while square != 4 and len(actions) < cap:
+        right = rng.random() < p
+        actions.append(right)
+        square = step(square, right)
+    return actions                              # reward is -1 per step
+
+rng = random.Random(0)
+theta, baseline, n = math.log(0.15 / 0.85), 0.0, 0   # start at P(Right) = 0.15
+for ep in range(2000):
+    p = 1 / (1 + math.exp(-theta))
+    actions = episode(p, rng)
+    T = len(actions)
+    grad = 0.0
+    for t, right in enumerate(actions):
+        G = -(T - t)                            # return from step t onwards
+        dlogp = (1 - p) if right else -p        # d/dtheta of log P(action)
+        grad += (G - baseline) * dlogp
+    theta += 0.03 * grad / T
+    for t in range(T):                          # running-average baseline
+        n += 1
+        baseline += (-(T - t) - baseline) / min(n, 200)
+    if ep % 500 == 499:
+        print(f"episode {ep + 1}: P(Right) = {1 / (1 + math.exp(-theta)):.3f}")
+
+print(f"best possible: P(Right) = {2 - math.sqrt(2):.3f}")
+```
+
+Running it prints:
+
+```text
+episode 500: P(Right) = 0.641
+episode 1000: P(Right) = 0.644
+episode 1500: P(Right) = 0.565
+episode 2000: P(Right) = 0.600
+best possible: P(Right) = 0.586
+```
+
+The policy never settles exactly on 0.586: each episode's update is a noisy sample, so it jitters around the peak. A smaller step size jitters less and arrives more slowly; that trade-off is the same one you met with stochastic gradient descent.
+
+<Misconception>
+
+"A policy gradient differentiates the reward through the environment, like backprop through a network." It never does. The environment is a black box: a simulator, a physical robot, a human rater. The only gradient computed is $\nabla_\theta \log \pi_\theta$, the gradient of *our own* probabilities, which is why policy gradients work when rewards come from things no one could differentiate. The reward enters only as a number that scales the push.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- An argmax over learned values gives deterministic policies, and needs a max over actions. Some problems need **stochastic** policies (the aliased corridor: P(Right) = 0.586, 11.66 steps, versus never finishing), and some have too many actions to max over.
+- **Policy gradients** learn the policy directly: sample an action, then push its probability up or down in proportion to how well it went. The push is $\nabla \log \pi = \mathbf{e}_a - \boldsymbol{\pi}$.
+- The expected push is the true gradient, but single samples are noisy. Subtracting a **baseline** removes the part that's common to all actions, adds zero bias, and here cut the variance 2,029-fold.
+- What should multiply the push is the **advantage**: how much better it went than usual. A per-state value $V(s)$ is the right baseline when situations pay differently.
+- **Actor-critic** judges each step by its TD error $r + \gamma V(s') - V(s)$, trading a little bias for far less noise; in the noisy hallway it beat Monte-Carlo returns clearly, while a plain baseline didn't help.
+- **PPO** reuses each batch for several epochs but switches off any sample whose probability ratio has already moved more than ε its way. At its best step size it matched the plain method; its gift was staying stable across a ten-times-wider range of step sizes.
+
+</Takeaways>
+
+<InTheWild>
+
+PPO became the workhorse of deep reinforcement learning: OpenAI Five played Dota 2 with it, and it trained the policy in the RLHF pipeline behind InstructGPT and the first ChatGPT — the same pipeline you met in the RLHF lesson, where the "action" is a whole answer and the reward comes from a learned reward model. There the critic is another large network, which doubles the memory bill. DeepSeek's **GRPO** (2024) drops it: for each prompt it samples a group of answers and uses the group's average reward as the baseline (dividing by the group's spread, too). That's exactly Brief 2's lesson — a baseline *per situation*, here estimated by sampling the same prompt several times instead of learning V(s).
+
+</InTheWild>
+
+Policy gradients will cheerfully maximise whatever number you hand them. That's their great strength, and, if the number isn't quite what you meant, their great danger. Next: **The Reward-Hacking Sandbox**.
