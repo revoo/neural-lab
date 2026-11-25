@@ -1,11 +1,18 @@
 // authored-by: Neon High
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Widget } from '../../components/Widget';
 import { Segmented, Slider } from '../../components/controls';
 import { LogChart } from '../../components/LogChart';
-import { Plot } from '../../components/plot';
+import { Handle, Plot } from '../../components/plot';
+import { Heatmap } from '../../components/heatmap';
+import { LabShell, useLabProgress } from '../../components/LabShell';
+import { useMachineLog } from '../../components/MachineLog';
 import {
   BUDGET_BRIEFS,
+  briefOptimum,
+  budgetBoundaryLogD,
+  targetContourLogD,
+  type BudgetBrief,
   CHINCHILLA,
   FRONTIER_RUNS,
   chinchillaOptimal,
@@ -513,6 +520,7 @@ export function InferenceVsTraining() {
 // ------------------------------------------------------------------ 4. Lab: Spend the compute budget
 
 const SCALING_LAB_KEY = 'nl-scaling-lab-v1';
+const SCALING_PROGRESS_KEY = 'nl-scaling-lab-progress-v1';
 
 function loadLabDone(): Record<string, boolean> {
   try {
@@ -524,11 +532,84 @@ function loadLabDone(): Record<string, boolean> {
   return {};
 }
 
+const MAP_X: [number, number] = [9.7, 11.5];
+const MAP_Y: [number, number] = [11.0, 13.2];
+const lossAt = (lx: number, ly: number) => predictedLoss(10 ** lx, 10 ** ly);
+
+/** The design space: loss over (log N, log D), the brief's budget boundary, its target-loss contour and the design point. */
+function ComputeMap({ brief, logN, logD, onMove, showOpt }: { brief: BudgetBrief; logN: number; logD: number; onMove: (n: number, d: number) => void; showOpt: boolean }) {
+  const opt = useMemo(() => briefOptimum(brief), [brief]);
+  const curve = (fn: (lx: number) => number | null) => {
+    const pts: [number, number][] = [];
+    for (let i = 0; i <= 120; i++) {
+      const lx = MAP_X[0] + ((MAP_X[1] - MAP_X[0]) * i) / 120;
+      const ly = fn(lx);
+      if (ly !== null && Number.isFinite(ly)) pts.push([lx, ly]);
+    }
+    return pts;
+  };
+  const budget = useMemo(() => curve((lx) => budgetBoundaryLogD(brief, lx)), [brief]); // eslint-disable-line react-hooks/exhaustive-deps
+  const target = useMemo(() => curve((lx) => targetContourLogD(brief, lx)), [brief]); // eslint-disable-line react-hooks/exhaustive-deps
+  const range: [number, number] = [lossAt(MAP_X[1], MAP_Y[1]), lossAt(MAP_X[0], MAP_Y[0])];
+  return (
+    <Plot
+      width={440}
+      height={330}
+      x={MAP_X}
+      y={MAP_Y}
+      grid={false}
+      tickLabels={false}
+      xLabel="model size N →"
+      yLabel="training tokens D →"
+      pad={46}
+      ariaLabel="Predicted loss over model size and training tokens, with the budget line and the target-loss contour"
+      style={{ width: '100%', height: 'auto', maxWidth: 460, display: 'block' }}
+    >
+      <Heatmap f={lossAt} range={range} contours={10} opacity={0.7} />
+      {({ x, y }) => {
+        const line = (pts: [number, number][]) => pts.map(([a, b]) => `${x(a).toFixed(1)},${y(Math.max(MAP_Y[0], Math.min(MAP_Y[1], b))).toFixed(1)}`).join(' ');
+        return (
+          <g>
+            {brief.maxN && (
+              <>
+                <line x1={x(Math.log10(brief.maxN))} x2={x(Math.log10(brief.maxN))} y1={y(MAP_Y[0])} y2={y(MAP_Y[1])} stroke="var(--c-warn)" strokeWidth={2} strokeDasharray="6 4" />
+                <text x={x(Math.log10(brief.maxN)) - 4} y={y(MAP_Y[1]) + 12} textAnchor="end" fontSize={10} fill="var(--c-warn)">
+                  fits one GPU ←
+                </text>
+              </>
+            )}
+            <polyline points={line(budget)} fill="none" stroke="var(--c-bad)" strokeWidth={2.4} />
+            <polyline points={line(target)} fill="none" stroke="var(--c-good)" strokeWidth={2.4} strokeDasharray="7 4" />
+            {[10, 10.5, 11].map((t) => (
+              <text key={t} className="plot-tick" x={x(t)} y={y(MAP_Y[0]) + 13} textAnchor="middle">
+                {fmtCount(10 ** t)}
+              </text>
+            ))}
+            {[11, 12, 13].map((t) => (
+              <text key={t} className="plot-tick" x={x(MAP_X[0]) - 4} y={y(t) + 3} textAnchor="end">
+                {fmtCount(10 ** t)}
+              </text>
+            ))}
+            {showOpt && (
+              <g>
+                <circle cx={x(Math.log10(opt.N))} cy={y(Math.log10(opt.D))} r={6} fill="none" stroke="var(--text)" strokeWidth={2} />
+                <text x={x(Math.log10(opt.N)) + 9} y={y(Math.log10(opt.D)) + 4} fontSize={10.5} fill="var(--text)">optimum</text>
+              </g>
+            )}
+          </g>
+        );
+      }}
+      <Handle x={logN} y={logD} onDrag={(a, b) => onMove(Math.max(MAP_X[0], Math.min(MAP_X[1], a)), Math.max(MAP_Y[0], Math.min(MAP_Y[1], b)))} color="var(--accent)" label="your run" />
+    </Plot>
+  );
+}
+
 export function ComputeBudgetLab() {
   const [briefIdx, setBriefIdx] = useState(0);
-  const [logN, setLogN] = useState(Math.log10(150e9)); // deliberately starts under-trained!
-  const [logD, setLogD] = useState(Math.log10(300e9));
-  const [doneMap, setDoneMap] = useState<Record<string, boolean>>(loadLabDone);
+  const [logN, setLogN] = useState(Math.log10(200e9));
+  const [logD, setLogD] = useState(Math.log10(350e9));
+  const progress = useLabProgress(SCALING_PROGRESS_KEY, () => ({ solved: loadLabDone() }));
+  const log = useMachineLog();
 
   const brief = BUDGET_BRIEFS[briefIdx];
   const N = 10 ** logN;
@@ -538,34 +619,24 @@ export function ComputeBudgetLab() {
   const totalC = tC + iC;
   const L = predictedLoss(N, D);
   const passes = brief.check(N, D);
+  const exactOpt = useMemo(() => briefOptimum(brief), [brief]);
+  const nearOpt = passes && Math.abs(Math.log10(N / exactOpt.N)) < 0.03 && Math.abs(Math.log10(D / exactOpt.D)) < 0.03;
 
-  const exactOpt = useMemo(() => {
-    if (brief.id === 'research') {
-      const o = chinchillaOptimal(5.0e23);
-      return { N: o.N, D: o.D, L: o.total, totalC: 5.0e23 };
-    }
-    if (brief.id === 'edge') {
-      const n = 20e9;
-      const d = 6.0e23 / (6 * n);
-      return { N: n, D: d, L: predictedLoss(n, d), totalC: 6.0e23 };
-    }
-    const o = lifecycleOptimal(2.0, 20e12);
-    return { N: o.N, D: o.D, L: 2.0, totalC: o.totalC };
-  }, [brief.id]);
-
+  // Log a settled design (not every drag frame).
+  const lastKey = useRef('');
   useEffect(() => {
-    if (passes && !doneMap[brief.id]) {
-      setDoneMap((prev) => {
-        const next = { ...prev, [brief.id]: true };
-        try {
-          localStorage.setItem(SCALING_LAB_KEY, JSON.stringify(next));
-        } catch {
-          // ignore
-        }
-        return next;
-      });
-    }
-  }, [passes, brief.id, doneMap]);
+    const key = `${briefIdx}|${logN.toFixed(2)}|${logD.toFixed(2)}`;
+    const t = window.setTimeout(() => {
+      if (lastKey.current === key) return;
+      lastKey.current = key;
+      log.push(
+        `${brief.name.split('. ')[0]}. N ${fmtCount(N)}, D ${fmtCount(D)} → C = 6ND = ${fmtFlops(tC)}${brief.dInf ? ` + serving 2N·D_inf ${fmtFlops(iC)} = ${fmtFlops(totalC)}` : ''} · loss ${f4(L)} · ${(D / N).toFixed(0)} tokens/param${passes ? ' · passes' : ''}`,
+        passes ? 'good' : 'info',
+      );
+    }, 450);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [briefIdx, logN, logD]);
 
   const switchBrief = (i: number) => {
     setBriefIdx(i);
@@ -585,126 +656,38 @@ export function ComputeBudgetLab() {
   const trainCOk = brief.maxTrainC ? tC <= brief.maxTrainC * 1.001 : true;
   const maxNOk = brief.maxN ? N <= brief.maxN * 1.001 : true;
   const totalCOk = brief.maxTotalC ? totalC <= brief.maxTotalC : true;
+  const solvedEver = !!progress.solved[brief.id] || passes;
+
+  const card = (ok: boolean, label: string, val: string, limit: string) => (
+    <div style={{ background: 'var(--bg-sunken)', border: `1px solid ${ok ? 'var(--c-good)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', padding: '8px 10px' }}>
+      <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{label}</div>
+      <div className="mono" style={{ fontSize: 16, fontWeight: 700, color: ok ? 'var(--c-good)' : 'var(--c-bad)' }}>{val}</div>
+      <div style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>
+        {ok ? '✓ ' : '○ '}
+        {limit}
+      </div>
+    </div>
+  );
 
   return (
-    <Widget
+    <LabShell
       title="Lab: Spend the compute budget"
-      wide
       caption={
         <>
-          Three real-world training briefs. Choose parameters N and training tokens D to satisfy every constraint — then see how close your design gets to the exact calculus / lifecycle optimum.
+          Three real-world training briefs. Drag your run across the map of model size N against training tokens D: colour and contours are the predicted loss, the solid red line is the edge of the compute budget, and the dashed green line is the target loss. A design passes when it sits on the good side of both. Once a brief is solved, the map also marks the exact calculus / lifecycle optimum.
         </>
       }
-    >
-      <div style={{ marginBottom: 12 }}>
-        <Segmented
-          label="engineering brief"
-          options={BUDGET_BRIEFS.map((b, i) => ({
-            value: i,
-            label: `${doneMap[b.id] ? '✓ ' : ''}${b.name}`,
-          }))}
-          value={briefIdx}
-          onChange={switchBrief}
-        />
-      </div>
-
-      <div
-        style={{
-          padding: '10px 12px',
-          borderRadius: 'var(--radius-sm)',
-          background: 'var(--bg-sunken)',
-          border: '1px solid var(--border)',
-          marginBottom: 12,
-          fontSize: 13.5,
-        }}
-      >
-        <strong>Brief:</strong> {brief.brief}
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 12 }}>
-        <Slider
-          label="model parameters N"
-          value={logN}
-          min={9.7}
-          max={11.5}
-          step={0.01}
-          onChange={setLogN}
-          format={(v) => fmtCount(10 ** v)}
-          color="c-a"
-        />
-        <Slider
-          label="training tokens D"
-          value={logD}
-          min={11.0}
-          max={13.2}
-          step={0.01}
-          onChange={setLogD}
-          format={(v) => fmtCount(10 ** v)}
-          color="c-b"
-        />
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: 8, marginBottom: 12 }}>
-        <div style={{ background: 'var(--bg-sunken)', border: `1px solid ${lossOk ? 'var(--c-good)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', padding: '8px 10px' }}>
-          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>predicted loss L</div>
-          <div className="mono" style={{ fontSize: 18, fontWeight: 700, color: lossOk ? 'var(--c-good)' : 'var(--c-bad)' }}>
-            {f4(L)}
-          </div>
-          <div style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>
-            {lossOk ? '✓ ' : '○ '}target ≤ {brief.targetLoss.toFixed(3)}
-          </div>
-        </div>
-
-        {brief.maxTrainC && (
-          <div style={{ background: 'var(--bg-sunken)', border: `1px solid ${trainCOk ? 'var(--c-good)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', padding: '8px 10px' }}>
-            <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>train compute 6ND</div>
-            <div className="mono" style={{ fontSize: 16, fontWeight: 700, color: trainCOk ? 'var(--c-good)' : 'var(--c-bad)' }}>
-              {fmtFlops(tC)}
-            </div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>
-              {trainCOk ? '✓ ' : '○ '}limit ≤ {fmtFlops(brief.maxTrainC)}
-            </div>
-          </div>
-        )}
-
-        {brief.maxN && (
-          <div style={{ background: 'var(--bg-sunken)', border: `1px solid ${maxNOk ? 'var(--c-good)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', padding: '8px 10px' }}>
-            <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>GPU VRAM fit (N)</div>
-            <div className="mono" style={{ fontSize: 18, fontWeight: 700, color: maxNOk ? 'var(--c-good)' : 'var(--c-bad)' }}>
-              {fmtCount(N)}
-            </div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>
-              {maxNOk ? '✓ ' : '○ '}limit ≤ {fmtCount(brief.maxN)}
-            </div>
-          </div>
-        )}
-
-        {brief.maxTotalC && (
-          <div style={{ background: 'var(--bg-sunken)', border: `1px solid ${totalCOk ? 'var(--c-good)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', padding: '8px 10px' }}>
-            <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>lifecycle FLOPs</div>
-            <div className="mono" style={{ fontSize: 16, fontWeight: 700, color: totalCOk ? 'var(--c-good)' : 'var(--c-bad)' }}>
-              {fmtFlops(totalC)}
-            </div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>
-              {totalCOk ? '✓ ' : '○ '}limit ≤ {fmtFlops(brief.maxTotalC)}
-            </div>
-          </div>
-        )}
-
-        <div style={{ background: 'var(--bg-sunken)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px 10px' }}>
-          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>tokens / param</div>
-          <div className="mono" style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent-text)' }}>
-            {(D / N).toFixed(1)}×
-          </div>
-          <div style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>Chinchilla ≈ 18–20×</div>
-        </div>
-      </div>
-
-      <div className="live-note">
-        {passes ? (
+      briefs={BUDGET_BRIEFS.map((b) => ({ id: b.id, tab: b.name, text: b.brief }))}
+      active={briefIdx}
+      onSelect={switchBrief}
+      progress={progress}
+      passing={passes}
+      optimal={nearOpt}
+      status={
+        passes ? (
           <>
-            <strong>Brief solved!</strong> Your design ({fmtCount(N)} params, {fmtCount(D)} tokens, {(D / N).toFixed(0)} tok/param) hits loss <strong>{f4(L)}</strong>
-            {brief.maxTotalC ? ` at ${fmtFlops(totalC)} total lifecycle FLOPs` : ''}. Exact optimum for this brief:{' '}
+            <strong>{nearOpt ? 'Brief solved, right at the optimum!' : 'Brief solved!'}</strong> Your design ({fmtCount(N)} params, {fmtCount(D)} tokens, {(D / N).toFixed(0)} tok/param) hits loss <strong>{f4(L)}</strong>
+            {brief.maxTotalC ? ` at ${fmtFlops(totalC)} total lifecycle FLOPs` : ''}. Exact optimum for this brief (now marked on the map):{' '}
             <strong>
               {fmtCount(exactOpt.N)} params on {fmtCount(exactOpt.D)} tokens
             </strong>{' '}
@@ -714,15 +697,37 @@ export function ComputeBudgetLab() {
           <>
             <strong>Not quite yet.</strong>{' '}
             {!maxNOk
-              ? `Model is too big for a single 24 GB GPU (${fmtCount(N)} > ${fmtCount(brief.maxN!)}). Shrink N and compensate with far more training tokens D!`
+              ? `Model is too big for a single 24 GB GPU (${fmtCount(N)} > ${fmtCount(brief.maxN!)}): you are right of the orange line.`
               : !totalCOk
-                ? `Lifecycle compute is over budget (${fmtFlops(totalC)}). Notice inference alone burns ${fmtFlops(iC)} — shrink N and over-train on more tokens to cut serving cost.`
+                ? `Lifecycle compute is over budget (${fmtFlops(totalC)}): you are on the far side of the red line (above it, or to its right where serving alone eats the budget). Notice inference alone burns ${fmtFlops(iC)}, and that cost grows with N, not D.`
                 : !trainCOk
-                  ? `Over training compute budget (${fmtFlops(tC)} > ${fmtFlops(brief.maxTrainC!)}). Lower N or D so 6ND stays under budget.`
-                  : `Inside budget, but loss ${f4(L)} is still above ${brief.targetLoss.toFixed(3)}. Move closer to the optimal N/D balance and use your available budget!`}
+                  ? `Over the training budget (${fmtFlops(tC)} > ${fmtFlops(brief.maxTrainC!)}): you are above the red line.`
+                  : `Inside budget, but loss ${f4(L)} is still above ${brief.targetLoss.toFixed(3)}: you are below the green line. Slide along the red line and watch the contours.`}
           </>
-        )}
+        )
+      }
+      log={{ lines: log.lines, onClear: log.clear, empty: 'Each design you settle on is logged here with its compute and loss.' }}
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: 14, alignItems: 'start' }}>
+        <ComputeMap brief={brief} logN={logN} logD={logD} onMove={(a, b) => { setLogN(a); setLogD(b); }} showOpt={solvedEver} />
+        <div>
+          <div style={{ display: 'grid', gap: 12, marginBottom: 12 }}>
+            <Slider label="model parameters N" value={logN} min={MAP_X[0]} max={MAP_X[1]} step={0.01} onChange={setLogN} format={(v) => fmtCount(10 ** v)} color="c-a" />
+            <Slider label="training tokens D" value={logD} min={MAP_Y[0]} max={MAP_Y[1]} step={0.01} onChange={setLogD} format={(v) => fmtCount(10 ** v)} color="c-b" />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: 8 }}>
+            {card(lossOk, 'predicted loss L', f4(L), `target ≤ ${brief.targetLoss.toFixed(3)}`)}
+            {brief.maxTrainC && card(trainCOk, 'train compute 6ND', fmtFlops(tC), `limit ≤ ${fmtFlops(brief.maxTrainC)}`)}
+            {brief.maxN && card(maxNOk, 'GPU VRAM fit (N)', fmtCount(N), `limit ≤ ${fmtCount(brief.maxN)}`)}
+            {brief.maxTotalC && card(totalCOk, 'lifecycle FLOPs', fmtFlops(totalC), `limit ≤ ${fmtFlops(brief.maxTotalC)}`)}
+            <div style={{ background: 'var(--bg-sunken)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px 10px' }}>
+              <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>tokens / param</div>
+              <div className="mono" style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent-text)' }}>{(D / N).toFixed(1)}×</div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>Chinchilla ≈ 18–20×</div>
+            </div>
+          </div>
+        </div>
       </div>
-    </Widget>
+    </LabShell>
   );
 }

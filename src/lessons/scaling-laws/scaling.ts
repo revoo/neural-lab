@@ -164,3 +164,39 @@ export function fmtFlops(c: number): string {
   const mant = c / 10 ** exp;
   return `${mant.toFixed(2)} × 10^${exp}`;
 }
+
+/**
+ * The compute boundary of a brief on the (log N, log D) map: the largest log D
+ * that fits the budget at this model size (training 6ND ≤ C, or for the
+ * lifecycle brief 6ND + 2N·D_inf ≤ C_total), or null when nothing fits.
+ */
+export function budgetBoundaryLogD(brief: BudgetBrief, logN: number): number | null {
+  const N = 10 ** logN;
+  if (brief.maxTrainC) return Math.log10(brief.maxTrainC / (6 * N));
+  if (brief.maxTotalC && brief.dInf) {
+    const left = brief.maxTotalC - inferenceFlops(N, brief.dInf);
+    return left > 0 ? Math.log10(left / (6 * N)) : null;
+  }
+  return null;
+}
+
+/** The target-loss contour: the smallest log D that reaches the brief's target loss at this size (null if none). */
+export function targetContourLogD(brief: BudgetBrief, logN: number): number | null {
+  const D = tokensForLoss(10 ** logN, brief.targetLoss);
+  return D === null ? null : Math.log10(D);
+}
+
+/** The exact optimum each brief's debrief quotes (the same numbers the lab has always reported). */
+export function briefOptimum(brief: BudgetBrief): { N: number; D: number; L: number; totalC: number } {
+  if (brief.id === 'research') {
+    const o = chinchillaOptimal(5.0e23);
+    return { N: o.N, D: o.D, L: o.total, totalC: 5.0e23 };
+  }
+  if (brief.id === 'edge') {
+    const n = 20e9;
+    const d = 6.0e23 / (6 * n);
+    return { N: n, D: d, L: predictedLoss(n, d), totalC: 6.0e23 };
+  }
+  const o = lifecycleOptimal(2.0, 20e12);
+  return { N: o.N, D: o.D, L: 2.0, totalC: o.totalC };
+}
