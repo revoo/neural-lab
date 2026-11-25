@@ -1,0 +1,133 @@
+{/* authored-by: Gemini Antigravity */}
+import { Eq } from '../../components/Eq';
+import { Predict } from '../../components/Predict';
+import { Callout, Deeper } from '../../components/Callout';
+import { Term } from '../../components/Term';
+import { Quiz } from '../../components/Quiz';
+import { MetricBattleWidget, IvfExplorerWidget, LshCurveWidget, VectorIndexLab } from './Widgets';
+import { questions } from './quiz';
+
+# Similarity Search
+
+Now you have a real embedding model turning every document, image, or product into a 1,536-dimensional vector. In Module 18’s RAG lesson we searched a tiny 67-sentence manual by scanning every single vector in a loop.
+
+What happens when your database grows to **10 million** 1,536D embeddings?
+
+1. **Compute wall:** a brute-force scan computes `10,000,000 × 1,536 = 15.36 billion` multiply-adds *per single user query*!
+2. **Memory wall:** storing 10 million `FP32` 1,536D vectors eats **57.22 GiB of RAM** — blowing past a single GPU or typical server node before you even build an index.
+
+**<Term id="ann-search">Approximate Nearest Neighbour (ANN) search</Term>** trades a tiny sliver of recall (say `95%` instead of `100%`) for **10×–100× faster queries** and **4×–96× smaller RAM**. Every production vector database (FAISS, HNSWlib, pgvector, Qdrant) rests on three geometric ideas: **metric equivalence**, **partitioning / hashing**, and **quantised compression**.
+
+---
+
+## 1. Cosine, Dot Product, and Euclidean: one hidden identity
+
+Before indexing anything, you have to pick a similarity score. Expand the squared Euclidean distance between two **unit-length** vectors ($\|\ca{a}\| = \|\cb{b}\| = 1$):
+
+<Eq
+  words="squared L2 distance on the unit sphere  =  2 × (1 − cosine similarity)"
+  tex="\|\ca{a} - \cb{b}\|^2 = \|\ca{a}\|^2 + \|\cb{b}\|^2 - 2\,\ca{a}\cdot\cb{b} = 2\bigl(1 - \cg{\cos(\ca{a}, \cb{b})}\bigr)"
+>
+  - $\ca{a}, \cb{b}$ — two L2-normalised embedding vectors ($\|\ca{a}\| = \|\cb{b}\| = 1$)
+  - $\cg{\cos(\ca{a}, \cb{b})} = \ca{a}\cdot\cb{b}$ — cosine similarity (identical to the dot product when both vectors have length 1)
+</Eq>
+
+That identity is why vector databases love normalising embeddings once at write time: on the unit sphere, **maximising Cosine similarity, maximising Dot Product, and minimising Euclidean distance always return the exact same top-$k$ list!** Without normalisation, long vectors hijack Dot Product — watch it happen live below.
+
+<MetricBattleWidget />
+
+---
+
+## 2. IVF: partition the space with k-Means Voronoi cells
+
+How do you avoid comparing a query against all 10 million vectors? **<Term id="ivf-index">IVF (Inverted File Index)</Term>** runs k-Means once at index time to divide the database into `nlist` Voronoi buckets around `nlist` centroids.
+
+At query time:
+1. Compare the query against just the `nlist` centroids (cheap!).
+2. Open only the **`nprobe`** closest buckets and brute-force *only* the vectors inside them.
+
+<Predict
+  question="A query lands right near the boundary wall between two Voronoi buckets in a 12-bucket IVF index. You set nprobe = 1 (open only the single nearest bucket). What happens to Recall@5?"
+  options={[
+    'Still 100% because the closest centroid always contains the 5 closest points.',
+    'It misses neighbours sitting just across the Voronoi wall — on our 2D boundary query, nprobe = 1 catches only 1 of 5 true neighbours!',
+    'It scans the entire database anyway.',
+  ]}
+  answer={1}
+>
+  Being closest to Centroid A does *not* stop a point sitting millimetres across the fence in Bucket B from being your closest neighbour! On our 2D boundary query below, `nprobe = 1` catches just **1/5**, while opening **1 extra bucket (`nprobe = 2`)** jumps straight to **5/5 (100%)** while still running **4.6× faster** than brute force!
+</Predict>
+
+Try sliding `nprobe` from `1` to `6` below.
+
+<IvfExplorerWidget />
+
+---
+
+## 3. Random-Hyperplane LSH — and why data-aware IVF beats it
+
+A classic alternative is **<Term id="lsh">Locality-Sensitive Hashing (SimHash)</Term>**: slice space with $b$ random hyperplanes through the origin and record a $b$-bit signature (`1` if on the positive side, `0` if negative). Two vectors separated by angle $\theta$ land on the same side of one random hyperplane with exact probability $1 - \theta / \pi$, so across $L$ independent $b$-bit tables:
+
+<Eq
+  words="P(candidate match in at least one table)  =  1 − (1 − (1 − θ/π)^b)^L"
+  tex="\cg{P_{\text{hit}}}(\theta) = 1 - \Bigl(1 - \bigl(1 - \tfrac{\ca{\theta}}{\pi}\bigr)^{\cb{b}}\Bigr)^{\cc{L}}"
+>
+  - $\ca{\theta}$ — angle between query and database vector in radians ($0$ to $\pi$)
+  - $\cb{b}$ — hash bits per table (more bits = tighter buckets, fewer false positives)
+  - $\cc{L}$ — independent hash tables (more tables = higher recall on close pairs)
+</Eq>
+
+Shape the collision S-curve below.
+
+<LshCurveWidget />
+
+<Callout kind="info" title="Honest benchmark: IVF vs LSH (and HNSW in production)">
+  On our exact 600 × 16D benchmark (60 held-out queries), **IVF (`nlist = 32, nprobe = 6`)** hits **91.3% Recall@5** by scanning **24.5%** (**4.1× faster**), beating **LSH (`b = 6, L = 16`)**, which needs **29.3%** scan (**3.4× faster**) for **90.7% Recall@5**. Why? Because k-Means adapts its boundaries to real clusters instead of slicing blindly with random planes. Modern databases also use **HNSW** (a multi-layer proximity graph, like an expressway skip-list over vectors) for even higher recall at `< 1%` scan, plus **<Term id="product-quantization">Product Quantisation (PQ)</Term>** — splitting each 1,536D vector into 64 sub-vectors and replacing each sub-vector with a 1-byte centroid ID, crushing 10M vectors from **57.22 GiB** down to **0.60 GiB** (**96× smaller!**).
+</Callout>
+
+---
+
+## 4. Lab: Tune the Vector Index
+
+Optimise IVF, multi-table LSH, and 10M-vector RAM compression across three exhaustive briefs.
+
+<VectorIndexLab />
+
+<Deeper title="Exhaustive lab takeaways">
+  - **Brief 1 (IVF under 25% compute, ≥ 90% Recall@5):** Out of 15 `(nlist, nprobe)` pairs, **`nlist = 32, nprobe = 6`** is the **unique** winner (**91.3%** Recall@5 at **24.5%** scan = **4.1×** speedup).
+  - **Brief 2 (LSH under 35% scan, ≥ 85% Recall@5):** Out of 12 `(b, L)` pairs, **`b = 6 bits, L = 16 tables`** is the **unique** winner (**90.7%** Recall@5 at **29.3%** scan = **3.4×** speedup) — honestly trailing IVF’s 4.1× on the same clustered data.
+  - **Brief 3 (10M × 1,536D under 16 GiB RAM at ≥ 95% recall):** FP32 (`57.22 GiB`) and FP16 (`28.61 GiB`) exceed RAM; PQ-64 (`0.60 GiB`, 96×) and Binary (`1.79 GiB`, 32×) trade away too much recall without re-ranking. **Scalar INT8 (`14.31 GiB`, 4× smaller, ~98.5% recall)** is the unique passing format!
+</Deeper>
+
+---
+
+## 5. Verifying unit-norm equivalence & 10M RAM in NumPy
+
+```python
+import numpy as np
+
+# Exact proof: on unit vectors, ||a - b||^2 == 2 * (1 - cos(a, b))
+rng = np.random.default_rng(0)
+a = rng.normal(size=128); a /= np.linalg.norm(a)
+b = rng.normal(size=128); b /= np.linalg.norm(b)
+
+l2_sq = float(np.sum((a - b) ** 2))
+from_cos = float(2.0 * (1.0 - np.dot(a, b)))
+print(f"||a - b||^2 = {l2_sq:.8f} | 2(1 - cos) = {from_cos:.8f} | diff = {abs(l2_sq - from_cos):.2e}")
+
+# 10M x 1536D vector database RAM across storage formats
+N, D = 10_000_000, 1536
+for name, b_per_vec in [("FP32", D*4), ("FP16", D*2), ("INT8", D), ("PQ-64", 64)]:
+    print(f"{name:5s}: {N * b_per_vec / 1024**3:6.2f} GiB  ({D*4 / b_per_vec:4.0f}x compression)")
+# ||a - b||^2 = 1.99468043 | 2(1 - cos) = 1.99468043 | diff = 2.22e-16
+# FP32 :  57.22 GiB  (   1x compression)
+# FP16 :  28.61 GiB  (   2x compression)
+# INT8 :  14.31 GiB  (   4x compression)
+# PQ-64:   0.60 GiB  (  96x compression)
+```
+
+---
+
+## Check your understanding
+
+<Quiz questions={questions} />
