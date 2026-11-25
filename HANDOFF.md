@@ -137,8 +137,22 @@ The owner asked for the plan in `docs/LAB_IMPROVEMENTS.md` to be implemented in 
 - [x] 6. Machinery for the four "needs work" labs: Q-Learner maze replay + curves + predict-then-train (6a), sampler live draws (6b), compute-budget map (6c), alignment reply bars + Goodhart dot + prediction + training log (6d). All four are on LabShell.
 - [x] 7. Timeline page built from `src/history.ts`.
 - [x] 8. Decision lines in the Logic workbench.
-- [ ] 9. **IN PROGRESS** Replay helper; reward hacking, Wire the Policy, golf labs, VRAM Tetris falling blocks. Committed as parts 9a–9e; check `git log`. 9a done: `useReplay` (motion.ts) + `ReplayControls`, and the Reward-Hacking Sandbox replay with ledger, pad timer, hack-vs-intended values and log. 9b done: Wire the Policy "Run 20 episodes" (sampleEpisodes, replayed with slips) + value-change flash + log. 9c done: GhostPath (plot.tsx), ghosts + step logs in Descent golf and Optimizer golf, animated optimizer path with next-step arrow, every-optimizer view. 9d done: VRAM Tetris falling blocks (CSS .tetris-drop), roofline dot, config log.
-- [ ] 10. Remaining rows of the three tables.
+- [x] 9. Replay helper (`useReplay`, `ReplayControls`, `GhostPath`); reward hacking (9a), Wire the Policy (9b), golf labs (9c), VRAM Tetris falling blocks + roofline (9d).
+- [ ] 10. **IN PROGRESS** Remaining rows of the three tables, one commit per lab (tick as done):
+  - [ ] Stabilise the policy gradient: 20 faint seed lines under the average
+  - [ ] Design a schedule: 20 seeded runs behind the average, best cosine ghost after a solve, moving marker
+  - [ ] Prune it: the exhaustive minimum's kept neurons beside yours, log
+  - [ ] LoRA: per-layer captured vs missed heatmaps, log
+  - [ ] Mixed-precision quantisation: selected block on a number line with the format's levels; evidence hint; per-block log
+  - [ ] Shannon's betting game: per-word bits-lost strip (you, neural LM, unigram) + log
+  - [ ] Compress the corpus: live re-segmenting sample sentence + merge log; settle the "optimum" label question
+  - [ ] Build a previous-word head: clock hands under the bars
+  - [ ] Superposition: rotatable cube for Brief 1, clash log
+  - [ ] Write the backward pass: collection of the correct versions, wrong-but-trains call-out, gradient-check log
+  - [ ] Training-lab challenges: reference network's neuron maps after a challenge
+  - [ ] Rescue the deep network: per-layer log
+  - [ ] Attention puzzles: worked q·k → ÷√2 → exp → share table
+  - [ ] The model clinic: train.log tail per case; two-cause cases
 
 Notes for whoever continues:
 - Step 1 added `src/components/AnswerReveal.tsx` (`AnswerReveal`, `StuckButton`, `useStuck`): use it for any answer/optimum reveal so it appears only after a solve or an explicit, remembered "I'm stuck". Hints that depend on the brief live in the lesson's `.ts` (`rescueHint`, `alignmentHint`) with a `hints.test.ts` checking they never name a locked control.
