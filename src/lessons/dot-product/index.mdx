@@ -2,6 +2,7 @@ import { DotTable } from './DotTable'
 import { DotExplorer } from './DotExplorer'
 import { SpamLab } from './SpamLab'
 import { questions } from './quiz'
+import { rivals } from './rivals'
 
 ## The problem: one number from two lists
 
@@ -180,6 +181,26 @@ The fix is to divide out the lengths, leaving only the alignment:
 It always lands between −1 and 1. For the search example, B now scores a perfect 1.0, and A scores about 0.77. Turn on the **unit vectors** view in the explorer to see this: shrinking both arrows to length 1 throws away their size and keeps only their direction.
 
 Which one should you use? Neither is "correct". Use the raw dot product when magnitude carries meaning — a neuron's weights *should* respond more strongly to stronger evidence. Use cosine similarity when it doesn't — two documents about the same thing should match regardless of length. Many modern embedding models sidestep the question by normalising every vector to length 1 up front, at which point the dot product and cosine similarity become the same number.
+
+## Why this, and not something else?
+
+The weighted sum was the first thing we tried, so it's fair to ask whether something else would do better. Judge each rival by the three tests from <LessonLink to="vectors">the vectors lesson</LessonLink>: does it mean the right thing, can training nudge it, and is it cheap at scale?
+
+The test: the ten emails from the lab below, plus one real email that looks like spam, "Sam, tickets for Saturday!!!", with 4 links, 6 exclamation marks and your name twice. Every rival scores the same counts `[links, exclamation marks, mentions of your name]`, and a ranking is right when all five spam emails score above every real one.
+
+<Predict
+  question="Which of these puts the tickets email above a spam email: multiplying the three counts together, or scoring by the biggest weighted count?"
+  options={["Multiplying", "The biggest count", "Both"]}
+  answer={2}
+>
+
+Both. Multiplying gives the tickets email 48 and every spam email 0, because no spam mentions your name. The biggest weighted count gives it 12 against the parcel scam's 7. In neither does your name count *against* spam.
+
+</Predict>
+
+<RivalTable rivals={rivals()} />
+
+Only the weighted sum ranks every email correctly, and only it lets a feature count for or against. Its slopes are as simple as slopes get: the slope for each weight is just the matching input. That's why every neuron, and every attention score, starts with a dot product.
 
 ## Lab: Tune the Spam Scorer
 

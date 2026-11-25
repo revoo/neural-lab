@@ -2,6 +2,7 @@ import { VectorPlayground } from './VectorPlayground'
 import { EmailSpace } from './EmailSpace'
 import { FeatureLab } from './FeatureLab'
 import { questions } from './quiz'
+import { rivals } from './rivals'
 
 ## The problem: computers only understand numbers
 
@@ -130,6 +131,34 @@ You can't picture a 768-dimensional space. Nobody can. But you don't need to pic
 This is one of the most useful habits in machine learning: build intuition in 2D or 3D where you can see it, then trust the algebra to carry it into dimensions you can't see. Most of the time the intuition survives. Occasionally it doesn't — high-dimensional spaces have some genuinely strange properties, like almost all random vectors being nearly perpendicular to each other — and we'll point those out as we meet them.
 
 </Deeper>
+
+## Why this, and not something else?
+
+Turning an email into a list of numbers can look like an arbitrary choice. There are other ways to hand an email to a computer, and it's worth seeing why they lose. Every building block in this course gets judged by the same three questions, so here they are, once and for all.
+
+<Insight title="The three tests every AI building block must pass">
+
+1. **Does it mean the right thing for the task?** Does it keep, or measure, what the task actually needs?
+2. **Can training nudge it?** Learning works by many tiny improvements, so it must be smooth, with useful slopes, rather than jumping between fixed answers.
+3. **Is it cheap at enormous scale?** It should come down to multiply-adds, which a GPU can do billions of at once.
+
+</Insight>
+
+<Predict
+  question="A colleague suggests skipping vectors and writing a rule: “more than 3 links means spam”. How many of the ten emails in the scatter plot above does that rule get wrong?"
+  options={["None", "2", "5"]}
+  answer={1}
+>
+
+Two: it misses “YOU HAVE WON!!!” (3 links) and “Earn money from home!!!!” (2 links). Moving the threshold doesn't rescue it, as the first card shows.
+
+</Predict>
+
+Here are three ways to hand those ten emails to a computer, each tried on the emails themselves:
+
+<RivalTable rivals={rivals()} />
+
+The rule fails the second test, and the single number fails the first. The vector keeps every measurement and turns "similar" into "close", which every later tool relies on. That's why every neural network takes its input as a vector.
 
 ## Lab: The Feature Workbench
 

@@ -4,6 +4,7 @@ import { EntropyLab } from './EntropyLab'
 import { LossCurves } from './LossCurves'
 import { KLExplorer } from './KLExplorer'
 import { questions } from './quiz'
+import { rivals } from './rivals'
 
 ## The problem: grading a guess
 
@@ -211,6 +212,24 @@ With p = 90/10 and q = 50/50, believing 50/50 when the truth is 90/10 costs 0.53
 </Misconception>
 
 This explains something about training. When a model is trained with cross-entropy, the truth $p$ is the data, and its entropy $H(p)$ is a fixed number the model can't change. So driving the cross-entropy down is exactly the same as driving the KL divergence from the data to the model down: training with cross-entropy *is* minimising the extra surprise. KL returns as the leash in <LessonLink to="rlhf-dpo">RLHF</LessonLink>, which stops a fine-tuned model drifting too far from where it started, and as the pull towards the bell curve in <LessonLink to="autoencoders">autoencoders</LessonLink>.
+
+## Why this, and not something else?
+
+You've seen squared error lose on the curves above. Here is the full line-up, on a photo that really is a cat, judged by the three tests from <LessonLink to="vectors">the vectors lesson</LessonLink>: right meaning, nudgeable by training, cheap at scale. The slopes are taken with respect to cat's score, the logit that training actually moves.
+
+<Predict
+  question="A model gives a photo of a cat 0.01% cat. Compared with cross-entropy, how hard does squared error push cat’s score up?"
+  options={["About as hard", "About 5,000 times more weakly", "Harder"]}
+  answer={1}
+>
+
+Cross-entropy pushes with a slope of about −1. Squared error pushes with about −0.0002: roughly 5,000 times weaker, at exactly the moment the model is most wrong.
+
+</Predict>
+
+<RivalTable rivals={rivals()} />
+
+Accuracy is what we report, but it can't teach. Squared error teaches, but it barely notices a confident mistake. That's why every classifier and every language model is trained with cross-entropy.
 
 ## Lab: Twenty Questions Compressor
 

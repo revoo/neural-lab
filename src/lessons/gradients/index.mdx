@@ -1,6 +1,7 @@
 import { KnobLab } from './KnobLab'
 import { GradientField } from './GradientField'
 import { questions } from './quiz'
+import { rivals } from './rivals'
 
 ## The problem: many knobs at once
 
@@ -128,6 +129,24 @@ The third one is the foundation of <LessonLink to="gradient-descent">gradient de
 Along a contour, $f$ doesn't change: $\Delta f = 0$. From the formula above, that means $\nabla f \cdot \Delta\mathbf{x} = 0$ for any small step along the contour. A zero dot product means perpendicular. So the gradient is at right angles to every contour it crosses — which is why, on the heatmap, the purple arrow always cuts straight across the contour lines like a stream running straight down a hillside.
 
 </Deeper>
+
+## Why this, and not something else?
+
+The gradient moves every knob at once. Two simpler ideas are worth racing against it: improve one knob at a time, or try random directions and keep whatever helps. The race is run on a tilted bowl, the explorer's narrow valley turned by 30° so that the valley runs diagonally. Each method gets the same budget, 60 runs of the model, and its own best step size, found by searching a grid; the random method is averaged over 20 fixed seeds. Then the same race is run with 100 knobs. The verdicts use the three tests from <LessonLink to="vectors">the vectors lesson</LessonLink>: right meaning, nudgeable by training, cheap at scale.
+
+<Predict
+  question="On the two-knob tilted bowl, with 60 runs each and each method at its best step size, which method ends lowest?"
+  options={["The gradient", "One knob at a time", "Random directions"]}
+  answer={1}
+>
+
+One knob at a time, by a huge margin. On this small bowl, with a well-chosen step size, turning x and then y lands almost exactly on the bottom. The textbook story only shows up with more knobs: see the 100-knob results in the cards.
+
+</Predict>
+
+<RivalTable rivals={rivals()} />
+
+So the gradient isn't the best possible move in every small problem. It wins at scale, because each gradient, computed by backpropagation, hands you every knob's slope at once, and moving along it uses all of them. That's why every neural network is trained by following the gradient.
 
 ## Lab: Which Knob, and How Far?
 

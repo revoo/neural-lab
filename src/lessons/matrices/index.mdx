@@ -1,6 +1,7 @@
 import { UntangleLab } from './UntangleLab'
 import { GridTransformer } from './GridTransformer'
 import { questions } from './quiz'
+import { rivals } from './rivals'
 
 ## The problem: vectors in, vectors out
 
@@ -122,6 +123,24 @@ That means a plain matrix can never "shift everything one unit to the right". A 
 Graphics programmers solve the same problem differently: they add an extra dimension and use 3×3 matrices for 2D (or 4×4 for 3D), a trick called homogeneous coordinates. That's why CSS's `matrix()` takes six numbers rather than four.
 
 </Deeper>
+
+## Why this, and not something else?
+
+A matrix is one way to get several scores from one input. Here are two others, judged by the three tests from <LessonLink to="vectors">the vectors lesson</LessonLink> (right meaning, nudgeable by training, cheap at scale), on the panel of judges and the email `[4, 5, 0]` from the start of this lesson.
+
+<Predict
+  question="Instead of a matrix, you store all three judges’ scores for every possible email, with each count running from 0 to 9. How many numbers is that, against the matrix’s 9?"
+  options={["30", "300", "3,000"]}
+  answer={2}
+>
+
+There are 10 × 10 × 10 = 1,000 possible emails, each with 3 scores: 3,000 numbers. And it still knows nothing about an email with 10 links.
+
+</Predict>
+
+<RivalTable rivals={rivals()} />
+
+The loop is the same maths in a slower package, and the table memorises instead of generalising. The matrix is the simplest map that handles every input and that training can tune by slopes. That's why every layer of a neural network starts with a matrix, and why something has to be added to it to bend lines, as you'll find in the lab.
 
 ## Lab: Untangle the Data
 

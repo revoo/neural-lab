@@ -1,6 +1,7 @@
 import { ForecastLab } from './ForecastLab'
 import { SoftmaxLab } from './SoftmaxLab'
 import { questions } from './quiz'
+import { rivals } from './rivals'
 
 ## The problem: models should say how sure they are
 
@@ -132,6 +133,24 @@ Try both extremes in the lab, and press "Sample" a few times at each. At low tem
 "Turning the temperature down makes the model smarter, or more accurate." Temperature doesn't change anything the model has learned. The logits — the model's actual opinion — are identical. Temperature only changes how that opinion is converted into a choice. Low temperature makes a model *predictable*, which can be useful (for code, or factual answers) but can also make it repetitive. High temperature makes it *varied*, which can be useful (for brainstorming) but makes unlikely, possibly wrong, choices more frequent.
 
 </Misconception>
+
+## Why this, and not something else?
+
+You've already broken two of the obvious rules in the explorer. Here are five rules side by side on the explorer's starting scores (cat 2.0, dog 1.0, fox 0.1, owl −1.0), judged by the three tests from <LessonLink to="vectors">the vectors lesson</LessonLink>: right meaning, nudgeable by training, cheap at scale.
+
+<Predict
+  question="Pass each score through its own sigmoid, the S-curve that squashes any number into 0 to 1. What do the four results add up to?"
+  options={["1", "About 2.4", "4"]}
+  answer={1}
+>
+
+About 2.41. Each sigmoid answers its own yes/no question, and nothing makes the four answers share out one certainty.
+
+</Predict>
+
+<RivalTable rivals={rivals()} />
+
+Only softmax is positive, adds up to 1, keeps every slope alive and ignores a shift applied to every score. That's why every classifier and every language model ends with a softmax.
 
 ## Lab: Calibrate the Forecaster
 

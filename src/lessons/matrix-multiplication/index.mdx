@@ -3,6 +3,7 @@ import { MatMulStepper } from './MatMulStepper'
 import { CompositionDemo } from './CompositionDemo'
 import { ShapeLab } from './ShapeLab'
 import { questions } from './quiz'
+import { rivals } from './rivals'
 
 ## The problem: many vectors, many layers
 
@@ -125,6 +126,24 @@ Element-wise operations like `+` need matching shapes — except that libraries 
 The most common use is adding a bias: a `(128,)` vector added to a `(32, 128)` batch gets repeated for each of the 32 rows. The most common bug is the same thing going subtly wrong, because broadcasting will happily produce a result of the "wrong" shape without any error at all.
 
 <ShapeLab />
+
+## Why this, and not something else?
+
+There's more than one way to push a batch of examples through a stack of layers. Take the example from the shape rule above, a batch of 32 images of 784 pixels, through a small network of 784 → 128 → 10, and judge each way by the three tests from <LessonLink to="vectors">the vectors lesson</LessonLink>: right meaning, nudgeable by training, cheap at scale.
+
+<Predict
+  question="You push the 32 images through one at a time instead of as one batch. How many more multiply-adds does that take?"
+  options={["None", "About twice as many", "32 times as many"]}
+  answer={0}
+>
+
+None: exactly the same 3,252,224. The difference is how the work is packaged: 64 small jobs, or 2 big ones.
+
+</Predict>
+
+<RivalTable rivals={rivals()} />
+
+That's why every neural network library runs its layers as batched matrix multiplications, and why there's always an activation function between them.
 
 ## Lab: Build the Pipeline
 

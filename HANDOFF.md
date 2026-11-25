@@ -28,10 +28,11 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented step by step (WP
 | WP1.8 Lab 2 | `src/lessons/dot-product/spamLab.ts`, `spamLab.test.ts`, `SpamLab.tsx`; history entry `spam-scorer`. This brought the history collection to 48 entries. |
 | WP1.8 Lab 3 | `src/lessons/matrices/untangleLab.ts`, solver tests and `UntangleLab.tsx`. History entry `untangle`. |
 | WP1.8 Labs 4–9 | Build the Pipeline, The Sensitivity Probe, Which Knob, and How Far?, Find the Slipping Gear, Calibrate the Forecaster, and Twenty Questions Compressor. Lab logic, tests and widgets are in their lesson directories. |
+| WP1.10 | `src/components/RivalTable.tsx` (cards judged on the three tests; registered in `src/mdxComponents.tsx`, styles under `.rival-table` in `global.css`). Each toolkit lesson has `rivals.ts` + `rivals.test.ts` (every number in the cards and the section's `Predict` is computed there and pinned) and a `## Why this, and not something else?` section before its lab. The three tests are stated once, in `vectors`, as an `Insight`. `src/curriculum.test.ts` test 6 now also requires that heading, before the lab, mentioning the three tests. |
 
 ### What to do next, in order
 
-1. **WP1.10** "Why this, and not something else?" in all nine toolkit lessons, and extend `src/curriculum.test.ts` test 6 to require that heading.
+1. ~~WP1.10~~ done.
 2. **WP1.9** re-read Module 1: remove teasers that duplicate a `Bridge`; trim the vectors lesson's "A trap hiding in plain sight" section, which now overlaps Lab 1's brief 3; add about 15 minutes per lab to `minutes` in `src/curriculum.ts`. During review, check the plot legend on the Sensitivity Probe, the hidden-layer count in Build the Pipeline (a narrow intermediate layer also counts), and the display of tiny positive probabilities in Calibrate the Forecaster.
 3. **WP2.1–2.4, after the owner resumes.** Known fixes that belong there: `scaling-laws` ends "Next: Inference & Hardware", which becomes wrong once RL moves before fine-tuning (WP2.1); `similarity-search` says "In the RAG lesson we searched…" although RAG comes later (WP2.2: reword when it moves next to RAG). WP2.4 switches the summary test from `it.todo` to `it`.
 4. After each work package, update the "Current state" block in `docs/ROADMAP.md`.
@@ -304,7 +305,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 �
   - [x] Lab 7 chain-rule · Find the Slipping Gear
   - [x] Lab 8 probability · Calibrate the Forecaster
   - [x] Lab 9 information · Twenty Questions Compressor
-- [ ] WP1.10 "Why this, and not something else?"
+- [x] WP1.10 "Why this, and not something else?"
 - [ ] WP1.9 Re-read Module 1 as a learner
 - [ ] WP2.1 Move RL before fine-tuning
 - [ ] WP2.2 Move `similarity-search` into Module 18

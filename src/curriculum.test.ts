@@ -57,7 +57,7 @@ describe('curriculum guard rails', () => {
     expect([...ids].sort()).toEqual(dirs);
   });
 
-  it('every Maths Toolkit lesson bridges to a later module', async () => {
+  it('every Maths Toolkit lesson bridges to a later module and asks "Why this, and not something else?"', async () => {
     const order = ALL_LESSONS.map((l) => l.id);
     const src = new Map((await lessonSources()).map((l) => [l.id, l.raw]));
     for (const l of MODULES.find((m) => m.id === 'foundations')!.lessons) {
@@ -67,6 +67,13 @@ describe('curriculum guard rails', () => {
       expect(target, `${l.id} → ${m![1]}`).toBeTruthy();
       expect(target!.module.id, `${l.id} bridges inside its own module`).not.toBe('foundations');
       expect(order.indexOf(target!.id)).toBeGreaterThan(order.indexOf(l.id));
+      // WP1.10: the comparison section, placed before the lab
+      const raw = src.get(l.id)!;
+      const why = raw.indexOf('\n## Why this, and not something else?\n');
+      expect(why, `${l.id} needs "## Why this, and not something else?"`).toBeGreaterThan(-1);
+      const lab = raw.indexOf('\n## Lab:');
+      if (lab > -1) expect(why, `${l.id}: the comparison comes before the lab`).toBeLessThan(lab);
+      expect(raw.slice(why), `${l.id}: the comparison refers to the three tests`).toMatch(/three tests/);
     }
   });
 

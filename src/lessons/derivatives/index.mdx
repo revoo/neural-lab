@@ -1,6 +1,7 @@
 import { SensitivityLab } from './SensitivityLab'
 import { TangentExplorer } from './TangentExplorer'
 import { questions } from './quiz'
+import { rivals } from './rivals'
 
 ## The problem: a million knobs and no map
 
@@ -152,6 +153,24 @@ If the curve is nearly straight near $x$, then for a small nudge you can *predic
 In words: **new output ≈ old output + slope × nudge.** If the loss is 5.0 and its derivative with respect to some weight is −4, then increasing that weight by 0.01 should bring the loss to about $5.0 + (-4)(0.01) = 4.96$.
 
 That one line is the whole justification for gradient descent. It says the derivative is a reliable guide for *small* steps — and silently warns that for big steps, where the curve bends away from its tangent line, the guide stops being reliable.
+
+## Why this, and not something else?
+
+At the start of this lesson we said that trying lots of settings and keeping the best is hopeless for a million knobs. Here are the numbers. Judge each method by the three tests from <LessonLink to="vectors">the vectors lesson</LessonLink>: right meaning, nudgeable by training, cheap at scale. The goal for the searches: every knob within 0.05 of its best value, where each knob ranges from 0 to 1.
+
+<Predict
+  question="With 10 knobs and a grid of 10 values for each, how many runs of the model does it take to try every setting?"
+  options={["100", "1,000", "10 billion"]}
+  answer={2}
+>
+
+$10^{10}$, ten billion. Each extra knob multiplies the count by 10, so the grid grows as a power, not as a sum.
+
+</Predict>
+
+<RivalTable rivals={rivals()} />
+
+Searching grows by a factor of ten with every knob. Slopes grow by a fixed amount per knob, and backpropagation, in <LessonLink to="backpropagation">its own lesson</LessonLink>, gets every slope for about the price of three runs. That's why every neural network is trained with slopes.
 
 ## Lab: The Sensitivity Probe
 

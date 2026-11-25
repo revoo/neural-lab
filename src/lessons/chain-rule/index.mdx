@@ -2,6 +2,7 @@ import { GearLab } from './GearLab'
 import { ChainExplorer } from './ChainExplorer'
 import { PathsDemo } from './PathsDemo'
 import { questions } from './quiz'
+import { rivals } from './rivals'
 
 ## The problem: influence at a distance
 
@@ -124,6 +125,24 @@ $$
 <PathsDemo />
 
 This "multiply along paths, add across paths" rule is the complete story. Every derivative of every neural network, no matter how large, is assembled from it.
+
+## Why this, and not something else?
+
+Training needs the slope of the loss for every weight. There are three ways to get them, judged by the three tests from <LessonLink to="vectors">the vectors lesson</LessonLink> (right meaning, nudgeable by training, cheap at scale) and counted in runs of the whole pipeline.
+
+<Predict
+  question="A pipeline has a million weights. Finding each weight’s slope by nudging it and re-running the pipeline: how many runs is that, for one training step?"
+  options={["About 3", "About a thousand", "About a million"]}
+  answer={2}
+>
+
+One run per weight, plus one to start from: 1,000,001. Walking the chain rule backwards gets the same slopes, exactly, for about 3.
+
+</Predict>
+
+<RivalTable rivals={rivals()} />
+
+<LessonLink to="backpropagation">Backpropagation</LessonLink> is the third card, organised for a whole network, and its cost widget counts the same runs. That's why every neural network is trained with the chain rule, walked backwards.
 
 ## Lab: Find the Slipping Gear
 
