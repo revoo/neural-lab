@@ -164,7 +164,9 @@ And here is why these two algorithms pair so well together in real pipelines: **
 
 ## 5. Lab: Compress & Segment
 
-Put both algorithms to work on three realistic datasets. Every brief is checked exhaustively across all menu settings so you can verify your intuition against the exact optimum.
+<LabJob>You have no labels at all — just a mixed-unit sensor stream to compress, an unscaled customer table to segment reliably across retries, and an 8-column log table drowning in noise. Build an unsupervised pipeline for each.</LabJob>
+
+Put both algorithms to work on three realistic datasets. Watch the per-sensor retention bars, live customer cluster scatter & 40-seed stability grid, and 2D PCA projection & scree cliff. Every brief is checked exhaustively across all menu settings so you can verify your intuition against the exact optimum.
 
 <UnsupervisedLab />
 
@@ -173,6 +175,14 @@ Put both algorithms to work on three realistic datasets. Every brief is checked 
   - **Brief 2 (Unscaled customers, 40 seeds):** Raw `k = 4` k-Means++ gets Silhouette **0.123** because euro spend dwarfs visit count. Standardised `k = 4` with *random* init clears Silhouette (**0.721**) but still gets trapped in local minima on 11 of 40 seeds (**29/40**). Out of all 20 configurations, **standardised `k = 4` with k-Means++** is the **unique** passing pipeline (Silhouette **0.777**, **36/40** = 90% optimal).
   - **Brief 3 (Denoising 8D logs):** Running k-Means++ straight on all 8 columns leaves the 6 random noise columns inflating every pairwise distance, failing Silhouette. Compressing to `m = 1` squashes two of the four square clusters together, failing purity. **PCA (`m = 2`) → k-Means++ (`k = 4`)** strips out all 6 noise dimensions and hits Silhouette **0.805** with **100.0%** purity (`3/24` configs pass, fewest `m = 2`).
 </Deeper>
+
+<ForReal>
+
+PCA and k-Means show up far beyond toy customer tables: **vector databases** like FAISS build **IVF (Inverted File)** indexes by running k-Means to partition millions of embeddings into Voronoi cells, and compress vectors with Product Quantisation or PCA/OPQ before indexing; **single-cell genomics** runs PCA on 20,000 noisy gene counts to drop to 30–50 principal components before clustering cell types; and **colour quantisation** in image/video codecs compresses 16 million RGB colours into 256 centroids via Lloyd's algorithm.
+
+</ForReal>
+
+<HistoryCard id="clustering-pca" />
 
 ---
 

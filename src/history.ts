@@ -519,6 +519,24 @@ export const HISTORY: HistoryEntry[] = [
       after: { text: 'Scalable Newton-leaf tree boosters like XGBoost (2016) scale to billions of rows and remain the state of the art on structured tabular data.', source: 'https://arxiv.org/abs/1603.02754' },
     },
   },
+  {
+    id: 'clustering-pca',
+    lessonId: 'clustering-pca',
+    lab: 'Compress & Segment',
+    idea: 'PCA, Lloyd\'s k-Means and k-Means++',
+    years: [1901, 1957, 1967, 2007],
+    when: '1901 · 1957 · 1967 · 2007',
+    who: [
+      { text: 'Karl Pearson invents principal component analysis in 1901; Harold Hotelling independently develops and names it in 1933.', source: WP('Principal_component_analysis') },
+      { text: 'Stuart Lloyd proposes the standard iterative clustering algorithm at Bell Labs in 1957 for pulse-code modulation (published in a journal in 1982); James MacQueen coins the term "k-means" in 1967.', source: WP('K-means_clustering') },
+      { text: 'David Arthur and Sergei Vassilvitskii introduce k-means++ seeding in 2007 to avoid bad random initialisations.', source: WP('K-means%2B%2B') },
+    ],
+    story: {
+      before: { text: 'High-dimensional unlabelled data had no labels to steer feature selection, and naive random k-means starts frequently got stuck in poor local minima.', source: WP('K-means_clustering') },
+      this: { text: 'PCA finds the orthogonal axes of maximum variance (equivalently minimum squared reconstruction error), while k-means++ spreads initial centroids proportionally to squared distance.', source: WP('K-means%2B%2B') },
+      after: { text: 'Together they anchor modern unsupervised pipelines — from denoising genomics tables to building Voronoi IVF cells in billion-scale vector databases.', source: WP('Principal_component_analysis') },
+    },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */

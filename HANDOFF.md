@@ -199,7 +199,7 @@ The owner asked for this next, in a fresh session. `docs/LAB_IMPROVEMENTS.md` re
 - [x] linear-regression · Feature Engineering + Logistic Regression
 - [x] knn · Rescue the kNN Classifier
 - [x] decision-trees · Build the Tabular Ensemble
-- [ ] clustering-pca · Compress & Segment
+- [x] clustering-pca · Compress & Segment
 - [ ] images-as-tensors · Build the Vision Preprocessor
 - [ ] convolution · Design the Kernel
 - [ ] cnns · Architect the CNN
