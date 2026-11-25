@@ -150,3 +150,18 @@ describe('recorded one-change fixes', () => {
     expect(better).toBe(3);
   }, 60000);
 });
+
+describe('two-cause cases', () => {
+  it('no single change fixes them; fixing both causes does (numbers quoted in the explanations)', () => {
+    for (const id of ['two-sensors-sorted', 'line-wild-steps']) expect(FIXES[id].filter((r) => r.fresh >= 0.95).length).toBe(0);
+    const c1 = CASES.find((k) => k.id === 'two-sensors-sorted')!;
+    const c2 = CASES.find((k) => k.id === 'line-wild-steps')!;
+    const fresh = (c: (typeof CASES)[number], p: object) => Number(new Clinic({ ...c.cfg, ...p }).run(100).last.freshAcc.toFixed(3));
+    expect(fresh(c1, { normalise: true })).toBe(0.93);
+    expect(fresh(c1, { shuffle: true })).toBe(0.657);
+    expect(fresh(c1, { normalise: true, shuffle: true })).toBe(0.978);
+    expect(fresh(c2, { hidden: [8, 8] })).toBe(0.505);
+    expect(fresh(c2, { lr: 0.01 })).toBe(0.367);
+    expect(fresh(c2, { hidden: [8, 8], lr: 0.01 })).toBe(0.967);
+  }, 60000);
+});

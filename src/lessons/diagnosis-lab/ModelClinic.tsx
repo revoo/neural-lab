@@ -9,12 +9,13 @@ import { CASES, CAUSES, KNOBS, singleChanges, type Case, type CauseId } from './
 import { FIXES } from './fixes';
 
 const STORE = 'nl-clinic-v1';
-type Saved = { diagnosed: Record<string, boolean>; wrong: Record<string, CauseId[]>; fixes: Record<string, string[]>; fixed: Record<string, boolean> };
+/** `found`: causes named so far, for two-cause cases (the case counts as diagnosed once all are found). */
+type Saved = { diagnosed: Record<string, boolean>; wrong: Record<string, CauseId[]>; fixes: Record<string, string[]>; fixed: Record<string, boolean>; found: Record<string, CauseId[]> };
 const load = (): Saved => {
   try {
-    return { diagnosed: {}, wrong: {}, fixes: {}, fixed: {}, ...JSON.parse(localStorage.getItem(STORE) ?? '{}') };
+    return { diagnosed: {}, wrong: {}, fixes: {}, fixed: {}, found: {}, ...JSON.parse(localStorage.getItem(STORE) ?? '{}') };
   } catch {
-    return { diagnosed: {}, wrong: {}, fixes: {}, fixed: {} };
+    return { diagnosed: {}, wrong: {}, fixes: {}, fixed: {}, found: {} };
   }
 };
 
@@ -280,8 +281,14 @@ function FixBench({ c, saved, onFix }: { c: Case; saved: Saved; onFix: (label: s
     <div className="clinic-fix">
       <h4 style={{ margin: '0 0 6px' }}>Fix it</h4>
       <p className="muted" style={{ margin: '0 0 10px', fontSize: 13.5 }}>
-        Change anything you like, then train. The goal: at least <strong>{pct(c.target)}</strong> accuracy on <strong>fresh data</strong>. Optional: how many different{' '}
-        <em>single</em> changes can you find that fix it on their own?
+        Change anything you like, then train. The goal: at least <strong>{pct(c.target)}</strong> accuracy on <strong>fresh data</strong>.{' '}
+        {c.secondCause ? (
+          <>This case needs at least two changes.</>
+        ) : (
+          <>
+            Optional: how many different <em>single</em> changes can you find that fix it on their own?
+          </>
+        )}
       </p>
       <div className="controls inline" style={{ gap: '10px 16px' }}>
         <label className="clinic-select">
@@ -370,7 +377,12 @@ function FixBench({ c, saved, onFix }: { c: Case; saved: Saved; onFix: (label: s
           </div>
         </div>
       )}
-      <div style={{ marginTop: 12, fontSize: 13.5 }}>
+      {all.length === 0 && (
+        <div className="live-note" style={{ marginTop: 12 }}>
+          No single change in the bench’s menu fixes this case: all {changes.length} were trained and none reaches the target. Fix it with two changes at once.
+        </div>
+      )}
+      <div style={{ marginTop: 12, fontSize: 13.5, display: all.length === 0 ? 'none' : undefined }}>
         <strong>
           One-change fixes found: {found.length} of {all.length}
         </strong>
@@ -410,10 +422,14 @@ export function ModelClinic() {
   const [lastPick, setLastPick] = useState<CauseId | null>(null);
   useEffect(() => setLastPick(null), [c]);
 
+  const causes: CauseId[] = c.secondCause ? [c.cause, c.secondCause] : [c.cause];
+  const foundCauses = diagnosed ? causes : (saved.found[c.id] ?? []).filter((k) => causes.includes(k));
   const pick = (id: CauseId) => {
     setLastPick(id);
-    if (id === c.cause) save({ ...saved, diagnosed: { ...saved.diagnosed, [c.id]: true } });
-    else if (!wrong.includes(id)) save({ ...saved, wrong: { ...saved.wrong, [c.id]: [...wrong, id] } });
+    if (causes.includes(id)) {
+      const f = foundCauses.includes(id) ? foundCauses : [...foundCauses, id];
+      save({ ...saved, found: { ...saved.found, [c.id]: f }, diagnosed: f.length === causes.length ? { ...saved.diagnosed, [c.id]: true } : saved.diagnosed });
+    } else if (!wrong.includes(id)) save({ ...saved, wrong: { ...saved.wrong, [c.id]: [...wrong, id] } });
   };
   const onFix = (label: string | null, ok: boolean) => {
     const found = saved.fixes[c.id] ?? [];
@@ -425,14 +441,21 @@ export function ModelClinic() {
   };
 
   let feedback: ReactNode = null;
-  if (diagnosed && (lastPick === null || lastPick === c.cause))
+  if (diagnosed && (lastPick === null || causes.includes(lastPick)))
     feedback = (
       <div className="feedback good">
-        <div className="feedback-title">✓ {CAUSES.find((k) => k.id === c.cause)!.name}</div>
+        <div className="feedback-title">✓ {causes.map((k) => CAUSES.find((q) => q.id === k)!.name).join(' + ')}</div>
         <p>{c.explain}</p>
       </div>
     );
-  else if (lastPick && lastPick !== c.cause)
+  else if (lastPick && causes.includes(lastPick))
+    feedback = (
+      <div className="feedback good">
+        <div className="feedback-title">✓ {CAUSES.find((k) => k.id === lastPick)!.name} — that’s one of them.</div>
+        <p>This case has two root causes. Fixing only this one won’t be enough: what else does the evidence show?</p>
+      </div>
+    );
+  else if (lastPick && !causes.includes(lastPick))
     feedback = (
       <div className="feedback bad">
         <div className="feedback-title">Not quite: {CAUSES.find((k) => k.id === lastPick)!.name.toLowerCase()}</div>
@@ -473,12 +496,12 @@ export function ModelClinic() {
       </div>
       {run ? (<><TrainLog run={run} /><Evidence run={run} /></>) : <div className="muted" style={{ padding: 20 }}>Training the case…</div>}
       <div className="clinic-diagnose">
-        <h4 style={{ margin: '14px 0 6px' }}>Your diagnosis: what is the root cause?</h4>
+        <h4 style={{ margin: '14px 0 6px' }}>{c.secondCause ? `Your diagnosis: this case has two root causes. Find both (${foundCauses.length} of 2 so far).` : 'Your diagnosis: what is the root cause?'}</h4>
         <div className="clinic-causes">
           {CAUSES.map((k) => (
             <button
               key={k.id}
-              className={`option${diagnosed && k.id === c.cause ? ' correct' : wrong.includes(k.id) ? ' wrong' : ''}`}
+              className={`option${foundCauses.includes(k.id) ? ' correct' : wrong.includes(k.id) ? ' wrong' : ''}`}
               onClick={() => pick(k.id)}
             >
               {k.name}

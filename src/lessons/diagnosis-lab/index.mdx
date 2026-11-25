@@ -56,6 +56,8 @@ Here's what the cases have in common, and what they teach once you've solved the
 
 The habit the clinic is trying to build is the one in the callout above: **separate the symptom from the cause, and look for the piece of evidence that tells candidate causes apart.** The cheap checks — plot the loss, look inside the network at step 0 and at the end, check the inputs' ranges, look for duplicates between training and test, sanity-check the labels — catch most of these problems in minutes, and they're worth doing before you reach for a bigger model or a fancier optimizer.
 
+**Cases 11 and 12 have two causes each**, and no single change in the fix bench rescues either. In the first, normalising the inputs alone lifts fresh accuracy from 66% to 93%, which feels like the answer and isn't: the training file is also sorted by class. In the second, adding hidden layers alone does nothing (50.5%) while the step size is still wild. Real broken runs are often like this. Fixing one cause and seeing a big improvement is not evidence that it was the only one, so after every fix, look at the instruments again.
+
 <ForReal>
 
 This is daily work for anyone who trains models. Andrej Karpathy's widely read "A Recipe for Training Neural Networks" (2019) warns that "neural net training fails silently": a misconfigured run usually doesn't crash, it just learns worse. The first thing a real engineer opens is the training log (loss, gradient norm and step size per step), then the same instruments as this clinic.
@@ -100,7 +102,7 @@ One more check is worth more than all of these: before training on the full data
 
 <Misconception>
 
-"When a model performs badly, the fix is a bigger model or more training." Of the ten cases in the clinic, a bigger network fixes exactly one, the underfitting one, and longer training fixes one, by coincidence. The others need a smaller step, a larger step, different starting weights, normalised inputs, shuffled data, clean labels, an honest test set or more data. Reaching for size first wastes time and compute, and can hide the real problem.
+"When a model performs badly, the fix is a bigger model or more training." Of the ten single-cause cases in the clinic, a bigger network fixes exactly one, the underfitting one, and longer training fixes one, by coincidence. The others need a smaller step, a larger step, different starting weights, normalised inputs, shuffled data, clean labels, an honest test set or more data. Reaching for size first wastes time and compute, and can hide the real problem.
 
 </Misconception>
 

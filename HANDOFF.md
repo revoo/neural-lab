@@ -152,7 +152,7 @@ The owner asked for the plan in `docs/LAB_IMPROVEMENTS.md` to be implemented in 
   - [x] Training-lab challenges: reference network's neuron maps after a challenge
   - [x] Rescue the deep network: per-layer log
   - [x] Attention puzzles: worked q·k → ÷√2 → exp → share table
-  - [ ] The model clinic: train.log tail per case; two-cause cases
+  - [x] The model clinic: train.log tail per case; two-cause cases (11 and 12, fixes recorded by search, pinned in clinic.test.ts)
 
 Notes for whoever continues:
 - Step 1 added `src/components/AnswerReveal.tsx` (`AnswerReveal`, `StuckButton`, `useStuck`): use it for any answer/optimum reveal so it appears only after a solve or an explicit, remembered "I'm stuck". Hints that depend on the brief live in the lesson's `.ts` (`rescueHint`, `alignmentHint`) with a `hints.test.ts` checking they never name a locked control.

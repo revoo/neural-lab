@@ -26,6 +26,8 @@ export type Case = {
   brief: string;
   cfg: Config;
   cause: CauseId;
+  /** Two-cause cases: a second root cause that must also be named (and fixed). */
+  secondCause?: CauseId;
   /** why the right answer is right, pointing at the evidence */
   explain: string;
   /** for each tempting wrong answer: what evidence rules it out */
@@ -178,6 +180,38 @@ export const CASES: Case[] = [
     ruleOut: {
       init: 'At step 0 every neuron was alive. The deaths happened during training.',
       capacity: 'With a sensible step size this network gets about 99%. The capacity is there; most of it has been killed.',
+    },
+  },
+  {
+    id: 'two-sensors-sorted',
+    title: 'Two causes: two sensors, one sorted file',
+    brief: 'Two sensors, one big file of 1,000 training points, momentum with step size 0.01. It is stuck at about two-thirds accuracy. Someone already tried a few things; nothing on its own got us to 95%.',
+    cfg: moons({ xScale: 100, n: 2000, shuffle: false, optimizer: 'momentum', lr: 0.01 }),
+    cause: 'scale',
+    secondCause: 'shuffle',
+    target: 0.95,
+    explain:
+      'Two faults, each with its own fingerprint. The input ranges show the first input running from −160 to 160 while the second stays within about ±1.1: one sensor records in different units, and 7 of the 8 first-layer neurons are saturated. The batch strip shows long runs of single-class batches: the file is sorted by class and read in order. Fix only the scale and fresh accuracy reaches 93.0%; fix only the shuffling and it stays at 65.7%; fix both and it reaches 97.8%. No single change in the fix bench reaches 95%: after you find the first cause, the evidence for the second is still on the screen.',
+    ruleOut: {
+      'lr-high': 'The step size is a normal 0.01 with momentum, and nothing diverges: the loss settles near 0.69 almost at once.',
+      capacity: 'Two hidden layers of 8 neurons handle the moons easily once the data is in order.',
+      labels: 'Neighbouring points agree on their labels; the data itself is fine.',
+    },
+  },
+  {
+    id: 'line-wild-steps',
+    title: 'Two causes: a straight line taking wild steps',
+    brief: 'Circle data, a model with no hidden layer at all, momentum with step size 3. The loss went up instead of down and the accuracy is a coin flip.',
+    cfg: moons({ dataset: 'circle', hidden: [], optimizer: 'momentum', lr: 3 }),
+    cause: 'capacity',
+    secondCause: 'lr-high',
+    target: 0.95,
+    explain:
+      'Two faults. A model with no hidden layer can only draw a straight line, and no straight line separates a circle from what surrounds it. And a step size of 3 with momentum is far too large: the loss climbs above its starting 0.73 straight away and ends at 1.91, worse than a coin flip’s 0.69. Add hidden layers alone and it still fails (50.5% on fresh data), because the steps are still wild; lower the step size alone and it fails too (36.7%), because a line can’t do it. Both together: 96.7%.',
+    ruleOut: {
+      overfit: 'Training accuracy (48%) is as bad as test accuracy (52%): nothing has been memorised.',
+      scale: 'Both inputs span roughly −1.4 to 1.4.',
+      init: 'There are no hidden neurons to start badly, and the trouble begins with the very first, oversized steps.',
     },
   },
 ];

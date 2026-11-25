@@ -1047,5 +1047,209 @@ export const FIXES: Record<string, { label: string; fresh: number }[]> = {
    "label": "stop shuffling",
    "fresh": 0.5
   }
+ ],
+ "two-sensors-sorted": [
+  {
+   "label": "step size 0.0003",
+   "fresh": 0.6983
+  },
+  {
+   "label": "step size 0.001",
+   "fresh": 0.695
+  },
+  {
+   "label": "step size 0.003",
+   "fresh": 0.6667
+  },
+  {
+   "label": "step size 0.03",
+   "fresh": 0.5
+  },
+  {
+   "label": "step size 0.1",
+   "fresh": 0.5017
+  },
+  {
+   "label": "step size 0.3",
+   "fresh": 0.5
+  },
+  {
+   "label": "step size 1",
+   "fresh": 0.5
+  },
+  {
+   "label": "step size 3",
+   "fresh": 0.5
+  },
+  {
+   "label": "optimizer sgd",
+   "fresh": 0.67
+  },
+  {
+   "label": "optimizer adam",
+   "fresh": 0.6967
+  },
+  {
+   "label": "activation relu",
+   "fresh": 0.5
+  },
+  {
+   "label": "hidden no hidden layer",
+   "fresh": 0.7333
+  },
+  {
+   "label": "hidden 4",
+   "fresh": 0.5
+  },
+  {
+   "label": "hidden 16 \u00d7 16",
+   "fresh": 0.5033
+  },
+  {
+   "label": "hidden 16 \u00d7 16 \u00d7 16",
+   "fresh": 0.5
+  },
+  {
+   "label": "weight decay 0.001",
+   "fresh": 0.6517
+  },
+  {
+   "label": "weight decay 0.01",
+   "fresh": 0.645
+  },
+  {
+   "label": "weight decay 0.1",
+   "fresh": 0.5
+  },
+  {
+   "label": "batch size 1",
+   "fresh": 0.5
+  },
+  {
+   "label": "batch size 50",
+   "fresh": 0.6617
+  },
+  {
+   "label": "500 steps",
+   "fresh": 0.6567
+  },
+  {
+   "label": "8000 steps",
+   "fresh": 0.6567
+  },
+  {
+   "label": "collect 4\u00d7 more data",
+   "fresh": 0.5
+  },
+  {
+   "label": "normalise the inputs",
+   "fresh": 0.93
+  },
+  {
+   "label": "shuffle the training data",
+   "fresh": 0.6567
+  }
+ ],
+ "line-wild-steps": [
+  {
+   "label": "step size 0.0003",
+   "fresh": 0.45
+  },
+  {
+   "label": "step size 0.001",
+   "fresh": 0.4067
+  },
+  {
+   "label": "step size 0.003",
+   "fresh": 0.3617
+  },
+  {
+   "label": "step size 0.01",
+   "fresh": 0.3667
+  },
+  {
+   "label": "step size 0.03",
+   "fresh": 0.415
+  },
+  {
+   "label": "step size 0.1",
+   "fresh": 0.3267
+  },
+  {
+   "label": "step size 0.3",
+   "fresh": 0.39
+  },
+  {
+   "label": "step size 1",
+   "fresh": 0.6
+  },
+  {
+   "label": "optimizer sgd",
+   "fresh": 0.535
+  },
+  {
+   "label": "optimizer adam",
+   "fresh": 0.5
+  },
+  {
+   "label": "activation relu",
+   "fresh": 0.5
+  },
+  {
+   "label": "hidden 4",
+   "fresh": 0.605
+  },
+  {
+   "label": "hidden 8 \u00d7 8",
+   "fresh": 0.505
+  },
+  {
+   "label": "hidden 16 \u00d7 16",
+   "fresh": 0.5
+  },
+  {
+   "label": "hidden 16 \u00d7 16 \u00d7 16",
+   "fresh": 0.5
+  },
+  {
+   "label": "weight decay 0.001",
+   "fresh": 0.5
+  },
+  {
+   "label": "weight decay 0.01",
+   "fresh": 0.62
+  },
+  {
+   "label": "weight decay 0.1",
+   "fresh": 0.5
+  },
+  {
+   "label": "batch size 1",
+   "fresh": 0.6367
+  },
+  {
+   "label": "batch size 50",
+   "fresh": 0.3883
+  },
+  {
+   "label": "500 steps",
+   "fresh": 0.3617
+  },
+  {
+   "label": "8000 steps",
+   "fresh": 0.575
+  },
+  {
+   "label": "collect 4\u00d7 more data",
+   "fresh": 0.6
+  },
+  {
+   "label": "normalise the inputs",
+   "fresh": 0.5133
+  },
+  {
+   "label": "stop shuffling",
+   "fresh": 0.5
+  }
  ]
 };
