@@ -570,3 +570,50 @@ export function findPlan(sol: Solution, H: number, prefer?: (o: Outcome) => bool
   const pick = (prefer && frontier.find((p) => prefer(toOutcome(p)))) || frontier[0];
   return { steps: pick.steps, outcome: toOutcome(pick) };
 }
+
+// ------------------------------------------------------------------ the intended plan, for comparison with the hack
+
+/**
+ * What the designer actually meant, as a fixed list of moves: drive over the
+ * pad once, then on to the finish; walk round the vase to the goal; clean both messes, then stand
+ * still (by pushing against the top wall, since ✋ on a cleaned spot would spill
+ * the bin). Moves: 0 ↑, 1 →, 2 ↓, 3 ←, 4 ✋.
+ */
+export const INTENDED_MOVES: Record<BriefId, number[]> = {
+  boat: [1, 1, 2, 2, 1, 1, 1, 0, 0],
+  vase: [2, 1, 1, 1, 1, 0],
+  camera: [1, 1, 1, 4, 0, 0, 4],
+};
+
+/** Play a fixed list of moves in a brief's world, padded to `H` steps with "push against the top wall" if it never ends. */
+export function intendedPlan(id: BriefId, H: number): PlanStep[] {
+  const w = BRIEFS.find((b) => b.id === id)!.world();
+  const moves = INTENDED_MOVES[id];
+  const steps: PlanStep[] = [];
+  let s = w.start;
+  for (let t = 0; t < H; t++) {
+    const a = t < moves.length ? moves[t] : 0;
+    const r = w.step(s, a);
+    steps.push({ state: s, action: a, events: r.events });
+    if (r.done) break;
+    s = r.next;
+  }
+  return steps;
+}
+
+/** What a plan earns under a reward: total, and discounted by γ as the optimiser counts it. */
+export function planReturn(steps: readonly PlanStep[], wts: Weights, gamma = GAMMA): { total: number; discounted: number; perStep: number[] } {
+  const perStep = steps.map((s) => rewardOf(s.events, wts));
+  return { total: perStep.reduce((a, b) => a + b, 0), discounted: perStep.reduce((a, r, t) => a + r * gamma ** t, 0), perStep };
+}
+
+/**
+ * The comparison the optimiser actually makes: the discounted value of its own
+ * plan, V(start), against the discounted value of the plan the designer meant
+ * (played out for 600 steps, after which γ^t < 10⁻¹³, so never-ending plans are
+ * counted in full).
+ */
+export function hackVsIntended(id: BriefId, sol: Solution, wts: Weights): { optimiser: number; intended: number } {
+  const start = BRIEFS.find((b) => b.id === id)!.world().start;
+  return { optimiser: sol.V[sol.ids.get(start)!], intended: planReturn(intendedPlan(id, 600), wts).discounted };
+}

@@ -154,3 +154,39 @@ describe('Lab: the reward-hacking sandbox (exhaustive over every reward setting)
     expect(b).toBeCloseTo(0.88, 2);
   });
 });
+
+describe('the intended plans', () => {
+  it('do exactly what each brief wants', async () => {
+    const { intendedPlan, planReturn } = await import('./hack');
+    const boat = intendedPlan('boat', 16);
+    expect(boat.length).toBe(9);
+    expect(boat[8].events).toContain('finish');
+    expect(boat.filter((s) => s.events.includes('pad')).length).toBe(1);
+    const vase = intendedPlan('vase', 12);
+    expect(vase[vase.length - 1].events).toContain('deliver');
+    expect(vase.some((s) => s.events.includes('break'))).toBe(false);
+    const cam = intendedPlan('camera', 40);
+    expect(cam.filter((s) => s.events.includes('clean')).length).toBe(2);
+    expect(cam.some((s) => s.events.includes('tamper') || s.events.includes('spill'))).toBe(false);
+    // the starter boat reward (finish +10) pays the pad route 10 in total, 10·0.95⁸ discounted:
+    // less than the straight drive's 10·0.95⁴, which is why the starter reward skips the pad
+    const r = planReturn(boat, { finish: 10, pad: 0, step: 0 });
+    expect(r.total).toBe(10);
+    expect(r.discounted).toBeCloseTo(10 * 0.95 ** 8, 12);
+  });
+});
+
+describe('hack vs intended', () => {
+  it('the optimiser never values its plan below the intended one', async () => {
+    const { hackVsIntended, solve, BRIEFS: B } = await import('./hack');
+    const boat = B.find((b) => b.id === 'boat')!;
+    const wts = { finish: 10, pad: 5, step: 0 };
+    const sol = solve(boat.world(), wts);
+    const c = hackVsIntended('boat', sol, wts);
+    expect(c.optimiser).toBeGreaterThanOrEqual(c.intended - 1e-9);
+    // circling the pad (5 every 9 steps, for ever) is worth 11.59; the pad-then-finish route 10.92
+    expect(c.optimiser).toBeCloseTo(11.594, 3);
+    expect(c.intended).toBeCloseTo(5 * 0.95 ** 3 + 10 * 0.95 ** 8, 9);
+    expect(c.intended).toBeCloseTo(10.92, 2);
+  });
+});

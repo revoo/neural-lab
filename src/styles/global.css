@@ -762,3 +762,6 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 0; }
 .timeline-item-head .history-when { margin-left: 0; }
 .timeline-lesson { font-size: 14px; }
 .timeline-item .history-card { margin-top: 8px; font-size: 15px; }
+
+/* Replay controls (src/components/ReplayControls.tsx) */
+.replay-controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 6px 0; }

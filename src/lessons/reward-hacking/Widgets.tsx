@@ -1,6 +1,9 @@
 // authored-by: Claude Opus 5.5
-import { useMemo, useState, type ReactElement } from 'react';
+import { useMemo, useRef, useState, type ReactElement } from 'react';
 import { Widget } from '../../components/Widget';
+import { useReplay } from '../../components/motion';
+import { ReplayControls } from '../../components/ReplayControls';
+import { MachineLog, useMachineLog } from '../../components/MachineLog';
 import { Segmented, Slider } from '../../components/controls';
 import { Label, Plot, usePlot } from '../../components/plot';
 import {
@@ -17,7 +20,9 @@ import {
   complexity,
   exhaustiveLab,
   findPlan,
+  hackVsIntended,
   judge,
+  planReturn,
   shapingRace,
   solve,
   solveField,
@@ -51,9 +56,13 @@ function cellOf(map: readonly string[], ch: string): [number, number] {
 }
 
 /** A grid world with the agent's plan drawn over it. */
-function GridView({ map, steps, endChar, highlight, arrows, size = 56 }: {
+function GridView({ map, steps, endChar, highlight, arrows, size = 56, agent = false, upto }: {
   map: readonly string[];
   steps?: PlanStep[];
+  /** Replay: draw only the first `upto` steps (the agent stands where they lead). */
+  upto?: number;
+  /** Draw the agent where the (possibly partial) plan has got to. */
+  agent?: boolean;
   endChar?: string;
   highlight?: (i: number, j: number) => string | undefined;
   arrows?: (i: number, j: number) => number[];
@@ -67,18 +76,20 @@ function GridView({ map, steps, endChar, highlight, arrows, size = 56 }: {
     const [r, c] = s.split(',').map(Number);
     return [r, c];
   };
-  const pts: [number, number][] = steps ? steps.map((s) => pos(s.state)) : [];
+  const allPts: [number, number][] = steps ? steps.map((s) => pos(s.state)) : [];
   if (steps && steps.length) {
     const lastEv = steps[steps.length - 1].events;
-    if ((lastEv.includes('finish') || lastEv.includes('deliver')) && endChar) pts.push(cellOf(map, endChar));
+    if ((lastEv.includes('finish') || lastEv.includes('deliver')) && endChar) allPts.push(cellOf(map, endChar));
   }
+  const n = upto ?? (steps ? steps.length : 0);
+  const pts = allPts.slice(0, n + 1);
   const cx = (j: number) => 2 + j * size + size / 2;
   const cy = (i: number) => 2 + i * size + size / 2;
   // events by cell (where the agent ends up after the step)
   const marks: { i: number; j: number; ev: string; n: number }[] = [];
   if (steps) {
-    steps.forEach((s, k) => {
-      const where = pts[k + 1] ?? pts[k];
+    steps.slice(0, n).forEach((s, k) => {
+      const where = allPts[k + 1] ?? allPts[k];
       for (const e of s.events) if (EVENT_MARK[e]) marks.push({ i: where[0], j: where[1], ev: e, n: k + 1 });
     });
   }
@@ -146,6 +157,9 @@ function GridView({ map, steps, endChar, highlight, arrows, size = 56 }: {
         />
       )}
       {pts.length > 0 && <circle cx={cx(pts[0][1])} cy={cy(pts[0][0]) + 6} r={5} fill="var(--c-grad)" />}
+      {agent && pts.length > 0 && (
+        <circle cx={cx(pts[pts.length - 1][1])} cy={cy(pts[pts.length - 1][0]) + 6} r={10} fill="var(--accent)" stroke="var(--bg)" strokeWidth={2.5} />
+      )}
       {[...markCells.entries()].map(([key, m], k) => {
         const [i, j] = key.split(',').map(Number);
         const em = EVENT_MARK[m.ev];
@@ -471,6 +485,9 @@ export function RewardLab() {
   const [result, setResult] = useState<ReturnType<typeof judge> | null>(null);
   const [showHint, setShowHint] = useState(false);
   const [showOpt, setShowOpt] = useState(false);
+  const log = useMachineLog();
+  const runId = useRef(0);
+  const [runKey, setRunKey] = useState(0);
   const brief = BRIEFS[briefIdx];
   const entry = lab[brief.id];
   const ex = useMemo(() => (entry.solved ? exhaustiveLab(brief.id) : null), [brief.id, entry.solved]);
@@ -492,6 +509,21 @@ export function RewardLab() {
   const run = () => {
     const r = judge(brief.id, entry.wts);
     setResult(r);
+    runId.current++;
+    setRunKey(runId.current);
+    const p = findPlan(r.sol, brief.id === 'camera' ? 40 : brief.horizon, (o) => !brief.ok(o) || (brief.id === 'camera' && (o.events.has('tamper') || o.events.has('spill'))));
+    const c = hackVsIntended(brief.id, r.sol, entry.wts);
+    log.push(`run ${runId.current} · ${brief.title.split(' · ')[0]} · reward ${Object.entries(entry.wts).filter(([, v]) => v !== 0).map(([e, v]) => `${e} ${signedNum(v)}`).join(', ') || 'all zero'}`);
+    let shown = 0;
+    p.steps.forEach((st, k) => {
+      const rw = planReturn([st], entry.wts).total;
+      const evs = st.events.filter((e) => EVENT_MARK[e]).map((e) => EVENT_MARK[e].label);
+      if (evs.length && shown < 10) {
+        shown++;
+        log.push(`   step ${k + 1}: ${evs.join(', ')}, ${signedNum(rw)}`, st.events.some((e) => e === 'break' || e === 'tamper' || e === 'spill') ? 'bad' : 'info');
+      }
+    });
+    log.push(`   discounted value: optimiser's plan ${c.optimiser.toFixed(2)}, the plan you meant ${c.intended.toFixed(2)} · ${r.pass ? 'no loophole' : 'loophole'}`, r.pass ? 'good' : 'bad');
     if (r.pass) {
       const exh = exhaustiveLab(brief.id);
       const mine = complexity(entry.wts);
@@ -505,6 +537,11 @@ export function RewardLab() {
   const map = brief.id === 'boat' ? BOAT_TRACK : brief.id === 'vase' ? VASE_ROOM : CAMERA_ROOM;
   const endChar = brief.id === 'boat' ? 'F' : 'G';
   const mine = complexity(entry.wts);
+  const replay = useReplay(plan ? plan.steps.length : 0, 300, `${runKey}|${brief.id}`);
+  const shownSteps = plan ? plan.steps.slice(0, replay.i) : [];
+  const soFar = planReturn(shownSteps, entry.wts);
+  const cmp = result ? hackVsIntended(brief.id, result.sol, entry.wts) : null;
+  const padTimer = brief.id === 'boat' && plan && replay.i < plan.steps.length ? Number(plan.steps[replay.i].state.split(',')[2]) : null;
 
   return (
     <Widget
@@ -552,7 +589,29 @@ export function RewardLab() {
       {result && plan && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16, alignItems: 'start' }}>
           <div style={{ display: 'grid', gap: 8 }}>
-            <GridView map={map} steps={plan.steps} endChar={endChar} size={brief.id === 'vase' ? 60 : 56} />
+            <GridView map={map} steps={plan.steps} upto={replay.i} endChar={endChar} size={brief.id === 'vase' ? 60 : 56} agent />
+            <ReplayControls r={replay} />
+            <div className="readout">
+              <span className="k">step </span>
+              {replay.i}
+              {replay.i > 0 && (
+                <>
+                  {' · '}
+                  {plan.steps[replay.i - 1].events.filter((e) => EVENT_MARK[e]).map((e) => EVENT_MARK[e].label).join(', ') || 'moves'}{' '}
+                  {signedNum(soFar.perStep[replay.i - 1] ?? 0)}
+                </>
+              )}
+              {'\n'}
+              <span className="k">reward so far </span>
+              {soFar.total.toFixed(1)} <span className="k">(discounted {soFar.discounted.toFixed(2)})</span>
+              {padTimer !== null && (
+                <>
+                  {'\n'}
+                  <span className="k">pad </span>
+                  {padTimer === 0 ? 'charged' : `recharging, ${padTimer} step${padTimer === 1 ? '' : 's'} left`}
+                </>
+              )}
+            </div>
             <PlanText steps={plan.steps} max={brief.id === 'camera' ? 30 : 20} />
           </div>
           <div style={{ display: 'grid', gap: 10 }}>
@@ -564,6 +623,22 @@ export function RewardLab() {
                 {result.failures.map((f) => (
                   <div key={f}>✗ the agent {f}</div>
                 ))}
+              </div>
+            )}
+            {cmp && (
+              <div className="readout">
+                <span className="k">what the optimiser compares (discounted, γ = 0.95, for ever)</span>
+                {'\n'}
+                <span className="k">its plan          </span>
+                {cmp.optimiser.toFixed(2)}
+                {'\n'}
+                <span className="k">the plan you meant </span>
+                {cmp.intended.toFixed(2)}
+                {'\n'}
+                <span className="k">
+                  {cmp.optimiser > cmp.intended + 1e-9 ? 'your reward pays the hack more' : 'a tie: the agent may take either'}
+                  {result.pass ? '' : ''}
+                </span>
               </div>
             )}
             <div className="live-note">
@@ -588,6 +663,8 @@ export function RewardLab() {
           </div>
         </div>
       )}
+
+      <MachineLog lines={log.lines} onClear={log.clear} empty="Unleash the optimiser: its plan's rewarding events are logged here, step by step." />
 
       {entry.solved && ex && (
         <div style={{ marginTop: 14 }}>

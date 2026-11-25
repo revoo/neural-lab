@@ -96,3 +96,66 @@ export function useFramePlayer(frames: number, frameMs: number, onFrame: (i: num
   };
   return { start, running, reduced };
 }
+
+/**
+ * A replay of a recorded process, frame 0 … frames: play, pause, step and
+ * reset. Under reduced motion, play jumps to the end. Changing `resetKey`
+ * (a new run) rewinds to frame 0 and, if `autoplay`, starts again.
+ */
+export function useReplay(frames: number, frameMs = 260, resetKey: unknown = undefined, autoplay = true) {
+  const reduced = usePrefersReducedMotion();
+  const [i, setI] = useState(autoplay && !reduced ? 0 : frames);
+  const [playing, setPlaying] = useState(autoplay && !reduced);
+  const lastKey = useRef(resetKey);
+  useEffect(() => {
+    if (lastKey.current === resetKey) return;
+    lastKey.current = resetKey;
+    if (reduced || !autoplay) {
+      setI(frames);
+      setPlaying(false);
+    } else {
+      setI(0);
+      setPlaying(true);
+    }
+  }, [resetKey, frames, reduced, autoplay]);
+  useEffect(() => {
+    if (!playing) return;
+    if (i >= frames) {
+      setPlaying(false);
+      return;
+    }
+    const t = window.setTimeout(() => setI((v) => Math.min(frames, v + 1)), frameMs);
+    return () => window.clearTimeout(t);
+  }, [playing, i, frames, frameMs]);
+  return {
+    i: Math.min(i, frames),
+    frames,
+    playing,
+    play: () => {
+      if (reduced) {
+        setI(frames);
+        return;
+      }
+      if (i >= frames) setI(0);
+      setPlaying(true);
+    },
+    pause: () => setPlaying(false),
+    step: () => {
+      setPlaying(false);
+      setI((v) => Math.min(frames, v + 1));
+    },
+    back: () => {
+      setPlaying(false);
+      setI((v) => Math.max(0, v - 1));
+    },
+    reset: () => {
+      setPlaying(false);
+      setI(0);
+    },
+    seek: (v: number) => {
+      setPlaying(false);
+      setI(Math.max(0, Math.min(frames, v)));
+    },
+  };
+}
+export type Replay = ReturnType<typeof useReplay>;
