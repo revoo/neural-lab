@@ -782,6 +782,25 @@ export const HISTORY: HistoryEntry[] = [
       after: { text: 'Diffusion and its straight-line cousin flow matching now drive image, video, audio, and protein-structure generators including Stable Diffusion, DALL·E, Sora, and AlphaFold 3.', source: 'https://arxiv.org/abs/2010.02502' },
     },
   },
+  {
+    id: 'guidance',
+    lessonId: 'guidance',
+    lab: 'Tune the Guidance',
+    idea: 'Classifier Guidance, Classifier-Free Guidance (CFG) & CFG Rescaling',
+    years: [2021, 2022, 2023],
+    when: '2021 · 2022 · 2023',
+    who: [
+      { text: 'Prafulla Dhariwal and Alex Nichol (May 2021) introduce classifier guidance in Diffusion Models Beat GANs on Image Synthesis, steering reverse diffusion with gradients of a noise-aware classifier.', source: 'https://arxiv.org/abs/2105.05233' },
+      { text: 'Jonathan Ho and Tim Salimans (NeurIPS 2021 Workshop / arXiv 2022) propose Classifier-Free Diffusion Guidance (CFG), dropping labels during training so one model provides both conditional and unconditional estimates.', source: 'https://arxiv.org/abs/2207.12598' },
+      { text: 'Alex Nichol, Prafulla Dhariwal, Aditya Ramesh, and colleagues at OpenAI release GLIDE (December 2021), showing human evaluators strongly prefer CFG over CLIP-guided text-to-image diffusion.', source: 'https://arxiv.org/abs/2112.10741' },
+      { text: 'Shanchuan Lin, Bingchen Liu, Jiashi Li, and Xiao Yang (2023) diagnose exposure and oversaturation artifacts at high CFG scales and introduce CFG rescaling.', source: 'https://arxiv.org/abs/2305.08891' },
+    ],
+    story: {
+      before: { text: 'Plain conditional diffusion struggled to match GAN sample sharpness without training an expensive separate noise-aware classifier at every noise level.', source: 'https://arxiv.org/abs/2105.05233' },
+      this: { text: 'Extrapolating from the unconditional prediction past the conditional one gave a single knob — guidance scale w — trading sample diversity for crisp prompt alignment.', source: 'https://arxiv.org/abs/2207.12598' },
+      after: { text: 'CFG became the universal steering dial inside Stable Diffusion, Imagen, DALL·E 2, and video generators, with modern distillation baking guided trajectories directly into few-step students.', source: 'https://arxiv.org/abs/2112.10741' },
+    },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */

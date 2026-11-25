@@ -153,6 +153,10 @@ Mixing the guesses is the same as mixing the noise predictions, because each is 
 
 Now you're the one shipping the generator. You control two dials: the number of steps (each one is a full pass through the network, so fewer is faster) and the guidance scale. The denoiser is exact, so only your settings matter. Each brief asks for a different balance of accuracy and variety; the optional goal is the fewest steps.
 
+<LabJob>
+  You are tuning a text-to-image API's `num_inference_steps` and `guidance_scale` for three product tiers: a diverse product catalogue, a fast single-hero poster, and a balanced default. Every extra step adds latency (and guidance doubles calls per step), while pushing guidance too high collapses variety onto one stereotypical look.
+</LabJob>
+
 <GuidanceLab />
 
 <Deeper title="Debrief: the three briefs" tag="Spoiler">
@@ -168,6 +172,12 @@ All 102 settings (6 step counts × 17 guidance scales from 0 to 4) were tried fo
 We re-ran the search from two other sets of starting noise: the fewest steps came out the same (5, 2 and 6) every time, though which values of $w$ work at that step count shifted slightly.
 
 </Deeper>
+
+<ForReal>
+  Every `StableDiffusionPipeline` or Flux/SDXL API exposes these exact two knobs (`num_inference_steps` and `guidance_scale`). Higher `w` makes outputs snap sharply to the prompt in fewer steps at the cost of collapsing mode diversity ("same-face" syndrome) and doubling denoiser evaluations per step via a batched `[uncond, cond]` forward pass; distilled models such as LCM, SDXL-Turbo, and Flux.1-schnell bake a target guidance scale directly into the student weights so they can run in 1–4 single-pass steps.
+</ForReal>
+
+<HistoryCard id="guidance" />
 
 <Quiz questions={questions} />
 
