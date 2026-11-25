@@ -1,0 +1,172 @@
+{/* authored-by: Claude Opus 5.5 */}
+import { OrangePeel, RandomCosines, DistanceConcentration, PackLab } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: your intuition was trained in three dimensions
+
+Every embedding in this course is a point in a space with hundreds or thousands of dimensions. GPT-2 represents each token with 768 numbers; sentence embeddings used for search have 384 to 3,072. We draw them as arrows on a flat page, and the vectors lesson promised that the rules (dot products, lengths, angles) work the same in any number of dimensions.
+
+The rules do. The *intuitions* don't. Here are three statements that are obviously false in the world you live in, and true in 768 dimensions:
+
+- Almost all of an orange is peel.
+- Pick two directions at random and they're almost certainly at right angles.
+- Your nearest neighbour is barely closer than your farthest.
+
+This lesson makes each one feel inevitable, and it turns out a single idea explains all three, one you already have from the statistics lesson. Then we'll use the strangeness: high-dimensional spaces have room for far more nearly independent directions than they have dimensions, and neural networks appear to exploit that.
+
+<Analogy title="Think of a record with many fields">
+
+As a programmer, picture a vector as a record with d numeric fields. The distance between two records is computed from the differences in every field, squared and added up. A dot product is a loop that multiplies matching fields and adds them up.
+
+Both are **sums of d independent-ish pieces**. And the statistics lesson told you exactly what happens to such sums: the total grows like d, but the wobble around it grows only like √d. With d = 3 that wobble is a big fraction of the total. With d = 768 it's a sliver. Almost everything strange in this lesson is that one fact, seen from different angles.
+
+</Analogy>
+
+## Almost all of an orange is peel
+
+Take a ball of radius 1 and peel off a thin outer layer of thickness ε. What's left is a ball of radius 1 − ε. In 2D its area shrinks by (1 − ε)², in 3D its volume by (1 − ε)³, and in d dimensions by (1 − ε) multiplied by itself d times.
+
+<Eq
+  words="\cb{\text{share of the volume in the peel}} = 1 - (1 - \cv{\text{peel thickness}})^{\ca{\text{dimensions}}}"
+  tex="\cb{\text{peel}} = 1 - (1 - \cv{\varepsilon})^{\ca{d}}"
+>
+
+- $\cv{\varepsilon}$ — the **thickness of the peel**, as a fraction of the radius (0.01 = the outer 1%)
+- $\ca{d}$ — the number of **dimensions**
+- $(1-\varepsilon)^d$ — the share of the volume in the inner, peeled ball: one factor of $(1 - \varepsilon)$ per dimension
+- $\cb{\text{peel}}$ — what's left: the share of the volume within $\varepsilon$ of the surface
+
+</Eq>
+
+<Predict
+  question="In 100 dimensions, roughly what share of a ball's volume lies in the outer 1% of its radius?"
+  options={['About 1%', 'About 3%', 'About 63%', 'Over 99%']}
+  answer={2}
+>
+
+0.99 multiplied by itself 100 times is about 0.37, so the outer 1% holds about **63%** of the volume. In 3D it's 3%. In 768 dimensions it's 99.96%. In high dimensions, "inside the ball" means "near the surface", almost without exception.
+
+</Predict>
+
+<OrangePeel />
+
+The readout's other two lines tell a related story. A ball fits snugly inside a cube, touching every face. In 2D the circle fills 79% of its square and in 3D the ball fills 52% of its cube. In 10 dimensions it fills a quarter of one percent, and in 768 dimensions about 10⁻⁸⁶⁸ of it. Where did the volume go? Into the corners. The corner of a cube in d dimensions is √d radii from the centre, so in 768 dimensions the corners are 27.7 radii away, and there are 2⁷⁶⁸ of them.
+
+## Two random arrows are almost always perpendicular
+
+In 3D, if you pick two directions at random, every angle between them is about equally plausible. The cosine is spread evenly between −1 and 1, a fact that goes back to Archimedes. Now count what the cosine actually computes.
+
+<Eq
+  words="\cc{\text{cosine}} = \frac{\cp{\text{sum over } d \text{ fields of } (a \times b)}}{\text{length of } a \times \text{length of } b} \approx \frac{\pm\sqrt{d}}{\sqrt{d}\cdot\sqrt{d}} = \pm\frac{1}{\sqrt{d}}"
+  tex="\cc{\cos\theta} = \frac{\cp{\sum_{i=1}^{d} a_i b_i}}{\|\mathbf{a}\|\,\|\mathbf{b}\|}, \qquad \text{spread of } \cc{\cos\theta} = \frac{1}{\sqrt{d}}"
+>
+
+- $\cp{\sum_i a_i b_i}$ — the **dot product**: $d$ products of independent random entries, positive and negative, which mostly cancel. By the statistics lesson its spread is $\sqrt{d}$ (for entries with spread 1)
+- $\|\mathbf{a}\|$ — the **length** of $\mathbf{a}$: the square root of a sum of $d$ squares, so about $\sqrt{d}$ (and very reliably so, for large $d$)
+- $\cc{\cos\theta}$ — their ratio. For random directions its spread is exactly $1/\sqrt{d}$
+
+</Eq>
+
+So the cosine between random directions shrinks like 1/√d. In 768 dimensions that's 0.036: random arrows are typically within about 2 degrees of perpendicular, and hardly ever more than 6.
+
+<RandomCosines />
+
+This changes how to read a cosine similarity. In 3D a cosine of 0.3 is nothing special: 70% of random pairs have |cos| at least that big. In 768 dimensions a random pair reaches 0.3 with a probability of about 2 in 10¹⁷. So when two sentence embeddings have cosine 0.3, the right reaction isn't "low", it's "*definitely* related". The scale of "similar" depends on the dimension.
+
+The same arithmetic explains a design choice you've already seen. The attention lesson divided its scores $\mathbf{q}\cdot\mathbf{k}$ by $\sqrt{d}$: a dot product of $d$ independent unit-sized pieces has spread $\sqrt{d}$, and without the division, bigger heads would produce bigger scores and saturate the softmax.
+
+## Nearest and farthest look alike
+
+The squared distance between two points is a sum of d squared differences, one per field. Sums of many independent pieces concentrate: the total grows like d, while the wobble from point to point grows only like √d. So as d grows, all the distances from a query bunch together around the same value.
+
+<DistanceConcentration />
+
+With 1,000 random points in a 2D square, the farthest is typically dozens of times farther away than the nearest (56 times, for the median of 20 seeds). Averaged over the same 20 seeds: in 10 dimensions the farthest is 3.7 times the nearest, in 100 dimensions only 1.44 times, and in 1,000 dimensions just **1.12** times (between 1.10 and 1.13 on every seed). For structureless data, "nearest neighbour" stops meaning much. This is one face of what's called the **<Term id="curse-of-dimensionality">curse of dimensionality</Term>**.
+
+<Misconception>
+
+"So nearest-neighbour search on embeddings can't work." It works very well, because embeddings aren't uniformly random. Real data has structure: it clusters, and it lies near much lower-dimensional surfaces inside the big space (the photos of faces don't fill all of pixel space). A learned embedding is trained precisely to put related things close together. Distance concentration is the reason a *random* direction carries almost no information, and the reason a strong cosine between two embeddings carries a lot.
+
+</Misconception>
+
+## Room for more directions than dimensions
+
+Here's the payoff. In d dimensions you can have at most d *exactly* perpendicular directions: that's what dimension means. But you've just seen that random directions are *nearly* perpendicular, to within about 1/√d. If a little overlap is acceptable, how many nearly perpendicular directions fit?
+
+Far more than d. Results in this family (the Johnson–Lindenstrauss lemma is the famous one) show the number of directions with every |cosine| below some small threshold can grow *exponentially* with d. In 768 dimensions you could fit astronomically more "almost independent" directions than 768.
+
+Why should a machine-learning engineer care? Because networks appear to use this. Interpretability research (for example Anthropic's "Toy Models of Superposition", 2022) found that small networks trained to store more features than they have neurons do exactly this: when features are rarely active at the same time, the network gives each one its own nearly perpendicular direction and tolerates a little interference. It's called **<Term id="superposition">superposition</Term>**. It's one reason individual neurons in big models often respond to several unrelated things.
+
+You can feel the effect with vectors simple enough to search exhaustively: every entry is +1 or −1. The dot product of two such vectors counts agreements minus disagreements, so "perpendicular" means "agree in exactly half the places".
+
+## Lab: Superposition — more concepts than dimensions
+
+Each brief gives a dimension and a limit on how much any two vectors may overlap. Your job is to fit the required number of ±1 concept vectors. One brief is impossible, and you can declare it so. The maximum for every brief was found by searching every possible set of ±1 vectors, so the optional goal (fit as many as possible) has a known answer.
+
+<PackLab />
+
+<Deeper title="Debrief: what the maxima say" tag="Spoiler">
+
+**Brief 1** has exactly one answer up to signs and order: the four diagonals of a cube, (1, 1, 1), (1, −1, −1), (−1, 1, −1), (−1, −1, 1). Every pair has dot product −1, so cosine −1/3. Four is the maximum: there are only four lines through opposite corners.
+
+**Brief 2** is a *Hadamard* pattern: four rows that each agree with every other row in exactly two places. Four is all 4D allows when the overlap must be exactly zero.
+
+**Brief 3** relaxes the rule to |cos| ≤ 0.5, and all **8** possible ±1 directions in 4D fit together: twice the dimension.
+
+**Brief 4** is impossible. Three mutually perpendicular ±1 vectors need the dimension to be a multiple of 4: after flipping coordinates so the first vector is all +1s, the other two each need three −1s and must share exactly 1.5 of them. The exhaustive maximum in 6D is **2**.
+
+**Brief 5** asks for 10 in 6D; the exhaustive maximum is **16**, more than two and a half times the dimension, with every pair agreeing in 2, 3 or 4 of the 6 places. With 7 dimensions and |cos| ≤ 1/7 you can already fit 8. The gap between "exactly perpendicular" (at most d) and "nearly perpendicular" grows explosively with d. At 768 dimensions it's the reason one embedding space can hold so many concepts.
+
+</Deeper>
+
+## In code
+
+All three effects in a few lines of NumPy:
+
+```python
+import numpy as np
+rng = np.random.default_rng(0)
+
+for d in [3, 100, 768]:
+    a = rng.standard_normal((2000, d))                 # 2,000 random arrows ...
+    b = rng.standard_normal((2000, d))                 # ... and 2,000 more
+    cos = (a * b).sum(1) / (np.linalg.norm(a, axis=1) * np.linalg.norm(b, axis=1))
+
+    points = rng.random((1000, d))                     # 1,000 points in the unit cube
+    query = rng.random(d)
+    dist = np.linalg.norm(points - query, axis=1)
+
+    print(f"d={d:4d}  cosine spread {cos.std():.3f} (1/sqrt(d) = {1 / np.sqrt(d):.3f})"
+          f"  farthest/nearest {dist.max() / dist.min():6.2f}"
+          f"  volume in outer 1%: {1 - 0.99 ** d:.2%}")
+```
+
+Running it prints:
+
+```text
+d=   3  cosine spread 0.584 (1/sqrt(d) = 0.577)  farthest/nearest  16.67  volume in outer 1%: 2.97%
+d= 100  cosine spread 0.098 (1/sqrt(d) = 0.100)  farthest/nearest   1.41  volume in outer 1%: 63.40%
+d= 768  cosine spread 0.037 (1/sqrt(d) = 0.036)  farthest/nearest   1.15  volume in outer 1%: 99.96%
+```
+
+(The 3D farthest/nearest ratio varies enormously from one random draw to the next, because the nearest of 1,000 points can be almost on top of the query. In high dimensions it barely varies at all, which is the point.)
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- Distances and dot products are **sums over d fields**. Sums concentrate: the total grows like d, the wobble like √d. That one fact drives the whole lesson.
+- **Volume lives at the surface**: the outer 1% of a ball holds 3% of its volume in 3D, 63% in 100D and 99.96% in 768D. A ball fills a vanishing sliver of its cube, because the cube's volume is in its √d-distant corners.
+- **Random directions are nearly perpendicular**: their cosine has spread exactly 1/√d (0.036 in 768D). So a cosine of 0.3 between embeddings is a strong signal, and attention divides by √d.
+- **Distances concentrate**: for random points in 1,000D the farthest is only about 12% farther than the nearest. Real data escapes this because it has structure.
+- Only d directions can be exactly perpendicular, but **far more can be nearly perpendicular**: 16 ±1 vectors in 6D with every |cos| ≤ 1/3. Networks seem to exploit this to store more features than they have neurons (superposition).
+
+</Takeaways>
+
+<InTheWild>
+
+Vector databases face distance concentration head-on. Exact nearest-neighbour search over millions of 768-dimensional embeddings is expensive, so they use approximate methods (graph-based indexes like HNSW, or product quantisation) that exploit the data's structure and accept occasionally missing the true nearest neighbour. Random projection, which squashes high-dimensional data into fewer dimensions by multiplying by a random matrix, works because of the Johnson–Lindenstrauss lemma: random directions are so nearly perpendicular that distances survive the squeeze. And in interpretability, the superposition picture motivates tools like sparse autoencoders, which try to pull a model's many overlapping feature directions apart.
+
+</InTheWild>
+
+That completes the mathematical foundations. You now have every tool the rest of the course leans on: vectors and the spaces they live in, how sensitivity flows through a calculation, probability, surprise, and the statistics of sums.

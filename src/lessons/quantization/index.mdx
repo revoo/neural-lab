@@ -1,0 +1,151 @@
+{/* authored-by: Neon High */}
+import { FloatBitExplorer, OutlierQuantizer, QuantLab } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: 70 billion numbers won't fit on your desk
+
+At the end of Module 13 you saw why labs now over-train 8B and 70B models to make inference cheaper. Now actually try to load a **70-billion-parameter** model onto a GPU.
+
+Standard single-precision floating point (`FP32`) spends **4 bytes** on every parameter:
+
+$$
+70 \times 10^9 \times 4\text{ bytes} = \mathbf{280\text{ GB}}.
+$$
+
+That doesn't fit on a consumer 24 GB RTX 4090. It doesn't even fit on a single \$30,000 80 GB H100 — you would need four H100s just to hold the weights before generating a single word.
+
+Yet neural network weights are not bank balances. They are noisy statistical estimates nudged by stochastic mini-batches. If you round `0.31415927` to `0.314`, the dot product barely notices. That observation is the entire field of **<Term id="quantization">quantisation</Term>** and low-precision arithmetic: shrinking every weight from 32 bits down to 16, 8, or even **4 bits** — turning 280 GB into ~38 GB (or an 8B model from 32 GB into ~4.5 GB that runs right on a laptop).
+
+## How floating-point bits actually spend their budget
+
+A floating-point number is scientific notation packed into bits: **1 sign bit** ($\pm$), an **exponent** (how big or small the power of 2 is: range), and a **mantissa** (the significant digits between powers of 2: precision).
+
+<Analogy title="Think of writing numbers on a fixed-width sticky note">
+
+Suppose your sticky note only has room for **4 symbols** to write a number in scientific notation (`± d.d × 10^e`). You have to decide how many characters to spend on the **exponent** (can you write numbers up to a billion?) versus the **digits** (can you tell `3.14` from `3.15`?).
+
+- **FP16** spends more room on digits (10 mantissa bits) and skimps on the exponent (5 bits) — so anything bigger than **65,504** blows off the edge into `Infinity`, and tiny gradients below $6 \times 10^{-5}$ vanish toward zero.
+- **<Term id="bf16">BF16</Term> (Brain Float 16)** steals 3 bits back from the digits (7 mantissa bits) and hands them to the exponent (8 bits — the **exact same range as FP32**, up to $3.4 \times 10^{38}$!).
+
+</Analogy>
+
+Flip the bits yourself — and click **100,000** and **10⁻⁹** to watch FP16 overflow and underflow while BF16 sails right through.
+
+<FloatBitExplorer />
+
+That single bit-budget trade-off is why **BF16 replaced FP16** across almost every modern GPU and TPU training stack: neural networks tolerate 2.4 decimal digits of precision effortlessly, whereas a single overflowing gradient turning into `NaN` kills a million-dollar training run. Modern H100 and Blackwell GPUs go one step further with **FP8 (E4M3)** — 1 sign, 4 exponent, 3 mantissa bits (max finite **448**) — doubling tensor-core throughput yet again, though FP8 needs per-tensor scaling factors to stay inside $[-448, +448]$.
+
+## Integer quantisation: from floats to tiny rulers
+
+To shrink below 8 bits for inference (where gradients no longer exist), we drop floating-point exponents entirely and map weights onto a **uniform integer ruler** — say **INT8** ($-127$ to $+127$, 255 steps) or **INT4** ($-7$ to $+7$, just **15 steps**!).
+
+<Eq
+  words="\text{integer code} = \text{round}\!\left(\frac{\text{weight}}{\text{step size}}\right), \qquad \text{reconstructed weight} = \text{integer code} \times \text{step size}"
+  tex="\cp{q_i} = \text{clamp}\!\left(\text{round}\!\left(\frac{\ca{w_i}}{\cb{s}}\right), -q_{\max}, q_{\max}\right), \qquad \cc{\hat{w}_i} = \cp{q_i}\,\cb{s}"
+>
+
+- $\ca{w_i}$ — the original high-precision **weight**
+- $\cb{s} = \max_j |\ca{w_j}| / q_{\max}$ — the **scale factor** (step size between adjacent ruler ticks), where $q_{\max} = 127$ for INT8 and $q_{\max} = 7$ for INT4
+- $\cp{q_i}$ — the stored **4-bit or 8-bit integer code**
+- $\cc{\hat{w}_i}$ — the **dequantised weight** reconstructed on the fly when multiplying
+
+</Eq>
+
+### The outlier catastrophe — and group-wise rescue
+
+Symmetric INT4 looks almost too easy — until you meet real LLM weights. Once transformers scale past ~6B parameters, a tiny handful of channels develop **outliers**: weights or activations 10–20× larger than their neighbours.
+
+<Predict
+  question="Take 64 weights: 63 normal Gaussian weights in [−0.9, +0.9] and ONE outlier at 6.5. If you quantise all 64 weights together with per-tensor INT4 (−7..+7), roughly how many of the 63 normal weights get rounded to exact zero?"
+  options={[
+    'Almost none (fewer than 5) — 15 integer levels is plenty',
+    'About a quarter (~15 of 63)',
+    'Over four-fifths (~52 of 63) are wiped straight to zero',
+  ]}
+  answer={2}
+>
+
+**52 of the 63 normal weights (83%) collapse straight to exact zero!** Because the single outlier sets the scale to $s = 6.5 / 7 \approx 0.93$, every weight between $-0.46$ and $+0.46$ rounds to integer `0`. Overall RMSE explodes to **0.2872**.
+
+</Predict>
+
+The cure is wonderfully simple: **group-wise quantisation**. Instead of one scale factor for the whole tensor, chop each row into small **groups** of $g$ consecutive weights (say $g = 16$, $32$, or $128$) and store one 16-bit scale factor per group. The extra memory cost is tiny ($16 / g$ bits per weight — just `0.25` bits at $g = 64$, or `1.0` bit at $g = 16$), and the outlier can only damage the few weights inside its own tiny group!
+
+Test it live below — watch the 63 normal weights recover as you shrink the group size.
+
+<OutlierQuantizer />
+
+Look at the numbers at `w[0] = 6.5`:
+
+- **INT4 per-tensor (`g = 64`, 4.25 b/w):** **52/63** normal weights crushed to zero, RMSE = **0.2872**.
+- **INT4 group-wise (`g = 16`, 5.00 b/w):** **15/63** zeros, RMSE = **0.1296** (over 2× cleaner!).
+- **INT4 group-wise (`g = 8`, 6.00 b/w):** **9/63** zeros, RMSE = **0.0806** (**3.6× cleaner!**).
+- **INT8 per-tensor (`g = 64`, 8.25 b/w):** **0/63** zeros, RMSE = **0.0153** — because 255 ticks have enough headroom even with the outlier.
+
+## Lab: mixed-precision quantisation
+
+In real local LLM files (like `GGUF Q4_K_M` in `llama.cpp`), not every tensor gets the same bit width. Outlier-heavy layers (especially attention projections and embeddings) keep higher precision, while smooth feed-forward matrices take aggressive 4-bit compression.
+
+You have four weight blocks with different outlier profiles and a strict average memory budget of **≤ 5.75 bits/weight**. Uniform `INT4 tensor` (4.25 b) gets **0.1089** RMSE and fails; uniform `INT4 g=16` (5.00 b) gets **0.0646** and still fails. Spend your bit budget smartly to drive average RMSE **≤ 0.045** — and optionally find the exhaustive optimum across all $5^4 = 625$ recipes.
+
+<QuantLab />
+
+<Deeper title="After the lab: what the exhaustive 625-recipe search found" tag="Debrief">
+
+Out of all **625** mixed-precision combinations ($5^4$):
+
+- **Uniform INT4 tensor** (4.25 b/w): avg RMSE **0.1089** (`Attn QKV` alone is 0.2526!).
+- **Uniform INT4 g=16** (5.00 b/w): avg RMSE **0.0646** (`Attn QKV` still 0.1519).
+- Only **5 of 625** assignments stay within ≤ 5.75 bits/w and achieve RMSE ≤ 0.045 — every single one puts outlier-heavy `Attn QKV` in **INT8**.
+- **Exhaustive optimum:** `Attn QKV → INT8`, `Attn Output → INT4 g=16`, `FFN Up → INT4 tensor`, `FFN Down → INT4 g=16` (**5.625 bits/weight**, avg RMSE **0.0334** — over 3× lower error than uniform INT4 tensor!).
+
+</Deeper>
+
+## In code
+
+Symmetric per-tensor and group-wise integer quantisation in twelve lines of plain Python:
+
+```python
+import math
+
+def quantize_symmetric(weights, bits=4, group_size=None):
+    """Symmetric uniform quantisation (per-tensor or group-wise)."""
+    q_max = (1 << (bits - 1)) - 1
+    g = group_size or len(weights)
+    reconstructed = []
+    for start in range(0, len(weights), g):
+        chunk = weights[start : start + g]
+        scale = max(abs(w) for w in chunk) / q_max or 1.0
+        for w in chunk:
+            q = max(-q_max, min(q_max, round(w / scale)))
+            reconstructed.append(q * scale)
+    rmse = math.sqrt(sum((a - b) ** 2 for a, b in zip(weights, reconstructed)) / len(weights))
+    return reconstructed, rmse
+```
+
+Run on 15 normal weights plus one 6.5 outlier, per-tensor INT4 (`group_size=16`) gives RMSE **0.2655**, while `group_size=4` cuts it nearly in half to **0.1380** (1.9× smaller). Production quantisers like **AWQ** and **GPTQ** go one step further: they run a small calibration dataset through the model to measure *which weights actually meet large activations* and protect those exact channels.
+
+<Misconception>
+
+"4-bit quantisation makes a model 4× dumber." On modern 7B–70B LLMs, well-tuned 4-bit group-wise quantisation (`Q4_K_M`, AWQ, GPTQ) typically loses less than 1–2% on benchmarks and barely moves perplexity — while cutting memory footprint by **3.5–4×** and making single-user token generation **3–4× faster** (for a reason you will see in the very next lesson!). Where 4-bit *does* hurt noticeably is on very tiny models (1B–3B, where every weight carries heavy load) or ultra-aggressive 2-bit/3-bit quantisation without calibration.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- Floating-point formats trade **exponent bits (range)** against **mantissa bits (precision)**. **BF16** (1+8+7) beats **FP16** (1+5+10) for training because it keeps FP32's full range and never overflows at 65,504.
+- **Integer quantisation** maps weights onto a uniform ruler of $2^b - 1$ steps via a scale factor $s = \max|w| / q_{\max}$.
+- One **outlier weight** stretches a shared INT4 scale and crushes most normal weights straight to zero. **Group-wise quantisation** isolates outliers to small blocks for a tiny $16 / g$ bits/weight overhead.
+- **Mixed precision** (keeping outlier-sensitive layers in INT8/INT6 and smooth FFN layers in INT4) gives far lower distortion at almost the same memory footprint.
+
+</Takeaways>
+
+<InTheWild>
+
+Google Brain invented **bfloat16** for TPUs specifically after noticing that deep neural networks needed FP32's exponent range far more than its mantissa precision; NVIDIA adopted it starting with Ampere (A100), and Hopper/Blackwell added **FP8** tensor cores. For consumer inference, Tim Dettmers's **LLM.int8()** (2022) and **QLoRA (NF4)** (2023) along with **AWQ**, **GPTQ** and Georgi Gerganov's **GGUF K-quants** (`llama.cpp`) made it possible to run 70B models on a single workstation or laptop.
+
+</InTheWild>
+
+You can now shrink a 70B model's weights from 280 GB down to ~40 GB. Next: the *other* memory monster during long conversations — **KV caching** — and why LLM decoding speed is ruled by memory bandwidth rather than GPU FLOPs.

@@ -39,8 +39,9 @@ export const MODULES: ModuleMeta[] = [
       { id: 'chain-rule', title: 'The Chain Rule: Sensitivity Through a Pipeline', summary: 'How sensitivities multiply through a chain of functions — the engine underneath backpropagation.', minutes: 20, load: () => import('./lessons/chain-rule/index.mdx') },
       { id: 'probability', title: 'Probability Distributions & Softmax', summary: 'Turning arbitrary scores into well-behaved probabilities, and what temperature actually does.', minutes: 20, load: () => import('./lessons/probability/index.mdx') },
       { id: 'information', title: 'Logarithms, Surprise & Cross-Entropy', summary: 'Why “how surprised were you?” is the loss function behind every classifier and language model.', minutes: 25, load: () => import('./lessons/information/index.mdx') },
+      { id: 'statistics', title: 'Statistics: Mean, Variance & the Bell Curve', summary: 'Spread as an average of squares, why variances add, where the bell curve comes from, how much a test score wobbles — and Lab: The Dice Workshop.', minutes: 30, load: () => import('./lessons/statistics/index.mdx') },
+      { id: 'high-dimensions', title: 'High-Dimensional Geometry', summary: 'Why almost all of an orange is peel in 768 dimensions, why random arrows are perpendicular, why neighbours look alike — and Lab: Superposition.', minutes: 30, load: () => import('./lessons/high-dimensions/index.mdx') },
     ],
-    planned: ['Statistics: mean, variance and the bell curve', 'High-dimensional geometry'],
   },
   {
     id: 'neuron',
@@ -85,8 +86,8 @@ export const MODULES: ModuleMeta[] = [
     lessons: [
       { id: 'backpropagation', title: 'Backpropagation, One Step at a Time', summary: 'Walk a real computational graph forwards and backwards, number by number.', minutes: 35, load: () => import('./lessons/backpropagation/index.mdx') },
       { id: 'network-from-scratch', title: 'A Neural Network from Scratch', summary: 'A whole network in fifteen lines of matrix code — and a lab where you write the backward pass yourself, checked against measured gradients.', minutes: 35, load: () => import('./lessons/network-from-scratch/index.mdx') },
+      { id: 'vanishing-gradients', title: 'Vanishing & Exploding Gradients', summary: 'Why deep networks freeze or blow up to NaN, how Xavier and He initialisation conserve variance, why residual skips rescue 32-layer stacks — and a deep-stack rescue lab.', minutes: 35, load: () => import('./lessons/vanishing-gradients/index.mdx') },
     ],
-    planned: ['Vanishing and exploding gradients, in depth'],
   },
   {
     id: 'training',
@@ -122,13 +123,52 @@ export const MODULES: ModuleMeta[] = [
       { id: 'multi-head-attention', title: 'Multi-Head Attention', summary: 'Why one softmax can only answer one question at a time — and how splitting attention into heads asks several at once, for free.', minutes: 25, load: () => import('./lessons/multi-head-attention/index.mdx') },
       { id: 'positions', title: 'Positions: Teaching Attention About Order', summary: 'Attention can’t tell “dog bites man” from “man bites dog”. Clocks, rotations, and a lab where you build a head that finds the previous word.', minutes: 30, load: () => import('./lessons/positions/index.mdx') },
       { id: 'transformer-block', title: 'The Transformer Block', summary: 'Communicate, then compute, on a shared whiteboard: attention, feed-forward networks, residual connections, layer norm and the causal mask — assembled into a GPT.', minutes: 35, load: () => import('./lessons/transformer-block/index.mdx') },
+      { id: 'tokenization', title: 'Tokenization & Byte-Pair Encoding', summary: 'How raw text becomes integer IDs: why characters are too long, words are too many, how BPE discovers subwords — and why models struggle to count the “r”s in strawberry.', minutes: 30, load: () => import('./lessons/tokenization/index.mdx') },
     ],
-    planned: ['Tokenization'],
   },
-  { id: 'llms', number: 13, title: 'Large Language Models', blurb: 'From next-token prediction to assistants: sampling, scaling, and their failure modes.', lessons: [], planned: ['Next-token prediction', 'Sampling: temperature, top-k, top-p', 'Scaling laws'] },
-  { id: 'finetuning', number: 14, title: 'Training & Fine-Tuning', blurb: 'Pretraining, fine-tuning, LoRA, RLHF and the rest of the post-training toolkit.', lessons: [], planned: ['Transfer learning', 'LoRA', 'RLHF and DPO'] },
-  { id: 'inference', number: 15, title: 'Inference & Hardware', blurb: 'What actually happens on the GPU, and why memory bandwidth rules everything.', lessons: [], planned: ['Floating point formats', 'Quantization', 'KV caching', 'Memory-bound decoding'] },
-  { id: 'rl', number: 16, title: 'Reinforcement Learning', blurb: 'Agents that learn from consequences — and exploit badly specified rewards.', lessons: [], planned: ['States, actions, rewards', 'Q-learning', 'Policy gradients', 'Reward hacking'] },
+  {
+    id: 'llms',
+    number: 13,
+    title: 'Large Language Models',
+    blurb: 'From next-token prediction to assistants: sampling, scaling, and their failure modes.',
+    lessons: [
+      { id: 'next-token-prediction', title: 'Next-Token Prediction & Perplexity', summary: 'How a transformer writes one token at a time, what perplexity really means, why neural embeddings beat lookup tables — and Shannon’s betting game.', minutes: 30, load: () => import('./lessons/next-token-prediction/index.mdx') },
+      { id: 'sampling', title: 'Sampling: Temperature, Top-k and Top-p', summary: 'Why greedy loops, why raw sampling falls into the long tail, how nucleus sampling adapts to confidence, beam search — and a sampler-tuning lab with an impossible level.', minutes: 30, load: () => import('./lessons/sampling/index.mdx') },
+      { id: 'scaling-laws', title: 'Scaling Laws & Compute-Optimal Training', summary: 'Why training costs 6ND FLOPs, how Chinchilla balances parameters against tokens, why Llama 3 breaks Chinchilla on purpose — and a compute-budget lab.', minutes: 30, load: () => import('./lessons/scaling-laws/index.mdx') },
+    ],
+  },
+  {
+    id: 'finetuning',
+    number: 14,
+    title: 'Training & Fine-Tuning',
+    blurb: 'Pretraining, fine-tuning, LoRA, RLHF and the rest of the post-training toolkit.',
+    lessons: [
+      { id: 'lora', title: 'LoRA & Low-Rank Fine-Tuning', summary: 'Why full fine-tuning blows up VRAM, how factoring ΔW = BA compresses updates 128×, why B=0 & A~N breaks symmetry — and a rank-allocation budget lab.', minutes: 30, load: () => import('./lessons/lora/index.mdx') },
+      { id: 'rlhf-dpo', title: 'RLHF & Direct Preference Optimisation (DPO)', summary: 'Watch a proxy reward model trigger Goodhart’s law, see how DPO cancels Z(x) to drop the reward model, catch likelihood displacement — and tune an alignment pipeline.', minutes: 35, load: () => import('./lessons/rlhf-dpo/index.mdx') },
+    ],
+  },
+  {
+    id: 'inference',
+    number: 15,
+    title: 'Inference & Hardware',
+    blurb: 'What actually happens on the GPU, and why memory bandwidth rules everything.',
+    lessons: [
+      { id: 'quantization', title: 'Floating-Point Formats & Quantisation', summary: 'Flip the bits of FP16, BF16 and FP8, watch one outlier crush per-tensor INT4, and solve a mixed-precision quantisation budget lab.', minutes: 30, load: () => import('./lessons/quantization/index.mdx') },
+      { id: 'kv-cache', title: 'KV Caching & Memory-Bound Decoding', summary: 'Why naive decoding wastes 400× work, how GQA shrinks the KV cache, why an H100 runs at 0.36% compute during single-user chat — and Lab: VRAM Tetris.', minutes: 35, load: () => import('./lessons/kv-cache/index.mdx') },
+    ],
+  },
+  {
+    id: 'rl',
+    number: 16,
+    title: 'Reinforcement Learning',
+    blurb: 'Agents that learn from consequences — and exploit badly specified rewards.',
+    lessons: [
+      { id: 'mdps', title: 'States, Actions, Rewards & Value', summary: 'How discount factor γ controls myopia, how stochastic transitions create cautious detours, Bellman’s dynamic-programming equation — and Lab: Wire the Policy.', minutes: 30, load: () => import('./lessons/mdps/index.mdx') },
+      { id: 'q-learning', title: 'Q-Learning & Exploration', summary: 'Multi-armed bandits and UCB1, model-free TD backups on a live Q-table, Q-learning vs SARSA on Cliff Walking — and Lab: Tune the Q-Learner.', minutes: 35, load: () => import('./lessons/q-learning/index.mdx') },
+      { id: 'policy-gradients', title: 'Policy Gradients, Baselines & Actor-Critic', summary: 'Why some problems need random policies, the log-derivative push, why baselines are free, actor-critic’s one-step judgement, PPO’s clip — and Lab: Stabilise the Policy Gradient.', minutes: 40, load: () => import('./lessons/policy-gradients/index.mdx') },
+      { id: 'reward-hacking', title: 'Lab: The Reward-Hacking Sandbox', summary: 'Why optimisers farm renewable bonuses, the boat-race loop solved exactly, naive vs potential-based shaping — and a lab where an exact optimiser attacks every reward you write.', minutes: 35, load: () => import('./lessons/reward-hacking/index.mdx') },
+    ],
+  },
   { id: 'generative', number: 17, title: 'Generative Models & Diffusion', blurb: 'VAEs, GANs and diffusion: how machines learn to create.', lessons: [], planned: ['Autoencoders and VAEs', 'Diffusion: adding and removing noise', 'Guidance and conditioning'] },
   { id: 'systems', number: 18, title: 'AI Systems Engineering', blurb: 'RAG, tools, agents and evaluation: models inside real software.', lessons: [], planned: ['Retrieval-augmented generation', 'Tool calling and agents', 'Evaluation'] },
 ];

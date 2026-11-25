@@ -1,0 +1,181 @@
+{/* authored-by: Neon High */}
+import { SignalTelephone, VarianceDerivation, DeepTrainingRace, RescueDeepNetLab } from './Widgets';
+import { questions } from './quiz';
+
+# Vanishing & Exploding Gradients
+
+In [Backpropagation](#/learn/backpropagation), we saw that the chain rule passes blame backward through a network by **multiplying** local derivatives one layer after another. For a two-layer network, multiplying two numbers together is completely harmless.
+
+For a 16-layer or 100-layer network, multiplying 16 or 100 numbers together is a **compound-interest machine** — and compound interest almost never stays politely near 1.
+
+- Multiply by **0.25** sixteen times and your signal shrinks to $0.25^{16} \approx 2.3 \times 10^{-10}$ — **<Term id="vanishing-gradients">vanishing gradients</Term>**: the early layers receive zero learning signal and freeze in place.
+- Multiply by **4.0** sixteen times and your signal balloons to $4^{16} \approx 4.3 \times 10^{9}$ — **exploding gradients**: one update sends weights straight to `NaN`.
+
+For nearly two decades — from the late 1980s until the early 2010s — this single exponential knife-edge kept neural networks shallow. Let’s take the compound-interest machine apart and watch the four inventions that finally tamed it: **ReLU**, **variance-preserving initialisation (Xavier & He)**, **LayerNorm**, and **residual skip connections**.
+
+---
+
+## 1. The signal telephone
+
+Imagine sending a random vector of 32 numbers forward through 16 dense layers, then sending a unit-length gradient backward from layer 16 down to layer 0.
+
+At every layer $\ell$, the forward pass multiplies by a matrix $W_\ell$ and applies an activation $\phi$; the backward pass multiplies by the transpose $W_\ell^\top$ and the activation’s slope $\phi'(z_\ell)$:
+
+<Eq
+  words="Layer-0 gradient  =  output gradient  ×  product of (weights × activation slope) at every layer"
+  tex="\ca{\frac{\partial L}{\partial h_0}} \;=\; \cg{\frac{\partial L}{\partial h_L}} \cdot \prod_{\ell=0}^{L-1} \left( \cb{W_\ell^\top} \cdot \cc{\operatorname{diag}\!\big(\phi'(z_\ell)\big)} \right)"
+  legend={[
+    ['\\partial L / \\partial h_0', 'learning signal reaching the very first layer', 'a'],
+    ['\\partial L / \\partial h_L', 'upstream gradient arriving from the loss at the top layer', 'g'],
+    ['W_\\ell^\\top', 'layer weight matrix (transposed for the backward pass)', 'b'],
+    ['\\phi\'(z_\\ell)', 'slope of the activation function at each neuron’s pre-activation', 'c'],
+  ]}
+/>
+
+Before touching the controls below, make a prediction about the classic 1990s combination: **Sigmoid** with sensible **Xavier** weights ($\sigma = 1/\sqrt{d}$).
+
+<Predict
+  question="You build a 16-layer network (width 32) using Sigmoid activations and Xavier initialisation (σ = 1/√32 ≈ 0.177). Roughly how strong is the gradient reaching layer 0 compared to layer 16?"
+  options={[
+    'About 0.5× — Xavier initialisation keeps signals balanced.',
+    'About 0.01× — mildly faded, still easily trainable.',
+    'Less than 10⁻⁹× — vanished by roughly ten orders of magnitude.',
+  ]}
+  answer={2}
+  explain="The sigmoid derivative σ′(z) = σ(z)(1 − σ(z)) peaks at 0.25 (at z = 0) and is even smaller everywhere else. Multiplying by ≤ 0.25 sixteen times crushes the gradient by more than ten orders of magnitude — in our real 16-layer probe below, it lands at 6.1 × 10⁻¹¹!"
+/>
+
+Test that prediction live in the widget below. Try four classic regimes:
+1. **Sigmoid + Xavier:** forward RMS sits near `0.54`, yet the backward gradient collapses to **`6.1 × 10⁻¹¹`**.
+2. **ReLU + σ = 1.0 (Naive):** both forward activations and backward gradients explode past **`3 × 10⁺⁹`**.
+3. **ReLU + Xavier:** better, yet still collapses to **`0.003`** — why? (We will derive the missing $\sqrt{2}$ factor next!)
+4. **ReLU + He:** both forward RMS (`0.80`) and gradient ratio (`0.82`) glide straight through the green corridor!
+
+<SignalTelephone />
+
+And notice one honest surprise when you try **Tanh + Naive ($\sigma = 1.0$)**: textbooks often say saturated tanh *vanishes* gradients, yet at $\sigma = 1.0$ with width 32 the gradient ratio actually *explodes* to **`5.45 × 10⁺³`**! Even though most neurons saturate, the minority landing near zero still get multiplied by random matrices of norm $\sqrt{32} \approx 5.66$, whose product grows faster than saturation shrinks it.
+
+---
+
+## 2. Why $1/\sqrt{d}$ and $\sqrt{2/d}$? Conserving variance
+
+Why did naive $\sigma = 1.0$ weights explode a 16-layer ReLU network to $3.4 \times 10^9$? Because a single neuron’s pre-activation is a **sum of $d$ independent products**:
+
+$$z \;=\; \sum_{j=1}^{d} w_j x_j.$$
+
+When inputs $x_j$ have mean 0 and variance 1, and weights $w_j$ are drawn independently with mean 0 and variance $\sigma_w^2$, the variance of the sum **adds up $d$ times**:
+
+<Eq
+  words="Output variance  =  (half, if ReLU)  ×  fan-in width  ×  weight variance  ×  input variance"
+  tex="\ca{\operatorname{Var}(y)} \;=\; \cc{g} \cdot \cb{d_{\text{in}}} \cdot \cp{\sigma_w^2} \cdot \operatorname{Var}(x) \quad \Longrightarrow \quad \cp{\sigma_w} \;=\; \sqrt{\frac{1}{\cc{g} \cdot \cb{d_{\text{in}}}}}"
+  legend={[
+    ['\\operatorname{Var}(y)', 'variance (squared RMS) of the layer’s outputs — we want this to stay 1', 'a'],
+    ['d_{\\text{in}}', 'number of inputs feeding into each neuron (fan-in)', 'b'],
+    ['\\sigma_w', 'initial standard deviation of the layer’s weights', 'p'],
+    ['g', 'activation survival factor: 1 for linear (Xavier), 1/2 for ReLU (He)', 'c'],
+  ]}
+/>
+
+Look how cleanly the two famous initialisation formulas fall right out of setting $\operatorname{Var}(y) = 1$:
+
+- **<Term id="xavier-init">Xavier / Glorot initialisation</Term>** (linear or small-signal tanh, $g = 1$): choose $\sigma_w = 1/\sqrt{d_{\text{in}}}$.
+- **<Term id="he-init">He / Kaiming initialisation</Term>** (ReLU, $g = \tfrac{1}{2}$): because ReLU zeroes out the entire negative half of a symmetric distribution, it throws away **exactly half** the second moment $E[y^2]$. To put that factor of 2 back, double $\sigma_w^2$ — so $\sigma_w = \sqrt{2 / d_{\text{in}}}$!
+
+Verify that algebra directly on 400 real random dot products below. Notice how ReLU piles half the dots onto exact zero (orange), halving the variance until you click **He**.
+
+<VarianceDerivation />
+
+<Deeper title="Why Tanh + Xavier still slowly fades by layer 16">
+In our 16-layer signal telephone, **Tanh + Xavier** shrank activations from `1.0` down to `0.15` by layer 16. Why? Xavier assumes the activation has slope 1 (linear). Near $z = 0$, $\tanh(z) \approx z$, **but** for $|z| \sim 1$ the curve bends down ($\tanh(1) = 0.76$), shrinking variance by ~15–20% every layer. That is why PyTorch’s `nn.init.calculate_gain('tanh')` recommends a gain of $5/3 \approx 1.67$ — close to He’s $\sqrt{2} \approx 1.41$ — and why in Level 1 of our lab below, **Tanh + He** beats **Tanh + Xavier**!
+</Deeper>
+
+---
+
+## 3. Watching real deep layers freeze, explode, and learn
+
+So far we have only probed untrained networks at step 0. What actually happens when you **train** a deep network with SGD?
+
+Below, four real **8-hidden-layer** networks (`2 → 16 → 16 → … → 1`) train live in your browser for 150 steps on a 64-point concentric-rings classification task. To compare fairly, we searched a learning-rate grid (`0.02 .. 1.6`) over 5 seeds for each stable setup:
+
+- **Sigmoid + Xavier** (even at its grid-searched best $\eta = 1.6$!): layer-1 gradients start **$9 \times 10^{-6}$** smaller than layer 8. Over 150 steps, layer 8 moves by **14.1%**, layer 1 moves by **0.00%**, and loss stays glued to $\ln 2 = 0.6931$ (coin-flip accuracy).
+- **ReLU + Naive ($\sigma = 1.0$)** at ordinary $\eta = 0.05$: activations and gradients explode straight to `NaN` (you would have to shrink $\eta$ to `0.001` just to crawl).
+- **ReLU + He ($\sqrt{2/d}$)** at $\eta = 0.4$: solves concentric rings cleanly to **100%** accuracy (loss `0.0004` on seed 11; average `0.0013` across 5 seeds).
+- **ReLU + He + Residual** at $\eta = 0.4$: solves to **100%** accuracy while moving layer 1’s weights (**10.0%**) nearly as vigorously as layer 8’s (**13.1%**) — whereas plain ReLU + He still updates layer 8 nearly 6× more than layer 1!
+
+*(An honest note: we also tested **ReLU + Xavier** on this 8-layer task. Because 8 layers only shrink ReLU signals by $(1/\sqrt{2})^8 = 1/16$, a large step size $\eta = 0.4$ still lets it reach 100% accuracy at avg loss `0.0090` — seven times higher loss than He’s `0.0013`. It is at 16+ layers where the missing $\sqrt{2}$ truly cripples training.)*
+
+<DeepTrainingRace />
+
+---
+
+## 4. How residual skips break the exponential curse
+
+Even **He initialisation** is fragile at very large depths: each random weight matrix fluctuates slightly around variance 1, and random fluctuations compound across 32 or 100 layers.
+
+**<Term id="residual-connection">Residual connections</Term>** change the algebra of backpropagation completely. Instead of replacing $h_\ell$ with $f_\ell(h_\ell)$, each layer *adds* a small update:
+
+$$h_{\ell+1} \;=\; h_\ell \;+\; \alpha\, f_\ell(h_\ell).$$
+
+Differentiate with respect to $h_\ell$ and look at the **`1`** sitting right in front:
+
+<Eq
+  words="Residual local derivative  =  1 (unobstructed highway)  +  scaled branch derivative"
+  tex="\frac{\partial h_{\ell+1}}{\partial h_\ell} \;=\; \cg{I} \;+\; \cb{\alpha\, \frac{\partial f_\ell}{\partial h_\ell}}"
+  legend={[
+    ['I', 'identity matrix (“1”): lets upstream gradients pass straight through untouched', 'g'],
+    ['\\alpha\\, \\partial f_\\ell / \\partial h_\\ell', 'branch derivative, scaled by α = 1/√L so deep stacks start stable', 'b'],
+  ]}
+/>
+
+Even if the branch $f_\ell$ uses **Sigmoid** — whose derivative is tiny — the identity term $I$ delivers the upstream gradient straight back to layer 0 without ever multiplying by $0.25$! Flip on **LayerNorm + Residual** for 16-layer Sigmoid in our probe and the gradient ratio jumps eleven orders of magnitude, from `6.1 × 10⁻¹¹` straight to **`1.02×`**.
+
+---
+
+## 5. Lab: Rescue the deep network
+
+Now put all four tools together. You have three broken deep stacks:
+1. **Level 1 · Plain 16-layer stack** — no LayerNorm and no Residual skips allowed; only 2 of 15 `(activation, init)` pairs survive.
+2. **Level 2 · The 16-layer Sigmoid curse** — activation is locked to Sigmoid. Try every init scale first to confirm that **0 of 5** plain initialisations work, then unlock architectural lifelines to break the $0.25^{16}$ curse.
+3. **Level 3 · The 32-layer tower** — 0 of 15 plain stacks can keep 32 layers tightly balanced. Combine normalisation, skips, and initialisation to hit the green corridor — and see why modern transformers (like GPT-2) scale residual branches small at step 0!
+
+<RescueDeepNetLab />
+
+---
+
+## 6. Fifteen lines of Python to see twelve orders of magnitude
+
+You can reproduce the exact 16-layer forward RMS collapse and explosion in pure Python with zero libraries:
+
+```python
+import math, random
+
+def forward_rms(depth, width, sigma, act="relu", seed=0):
+    rng = random.Random(seed)
+    h = [rng.gauss(0, 1) for _ in range(width)]
+    for _ in range(depth):
+        W = [[rng.gauss(0, sigma) for _ in range(width)] for _ in range(width)]
+        z = [sum(row[j] * h[j] for j in range(width)) for row in W]
+        h = [max(0.0, v) if act == "relu" else math.tanh(v) for v in z]
+    return math.sqrt(sum(v * v for v in h) / width)
+
+d = 32
+for name, s in [("Naive σ=1.0", 1.0), ("Xavier 1/√d", 1/math.sqrt(d)), ("He √(2/d)", math.sqrt(2/d))]:
+    vals = [forward_rms(16, d, s, "relu", seed=k) for k in range(20)]
+    print(f"{name:12s} -> layer-16 RMS = {sum(vals)/len(vals):.3e}")
+```
+
+Running it prints:
+
+```text
+Naive σ=1.0  -> layer-16 RMS = 2.760e+09
+Xavier 1/√d  -> layer-16 RMS = 2.510e-03
+He √(2/d)    -> layer-16 RMS = 6.426e-01
+```
+
+One single constant in the weight initialiser separates $2.76 \times 10^9$ from $0.0025$ from $0.64$!
+
+---
+
+## Check your understanding
+
+<Quiz questions={questions} />

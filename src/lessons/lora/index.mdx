@@ -1,0 +1,133 @@
+{/* authored-by: Neon High */}
+import { LowRankWorkshop, LoraMemoryCalc, LiveLoraTrainer, LoraBudgetLab } from './Widgets';
+import { questions } from './quiz';
+
+# LoRA & Low-Rank Fine-Tuning
+
+Suppose you have downloaded **Llama-3 8B** — 8 billion weights occupying **15 GiB** in BF16 — and you want to fine-tune it on your company’s support tickets or SQL dialect. You rent a shiny **80 GiB H100**, load the model, hit `train()`, and immediately crash with **`CUDA Out Of Memory`**.
+
+Wait — how can a **15 GiB** model overflow an **80 GiB** GPU before you even feed in a batch of text?
+
+Because *training* with mixed-precision <Term id="adam">AdamW</Term> does not store just the BF16 weights (2 bytes/param). For every trainable weight, it also keeps an FP32 master copy (4 bytes), a BF16 gradient (2 bytes), and Adam’s two FP32 moving averages $m$ and $v$ (8 bytes) — **16 bytes per trainable parameter**, or **119.7 GiB** for Llama-3 8B (and **1,052 GiB** for 70B!). Worse still, if you serve 50 customers, storing 50 separate full fine-tunes means 50 × 15.3 GB = **765 GB** of checkpoints!
+
+**Low-Rank Adaptation (<Term id="lora">LoRA</Term>)** solves both problems with one linear-algebra observation: *when you adapt a pretrained model to a new task, the change you make to each weight matrix is tiny in rank, even when the matrix itself is huge.*
+
+---
+
+## 1. The low-rank hypothesis: factoring $\Delta W = B A$
+
+When you fine-tune a $d \times d$ weight matrix $W_0$, the final weights are simply $W = W_0 + \Delta W$. Full fine-tuning treats all $d^2$ entries of $\Delta W$ as completely independent numbers — for a single $4,096 \times 4,096$ Llama-3 layer, that is **16.8 million** trainable numbers in one matrix alone.
+
+But what if the task shift $\Delta W$ really only pushes inputs along $r = 16$ directions instead of all $4,096$? Then instead of storing the whole $d \times d$ update $\Delta W$, we freeze $W_0$ completely and factor $\Delta W$ into two skinny rectangles — a **down-projection** $A \in \mathbb{R}^{r \times d_{\text{in}}}$ and an **up-projection** $B \in \mathbb{R}^{d_{\text{out}} \times r}$:
+
+<Eq
+  words="Adapted output  =  frozen pretrained layer  +  (scale α / r) × up-matrix B × down-matrix A × input"
+  tex="\ca{h} \;=\; \cb{W_0}\, x \;+\; \frac{\cg{\alpha}}{\cp{r}}\, \cc{B}\, \cv{A}\, x"
+  legend={[
+    ['h', 'output vector of the adapted linear layer', 'a'],
+    ['W_0', 'frozen pretrained weight matrix (d_out × d_in, zero gradients or Adam states)', 'b'],
+    ['A', 'trainable down-projection (r × d_in), initialised with small Gaussian noise', 'v'],
+    ['B', 'trainable up-projection (d_out × r), initialised to exact zeros', 'c'],
+    ['r', 'bottleneck rank (e.g. 8, 16, or 32 — far smaller than d = 4,096)', 'p'],
+    ['\\alpha', 'constant scaling factor so tuning r stays roughly scale-invariant', 'g'],
+  ]}
+/>
+
+Count the trainable parameters on a $4,096 \times 4,096$ matrix at $r = 16$:
+- **Full matrix $\Delta W$:** $4,096 \times 4,096 = 16,777,216$ parameters.
+- **LoRA ($A$ and $B$):** $16 \times (4,096 + 4,096) = 131,072$ parameters — **128× fewer!**
+
+And crucially, **LoRA only works because real fine-tuning updates have low intrinsic rank.** Test the difference yourself on two 12×12 matrices below: a structured task shift vs pure random noise.
+
+<LowRankWorkshop />
+
+Notice the sanity check when you drag $r$ past 6 on a 12×12 matrix: $24r$ actually *exceeds* $144$! LoRA only compresses a matrix when $r$ is well below $\tfrac{1}{2}\min(d_{\text{in}}, d_{\text{out}})$ — which is wildly true in LLMs ($r = 16$ vs $d = 4,096$).
+
+---
+
+## 2. Where the VRAM actually goes — LoRA vs QLoRA
+
+Now plug that parameter reduction into the mixed-precision AdamW memory budget. Because $W_0$ is **frozen**, we store zero master weights, zero gradients, and zero Adam $m, v$ states for 99.5% of the network!
+
+On **Llama-3 8B** (with $r = 16$ applied to all linear projections — attention $Q, K, V, O$ plus MLP Gate, Up, Down):
+- **Full fine-tuning:** 8.03B trainable params → **119.7 GiB** total (**59.8 GiB** in Adam states alone!) and a **15.3 GiB** checkpoint per task.
+- **LoRA (BF16 base):** **41.9M** trainable params (**0.52%**) → **15.6 GiB** total (**0.31 GiB** Adam states — **193× smaller!**) and an **80 MiB** adapter file.
+- **<Term id="qlora">QLoRA</Term> (4-bit base):** store the frozen $W_0$ in 4-bit (from [Floating-Point Formats & Quantisation](#/learn/quantization)) while keeping tiny BF16 adapters → **4.8 GiB** total on 8B, and just **40.1 GiB** on **Llama-3 70B** (down from **1,052 GiB** — a **26×** reduction that puts 70B fine-tuning on a single GPU!).
+
+Explore Llama-3 8B and 70B across methods, ranks and target layers below.
+
+<LoraMemoryCalc />
+
+<Deeper title="Zero extra latency at inference — and hot-swapping 100 adapters">
+Once training finishes, matrix addition is linear:
+
+$$W_{\text{merged}} \;=\; W_0 \;+\; \frac{\alpha}{r}\, B A.$$
+
+You add $\frac{\alpha}{r}BA$ directly into $W_0$ **offline** before deployment, producing an ordinary weight matrix with **zero** extra inference FLOPs and **zero** extra latency. Alternatively, if you serve 100 different customer fine-tunes from one GPU, you keep one shared frozen $W_0$ in VRAM and store 100 tiny 80 MiB `(A, B)` adapters alongside it — dynamically applying each customer’s adapter on the fly!
+</Deeper>
+
+---
+
+## 3. The zero-initialisation puzzle: why $B = 0$ and $A \sim \mathcal{N}$?
+
+Here is a subtle detail that trips up almost everyone implementing LoRA from scratch. At step 0, we want the adapter to add **zero** to the pretrained model ($\Delta W_0 = BA = 0$) so training starts smoothly from the pretrained weights without scrambling them.
+
+<Predict
+  question="You want B·A = 0 at step 0 so your pretrained model starts untouched. What happens if you initialise BOTH A = 0 and B = 0?"
+  options={[
+    'It trains slightly slower on step 1, then catches up normally.',
+    'Nothing ever learns — both gradients ∂L/∂A and ∂L/∂B are identically zero forever.',
+    'It causes exploding gradients because dividing by zero blows up.',
+  ]}
+  answer={1}
+  explain="By the chain rule, ∂L/∂B ∝ e·(Ax)ᵀ and ∂L/∂A ∝ Bᵀ·(exᵀ). If BOTH A = 0 and B = 0, then Ax = 0 makes ∂L/∂B = 0 AND Bᵀ = 0 makes ∂L/∂A = 0! Neither matrix can ever leave zero. Setting B = 0 while drawing A from a Gaussian keeps BA = 0 at step 0 yet gives B an immediate non-zero gradient on step 1."
+/>
+
+Watch all three initialisation rules run live on a real frozen 8×8 layer adapted to a rank-3 shift below. Compare the step-0 loss and step-0 gradient norms `‖∇A‖` and `‖∇B‖` across all three rules!
+
+<LiveLoraTrainer />
+
+Notice an honest quirk on our tiny 8×8 linear problem: **Both random** spikes step-0 loss from `0.541` up to **`0.866`**, yet still recovers cleanly over 80 steps because a single linear layer has a convex quadratic landscape. On a real 32-layer pretrained Transformer, corrupting every attention and MLP matrix with random noise at step 0 destroys the delicate internal representations learned over trillions of tokens — which is why **`B = 0, A ~ N`** is non-negotiable in practice.
+
+---
+
+## 4. Lab: Spend your LoRA rank budget where the shift lives
+
+Standard LoRA assigns the exact same rank $r$ to every layer. Yet in real fine-tuning, early layers often need almost no change (basic syntax already transfers), while middle reasoning layers and output heads carry most of the task shift — the insight behind **AdaLoRA** and rank-allocation methods.
+
+Below, three 8×8 layers of a pretrained model face a domain shift. You have a budget of **≤ 80 trainable parameters** (vs 192 for full fine-tuning) and must drive average residual MSE down to **≤ 0.005**. Watch how both uniform choices fail (`[1, 1, 1]` gets `0.0148` MSE; `[2, 2, 2]` costs 96 params), inspect each layer’s singular-value bars, and find the asymmetric allocation that solves it — and see if you can hit the exhaustive optimum across all 125 combinations!
+
+<LoraBudgetLab />
+
+---
+
+## 5. Ten lines of Python for exact LoRA & QLoRA VRAM budgets
+
+You can verify our exact Llama-3 8B and 70B parameter counts and fine-tuning VRAM footprints in ten lines of plain Python:
+
+```python
+def lora_summary(layers, d_model, d_kv, d_ffn, params_b, rank=16):
+    per_layer = rank * (2 * (d_model + d_model) + 2 * (d_kv + d_model) + 3 * (d_ffn + d_model))
+    trainable = layers * per_layer
+    gib = 1024 ** 3
+    full_gib = (params_b * 1e9 * 16) / gib
+    lora_gib = (params_b * 1e9 * 2 + trainable * 16) / gib
+    qlora_gib = (params_b * 1e9 * 0.5625 + trainable * 16) / gib
+    print(f"{params_b}B r={rank}: trainable={trainable/1e6:.1f}M ({trainable/(params_b*1e9)*100:.2f}%) | Full={full_gib:.1f} GiB | LoRA={lora_gib:.1f} GiB | QLoRA={qlora_gib:.1f} GiB")
+
+lora_summary(32, 4096, 1024, 14336, 8.03, rank=16)
+lora_summary(80, 8192, 1024, 28672, 70.6, rank=16)
+```
+
+Running it prints:
+
+```text
+8.03B r=16: trainable=41.9M (0.52%) | Full=119.7 GiB | LoRA=15.6 GiB | QLoRA=4.8 GiB
+70.6B r=16: trainable=207.1M (0.29%) | Full=1052.0 GiB | LoRA=134.6 GiB | QLoRA=40.1 GiB
+```
+
+---
+
+## Check your understanding
+
+<Quiz questions={questions} />

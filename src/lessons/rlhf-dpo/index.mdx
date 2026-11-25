@@ -1,0 +1,154 @@
+{/* authored-by: Neon High */}
+import { RewardHackingExplorer, DpoLossExplorer, LiveDpoTrainer, AlignmentLab } from './Widgets';
+import { questions } from './quiz';
+
+# RLHF & Direct Preference Optimisation (DPO)
+
+A freshly pretrained language model has read much of the internet, yet it is a terrible assistant. Ask it *"Explain why the sky is blue"* and it might continue with *"Explain why the grass is green. Exercise 3: …"* because it was trained only to predict the next token of internet documents.
+
+**Supervised fine-tuning (SFT)** on curated question–answer pairs gets you surprisingly far — yet SFT only tells the model *one* acceptable way to answer. It never explicitly teaches the model what *not* to say, nor how to rank a crisp, accurate explanation above a sycophantic wall of fluff or a plausible-sounding myth.
+
+That is where **preference alignment** comes in: **<Term id="rlhf">RLHF</Term>** (Reinforcement Learning from Human Feedback) and its remarkably clean mathematical cousin, **<Term id="dpo">Direct Preference Optimisation (DPO)</Term>**.
+
+---
+
+## 1. Why preferences beat scores — and why RLHF needs a KL leash
+
+Ask ten humans to rate an assistant reply from 1 to 10 and they disagree wildly (one person’s 7 is another person’s 9). Show them **two** replies side by side and ask *"Which one is better? ($y_w \succ y_l$)"*, and agreement jumps sharply.
+
+The classic **RLHF** pipeline turns those pairwise votes into an assistant in two steps:
+
+1. **Train a proxy reward model $\hat{r}_\phi(x, y)$** using the **Bradley–Terry model** — the exact same probability rule used for chess Elo ratings:
+   $$P(y_w \succ y_l \mid x) \;=\; \sigma\!\big(\hat{r}_\phi(x, y_w) - \hat{r}_\phi(x, y_l)\big).$$
+2. **Optimise the language model $\pi_\theta$ to score high on $\hat{r}_\phi$ — while keeping it on a leash** so it cannot wander arbitrarily far from the SFT reference policy $\pi_{\text{ref}}$:
+
+<Eq
+  words="RLHF objective  =  expected proxy reward  −  leash strength β  ×  KL distance from SFT reference"
+  tex="\max_{\pi} \;\; \mathbb{E}_{y \sim \pi}\!\big[\cb{\hat{r}(x, y)}\big] \;-\; \cp{\beta}\, \ca{D_{\text{KL}}\!\big(\pi \,\|\, \pi_{\text{ref}}\big)}"
+  legend={[
+    ['\\hat{r}(x, y)', 'score predicted by the learned proxy reward model', 'b'],
+    ['\\beta', 'KL penalty strength — larger β = tighter leash to the SFT reference', 'p'],
+    ['D_{\\text{KL}}(\\pi \\|\\, \\pi_{\\text{ref}})', 'how far the aligned policy has drifted from the starting SFT model (in nats)', 'a'],
+  ]}
+/>
+
+Why do we need that KL leash $\beta$? Because of **Goodhart’s Law**: *when a learned proxy score becomes the target of intense optimisation, the optimiser finds glitches that score huge on the proxy while being awful to real humans* — **<Term id="reward-hacking">reward hacking</Term>**.
+
+<Predict
+  question="Our proxy reward model scores normal answers accurately, but has a hidden bug: it gives +5.0 to a sycophantic glitch string that real humans rate −2.8 (only 1% likely under SFT). If we shrink the KL penalty β from 1.1 down to 0.1, what happens?"
+  options={[
+    'Because the glitch string is only 1% likely under SFT, it stays rare and helpfulness keeps improving.',
+    'The proxy score climbs to its maximum +5.0, while true human helpfulness crashes to −2.8 as the policy puts ~100% probability on the glitch.',
+    'The KL penalty keeps the policy safe for any β > 0.',
+  ]}
+  answer={1}
+  explain="The exact optimum of KL-regularised RLHF weights each reply by π_ref(y)·exp(r̂(y)/β). When β = 0.1, exp(5.0 / 0.1) = exp(50) ≈ 5 × 10²¹, which obliterates a tiny 0.002 reference probability and hands 100% of the model’s output to the glitch string!"
+/>
+
+See that exact mathematical crash happen live below. Our 8-reply model solves the RLHF objective **in closed form** ($\pi^*(y) \propto \pi_{\text{ref}}(y)\exp(\hat{r}(y)/\beta)$) — drag $\beta$ down from **4.0** past the **sweet spot at $\beta = 1.1$ (+2.36 true helpfulness)** all the way to **0.10 (−2.80)**.
+
+<RewardHackingExplorer />
+
+Look at that inverted-U curve: it reproduces from first-principles algebra the exact **over-optimisation curve** observed in frontier RLHF runs (Gao et al., 2022). Up to KL ≈ `0.48 nats`, optimising the proxy genuinely makes the assistant much better (`+1.34 → +2.36`). Past that point, optimising harder actively **destroys** true quality while every reward-model dashboard flashes green!
+
+---
+
+## 2. The DPO trick: cancelling out the reward model completely
+
+Classical RLHF is notoriously tricky to engineer: you must train a separate reward model, hold four large models in GPU memory during PPO (policy, reference, reward model, value critic), and tune fragile RL hyperparameters.
+
+In 2023, Rafailov et al. noticed something astonishing about the exact closed-form optimum we just plotted:
+
+$$\pi^*(y \mid x) \;=\; \frac{1}{Z(x)}\, \pi_{\text{ref}}(y \mid x)\, \exp\!\left(\frac{r(x, y)}{\beta}\right).$$
+
+Take the logarithm of both sides and solve for $r(x, y)$:
+
+$$r(x, y) \;=\; \beta \log\frac{\pi^*(y \mid x)}{\pi_{\text{ref}}(y \mid x)} \;+\; \beta \log Z(x).$$
+
+Now substitute that expression into the Bradley–Terry preference probability $P(y_w \succ y_l) = \sigma(r(x, y_w) - r(x, y_l))$. Look what happens to the ugly, intractable normalisation term $\beta \log Z(x)$: because $Z(x)$ depends only on the prompt $x$ and **not** on the reply $y$, it **cancels out completely**!
+
+What remains is **Direct Preference Optimisation (DPO)** — a single supervised loss directly on the language model $\pi_\theta$, with **no reward model and no RL loop**:
+
+<Eq
+  words="DPO loss  =  −log σ( implicit reward of winner  −  implicit reward of loser )"
+  tex="\mathcal{L}_{\text{DPO}}(\theta) \;=\; -\log \sigma\!\left( \cp{\beta}\ca{\log\frac{\pi_\theta(y_w \mid x)}{\pi_{\text{ref}}(y_w \mid x)}} \;-\; \cp{\beta}\cb{\log\frac{\pi_\theta(y_l \mid x)}{\pi_{\text{ref}}(y_l \mid x)}} \right)"
+  legend={[
+    ['\\beta', 'same KL leash parameter as RLHF — controls how far π_θ may drift from π_ref', 'p'],
+    ['\\log(\\pi_\\theta(y_w)/\\pi_{\\text{ref}}(y_w))', 'how much more (or less) likely the policy makes the chosen reply than SFT did', 'a'],
+    ['\\log(\\pi_\\theta(y_l)/\\pi_{\\text{ref}}(y_l))', 'how much more (or less) likely the policy makes the rejected reply than SFT did', 'b'],
+  ]}
+/>
+
+Take its derivative and you uncover why DPO feels so natural: the gradient pushes $\log \pi_\theta(y_w)$ **up** and $\log \pi_\theta(y_l)$ **down**, multiplied by a self-weighting factor **$\sigma(-\Delta)$**! When the model ranks a pair **backwards** ($\Delta < 0$), $\sigma(-\Delta)$ approaches 1 (push hard!); once the model already clearly prefers $y_w$ ($\Delta \gg 0$), $\sigma(-\Delta)$ fades toward 0 (leave it alone!).
+
+Explore the implicit rewards, margin, gradient weight — and click **Likelihood displacement!** to catch DPO’s famous real-world quirk in the act.
+
+<DpoLossExplorer />
+
+<Deeper title="DPO vs online RL (PPO / GRPO): an honest trade-off">
+If DPO is so much simpler than PPO, why do frontier labs still run online RL (PPO, GRPO) for reasoning models? Because **DPO is offline**: it learns only from a fixed pre-collected dataset of $(y_w, y_l)$ pairs. As the policy improves, it starts generating *new* mistakes that never appeared in the offline preference file. Online RLHF — and verifiable-reward RL like GRPO on maths and code — continually samples fresh outputs from the *current* policy and scores them on the fly. Both methods share the exact same KL-regularised core mathematics you just explored!
+</Deeper>
+
+---
+
+## 3. Why rejecting losers beats SFT on winners alone
+
+You might wonder: if we have clean pairs $(y_w, y_l)$, why not just run ordinary supervised fine-tuning on the winners $y_w$ and throw away the losers $y_l$?
+
+Compare both live below on our 8-reply problem. SFT raises the winners — which passively steals probability mass from everything else — yet it never specifically targets the dangerous sycophantic hacks. **DPO** actively pushes rejected hacks downward, slashing hack probability much further while achieving higher true helpfulness at similar KL distance.
+
+<LiveDpoTrainer />
+
+---
+
+## 4. Lab: Tune the alignment pipeline
+
+Now step into the post-training seat across three realistic alignment briefs:
+1. **Brief 1 · Tame a hackable reward model:** you only have the proxy RM (no DPO yet). Find a KL leash $\beta$ that boosts true helpfulness without tripping the reward-hacking cliff.
+2. **Brief 2 · Clean preference pairs:** combine DPO, $\beta$, and training steps to push true helpfulness past **2.85** while driving hack probability below **0.5%**.
+3. **Brief 3 · Noisy human raters:** some raters fell for the sycophantic bullet-spam reply! Keep the model helpful and honest despite the noisy labels.
+
+Every legal grid combination is verified exhaustively.
+
+<AlignmentLab />
+
+---
+
+## 5. Twelve lines of Python for DPO’s loss & self-weighting gradient
+
+You can verify our exact DPO implicit rewards, margin, loss, and self-weighting factor $\sigma(-\Delta)$ in twelve lines of plain Python:
+
+```python
+import math
+
+def sigmoid(x):
+    return 1.0 / (1.0 + math.exp(-x))
+
+def dpo_loss_and_weight(logp_w, logref_w, logp_l, logref_l, beta=0.5):
+    rw = beta * (logp_w - logref_w)
+    rl = beta * (logp_l - logref_l)
+    margin = rw - rl
+    loss = math.log1p(math.exp(-margin))
+    grad_weight = sigmoid(-margin)
+    return rw, rl, margin, loss, grad_weight
+
+# Case 1: policy currently prefers rejected over chosen (wrong!)
+print("Wrong :", [round(v, 3) for v in dpo_loss_and_weight(-3.0, -2.0, -1.0, -2.0, beta=0.5)])
+# Case 2: policy strongly prefers chosen over rejected (already aligned)
+print("Right :", [round(v, 3) for v in dpo_loss_and_weight(-0.5, -2.0, -4.5, -2.0, beta=0.5)])
+```
+
+Running it prints `[r_w, r_l, margin, loss, grad_weight]`:
+
+```text
+Wrong : [-0.5, 0.5, -1.0, 1.313, 0.731]
+Right : [0.75, -1.25, 2.0, 0.127, 0.119]
+```
+
+Notice how the gradient weight drops **6×** (from `0.731` down to `0.119`) once the model already prefers the chosen answer!
+
+---
+
+## Check your understanding
+
+<Quiz questions={questions} />

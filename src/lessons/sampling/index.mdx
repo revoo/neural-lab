@@ -1,0 +1,187 @@
+{/* authored-by: Neon High */}
+import { PipelineInspector, SharpVsFlat, BeamVsGreedy, SamplerLab } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: a probability distribution isn't a word
+
+In the last lesson you watched a language model turn a prompt into a probability distribution over its entire vocabulary. That distribution is only half of generation. Before the autoregressive loop can take its next step, **you have to pick one single token** from that distribution.
+
+Two obvious strategies immediately come to mind — and both fail in surprisingly nasty ways:
+
+- **Always pick the highest-probability token (greedy decoding).** It sounds safe and logical. On factual questions it often works. On open-ended prose, however, greedy decoding produces stiff, bland text and famously falls into **repetition loops** — once a phrase repeats slightly, the model sees the repeat in its own context and predicts the exact same phrase with even higher confidence. Worse, picking the best token at each step doesn't even find the highest-probability *whole sentence*.
+- **Sample straight from the raw probabilities ($T = 1$).** That breaks the loops — and walks straight into **the long tail**. A real LLM has 50,000 to 200,000 tokens in its vocabulary. Even if the model is 90% confident in the sensible words, the remaining 10% is smeared thinly across tens of thousands of nonsense tokens (`banana`, `742`, `trombone`). Roll a 10% risk of a bizarre token twenty times in a row and the chance of getting through cleanly is $0.9^{20} \approx 12\%$. And because generation is autoregressive, **one bad token stays in the prompt forever**, pulling every subsequent prediction off the rails.
+
+You want the goldilocks zone: varied and natural when the prompt is open-ended, rock-solid when the answer is a fact, and completely insulated from the crazy long tail.
+
+<Analogy title="Think of choosing where to eat with a ranked list of restaurants">
+
+Suppose you rank every restaurant in a city from your favourite down to the worst greasy spoon.
+
+- **Greedy** eats at #1 every night for the rest of your life.
+- **Raw sampling** occasionally rolls a 1-in-1000 die and sends you to a closed petrol station.
+- **Temperature** decides how adventurous you feel tonight — scaling the gap between your favourite and the rest.
+- **Top-$k$** draws a hard line after the top $k$ restaurants and ignores the rest of the city.
+- **Top-$p$** keeps just enough top restaurants to cover 90% of your preference — which is **1 restaurant** when you're craving one specific taco stand, and **11 restaurants** when you just feel like "something nice".
+
+</Analogy>
+
+## Inside the sampling pipeline
+
+Modern inference engines (vLLM, llama.cpp, Hugging Face) apply three simple operations to the raw logits $z$ produced by the transformer, in sequence:
+
+1. **<Term id="temperature">Temperature</Term> ($T$):** divide every logit by $T$ before softmax. Small $T$ exaggerates gaps (sharper, closer to greedy); large $T$ shrinks gaps (flatter, closer to uniform).
+2. **<Term id="top-k">Top-$k$</Term>:** sort the vocabulary by probability, keep only the top $k$ tokens, and set every other token's probability to exact zero.
+3. **<Term id="top-p">Top-$p$ (nucleus sampling)</Term>:** starting from the most likely token, accumulate probabilities until the running total reaches at least $p$ (say $0.90$), keep that minimal "nucleus", and zero out the entire tail beyond it.
+
+Finally, divide the surviving probabilities by their sum so they add back up to 100%, and draw one token.
+
+<Eq
+  words="\text{sampling probability} = \text{re-normalise}\!\Big(\text{keep only the nucleus}\;\big(\text{softmax}(\text{scores} \div \text{temperature})\big)\Big)"
+  tex="\cp{p'_i} = \begin{cases} \dfrac{\ca{p_i}}{\sum_{j \in \cc{S}} \ca{p_j}} & \text{if } i \in \cc{S} \\[8pt] 0 & \text{otherwise} \end{cases} \qquad \text{where } \ca{p} = \text{softmax}\!\left(\frac{\cb{z}}{\cv{T}}\right)"
+>
+
+- $\cb{z}$ — the model's raw **logits** for the next token (one score per vocabulary item)
+- $\cv{T}$ — **temperature**: $T = 1$ leaves scores unchanged; $T \to 0$ collapses to greedy; $T > 1$ flattens toward uniform
+- $\ca{p_i}$ — the pre-truncation **softmax probabilities** (strictly positive for every token — never exact zero!)
+- $\cc{S}$ — the **surviving token set** after applying top-$k$ (at most $k$ tokens) and top-$p$ (smallest prefix whose probabilities sum to $\ge p$)
+- $\cp{p'_i}$ — the **final re-normalised probability** actually sampled from
+
+</Eq>
+
+Experiment with all three knobs across three realistic contexts — a sharp factual prompt, a medium everyday prompt, and a wide-open creative prompt — and draw 10 live samples to feel the tail risk.
+
+<PipelineInspector />
+
+Look closely at the **Sharp (factual)** prompt (`"The capital of France is ___"`) at raw $T = 1.0$: `"Paris"` already has **90.4%** of the probability, yet the 15 other tokens still steal **9.6%** of the draws. Click **Draw 10 samples** a few times at raw $T = 1.0$ and watch wrong words sneak in. Now click **Top-p = 0.90** — `"Paris"` clears 90% on its own, the pool snaps shut to **1 token**, and tail risk drops to **0.0%**.
+
+## Why fixed top-k fails — and top-p adapts
+
+Before 2019, **top-$k$** was the standard fix for the long tail (GPT-2 famously used `top_k = 40`). Then Ari Holtzman and colleagues pointed out a subtle flaw: **real text constantly switches between sharp moments and flat moments**, sometimes within the same sentence (`"The capital of France is [sharp] and I visited a [flat]"`).
+
+<Predict
+  question="Using a single fixed top-k = 5 at T = 1.0 on both “The capital of France is ___” (sharp) and “I opened the box and found a ___” (flat), what goes wrong?"
+  options={[
+    'Both prompts get perfect pools — 5 is a good compromise',
+    'The sharp prompt keeps 4 wrong tokens (5.3% error) while the flat prompt chops off 7 valid objects',
+    'Only the sharp prompt breaks; the flat prompt is unaffected',
+  ]}
+  answer={1}
+>
+
+**Both ends suffer at once.** At `top-k = 5`, `"The capital of France is ___"` is forced to keep 4 wrong tokens (`Lyon`, `France`, `London`, `located`), leaving a **5.3%** error rate — while `"I opened the box and found a ___"` is forced to throw away 7 completely natural objects (`wooden`, `silver`, `tiny`, `photo`, `map`, `watch`, `ring`), shrinking its effective choices from **12.6** down to **4.97**.
+
+</Predict>
+
+Compare **Fixed top-$k$** and **Nucleus top-$p$** side by side on the exact same two prompts.
+
+<SharpVsFlat />
+
+Switch to **Nucleus top-$p$ = 0.90** and look at the numbers:
+
+- On the sharp factual prompt: pool shrinks to **1 token** (`Paris`, **100.0%** valid, **0.0%** junk).
+- On the medium prompt (`"The cat sat on the ___"`): pool settles at **7 tokens** (5.62 effective choices, **0.0%** junk).
+- On the flat open-ended prompt: pool widens automatically to **11 tokens** (**10.64** effective choices, **0.0%** junk).
+
+One single number ($p = 0.90$) automatically gives you greedy decoding when the model is sure and rich sampling when the world is genuinely open.
+
+## Searching ahead: greedy vs beam search
+
+There is one other family of decoding methods worth seeing clearly: **<Term id="beam-search">beam search</Term>**. Instead of sampling randomly, suppose you genuinely *want* the highest-probability whole sentence (for machine translation, speech recognition, or structured extraction).
+
+Greedy decoding picks the highest-probability token at step 1, then step 2, then step 3. Does that find the highest-probability 3-word sentence? Almost never! Because probabilities multiply along a path, a token that barely loses at step 1 (0.45 vs 0.55) can unlock a rock-solid continuation (0.85 × 0.90) that crushes everything behind the step-1 winner.
+
+**Beam search** fixes this with a simple idea: instead of keeping only the single best partial sentence (`beam width = 1`), keep the **top $B$ partial sentences** alive at every step, expand all of them, score every candidate by its total cumulative probability, and keep the top $B$ again.
+
+<BeamVsGreedy />
+
+In that tree, greedy (`beam = 1`) commits to `"The"` (0.55) at step 1 and ends up stuck with `"The cat slept"` (**8.8%**). Widening the beam to just **2** keeps `"A"` (0.45) alive and discovers `"A bright sun"` at **34.4%** — **3.9× higher whole-sentence probability**.
+
+Why don't chatbots use beam search for conversation? Because in open-ended text, the single highest-probability sentence is usually the safest, most generic cliché (and long beam-searched outputs still loop). Beam search shines on constrained tasks like translation and transcription; temperature + top-$p$ rules open-ended generation.
+
+## Lab: tune the sampler
+
+Now put the machinery to work. Each challenge evaluates your single `(T, top-k, top-p)` setting simultaneously across our sharp, medium and flat prompts. Notice Level 2: it locks temperature and top-$p$ so you can *only* move top-$k$. Don't assume every challenge is solvable — if a constraint is mathematically impossible, prove it to yourself and declare it impossible.
+
+<SamplerLab />
+
+<Deeper title="After the lab: what the exhaustive 6,080-setting search proved" tag="Debrief">
+
+Every count below comes from testing all $20 \times 16 \times 19 = 6{,}080$ slider combinations exhaustively:
+
+- **Level 1 (Factual Q&A: sharp ≥ 99%, 0.0% tail junk):** **4,849** of 6,080 settings pass — yet **0 of 20** temperature-only settings pass (because softmax is strictly positive on every junk token!). Only **1** top-$k$-only setting passes ($k = 1$, which kills diversity), while **17** top-$p$-only settings pass. Highest open-ended diversity while passing: **11.26** effective choices ($T = 0.8, k = 12, p = 0.95$).
+- **Level 2 (The Top-$k$ Trap: top-$k$ only, sharp ≥ 98% and flat ≥ 9.0 choices):** **0 of 16** settings pass — **provably impossible**. At $T = 1.0$, keeping sharp ≥ 98% forces $k \le 2$ (at most 2.00 flat choices), while reaching ≥ 9.0 flat choices forces $k \ge 10$ (where sharp accuracy has dropped to 91.9%).
+- **Level 3 (One Sampler for All: sharp ≥ 98%, flat ≥ 9.5 choices, 0.0% tail junk):** **88** of 6,080 settings pass. Temperature alone gets **0**. Top-$k$ alone gets **0**. Top-$p$ alone gets **2** ($p = 0.85$ and $p = 0.90$ at $T = 1.0$). Exhaustive optimum across the whole grid: **$T = 0.9, k = 12, p = 0.95$** (**98.7%** sharp accuracy, **11.40** effective flat choices, **0.0%** tail junk).
+
+</Deeper>
+
+## In code
+
+The complete temperature + top-$k$ + top-$p$ sampler in plain Python (zero external dependencies):
+
+```python
+import math
+import random
+
+def sample_next(logits, temperature=1.0, top_k=None, top_p=1.0, rng=None):
+    # 1. Scale logits by temperature and turn into probabilities (softmax)
+    t = max(temperature, 1e-6)
+    scaled = [z / t for z in logits]
+    m = max(scaled)
+    exps = [math.exp(s - m) for s in scaled]
+    total = sum(exps)
+    probs = [e / total for e in exps]
+
+    # 2. Sort indices from highest to lowest probability
+    order = sorted(range(len(probs)), key=lambda i: probs[i], reverse=True)
+
+    # 3. Apply top-k and top-p (nucleus) cutoffs
+    kept = []
+    cum = 0.0
+    for rank, idx in enumerate(order):
+        if top_k is not None and rank >= top_k:
+            break
+        kept.append(idx)
+        cum += probs[idx]
+        if cum >= top_p:
+            break
+
+    # 4. Re-normalise over the surviving tokens and draw one
+    kept_probs = [probs[i] for i in kept]
+    norm = sum(kept_probs)
+    kept_probs = [p / norm for p in kept_probs]
+    r = (rng or random).random()
+    acc = 0.0
+    for idx, p in zip(kept, kept_probs):
+        acc += p
+        if r <= acc:
+            return idx
+    return kept[-1]
+```
+
+Run on our sharp and flat logit vectors at `temperature=1.0, top_p=0.9`, `kept` automatically contains **1 token** for the sharp prompt (top probability 1.0) and **11 tokens** for the flat prompt (top probability 0.132). Note one subtle real-world detail: APIs differ slightly on whether temperature is applied *before* or *after* top-$p$ (the standard PyTorch / Hugging Face / vLLM order is temperature first, then top-$k$, then top-$p$, exactly as written above).
+
+<Misconception>
+
+"Higher temperature makes an LLM more creative." Up to a modest point (roughly $T = 0.7$–$1.0$, paired with top-$p \approx 0.9$), raising temperature lets the model explore plausible alternative phrasings instead of picking only the #1 cliché. Past that, temperature does *not* invent clever ideas — it simply shrinks the logit gaps so low-probability junk tokens flood the pool, producing typos, broken syntax and hallucinated facts. Similarly, setting `temperature = 0` does *not* make an LLM "more truthful": it only makes it deterministic — a model that is confidently wrong will simply repeat the exact same wrong answer every single time.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- **Greedy decoding** is deterministic and loops easily; **raw sampling** suffers from the **long tail** of thousands of low-probability junk tokens.
+- **Temperature ($T$)** divides logits before softmax: $T < 1$ sharpens, $T > 1$ flattens, and softmax never produces an exact zero — so temperature alone cannot eliminate tail risk.
+- **Top-$k$** cuts to a fixed number of tokens, which fails whenever prompts alternate between sharp factual answers and flat open-ended choices.
+- **Top-$p$ (nucleus sampling)** keeps the smallest top set whose cumulative probability reaches $p$, automatically shrinking to 1 token when confident and widening when genuinely uncertain.
+- **Beam search** keeps the top $B$ partial sequences alive to avoid greedy traps, excelling on translation and structured tasks while sampling rules open-ended prose.
+
+</Takeaways>
+
+<InTheWild>
+
+Ari Holtzman and colleagues introduced **nucleus sampling (top-$p$)** in their 2019 paper *The Curious Case of Neural Text Degeneration*, directly showing how greedy and beam-searched GPT-2 outputs collapsed into repetitive loops while pure sampling drifted off topic. Almost every modern LLM API exposes `temperature` and `top_p` (and many local engines like `llama.cpp` also add **min-$p$**, which keeps any token with probability at least $p_{\min} \times p_{\text{top}}$, another adaptive threshold that behaves even more smoothly at high temperatures). For code and maths, developers typically run near-greedy settings ($T \approx 0.0$–$0.2$); for writing and brainstorming, $T \approx 0.7$–$1.0$ with `top_p` around $0.90$–$0.95$.
+
+</InTheWild>
+
+You now know how a language model predicts next tokens, how perplexity measures its uncertainty, and how sampling turns logits into text. Next: **Scaling Laws** — how much bigger models and bigger datasets actually buy you, and the Chinchilla law that tells labs how to spend a billion-dollar compute budget.
