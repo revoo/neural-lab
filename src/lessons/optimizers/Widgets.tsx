@@ -3,7 +3,9 @@ import { LiveCode } from '../../components/LabJob';
 import { torchOptimLine } from './realCode';
 import { Widget } from '../../components/Widget';
 import { Segmented, Slider, Toggle } from '../../components/controls';
-import { Clip, Dot, Plot, usePlot } from '../../components/plot';
+import { Arrow, Clip, Dot, GhostPath, Plot, usePlot } from '../../components/plot';
+import { MachineLog, useMachineLog } from '../../components/MachineLog';
+import { usePrefersReducedMotion } from '../../components/motion';
 import { Heatmap } from '../../components/heatmap';
 import type { OptimizerName } from '../../lib/optimizers';
 import { DEFAULT_BETAS, LANDSCAPES, LR_GRID, golfPar, runOptimizer, tuneLR, type Config, type Landscape } from './optim';
@@ -267,10 +269,53 @@ export function OptimizerGolf() {
   const cfg: Config = { name, lr, ...(name === 'momentum' || name === 'adam' ? { beta1: b1 } : {}), ...(name === 'rmsprop' || name === 'adam' ? { beta2: b2 } : {}) };
   const r = useMemo(() => runOptimizer(GOLF, cfg, 1000), [name, lr, b1, b2]); // eslint-disable-line react-hooks/exhaustive-deps
   const par = useMemo(() => golfPar(GOLF), []);
+  const log = useMachineLog();
+  const reduced = usePrefersReducedMotion();
+  const [bestRun, setBestRun] = useState<{ path: [number, number][]; steps: number; label: string } | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const finalStep = r.reachedAt !== null ? r.reachedAt : r.path.length - 1;
+  // Draw the path step by step (about a second), instantly under reduced motion.
+  const [anim, setAnim] = useState(finalStep);
   useEffect(() => {
-    if (r.reachedAt !== null) setBest((b) => (b === null ? r.reachedAt : Math.min(b, r.reachedAt!)));
-  }, [r.reachedAt]);
-  const shown = r.reachedAt !== null ? r.reachedAt : r.path.length - 1;
+    if (reduced) {
+      setAnim(finalStep);
+      return;
+    }
+    setAnim(0);
+    let raf = 0;
+    const t0 = performance.now();
+    const tick = (now: number) => {
+      const k = Math.min(finalStep, Math.round((finalStep * (now - t0)) / 900));
+      setAnim(k);
+      if (k < finalStep) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [r, finalStep, reduced]);
+  // Log and keep the ghost once a setting has settled (not on every slider tick).
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      const label = `${OPTS.find((o) => o.key === name)!.label}, step ${fmtLr(lr)}`;
+      log.push(`${label}${cfg.beta1 !== undefined ? `, β₁ ${cfg.beta1}` : ''}${cfg.beta2 !== undefined ? `, β₂ ${cfg.beta2}` : ''} → ${r.diverged ? 'flew off' : r.reachedAt !== null ? `reached the minimum in ${r.reachedAt} steps` : 'not there after 1,000 steps'}`, r.reachedAt !== null ? 'good' : 'bad');
+      for (let k = 1; k <= Math.min(3, r.path.length - 1); k++) {
+        const [ax, ay] = r.path[k - 1];
+        const [bx, by] = r.path[k];
+        log.push(`   step ${k}: moved ${Math.hypot(bx - ax, by - ay).toFixed(4)} · loss ${r.losses[k].toFixed(4)}`);
+      }
+      if (r.reachedAt !== null) {
+        setBest((b) => (b === null ? r.reachedAt : Math.min(b, r.reachedAt!)));
+        setBestRun((g) => (!g || r.reachedAt! < g.steps ? { path: r.path.slice(0, r.reachedAt! + 1), steps: r.reachedAt!, label } : g));
+      }
+    }, 450);
+    return () => window.clearTimeout(t);
+  }, [r]); // eslint-disable-line react-hooks/exhaustive-deps
+  const shown = Math.min(anim, finalStep);
+  const parPath = useMemo(() => (best !== null && best <= par.steps ? runOptimizer(GOLF, par.cfg, par.steps).path : null), [best, par]);
+  const allBest = useMemo(
+    () => (showAll ? OPTS.map((o) => ({ o, run: runOptimizer(GOLF, { name: o.key, lr: tuneLR(GOLF, o.key).lr, ...(o.key === 'sgd' ? {} : DEFAULT_BETAS[o.key]) }, 1000) })) : null),
+    [showAll],
+  );
+  const vel: [number, number] | null = shown < r.path.length - 1 ? [r.path[shown + 1][0] - r.path[shown][0], r.path[shown + 1][1] - r.path[shown][1]] : null;
 
   let verdict: React.ReactNode;
   if (r.diverged) verdict = <div className="feedback bad"><div className="feedback-title">✕ Flew off the course.</div>The step size is too big for the steep walls of the valley.</div>;
@@ -309,7 +354,14 @@ export function OptimizerGolf() {
             <Heatmap f={GOLF.f} range={GOLF.range} transform={Math.sqrt} contours={16} />
             <Minima L={GOLF} />
             <Clip>
+              {bestRun && <GhostPath pts={bestRun.path} color="var(--c-b)" label={`your best · ${bestRun.steps}`} />}
+              {parPath && <GhostPath pts={parPath} color="var(--c-good)" label={`par · ${par.steps}`} />}
+              {allBest &&
+                allBest.map(({ o, run }) => <GhostPath key={o.key} pts={run.path.slice(0, (run.reachedAt ?? run.path.length - 1) + 1)} color={o.color === '#ffffff' ? 'var(--text)' : o.color} opacity={0.8} dashed={false} width={1.3} />)}
               <Path pts={r.path} color="#fff" upto={shown} />
+              {vel && (Math.abs(vel[0]) + Math.abs(vel[1]) > 1e-6) && (
+                <Arrow from={r.path[shown]} to={[r.path[shown][0] + 4 * vel[0], r.path[shown][1] + 4 * vel[1]]} color="var(--c-warn)" width={2.4} />
+              )}
             </Clip>
             <Dot at={GOLF.start} r={5} color="var(--accent)" stroke="#fff" />
           </Plot>
@@ -347,8 +399,28 @@ export function OptimizerGolf() {
               {par.cfg.beta2 !== undefined && `, β₂ = ${par.cfg.beta2}`}
             </div>
           )}
+          {best !== null && (
+            <button className="btn small" onClick={() => setShowAll(!showAll)}>
+              {showAll ? 'Hide' : 'Show'} every optimizer’s best run
+            </button>
+          )}
+          {allBest && (
+            <div className="muted" style={{ fontSize: 12.5 }}>
+              Each optimizer at its own best step size (usual β settings), drawn together:{' '}
+              {allBest.map(({ o, run }, i) => (
+                <span key={o.key}>
+                  {i > 0 && ' · '}
+                  <span style={{ color: o.color === '#ffffff' ? 'var(--text)' : o.color, fontWeight: 700 }}>{o.label}</span> {run.reachedAt ?? '>1000'} steps
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="muted" style={{ fontSize: 12.5 }}>
+            The orange arrow is the ball’s next step (×4): with momentum it keeps pointing along the valley even where the slope doesn’t. Dashed ghosts: your best run{parPath ? ' and the par run' : ''}.
+          </div>
         </div>
       </div>
+      <MachineLog lines={log.lines} onClear={log.clear} empty="Each setting you try is logged here, with how far its first steps moved." />
     </Widget>
   );
 }

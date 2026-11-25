@@ -290,3 +290,20 @@ export function Clip({ children }: { children: ReactNode }) {
     </g>
   );
 }
+
+/** A faint, dashed earlier run drawn behind the current one ("race your ghost"). */
+export function GhostPath({ pts, color = 'var(--text)', label, opacity = 0.55, dashed = true, width = 2 }: { pts: [number, number][]; color?: string; label?: string; opacity?: number; dashed?: boolean; width?: number }) {
+  const { x, y } = usePlot();
+  if (pts.length < 2) return null;
+  const last = pts[pts.length - 1];
+  return (
+    <g pointerEvents="none" opacity={opacity}>
+      <polyline points={pts.map(([a, b]) => `${x(a).toFixed(1)},${y(b).toFixed(1)}`).join(' ')} fill="none" stroke={color} strokeWidth={width} strokeDasharray={dashed ? '5 4' : undefined} strokeLinejoin="round" />
+      {label && (
+        <text x={x(last[0]) + 6} y={y(last[1]) - 6} fontSize={11} fontWeight={700} fill={color}>
+          {label}
+        </text>
+      )}
+    </g>
+  );
+}

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Widget } from '../../components/Widget';
 import { Slider, Toggle } from '../../components/controls';
-import { Clip, Dot, Handle, Plot, usePlot } from '../../components/plot';
+import { Clip, Dot, GhostPath, Handle, Plot, usePlot } from '../../components/plot';
+import { MachineLog, useMachineLog } from '../../components/MachineLog';
 import { Heatmap } from '../../components/heatmap';
-import { VALLEY_TARGET, par, runValley, valley } from './descent';
+import { VALLEY_TARGET, par, runValley, valley, valleyGrad } from './descent';
 
 const START: [number, number] = [-9, 6];
 
@@ -35,6 +36,9 @@ export function DescentGolf() {
   const [start, setStart] = useState<[number, number]>(START);
   const [shown, setShown] = useState(0); // animation: how many path points are visible
   const [best, setBest] = useState<number | null>(null);
+  // Ghosts: your best run from this tee, and (once you've matched par) the par run.
+  const [bestRun, setBestRun] = useState<{ key: string; path: [number, number][]; steps: number } | null>(null);
+  const log = useMachineLog();
   const raf = useRef(0);
 
   const m = useMom ? mom : 0;
@@ -51,12 +55,34 @@ export function DescentGolf() {
       i += Math.max(1, Math.floor(result.path.length / 60));
       setShown(Math.min(i, result.path.length));
       if (i < result.path.length) raf.current = requestAnimationFrame(tick);
-      else if (result.reached) setBest((b) => (b === null ? result.steps : Math.min(b, result.steps)));
+      else {
+        if (result.reached) setBest((b) => (b === null ? result.steps : Math.min(b, result.steps)));
+        const key = `${start[0]},${start[1]}`;
+        if (result.reached) setBestRun((g) => (!g || g.key !== key || result.steps < g.steps ? { key, path: result.path, steps: result.steps } : g));
+        log.push(
+          `η ${lr.toFixed(2)}${m ? `, momentum ${m.toFixed(2)}` : ''} from (${start[0]}, ${start[1]}): ${result.diverged ? `flew off after ${result.steps} steps` : result.reached ? `reached the floor in ${result.steps} steps` : `not there after ${result.steps} steps`}`,
+          result.reached ? 'good' : 'bad',
+        );
+        result.path.slice(0, 4).forEach(([px, py], k) => {
+          if (k + 1 >= result.path.length) return;
+          const [gx, gy] = valleyGrad(px, py);
+          const [nx, ny] = result.path[k + 1];
+          log.push(`   step ${k + 1}: at (${px.toFixed(2)}, ${py.toFixed(2)}) · gradient (${gx.toFixed(2)}, ${gy.toFixed(2)}) · moved ${Math.hypot(nx - px, ny - py).toFixed(2)} (${ny - py >= 0 ? 'up' : 'down'} ${Math.abs(ny - py).toFixed(2)} across the valley)`);
+        });
+      }
     };
     raf.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf.current);
   }, [result]);
 
+  const startKey = `${start[0]},${start[1]}`;
+  const ghost = bestRun && bestRun.key === startKey ? bestRun : null;
+  const parRunNow = useMom ? parMom : parPlain;
+  const parGhost = useMemo(
+    () => (ghost && ghost.steps <= parRunNow.steps ? runValley(start, parRunNow.lr, parRunNow.momentum).path : null),
+    [ghost, parRunNow, start],
+  );
+  const clamp = (p: [number, number]) => [Math.max(-12, Math.min(12, p[0])), Math.max(-12, Math.min(12, p[1]))] as [number, number];
   const pts = result.path.slice(0, shown).map(([a, b]) => [Math.max(-12, Math.min(12, a)), Math.max(-12, Math.min(12, b))] as [number, number]);
   const done = shown >= result.path.length;
   const theParr = useMom ? parMom : parPlain;
@@ -109,6 +135,8 @@ export function DescentGolf() {
             <Heatmap f={valley} range={[0, 70]} contours={16} transform={Math.sqrt} />
             <Target />
             <Clip>
+              {ghost && <GhostPath pts={ghost.path.map(clamp)} color="var(--c-b)" label={`your best · ${ghost.steps}`} />}
+              {parGhost && <GhostPath pts={parGhost.map(clamp)} color="var(--c-good)" label={`par · ${parRunNow.steps}`} />}
               <Path pts={pts} color="#fff" />
               {pts.map((p, i) => (
                 <Dot key={i} at={p} r={2.5} color="#fff" />
@@ -135,11 +163,15 @@ export function DescentGolf() {
             )}
           </div>
           {verdict}
+          <div className="muted" style={{ fontSize: 12.5 }}>
+            Dashed ghosts: your best run from this tee{parGhost ? ', and the par run (unlocked by matching par)' : ''}. Fewer zig-zags across the valley means fewer steps.
+          </div>
           {start[0] !== START[0] || start[1] !== START[1] ? (
             <button className="btn small" onClick={() => setStart(START)}>Reset start to the standard tee</button>
           ) : null}
         </div>
       </div>
+      <MachineLog lines={log.lines} onClear={log.clear} empty="Each run is logged here, with its first steps: watch the bounce across the valley in the numbers." />
     </Widget>
   );
 }
