@@ -139,7 +139,9 @@ After 1000x rescale: x1 <= 7.13 (Gini gain = 0.259)
 
 ## Lab: Build the Tabular Ensemble
 
-Three distinct tabular datasets, three tree families (**Single Tree**, **Random Forest**, **Gradient Boosting**). Meet each brief's held-out accuracy target — and optionally, minimise **total leaves** (smaller model footprint, faster serving). All 35 configurations per brief are trained and scored exhaustively.
+<LabJob>You are shipping three production tabular classifiers under tight latency and leaf-count budgets: a clean alert-rule filter, an 8-column industrial sensor table full of junk columns, and a noisy crowd-labelled boundary. Match each dataset to the right tree family and minimise total leaves.</LabJob>
+
+Three distinct tabular datasets, three tree families (**Single Tree**, **Random Forest**, **Gradient Boosting**). Inspect the learned decision surface, split rules, column split shares, and round-by-round train/test curves to diagnose bias vs variance — and optionally minimise **total leaves** (smaller model footprint, faster serving). All 35 configurations per brief are trained and scored exhaustively.
 
 <TreeEnsembleLab />
 
@@ -152,6 +154,14 @@ Each tree family wins one brief — for its exact mathematical strength:
 - **Brief 3 (Noisy Curved Boundary with 12% Label Flips, ≥ 97.0%):** **6 of 35** configs pass — and **all 6 are Random Forests**! Fewest leaves: **Random Forest depth 1, 15 trees (30 leaves)** at **97.6%** (and depth 8, 30 trees reaches 98.4%). Single trees top out at 90.8%, and Gradient Boosting tops out at 96.0% because it chases the 12% flipped labels while bagging averages them away.
 
 </Deeper>
+
+<ForReal>
+
+Production fraud engines, credit-underwriting pipelines, and ad-ranking stacks rely on exactly the trade-off you just navigated: single shallow trees when humans or regulators must read every `if/else` rule verbatim; **Random Forests** when labels are noisy and you want rock-solid default behaviour with minimal tuning; and **Gradient Boosted Trees** (**XGBoost**, **LightGBM**, **CatBoost**) with early stopping when squeezing the last percentage point out of wide, messy SQL tables. Leaf count directly governs inference latency in C++/Rust scoring services.
+
+</ForReal>
+
+<HistoryCard id="decision-trees" />
 
 <Quiz questions={questions} />
 

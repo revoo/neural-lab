@@ -320,22 +320,41 @@ export function evalVisionBrief1(rep: ColorRep) {
   const samples = getLightData();
   let dayOk = 0;
   let shadowOk = 0;
+  const confusion = [
+    [0, 0, 0],
+    [0, 0, 0],
+    [0, 0, 0],
+  ];
+  const preds: (0 | 1 | 2)[] = [];
   for (let i = 0; i < samples.length; i++) {
     const s = samples[i];
-    let best = 0;
+    let best: 0 | 1 | 2 = 0;
     let bestD = Infinity;
     for (let c = 0; c < 3; c++) {
       const d = repDist(s.rgb, DAYLIGHT_PROTOS[c], rep);
-      if (d < bestD) { bestD = d; best = c; }
+      if (d < bestD) {
+        bestD = d;
+        best = c as 0 | 1 | 2;
+      }
     }
+    preds.push(best);
+    confusion[s.truth][best]++;
     const isDay = i % 30 < 15;
     if (best === s.truth) {
       if (isDay) dayOk++;
       else shadowOk++;
     }
   }
+  // 12-frame preview: 2 sunny + 2 shadowed per colour (Red, Amber, Green)
+  const previewIndices = [0, 1, 30, 31, 60, 61, 15, 16, 45, 46, 75, 76];
+  const preview = previewIndices.map((idx) => ({
+    rgb: samples[idx].rgb,
+    truth: samples[idx].truth,
+    pred: preds[idx],
+    isShadow: idx % 30 >= 15,
+  }));
   const acc = (dayOk + shadowOk) / samples.length;
-  return { rep, acc, dayAcc: dayOk / 45, shadowAcc: shadowOk / 45, pass: acc >= 0.95 - 1e-9 };
+  return { rep, acc, dayAcc: dayOk / 45, shadowAcc: shadowOk / 45, pass: acc >= 0.95 - 1e-9, confusion, preview };
 }
 
 export type AliasMethod = 'stride-0' | 'stride-1' | 'max-pool' | 'box-avg';
@@ -369,7 +388,7 @@ export function evalVisionBrief2(method: AliasMethod) {
   }
   const meanErr = Math.abs(gridMean(out) - gridMean(src));
   const rmse = Math.sqrt(gridMse(out, truth));
-  return { method, out, meanErr, rmse, pass: meanErr <= 5.0 + 1e-9 && rmse <= 15.0 + 1e-9 };
+  return { method, src, truth, out, meanErr, rmse, pass: meanErr <= 5.0 + 1e-9 && rmse <= 15.0 + 1e-9 };
 }
 
 export type TensorLayout = 'NHWC' | 'NCHW';
@@ -393,6 +412,10 @@ export function evalVisionBrief3(layout: TensorLayout, dtype: TensorDtype, norm:
 
   // Notice uint8 cannot represent negative standardised values!
   const canHoldNegatives = dtype !== 'uint8';
+  const rVals = chVals[0].map((v) => {
+    const raw = norm === 'none' ? v : norm === 'div255' ? v / 255 : (v - means[0]) / (stds[0] || 1);
+    return dtype === 'uint8' ? Math.max(0, Math.min(255, Math.round(raw))) : raw;
+  });
   const outMean =
     norm === 'none'
       ? means[0]
@@ -424,11 +447,38 @@ export function evalVisionBrief3(layout: TensorLayout, dtype: TensorDtype, norm:
     mib,
     outMean,
     outStd,
+    rVals,
     layoutOk,
     memOk,
     normOk,
     pass: layoutOk && memOk && normOk,
   };
+}
+
+/** Evidence-only hint for Build the Vision Preprocessor. */
+export function visionLabHint(
+  briefId: VisionBriefId,
+  state: { rep: ColorRep; alias: AliasMethod; layout: TensorLayout; dtype: TensorDtype; norm: TensorNorm },
+): string {
+  if (briefId === 'lighting') {
+    const r = evalVisionBrief1(state.rep);
+    if (r.pass) return 'Passing at 100%! Notice that a second brightness-invariant representation in this menu also hits 100%.';
+    return 'Look at the two rows of live traffic-light frames: daylight frames are easy, while tunnel shadows scale all three channels down together (multiplying R, G, B by ~0.25). Pick an encoding that divides out or separates brightness from colour.';
+  }
+  if (briefId === 'aliasing') {
+    const r = evalVisionBrief2(state.alias);
+    if (r.pass) return 'Unique match! Averaging every pixel inside each 4×4 cell preserves true energy with zero aliasing.';
+    return 'Look at the 16×16 blueprint grid on the left and compare your 4×4 thumbnail against the reference on the right: picking a single pixel or extreme value per 4×4 block either hits only the dark gaps or only the bright grid lines.';
+  }
+  const r = evalVisionBrief3(state.layout, state.dtype, state.norm);
+  if (r.pass) return 'Unique winner — channels-first layout, centred unit-variance floats, and cleanly under the 24 MiB ceiling.';
+  if (!r.memOk) {
+    return `Look at the VRAM gauge: 64 × 3 × 224 × 224 elements at ${state.dtype.toUpperCase()} takes ${r.mib.toFixed(2)} MiB, overshooting the 24 MiB line. You need a smaller element width that still holds negative numbers.`;
+  }
+  if (state.dtype === 'uint8' && state.norm === 'zscore') {
+    return 'Look at the pixel value strip: unsigned 8-bit integers cannot store negative numbers, so every pixel below the channel mean gets clipped flat to 0!';
+  }
+  return 'Check all three gauges on the right: memory must stay ≤ 24 MiB, the channel axis must match PyTorch, and the value strip must be centred at μ = 0 without clipping negatives.';
 }
 
 export function visionLabExhaustive(id: VisionBriefId) {

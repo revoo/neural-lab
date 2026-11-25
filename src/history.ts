@@ -463,6 +463,98 @@ export const HISTORY: HistoryEntry[] = [
       after: { text: 'The CoastRunners boat circles a lagoon knocking over targets and scores 20% higher than human players without finishing the race.', source: 'https://openai.com/index/faulty-reward-functions/' },
     },
   },
+  {
+    id: 'linear-regression',
+    lessonId: 'linear-regression',
+    lab: 'Feature Engineering + Logistic Regression',
+    idea: 'Least squares, logistic regression and Ridge',
+    years: [1805, 1944, 1958, 1970],
+    when: '1805 · 1944 · 1958 · 1970',
+    who: [
+      { text: 'Adrien-Marie Legendre publishes the method of least squares in Paris (1805); Carl Friedrich Gauss publishes it in 1809 after using it at age 24 to relocate the lost asteroid Ceres in 1801.', source: WP('Least_squares') },
+      { text: 'Joseph Berkson coins "logit" in 1944 and champions the logistic model; David Cox refines binary logistic regression in 1958.', source: WP('Logistic_regression') },
+      { text: 'Arthur Hoerl and Robert Kennard introduce Ridge regression in Technometrics (1970) to stabilise collinear least squares.', source: WP('Ridge_regression') },
+    ],
+    mood: { text: 'Berkson\'s logit model "was initially dismissed as inferior to the probit model", only reaching equal footing in statistics journals between 1960 and 1970.', source: WP('Logistic_regression') },
+    story: {
+      before: { text: 'Least squares fits continuous curves (such as planetary orbits) in one linear solve, but breaks on binary outcomes and collinear features.', source: WP('Least_squares') },
+      this: { text: 'Logistic regression models log-odds linearly through a sigmoid, while Ridge shifts the diagonal of XᵀX by λI to tame near-singular matrices.', source: WP('Ridge_regression') },
+      after: { text: 'Paired with engineered features, regularised logistic regression became the fast, convex baseline across medicine, credit scoring and large-scale ad prediction.', source: WP('Logistic_regression') },
+    },
+    dispute: { text: 'Legendre published least squares first in 1805, while Gauss claimed in 1809 to have used it since 1795 — sparking a famous priority dispute (though Gauss went further by tying it to the normal distribution).', source: WP('Least_squares') },
+  },
+  {
+    id: 'knn',
+    lessonId: 'knn',
+    lab: 'Rescue the kNN Classifier',
+    idea: 'Nearest neighbours and the curse of dimensionality',
+    years: [1951, 1957, 1967],
+    when: '1951 · 1957 · 1967',
+    who: [
+      { text: 'Evelyn Fix and Joseph Hodges develop non-parametric nearest-neighbour discrimination in a 1951 report for the USAF School of Aviation Medicine in Texas.', source: WP('K-nearest_neighbors_algorithm') },
+      { text: 'Richard Bellman coins "the curse of dimensionality" in Dynamic Programming (1957, RAND Corporation).', source: WP('Curse_of_dimensionality') },
+      { text: 'Thomas Cover and Peter Hart publish "Nearest neighbor pattern classification" in IEEE Transactions on Information Theory (1967).', source: WP('K-nearest_neighbors_algorithm') },
+    ],
+    story: {
+      before: { text: 'Classical discriminant analysis assumed each class followed a clean parametric distribution such as a Gaussian.', source: WP('K-nearest_neighbors_algorithm') },
+      this: { text: 'Fix and Hodges classify by majority vote of the k closest stored examples; Cover and Hart prove that even 1-NN asymptotically has an error rate no worse than twice the optimal Bayes error rate.', source: WP('K-nearest_neighbors_algorithm') },
+      after: { text: 'Raw-feature kNN hits Bellman\'s curse of dimensionality when noisy columns accumulate, so modern systems run approximate nearest-neighbour search over learned neural embeddings instead.', source: WP('Curse_of_dimensionality') },
+    },
+  },
+  {
+    id: 'decision-trees',
+    lessonId: 'decision-trees',
+    lab: 'Build the Tabular Ensemble',
+    idea: 'CART, Random Forests and Gradient Boosting',
+    years: [1984, 1995, 2001, 2016],
+    when: '1984 · 1995 · 2001 · 2016',
+    who: [
+      { text: 'Leo Breiman and colleagues introduce Classification and Regression Trees (CART) and Gini splitting in 1984.', source: WP('Decision_tree_learning') },
+      { text: 'Tin Kam Ho introduces random decision forests in 1995; Leo Breiman publishes "Random Forests" (combining bagging and random feature subsets) in 2001.', source: WP('Random_forest') },
+      { text: 'Jerome Friedman develops explicit gradient boosting machines (1999/2001); Tianqi Chen and Carlos Guestrin release XGBoost (2016).', source: 'https://arxiv.org/abs/1603.02754' },
+    ],
+    story: {
+      before: { text: 'A single decision tree splits tabular data cleanly without scaling, but deep single trees overfit noisy labels.', source: WP('Decision_tree_learning') },
+      this: { text: 'Bagging + random feature splits (Random Forests) slash variance without overfitting as more trees are added, while gradient boosting fits trees sequentially to residuals in function space.', source: WP('Gradient_boosting') },
+      after: { text: 'Scalable Newton-leaf tree boosters like XGBoost (2016) scale to billions of rows and remain the state of the art on structured tabular data.', source: 'https://arxiv.org/abs/1603.02754' },
+    },
+  },
+  {
+    id: 'clustering-pca',
+    lessonId: 'clustering-pca',
+    lab: 'Compress & Segment',
+    idea: 'PCA, Lloyd\'s k-Means and k-Means++',
+    years: [1901, 1957, 1967, 2007],
+    when: '1901 · 1957 · 1967 · 2007',
+    who: [
+      { text: 'Karl Pearson invents principal component analysis in 1901; Harold Hotelling independently develops and names it in 1933.', source: WP('Principal_component_analysis') },
+      { text: 'Stuart Lloyd proposes the standard iterative clustering algorithm at Bell Labs in 1957 for pulse-code modulation (published in a journal in 1982); James MacQueen coins the term "k-means" in 1967.', source: WP('K-means_clustering') },
+      { text: 'David Arthur and Sergei Vassilvitskii introduce k-means++ seeding in 2007 to avoid bad random initialisations.', source: WP('K-means%2B%2B') },
+    ],
+    story: {
+      before: { text: 'High-dimensional unlabelled data had no labels to steer feature selection, and naive random k-means starts frequently got stuck in poor local minima.', source: WP('K-means_clustering') },
+      this: { text: 'PCA finds the orthogonal axes of maximum variance (equivalently minimum squared reconstruction error), while k-means++ spreads initial centroids proportionally to squared distance.', source: WP('K-means%2B%2B') },
+      after: { text: 'Together they anchor modern unsupervised pipelines — from denoising genomics tables to building Voronoi IVF cells in billion-scale vector databases.', source: WP('Principal_component_analysis') },
+    },
+  },
+  {
+    id: 'images-as-tensors',
+    lessonId: 'images-as-tensors',
+    lab: 'Build the Vision Preprocessor',
+    idea: 'Digital pixels, sampling and colour spaces',
+    years: [1949, 1957, 1978, 1993],
+    when: '1949 · 1957 · 1978 · 1993',
+    who: [
+      { text: 'Claude Shannon publishes the sampling theorem in Proceedings of the IRE (1949), formalising the Nyquist rate that prevents aliasing.', source: WP('Nyquist%E2%80%93Shannon_sampling_theorem') },
+      { text: 'Russell Kirsch and his team at the National Bureau of Standards scan the first digital photograph in 1957 — a 176×176, 1-bit image of his infant son on the SEAC computer.', source: WP('Russell_Kirsch') },
+      { text: 'Alvy Ray Smith formally describes the HSV colour model at NYIT in 1978; ITU-R publishes the Rec. 709 HDTV standard (1993).', source: WP('HSL_and_HSV') },
+    ],
+    story: {
+      before: { text: 'Computers had no way to ingest photographs at all; signals were continuous film or analogue voltage.', source: WP('Russell_Kirsch') },
+      this: { text: 'Kirsch turned a photograph into an array of numbers (pixels), Shannon\'s sampling theorem explained why downsampling without filtering creates aliasing, and HSV separated hue from brightness.', source: WP('Nyquist%E2%80%93Shannon_sampling_theorem') },
+      after: { text: 'Modern vision frameworks pack RGB frames into standardised FP16/FP32 NCHW tensors — still obeying the same sampling and colour-space rules.', source: WP('Rec._709') },
+    },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */

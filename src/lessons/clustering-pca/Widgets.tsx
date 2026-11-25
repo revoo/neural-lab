@@ -1,6 +1,10 @@
 // authored-by: Gemini Antigravity
 import { useEffect, useMemo, useState } from 'react';
 import { Widget } from '../../components/Widget';
+import { LabShell, useLabProgress } from '../../components/LabShell';
+import { LiveCode } from '../../components/LabJob';
+import { useMachineLog } from '../../components/MachineLog';
+import { useTweenedArray } from '../../components/motion';
 import { Segmented, Slider } from '../../components/controls';
 import { Plot } from '../../components/plot';
 import {
@@ -18,9 +22,11 @@ import {
   pca2DAtAngle,
   runKMeans,
   runKMeansFrom,
+  unsupLabHint,
   type InitMode,
   type UnsupBrief,
 } from './unsupervised';
+import { sklearnUnsupLines } from './realCode';
 
 const CLUSTER_COLORS = [
   'var(--c-a)',
@@ -514,10 +520,20 @@ function loadLab(): LabState {
   }
 }
 
+function seedShellProgress() {
+  const old = loadLab();
+  const solved: Record<string, boolean> = {};
+  for (const b of LAB_BRIEFS) {
+    if (old.solved[b.id]) solved[b.id] = true;
+  }
+  return { solved, optimal: {} };
+}
+
 export function UnsupervisedLab() {
-  const [briefId, setBriefId] = useState<UnsupBrief['id']>('pca-scale');
+  const [briefIdx, setBriefIdx] = useState(0);
   const [st, setSt] = useState<LabState>(loadLab);
-  const [showOpt, setShowOpt] = useState<boolean>(false);
+  const progress = useLabProgress('nl-unsup-lab-v1-shell', seedShellProgress);
+  const log = useMachineLog();
 
   useEffect(() => {
     try {
@@ -527,12 +543,28 @@ export function UnsupervisedLab() {
     }
   }, [st]);
 
+  const brief = LAB_BRIEFS[briefIdx];
+  const briefId = brief.id;
+
   const b1Res = useMemo(() => evalBrief1(st.b1Scaled, st.b1M), [st.b1Scaled, st.b1M]);
   const b2Res = useMemo(() => evalBrief2(st.b2Scaled, st.b2K, st.b2Init), [st.b2Scaled, st.b2K, st.b2Init]);
   const b3Res = useMemo(() => evalBrief3(st.b3M, st.b3K), [st.b3M, st.b3K]);
   const exhaust = useMemo(() => labExhaustive(briefId), [briefId]);
 
   const curPass = briefId === 'pca-scale' ? b1Res.pass : briefId === 'segment' ? b2Res.pass : b3Res.pass;
+  const curOpt =
+    curPass &&
+    (briefId === 'pca-scale' ? st.b1M === 2 : briefId === 'segment' ? true : st.b3M === 2);
+
+  // Animated bars for Brief 1 per-sensor variance retention & PC spectrum
+  const shownSensors = useTweenedArray(
+    b1Res.sensorRetained.map((v) => v * 100),
+    240,
+  );
+  const shownPcs = useTweenedArray(
+    b1Res.pcShares.map((v) => v * 100),
+    240,
+  );
 
   useEffect(() => {
     if (curPass && !st.solved[briefId]) {
@@ -540,50 +572,122 @@ export function UnsupervisedLab() {
     }
   }, [curPass, briefId, st.solved]);
 
-  const brief = LAB_BRIEFS.find((b) => b.id === briefId)!;
-  const solvedCount = Object.values(st.solved).filter(Boolean).length;
+  const updateState = (patch: Partial<LabState>) => {
+    const next = { ...st, ...patch };
+    setSt(next);
+    if (briefId === 'pca-scale') {
+      const r = evalBrief1(next.b1Scaled, next.b1M);
+      log.push(
+        `PCA (${next.b1Scaled ? 'z-score' : 'raw'}, m=${next.b1M}) → apparent ${(100 * r.apparentVar).toFixed(2)}% · true ${pct1(r.trueVar)} ${r.pass ? '✓' : '✗'}`,
+        r.pass ? 'good' : 'info',
+      );
+    } else if (briefId === 'segment') {
+      const r = evalBrief2(next.b2Scaled, next.b2K, next.b2Init);
+      log.push(
+        `k-Means (${next.b2Scaled ? 'z-score' : 'raw'}, k=${next.b2K}, ${next.b2Init}) → Sil ${r.meanSil.toFixed(3)} · ${r.stableSeeds}/40 seeds opt ${r.pass ? '✓' : '✗'}`,
+        r.pass ? 'good' : 'info',
+      );
+    } else {
+      const r = evalBrief3(next.b3M, next.b3K);
+      log.push(
+        `PCA(${next.b3M === 8 ? 'none' : `m=${next.b3M}`}) → k-Means(k=${next.b3K}) → Sil ${r.sil.toFixed(3)} · purity ${pct1(r.purity)} ${r.pass ? '✓' : '✗'}`,
+        r.pass ? 'good' : 'info',
+      );
+    }
+  };
+
+  const resetBrief = () => {
+    if (briefId === 'pca-scale') updateState({ b1Scaled: false, b1M: 1 });
+    else if (briefId === 'segment') updateState({ b2Scaled: false, b2K: 4, b2Init: 'random' });
+    else updateState({ b3M: 8, b3K: 4 });
+  };
+
+  const liveCode = useMemo(() => sklearnUnsupLines(briefId, st), [briefId, st]);
+  const shellBriefs = useMemo(
+    () => LAB_BRIEFS.map((b, i) => ({ id: b.id, tab: `Brief ${i + 1}`, title: b.title, text: b.story })),
+    [],
+  );
+
+  const statusNode =
+    briefId === 'pca-scale' ? (
+      b1Res.pass ? (
+        <>
+          <strong>{curOpt ? 'Optimal — minimum 2 components!' : 'Passes!'}</strong> True standardised variance kept: <strong>{pct1(b1Res.trueVar)}</strong> (apparent {(100 * b1Res.apparentVar).toFixed(2)}%).{' '}
+          {!curOpt && `Optional: can you keep ≥ 90% with fewer than ${st.b1M} components?`}
+        </>
+      ) : (
+        <>
+          <strong>Not yet.</strong> Apparent variance claims {(100 * b1Res.apparentVar).toFixed(2)}%, yet true standardised variance kept is only <strong>{pct1(b1Res.trueVar)}</strong> (need ≥ 90%). Compare the 6 sensor bars above.
+        </>
+      )
+    ) : briefId === 'segment' ? (
+      b2Res.pass ? (
+        <>
+          <strong>Unique optimal pipeline found!</strong> Mean Silhouette <strong>{b2Res.meanSil.toFixed(3)}</strong> · <strong>{b2Res.stableSeeds}/40</strong> seeds reach the global optimum.
+        </>
+      ) : (
+        <>
+          <strong>Not yet.</strong> Mean Silhouette {b2Res.meanSil.toFixed(3)} (need ≥ 0.72) · {b2Res.stableSeeds}/40 seeds optimal (need ≥ 36/40). Watch both the cluster boundaries and the 40-seed strip.
+        </>
+      )
+    ) : b3Res.pass ? (
+      <>
+        <strong>{curOpt ? 'Optimal — all 6 noise dimensions stripped!' : 'Passes!'}</strong> Silhouette <strong>{b3Res.sil.toFixed(3)}</strong> · hidden purity <strong>{pct1(b3Res.purity)}</strong>.{' '}
+        {!curOpt && `Optional: can you compress below ${st.b3M} dimensions and still pass?`}
+      </>
+    ) : (
+      <>
+        <strong>Not yet.</strong> Silhouette {b3Res.sil.toFixed(3)} (need ≥ 0.65) · hidden purity {pct1(b3Res.purity)} (need ≥ 95%). Inspect the 2D projection and the 8-component scree chart.
+      </>
+    );
+
+  const maxEigB3 = Math.max(1, ...b3Res.eigenvalues);
 
   return (
-    <Widget
+    <LabShell
       title="Lab: Compress & Segment"
-      wide
       caption={
         <>
-          Three real unsupervised pipelines with exhaustive search checks. First find any passing pipeline for each brief; then try to hit the optional minimal-dimension or optimal-score goal. Solved: <strong>{solvedCount}/3</strong>.
+          Three real unsupervised pipelines with exhaustive checks. Watch the live sensor retention bars (Brief 1), customer cluster boundaries & 40-seed stability strip (Brief 2), and 2D PCA projection & eigenvalue scree cliff (Brief 3).
         </>
       }
+      briefs={shellBriefs}
+      active={briefIdx}
+      onSelect={(i) => setBriefIdx(i)}
+      progress={progress}
+      passing={curPass}
+      optimal={curOpt}
+      status={statusNode}
+      statusTone={curPass ? 'good' : 'neutral'}
+      hint={unsupLabHint(briefId, st)}
+      reveal={{
+        label: `the exhaustive search (${exhaust.total} configs)`,
+        content: (
+          <div style={{ fontSize: 13.5, lineHeight: 1.55 }}>
+            All <strong>{exhaust.total}</strong> configurations were checked exhaustively: <strong>{exhaust.passing}</strong> pass. {exhaust.summary}.
+          </div>
+        ),
+      }}
+      log={{
+        lines: log.lines,
+        onClear: log.clear,
+        title: 'Unsupervised pipeline log',
+        empty: 'Adjust scaling, components, k or seeding to record a pipeline run.',
+      }}
+      actions={
+        <button type="button" className="btn small" onClick={resetBrief}>
+          Reset brief
+        </button>
+      }
     >
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-        {LAB_BRIEFS.map((b, idx) => (
-          <button
-            key={b.id}
-            type="button"
-            className="btn"
-            style={{
-              borderColor: briefId === b.id ? 'var(--accent)' : 'var(--border)',
-              background: briefId === b.id ? 'var(--bg-sunken)' : 'transparent',
-              fontWeight: briefId === b.id ? 600 : 400,
-            }}
-            onClick={() => {
-              setBriefId(b.id);
-              setShowOpt(false);
-            }}
-          >
-            {st.solved[b.id] ? '✓ ' : ''}Brief {idx + 1}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{brief.title}</div>
-      <p style={{ fontSize: 13.5, color: 'var(--text-muted)', marginTop: 0, marginBottom: 12, lineHeight: 1.5 }}>{brief.story}</p>
-
+      {/* Brief 1: PCA Scaling Trap + Per-Sensor Retention X-Ray */}
       {briefId === 'pca-scale' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'grid', gap: 12 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-end' }}>
             <Segmented
               label="Feature scaling"
               value={st.b1Scaled ? 'std' : 'raw'}
-              onChange={(v) => setSt((p) => ({ ...p, b1Scaled: v === 'std' }))}
+              onChange={(v) => updateState({ b1Scaled: v === 'std' })}
               options={[
                 { value: 'raw', label: 'Raw units (mm + m)' },
                 { value: 'std', label: 'Standardised (z-score)' },
@@ -596,7 +700,7 @@ export function UnsupervisedLab() {
                 min={1}
                 max={6}
                 step={1}
-                onChange={(v) => setSt((p) => ({ ...p, b1M: v }))}
+                onChange={(v) => updateState({ b1M: v })}
                 format={(v) => `m = ${v}`}
               />
             </div>
@@ -614,34 +718,54 @@ export function UnsupervisedLab() {
               </div>
             </div>
             <div className="readout">
-              <div className="readout-label">Status</div>
-              <div className="readout-value" style={{ color: b1Res.pass ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                {b1Res.pass ? (st.b1M === 2 ? 'PASS (Optimal m=2!)' : 'PASS') : 'FAIL'}
-              </div>
+              <div className="readout-label">Components kept</div>
+              <div className="readout-value">{st.b1M} / 6</div>
             </div>
           </div>
 
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-            {!st.b1Scaled && st.b1M === 1
-              ? 'Trap sprung! Because Sensor 1 is 100× larger in raw millimetres, PC1 points almost entirely along Sensor 1 and boasts 99.97% apparent variance while throwing away 5 of the 6 sensors (only 17.3% of true standardised variance).'
-              : !st.b1Scaled && st.b1M === 2
-                ? 'Still unscaled: PC1 was wasted on Sensor 1 alone, so keeping 2 raw components captures only 66.4% of true standardised variance.'
-                : b1Res.pass && st.b1M === 2
-                  ? 'Spot on: standardising puts all 6 sensors on equal footing, so just 2 components capture 98.3% of the true physical signal.'
-                  : b1Res.pass
-                    ? `This passes (${pct1(b1Res.trueVar)}), but can you hit ≥ 90% using fewer than ${st.b1M} components?`
-                    : 'Not enough variance preserved yet. Try standardising or keeping more components.'}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px, 100%), 1fr))', gap: 12 }}>
+            {/* Apparent PC eigenvalue spectrum */}
+            <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-sunken)', border: '1px solid var(--border)', display: 'grid', gap: 6 }}>
+              <div className="field-label" style={{ margin: 0 }}>PCA spectrum (what PCA thinks each PC is worth)</div>
+              {shownPcs.map((pct, i) => {
+                const kept = i < st.b1M;
+                return (
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '44px 1fr 50px', gap: 8, alignItems: 'center', fontSize: 12 }} className="mono">
+                    <span style={{ color: kept ? 'var(--text)' : 'var(--text-muted)', fontWeight: kept ? 700 : 400 }}>PC{i + 1}</span>
+                    <div style={{ height: 10, borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                      <div style={{ width: `${Math.min(100, pct)}%`, height: '100%', background: kept ? 'var(--accent)' : 'var(--text-muted)', opacity: kept ? 0.9 : 0.35 }} />
+                    </div>
+                    <span style={{ textAlign: 'right', color: kept ? 'var(--text)' : 'var(--text-muted)' }}>{pct.toFixed(1)}%</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Actual per-sensor reconstruction R^2 */}
+            <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-sunken)', border: '1px solid var(--border)', display: 'grid', gap: 6 }}>
+              <div className="field-label" style={{ margin: 0 }}>True signal kept per sensor (S1 is logged in mm!)</div>
+              {shownSensors.map((pct, i) => (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '64px 1fr 48px', gap: 8, alignItems: 'center', fontSize: 12 }} className="mono">
+                  <span>{i === 0 ? 'S1 (mm)' : `S${i + 1} (m)`}</span>
+                  <div style={{ height: 10, borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.min(100, pct)}%`, height: '100%', background: pct >= 85 ? 'var(--c-good)' : pct >= 40 ? 'var(--c-b)' : 'var(--c-bad)' }} />
+                  </div>
+                  <span style={{ textAlign: 'right', fontWeight: 600 }}>{pct.toFixed(0)}%</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
 
+      {/* Brief 2: Live Customer Clusters + 40-Seed Stability Strip */}
       {briefId === 'segment' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-end' }}>
+        <div style={{ display: 'grid', gap: 12 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
             <Segmented
               label="Feature scaling"
               value={st.b2Scaled ? 'std' : 'raw'}
-              onChange={(v) => setSt((p) => ({ ...p, b2Scaled: v === 'std' }))}
+              onChange={(v) => updateState({ b2Scaled: v === 'std' })}
               options={[
                 { value: 'raw', label: 'Raw (€ vs visits)' },
                 { value: 'std', label: 'Standardised' },
@@ -650,7 +774,7 @@ export function UnsupervisedLab() {
             <Segmented
               label="Seeding"
               value={st.b2Init}
-              onChange={(v) => setSt((p) => ({ ...p, b2Init: v }))}
+              onChange={(v) => updateState({ b2Init: v })}
               options={[
                 { value: 'random', label: 'Random' },
                 { value: 'kmeans++', label: 'k-Means++' },
@@ -663,52 +787,97 @@ export function UnsupervisedLab() {
                 min={2}
                 max={6}
                 step={1}
-                onChange={(v) => setSt((p) => ({ ...p, b2K: v }))}
+                onChange={(v) => updateState({ b2K: v })}
                 format={(v) => `k = ${v}`}
               />
             </div>
           </div>
 
-          <div className="readouts" style={{ margin: 0 }}>
-            <div className="readout">
-              <div className="readout-label">Mean Silhouette (≥ 0.72)</div>
-              <div className="readout-value" style={{ color: b2Res.meanSil >= 0.72 ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                {b2Res.meanSil.toFixed(3)}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(265px, 100%), 1fr))', gap: 14, alignItems: 'start' }}>
+            <div style={{ display: 'grid', gap: 4, justifyItems: 'center' }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-muted)', textAlign: 'center' }}>
+                Sample run clusters (Spend € vs Visits)
               </div>
+              <Plot width={300} height={250} x={[200, 4800]} y={[0, 20]} pad={34} xLabel="Annual spend (€)" yLabel="Visits / yr" ariaLabel="Customer k-Means clustering scatter plot">
+                {({ x, y }) => (
+                  <>
+                    {b2Res.rawPts.map((pt, i) => (
+                      <circle
+                        key={i}
+                        cx={x(pt[0])}
+                        cy={y(pt[1])}
+                        r={3}
+                        fill={CLUSTER_COLORS[b2Res.sampleAssign[i] % CLUSTER_COLORS.length]}
+                        opacity={0.85}
+                      />
+                    ))}
+                    {b2Res.sampleCentroidsRaw.map((c, ci) => (
+                      <g key={`c-${ci}`}>
+                        <circle cx={x(c[0])} cy={y(c[1])} r={6.5} fill="var(--bg)" stroke={CLUSTER_COLORS[ci % CLUSTER_COLORS.length]} strokeWidth={2.2} />
+                        <text x={x(c[0])} y={y(c[1]) + 3.5} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--text)">×</text>
+                      </g>
+                    ))}
+                  </>
+                )}
+              </Plot>
             </div>
-            <div className="readout">
-              <div className="readout-label">Seeds optimal (≥ 36/40)</div>
-              <div className="readout-value" style={{ color: b2Res.stableSeeds >= 36 ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                {b2Res.stableSeeds}/{b2Res.seeds}
-              </div>
-            </div>
-            <div className="readout">
-              <div className="readout-label">Status</div>
-              <div className="readout-value" style={{ color: b2Res.pass ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                {b2Res.pass ? 'PASS (Unique!)' : 'FAIL'}
-              </div>
-            </div>
-          </div>
 
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-            {!st.b2Scaled
-              ? 'Raw euro spend (€500–€4,500) completely swamps visit count (2–18) inside Euclidean distance, so k-Means slices vertically along spend alone.'
-              : st.b2K === 4 && st.b2Init === 'random'
-                ? 'So close! Standardised random init clears Silhouette (0.721), but 11 of 40 seeds still land in bad local minima (29/40 = 72.5%). Switch seeding to k-Means++.'
-                : b2Res.pass
-                  ? 'Nailed it — out of all 20 configurations, standardised k = 4 with k-Means++ is the unique solution that clears both separation and stability.'
-                  : 'Check both cluster count and seeding stability across the 40 seeds.'}
+            <div style={{ display: 'grid', gap: 10 }}>
+              <div className="readout" style={{ margin: 0 }}>
+                <span style={{ color: b2Res.meanSil >= 0.72 - 1e-9 ? 'var(--c-good)' : 'var(--c-bad)' }}>
+                  {b2Res.meanSil >= 0.72 - 1e-9 ? '✓' : '✗'}
+                </span>{' '}
+                <span className="k">mean Silhouette </span>
+                <strong>{b2Res.meanSil.toFixed(3)}</strong> (need ≥ 0.720)
+                {'\n'}
+                <span style={{ color: b2Res.stableSeeds >= 36 ? 'var(--c-good)' : 'var(--c-bad)' }}>
+                  {b2Res.stableSeeds >= 36 ? '✓' : '✗'}
+                </span>{' '}
+                <span className="k">seeds at global optimum </span>
+                <strong>{b2Res.stableSeeds} / {b2Res.seeds}</strong> (need ≥ 36/40)
+              </div>
+
+              <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-sunken)', border: '1px solid var(--border)', display: 'grid', gap: 6 }}>
+                <div className="field-label" style={{ margin: 0 }}>40-seed stability grid (each tile = 1 random start)</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 4 }}>
+                  {b2Res.seedOptimal.map((opt, idx) => (
+                    <div
+                      key={idx}
+                      title={`Seed ${idx + 1}: Silhouette ${b2Res.seedSils[idx].toFixed(3)} (${opt ? 'global optimum' : 'local minimum trap'})`}
+                      style={{
+                        height: 18,
+                        borderRadius: 4,
+                        background: opt ? 'var(--c-good)' : 'var(--c-bad)',
+                        opacity: opt ? 0.85 : 0.75,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 10,
+                        color: 'var(--bg)',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {opt ? '✓' : '×'}
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+                  ✓ landed on the global optimum · × got trapped in a suboptimal local minimum.
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
+      {/* Brief 3: PCA -> k-Means Denoising (2D projection + 8D Scree Cliff) */}
       {briefId === 'denoise' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-end' }}>
+        <div style={{ display: 'grid', gap: 12 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
             <Segmented
               label="PCA dimensions before k-Means"
               value={st.b3M}
-              onChange={(v) => setSt((p) => ({ ...p, b3M: v }))}
+              onChange={(v) => updateState({ b3M: v })}
               options={B3_MS.map((m) => ({ value: m, label: m === 8 ? '8 (no PCA)' : `${m}D` }))}
             />
             <div style={{ flex: '1 1 180px' }}>
@@ -718,57 +887,75 @@ export function UnsupervisedLab() {
                 min={2}
                 max={5}
                 step={1}
-                onChange={(v) => setSt((p) => ({ ...p, b3K: v }))}
+                onChange={(v) => updateState({ b3K: v })}
                 format={(v) => `k = ${v}`}
               />
             </div>
           </div>
 
-          <div className="readouts" style={{ margin: 0 }}>
-            <div className="readout">
-              <div className="readout-label">Silhouette (≥ 0.65)</div>
-              <div className="readout-value" style={{ color: b3Res.sil >= 0.65 ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                {b3Res.sil.toFixed(3)}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(265px, 100%), 1fr))', gap: 14, alignItems: 'start' }}>
+            <div style={{ display: 'grid', gap: 4, justifyItems: 'center' }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-muted)', textAlign: 'center' }}>
+                2D (PC1, PC2) view · coloured by clusters found in {st.b3M === 8 ? 'all 8D' : `${st.b3M}D PCA`}
               </div>
+              <Plot width={300} height={250} x={[-5.2, 5.2]} y={[-5.2, 5.2]} pad={32} xLabel="PC1" yLabel="PC2" ariaLabel="2D PCA projection of 8D logs coloured by cluster">
+                {({ x, y }) => (
+                  <>
+                    {st.b3M === 1 && (
+                      <line x1={x(-5)} x2={x(5)} y1={y(0)} y2={y(0)} stroke="var(--accent)" strokeDasharray="4 3" strokeWidth={1.6} />
+                    )}
+                    {b3Res.pc2Pts.map((pt, i) => (
+                      <circle
+                        key={i}
+                        cx={x(pt[0])}
+                        cy={y(st.b3M === 1 ? pt[1] * 0.15 : pt[1])}
+                        r={3.1}
+                        fill={CLUSTER_COLORS[b3Res.assign[i] % CLUSTER_COLORS.length]}
+                        opacity={0.88}
+                      />
+                    ))}
+                  </>
+                )}
+              </Plot>
             </div>
-            <div className="readout">
-              <div className="readout-label">Hidden purity (≥ 95%)</div>
-              <div className="readout-value" style={{ color: b3Res.purity >= 0.95 ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                {pct1(b3Res.purity)}
-              </div>
-            </div>
-            <div className="readout">
-              <div className="readout-label">Status</div>
-              <div className="readout-value" style={{ color: b3Res.pass ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                {b3Res.pass ? (st.b3M === 2 ? 'PASS (Optimal 2D!)' : 'PASS') : 'FAIL'}
-              </div>
-            </div>
-          </div>
 
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-            {st.b3M === 8
-              ? 'With all 8 columns intact, the 6 random noise columns pad every pairwise distance, crushing Silhouette even when cluster purity is decent.'
-              : st.b3M === 1
-                ? 'Compressing all the way to 1D collapses two of the four square corners on top of each other, hurting purity.'
-                : b3Res.pass && st.b3M === 2
-                  ? 'Optimal pipeline! Projecting onto the top 2 principal components strips away all 6 noise columns, lifting Silhouette to 0.805 with 100.0% cluster purity.'
-                  : b3Res.pass
-                    ? `This passes, though keeping ${st.b3M} dimensions still carries noise columns. Can you compress further?`
-                    : 'Try trimming the noisy dimensions with PCA and matching k to the four underlying segments.'}
+            <div style={{ display: 'grid', gap: 10 }}>
+              <div className="readout" style={{ margin: 0 }}>
+                <span style={{ color: b3Res.sil >= 0.65 - 1e-9 ? 'var(--c-good)' : 'var(--c-bad)' }}>
+                  {b3Res.sil >= 0.65 - 1e-9 ? '✓' : '✗'}
+                </span>{' '}
+                <span className="k">Silhouette in {st.b3M}D </span>
+                <strong>{b3Res.sil.toFixed(3)}</strong> (need ≥ 0.650)
+                {'\n'}
+                <span style={{ color: b3Res.purity >= 0.95 - 1e-9 ? 'var(--c-good)' : 'var(--c-bad)' }}>
+                  {b3Res.purity >= 0.95 - 1e-9 ? '✓' : '✗'}
+                </span>{' '}
+                <span className="k">hidden segment purity </span>
+                <strong>{pct1(b3Res.purity)}</strong> (need ≥ 95.0%)
+              </div>
+
+              <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-sunken)', border: '1px solid var(--border)', display: 'grid', gap: 5 }}>
+                <div className="field-label" style={{ margin: 0 }}>8D eigenvalue scree (kept {st.b3M} of 8 dims)</div>
+                {b3Res.eigenvalues.map((eig, idx) => {
+                  const kept = idx < st.b3M;
+                  const pct = (eig / maxEigB3) * 100;
+                  return (
+                    <div key={idx} style={{ display: 'grid', gridTemplateColumns: '38px 1fr 44px', gap: 8, alignItems: 'center', fontSize: 11.5 }} className="mono">
+                      <span style={{ color: kept ? 'var(--text)' : 'var(--text-muted)', fontWeight: kept ? 700 : 400 }}>PC{idx + 1}</span>
+                      <div style={{ height: 9, borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                        <div style={{ width: `${pct}%`, height: '100%', background: kept ? 'var(--c-a)' : 'var(--text-muted)', opacity: kept ? 0.9 : 0.3 }} />
+                      </div>
+                      <span style={{ textAlign: 'right', color: kept ? 'var(--text)' : 'var(--text-muted)' }}>{eig.toFixed(2)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
-        <button type="button" className="btn" onClick={() => setShowOpt((v) => !v)}>
-          {showOpt ? 'Hide exhaustive check' : `Reveal exhaustive search (${exhaust.total} configs)`}
-        </button>
-        {showOpt && (
-          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            <strong>{exhaust.passing}/{exhaust.total}</strong> pass · {exhaust.summary}
-          </div>
-        )}
-      </div>
-    </Widget>
+      <LiveCode code={liveCode} note="scikit-learn PCA / KMeans pipeline" />
+    </LabShell>
   );
 }

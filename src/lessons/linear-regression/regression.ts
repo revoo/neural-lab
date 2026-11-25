@@ -208,11 +208,19 @@ export function logisticLossAndGrad(X: number[][], y: number[], w: number[], lam
   return { loss, grad };
 }
 
-/** Fit L2-regularised logistic regression via damped Newton-Raphson / IRLS. */
-export function fitLogistic(X: number[][], y: number[], lambda = 1e-4, maxIter = 40): number[] {
+export type LogisticTrace = {
+  w: number[];
+  iters: number;
+  finalLoss: number;
+  gradNorm: number;
+};
+
+/** Fit L2-regularised logistic regression via damped Newton-Raphson / IRLS, returning solver trace. */
+export function fitLogisticTrace(X: number[][], y: number[], lambda = 1e-4, maxIter = 40): LogisticTrace {
   const N = X.length;
   const d = X[0].length;
   let w = new Array<number>(d).fill(0);
+  let iters = 0;
 
   for (let iter = 0; iter < maxIter; iter++) {
     const { loss, grad } = logisticLossAndGrad(X, y, w, lambda);
@@ -255,11 +263,18 @@ export function fitLogistic(X: number[][], y: number[], lambda = 1e-4, maxIter =
       }
       alpha *= 0.5;
     }
+    iters++;
     const delta = Math.hypot(...nextW.map((v, j) => v - w[j]));
     w = nextW;
     if (delta < 1e-9) break;
   }
-  return w;
+  const final = logisticLossAndGrad(X, y, w, lambda);
+  return { w, iters, finalLoss: final.loss, gradNorm: Math.hypot(...final.grad) };
+}
+
+/** Fit L2-regularised logistic regression via damped Newton-Raphson / IRLS. */
+export function fitLogistic(X: number[][], y: number[], lambda = 1e-4, maxIter = 40): number[] {
+  return fitLogisticTrace(X, y, lambda, maxIter).w;
 }
 
 export function predictLogistic(X: number[][], w: number[]): number[] {
@@ -491,7 +506,8 @@ export function evaluateLab(id: LabBrief['id'], keys: FeatureKey[], lambda: numb
   const Xte = buildDesignMatrix(data.test, keys);
   const yte = data.test.map((p) => p.y);
 
-  const w = fitLogistic(Xtr, ytr, lambda);
+  const trace = fitLogisticTrace(Xtr, ytr, lambda);
+  const w = trace.w;
   const probsTr = predictLogistic(Xtr, w);
   const probsTe = predictLogistic(Xte, w);
   const tr = confusionAt(probsTr, ytr, thresh);
@@ -499,12 +515,21 @@ export function evaluateLab(id: LabBrief['id'], keys: FeatureKey[], lambda: numb
 
   return {
     w,
+    iters: trace.iters,
+    finalLoss: trace.finalLoss,
+    gradNorm: trace.gradNorm,
     params: 1 + keys.length, // intercept + selected features
     trainAcc: tr.accuracy,
     testAcc: te.accuracy,
     testPrecision: te.precision,
     testRecall: te.recall,
     testF1: te.f1,
+    tp: te.tp,
+    fp: te.fp,
+    fn: te.fn,
+    tn: te.tn,
+    probsTe,
+    Xte,
     predictXY: (x1: number, x2: number) => {
       let z = w[0];
       for (let i = 0; i < keys.length; i++) {
@@ -523,6 +548,46 @@ export function briefPasses(b: LabBrief, r: ReturnType<typeof evaluateLab>): boo
   return true;
 }
 
+/**
+ * Evidence-only hint for the current brief and model state.
+ * Points at what the plotted geometry, weight bars or error counts show —
+ * never names a feature button, and never mentions a threshold when locked.
+ */
+export function labHint(b: LabBrief, r: ReturnType<typeof evaluateLab>): string {
+  const pass = briefPasses(b, r);
+  const minWeight = r.w.slice(1).reduce((m, v) => Math.min(m, Math.abs(v)), Infinity);
+  const maxWeight = r.w.slice(1).reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+  if (pass) {
+    if (maxWeight > 0 && minWeight < 0.15 * maxWeight) {
+      return 'It passes — inspect the learned weight bars below. One or more active features carry weights close to zero and contribute almost nothing to the log-odds.';
+    }
+    return 'It passes! Check the learned weight bars to see whether every active term is genuinely needed to hold the boundary.';
+  }
+  if (b.id === 'ring') {
+    return 'Look at the two plots side by side: the inner class sits inside a closed loop, while the model can only draw one straight cut in its feature space. Ask what transformation puts all points near the origin on one side of a straight line and all outer points on the other.';
+  }
+  if (b.id === 'xor-risk') {
+    return 'Look at where the misclassified rings cluster: opposite diagonal corners share the same class, so moving horizontally or vertically alone sees a 50/50 mix. Look for a single coordinate where both positive corners land on the same side of zero.';
+  }
+  // Brief 3 (imbalanced, threshold unlocked)
+  if (r.testRecall < (b.minRecall ?? 0.85)) {
+    return `Look at the log-odds curve and the confusion counts: ${r.fn} real faults are currently missed (FN). Watch how the boundary bends around the upper-right corner and check where the decision threshold sits relative to the positive points.`;
+  }
+  return `Recall is met, but ${r.fp} false alarms (FP) keep precision below target. Watch the log-odds separation and the decision threshold: tightening the curved boundary or shifting the threshold trims false alarms.`;
+}
+
+export type LabSearchPoint = {
+  keys: FeatureKey[];
+  lambda: number;
+  thresh: number;
+  acc: number;
+  recall: number;
+  precision: number;
+  f1: number;
+  params: number;
+  pass: boolean;
+};
+
 const LAB_EX_CACHE = new Map<LabBrief['id'], ReturnType<typeof computeLabExhaustive>>();
 
 function computeLabExhaustive(b: LabBrief) {
@@ -532,7 +597,8 @@ function computeLabExhaustive(b: LabBrief) {
   let passing = 0;
   let bestParams = Infinity;
   let bestAccAtMin = -1;
-  let best: { keys: FeatureKey[]; lambda: number; thresh: number; acc: number; recall: number; precision: number; params: number }[] = [];
+  let best: LabSearchPoint[] = [];
+  const points: LabSearchPoint[] = [];
 
   for (let mask = 1; mask < 1 << allKeys.length; mask++) {
     const keys = allKeys.filter((_, i) => (mask & (1 << i)) !== 0);
@@ -540,10 +606,22 @@ function computeLabExhaustive(b: LabBrief) {
       for (const thresh of threshList) {
         total++;
         const r = evaluateLab(b.id, keys, lambda, thresh);
-        if (!briefPasses(b, r)) continue;
+        const pass = briefPasses(b, r);
+        const row: LabSearchPoint = {
+          keys,
+          lambda,
+          thresh,
+          acc: r.testAcc,
+          recall: r.testRecall,
+          precision: r.testPrecision,
+          f1: r.testF1,
+          params: r.params,
+          pass,
+        };
+        points.push(row);
+        if (!pass) continue;
         passing++;
         const params = r.params;
-        const row = { keys, lambda, thresh, acc: r.testAcc, recall: r.testRecall, precision: r.testPrecision, params };
         if (params < bestParams) {
           bestParams = params;
           bestAccAtMin = r.testAcc;
@@ -559,7 +637,7 @@ function computeLabExhaustive(b: LabBrief) {
       }
     }
   }
-  return { total, passing, bestParams, bestAccAtMin, best };
+  return { total, passing, bestParams, bestAccAtMin, best, points };
 }
 
 export function labExhaustive(b: LabBrief) {

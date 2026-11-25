@@ -526,18 +526,28 @@ export function evalBrief1(scaled: boolean, m: number) {
 
   let retained = 0;
   let total = 0;
+  const d = std[0].length;
+  const sensorTot = new Array<number>(d).fill(0);
+  const sensorErr = new Array<number>(d).fill(0);
   for (const x of std) {
     let x2 = 0;
-    for (let j = 0; j < x.length; j++) x2 += x[j] * x[j];
+    for (let j = 0; j < d; j++) {
+      x2 += x[j] * x[j];
+      sensorTot[j] += x[j] * x[j];
+    }
     total += x2;
+    const recon = new Array<number>(d).fill(0);
     for (const u of basis) {
       let dot = 0;
-      for (let j = 0; j < x.length; j++) dot += u[j] * x[j];
+      for (let j = 0; j < d; j++) dot += u[j] * x[j];
       retained += dot * dot;
+      for (let j = 0; j < d; j++) recon[j] += dot * u[j];
     }
+    for (let j = 0; j < d; j++) sensorErr[j] += (x[j] - recon[j]) ** 2;
   }
+  const sensorRetained = sensorTot.map((tot, j) => Math.max(0, 1 - sensorErr[j] / Math.max(1e-12, tot)));
   const trueVar = retained / total;
-  return { apparentVar, trueVar, m, pass: trueVar >= 0.9 - 1e-9 };
+  return { apparentVar, trueVar, m, pass: trueVar >= 0.9 - 1e-9, sensorRetained, pcShares: pcaFit.explainedRatio };
 }
 
 // Brief 2 data: 4 unscaled customer clusters (Spend €1000/€4000, Visits 4/15)
@@ -561,9 +571,21 @@ function getB2Data(): Vec[] {
   return pts;
 }
 
-const B2_CACHE = new Map<string, { meanSil: number; stableSeeds: number; seeds: number; pass: boolean }>();
+type B2Result = {
+  meanSil: number;
+  stableSeeds: number;
+  seeds: number;
+  pass: boolean;
+  rawPts: Vec[];
+  sampleAssign: number[];
+  sampleCentroidsRaw: Vec[];
+  seedOptimal: boolean[];
+  seedSils: number[];
+};
 
-export function evalBrief2(scaled: boolean, k: number, init: InitMode) {
+const B2_CACHE = new Map<string, B2Result>();
+
+export function evalBrief2(scaled: boolean, k: number, init: InitMode): B2Result {
   const key = `${scaled}:${k}:${init}`;
   const hit = B2_CACHE.get(key);
   if (hit) return hit;
@@ -579,8 +601,34 @@ export function evalBrief2(scaled: boolean, k: number, init: InitMode) {
     const inVal = runKMeans(work, k, 'kmeans++', 500 + i * 7).final.inertia;
     if (inVal < bestIn) bestIn = inVal;
   }
-  const stableSeeds = runs.filter((r) => r.inertia <= bestIn * 1.05).length;
-  const res = { meanSil, stableSeeds, seeds, pass: meanSil >= 0.72 - 1e-9 && stableSeeds / seeds >= 0.9 - 1e-9 };
+  const seedOptimal = runs.map((r) => r.inertia <= bestIn * 1.05);
+  const stableSeeds = seedOptimal.filter(Boolean).length;
+  // Representative run for plotting: pick the first run matching the typical outcome (or run 0)
+  const sampleAssign = runs[0].assign;
+  const sampleCentroidsRaw: Vec[] = Array.from({ length: k }, (_, c) => {
+    let sx = 0;
+    let sy = 0;
+    let cnt = 0;
+    for (let i = 0; i < raw.length; i++) {
+      if (sampleAssign[i] === c) {
+        sx += raw[i][0];
+        sy += raw[i][1];
+        cnt++;
+      }
+    }
+    return cnt > 0 ? [sx / cnt, sy / cnt] : [2500, 9.5];
+  });
+  const res: B2Result = {
+    meanSil,
+    stableSeeds,
+    seeds,
+    pass: meanSil >= 0.72 - 1e-9 && stableSeeds / seeds >= 0.9 - 1e-9,
+    rawPts: raw,
+    sampleAssign,
+    sampleCentroidsRaw,
+    seedOptimal,
+    seedSils: sils,
+  };
   B2_CACHE.set(key, res);
   return res;
 }
@@ -616,6 +664,7 @@ export function evalBrief3(m: number, k: number) {
   const { pts, truth } = getB3Data();
   const pca = fitPCA(pts);
   const proj = m === 8 ? pts : projectPCA(pts, pca, m);
+  const pc2Pts = projectPCA(pts, pca, 2);
   let best = runKMeans(proj, k, 'kmeans++', 21).final;
   for (let s = 2; s <= 5; s++) {
     const cand = runKMeans(proj, k, 'kmeans++', s * 29).final;
@@ -623,7 +672,56 @@ export function evalBrief3(m: number, k: number) {
   }
   const sil = silhouetteScore(proj, best.assign, k);
   const purity = clusterPurity(best.assign, truth, k);
-  return { sil, purity, m, k, pass: sil >= 0.65 - 1e-9 && purity >= 0.95 - 1e-9 };
+  return {
+    sil,
+    purity,
+    m,
+    k,
+    pass: sil >= 0.65 - 1e-9 && purity >= 0.95 - 1e-9,
+    pc2Pts,
+    assign: best.assign,
+    eigenvalues: pca.eigenvalues,
+  };
+}
+
+/** Evidence-only hint for Compress & Segment: points at per-sensor bars, scatter stripes, 40-seed dots, or scree cliff. */
+export function unsupLabHint(
+  briefId: UnsupBrief['id'],
+  state: { b1Scaled: boolean; b1M: number; b2Scaled: boolean; b2K: number; b2Init: InitMode; b3M: number; b3K: number },
+): string {
+  if (briefId === 'pca-scale') {
+    const r = evalBrief1(state.b1Scaled, state.b1M);
+    if (r.pass) {
+      return state.b1M > 2
+        ? `It passes at m = ${state.b1M}. Look at the 6 per-sensor variance bars and the component spectrum — how many components actually carry almost all of the signal?`
+        : 'It passes at the minimum possible dimension!';
+    }
+    if (!state.b1Scaled) {
+      return 'Look at the 6 per-sensor bars on the right: Sensor 1 sits near 100% while the other five sit near zero, because variance grows as the square of the units (100² = 10,000×). Put all sensors on equal footing before projecting.';
+    }
+    return `Standardised PCA spreads variance across the real physical modes, but m = ${state.b1M} keeps only ${(100 * r.trueVar).toFixed(1)}%. Watch how many tall bars appear in the spectrum.`;
+  }
+  if (briefId === 'segment') {
+    const r = evalBrief2(state.b2Scaled, state.b2K, state.b2Init);
+    if (r.pass) return 'Unique solution found — all 4 corners separate cleanly and almost every seed reaches the global optimum.';
+    if (!state.b2Scaled) {
+      return 'Look at the customer scatter plot: the cluster boundaries slice vertically along Spend (€) and ignore Visits completely, because euros are hundreds of times larger numerically.';
+    }
+    if (r.meanSil >= 0.72 - 1e-9 && r.stableSeeds < 36) {
+      return `The clusters are well separated (Silhouette ${r.meanSil.toFixed(3)}), yet ${r.seeds - r.stableSeeds} of 40 dots on the seed strip still get trapped in suboptimal local minima. Check how initial centroids are placed.`;
+    }
+    return 'Look at how many distinct corner clusters appear on the scatter plot, and watch both the Silhouette score and the 40-seed stability strip.';
+  }
+  const r = evalBrief3(state.b3M, state.b3K);
+  if (r.pass) {
+    return state.b3M > 2
+      ? `It passes with ${state.b3M} components — look at the eigenvalue scree chart to see where the sharp cliff separates signal dimensions from flat noise.`
+      : 'Optimal! All 6 noise dimensions are stripped out and all 4 clusters separate cleanly.';
+  }
+  if (state.b3M === 1) {
+    return 'Look at the 2D projection on the left: collapsing to 1 component squashes pairs of distinct clusters on top of each other, hurting purity.';
+  }
+  return 'Look at the eigenvalue scree chart on the right: a handful of tall eigenvalues stand above a flat tail of random noise. Match the retained components to that cliff and match k to the clusters visible on the left.';
 }
 
 export function labExhaustive(id: UnsupBrief['id']) {

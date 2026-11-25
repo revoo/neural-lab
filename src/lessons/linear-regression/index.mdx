@@ -161,19 +161,29 @@ Logistic boundary with x=25 outlier: x = 4.11
 
 ## Lab: Feature Engineering + Logistic Regression
 
-Raw `(x₁, x₂)` logistic regression fails badly on curved boundaries (54.8% on the ring, 52.8% on continuous XOR) and misses nearly a quarter of rare faults at default threshold `0.50` (76.9% recall). Toggle engineered features, L2 penalty $\lambda$, and (in Brief 3) the decision threshold. Every choice fits exact Newton–Raphson logistic regression live on 220 training points and scores on 250 held-out test points. Meet each brief — and optionally, use as few parameters as possible.
+<LabJob>Ship a sub-millisecond fault detector on an embedded controller (or a regulated risk scorecard): every parameter must earn its keep, and you must hit the accuracy or recall SLA using only regularised logistic regression.</LabJob>
+
+Raw `(x₁, x₂)` logistic regression fails badly on curved boundaries (54.8% on the ring, 52.8% on continuous XOR) and misses nearly a quarter of rare faults at default threshold `0.50` (76.9% recall). Toggle engineered features, L2 penalty $\lambda$, and (in Brief 3) the decision threshold. Every choice fits exact Newton–Raphson logistic regression live on 220 training points and scores on 250 held-out test points. Watch the right-hand plot to see how your chosen features warp the problem so a single straight cut (or 1D sigmoid) separates the classes. Meet each brief — and optionally, use as few parameters as possible.
 
 <ClassicalLab />
 
 <Deeper title="Debrief: tiny linear models on curved problems" tag="Spoiler">
 
-- **Brief 1 (Ring, ≥ 94% held-out accuracy):** 29 of 252 combinations pass. The minimum-parameter solution uses just **3 parameters** — `[x₁², x₂²]` plus the intercept, dropping raw `x₁` and `x₂` completely — reaching **94.8%** accuracy at $\lambda = 1$. Notice that `[|x₁|+|x₂|]` (a 2-parameter diamond) peaks at 92.8%, just short of the 94% circle target.
-- **Brief 2 (Continuous XOR, ≥ 85% held-out accuracy):** 80 of 252 pass. The minimum-parameter solution uses just **2 parameters** — `[x₁·x₂]` plus the intercept — reaching **86.4%** accuracy at $\lambda = 0.1$! One engineered interaction feature solves continuous XOR in a convex linear model.
+- **Brief 1 (Ring, ≥ 94% held-out accuracy):** 29 of 252 combinations pass. The minimum-parameter solution uses just **3 parameters** — `[x₁², x₂²]` plus the intercept, dropping raw `x₁` and `x₂` completely — reaching **94.8%** accuracy at $\lambda = 1$. In `(x₁², x₂²)` feature space, the ring unrolls into a clean straight diagonal line! Notice that `[|x₁|+|x₂|]` (a 2-parameter diamond) peaks at 92.8%, just short of the 94% circle target.
+- **Brief 2 (Continuous XOR, ≥ 85% held-out accuracy):** 80 of 252 pass. The minimum-parameter solution uses just **2 parameters** — `[x₁·x₂]` plus the intercept — reaching **86.4%** accuracy at $\lambda = 0.1$! One engineered interaction feature collapses 2D continuous XOR onto a single 1D sigmoid curve.
 - **Brief 3 (Rare-Fault Alerting, Recall ≥ 85% & Precision ≥ 72%):** Only 8 of 1,008 combinations pass! Raw `(x₁, x₂)` at $t = 0.50$ gets 76.9% recall. The fewest-parameter winner uses **4 parameters** (`[x₁, x₂, |x₁|+|x₂|]`, $\lambda = 0.001$, $t = 0.35$) to hit **89.7% recall** and **72.9% precision** (93.2% accuracy).
 
 The lesson for tabular ML: before reaching for a deep network, inspect the geometry of your features and check your decision threshold.
 
 </Deeper>
+
+<ForReal>
+
+Production ad-click systems (like Google's Wide & Deep and Meta's early CTR pipelines), credit scorecards, and real-time fraud filters routinely run L2-regularised logistic regression over engineered **crossed features** (interactions like `country × merchant_category` or `amount × velocity`), paired with a hand-tuned operating threshold chosen from business costs rather than `0.50`. A 4-parameter logistic model runs in nanoseconds on a microcontroller, calibrates probabilities cleanly, and passes regulatory audits that reject black-box networks.
+
+</ForReal>
+
+<HistoryCard id="linear-regression" />
 
 <Quiz questions={questions} />
 
