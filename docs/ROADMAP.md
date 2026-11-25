@@ -4,6 +4,12 @@ _Last updated: lab-improvement treatment completed for all 21 post-review labs (
 
 ## Current state (read this first if you're picking up mid-session)
 
+**Curriculum plan implementation, IN PROGRESS [Claude Opus 5.5]** (owner's request: implement `docs/CURRICULUM_PLAN.md`, WP0 → WP9, one step per commit; progress checklist in `HANDOFF.md`, "Curriculum plan: progress").
+
+- **Done [Claude Opus 5.5]:** WP0 guard rails. `ModuleRef` (live module number, linked) and `Src` (source link) in `src/components/`, registered for MDX. No lesson prose types "Module N" or "last/next lesson" any more; `src/curriculum.test.ts` enforces that, checks every `LessonLink`/`ModuleRef` target, consecutive module numbers and one registration per lesson folder. `node scripts/forward-links.cjs` reports links that point later in the course (read it after every reorder).
+- **Next:** WP1 (the Maths Toolkit), starting at WP1.1.
+- Known follow-ups recorded while doing WP0: `similarity-search` says "In the RAG lesson we searched…" although RAG comes later (fix in WP2.2, when it moves next to RAG); `scaling-laws` ends "Next: Inference & Hardware" (fix in WP2.1, when RL moves in between).
+
 **Curriculum audit, written [Claude Opus 5.5]** (owner's request: audit the order, jargon, history and "the struggle"). Report and proposals in `docs/CURRICULUM_AUDIT.md`; **step-by-step implementation plan in `docs/CURRICULUM_PLAN.md`** (WP0–WP9; WP0 guard rails first, then WP1, the maths-toolkit upgrade, as the owner's priority). Nothing has been moved yet. Its Phase 1 quick wins (RL before fine-tuning, KL in `information`, tokenization before embeddings, similarity-search into Module 18, plain-language summaries, historical hooks in openings) are waiting for the owner's go-ahead.
 
 **Lab-improvement plan, done [Claude Opus 5.5 & Gemini Antigravity]** (owner's request: implement `docs/LAB_IMPROVEMENTS.md` across all labs; progress checklist in `HANDOFF.md`, all 21/21 post-review boxes ticked). Summary of what now exists:
