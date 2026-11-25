@@ -3,6 +3,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Widget } from '../../components/Widget';
 import { Segmented, Slider } from '../../components/controls';
 import { Plot } from '../../components/plot';
+import { LabShell, useLabProgress } from '../../components/LabShell';
+import { LiveCode } from '../../components/LabJob';
+import { useMachineLog } from '../../components/MachineLog';
+import { useTweenedArray } from '../../components/motion';
 import {
   DET_LAB_BRIEFS,
   LAB_CONFS,
@@ -10,18 +14,21 @@ import {
   STREET_SCENE,
   computeCocoMap,
   detLabExhaustive,
-  evalDetLab,
+  detLabGrid,
+  detLabHint,
   evaluateDetections,
   iouBreakdown,
   runHardNms,
   runSoftNms,
   squareShiftIou,
+  traceDetLab,
   type Box,
-  type DetBriefId,
+  type DetTraceRow,
   type Detection,
   type GroundTruth,
   type NmsMode,
 } from './detect';
+import { detectorRealCode } from './realCode';
 
 const pct1 = (v: number) => `${(100 * v).toFixed(1)}%`;
 
@@ -380,93 +387,297 @@ type DetLabState = {
   mode: NmsMode;
   conf: number;
   nmsIou: number;
-  solved: Record<DetBriefId, boolean>;
 };
 
 const DET_LAB_KEY = 'nl-det-lab-v1';
+const DET_LAB_PROG_KEY = 'nl-det-lab-progress-v2';
 const DET_LAB_DEFAULT: DetLabState = {
   mode: 'hard',
   conf: 0.15,
   nmsIou: 0.85,
-  solved: { clean: false, crowd: false, safety: false },
 };
+
+function loadLegacyDetSolved(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(DET_LAB_KEY);
+    if (!raw) return {};
+    const p = JSON.parse(raw);
+    return p?.solved ?? {};
+  } catch {
+    return {};
+  }
+}
 
 function loadDetLab(): DetLabState {
   try {
     const raw = localStorage.getItem(DET_LAB_KEY);
     if (!raw) return DET_LAB_DEFAULT;
     const p = JSON.parse(raw);
-    return { ...DET_LAB_DEFAULT, ...p, solved: { ...DET_LAB_DEFAULT.solved, ...(p.solved ?? {}) } };
+    return {
+      mode: p.mode === 'hard' || p.mode === 'soft' ? p.mode : DET_LAB_DEFAULT.mode,
+      conf: (LAB_CONFS as readonly number[]).includes(p.conf) ? p.conf : DET_LAB_DEFAULT.conf,
+      nmsIou: (LAB_NMS_IOUS as readonly number[]).includes(p.nmsIou) ? p.nmsIou : DET_LAB_DEFAULT.nmsIou,
+    };
   } catch {
     return DET_LAB_DEFAULT;
   }
 }
 
+function LabSceneSvg({
+  gts,
+  trace,
+  missedGtIds,
+  focusId,
+  onFocus,
+}: {
+  gts: readonly GroundTruth[];
+  trace: readonly DetTraceRow[];
+  missedGtIds: Set<string>;
+  focusId: string | null;
+  onFocus: (id: string | null) => void;
+}) {
+  const focusedRow = focusId ? trace.find((r) => r.det.id === focusId) : null;
+  const actorId = focusedRow?.suppressedBy ?? null;
+
+  return (
+    <svg viewBox="0 0 300 198" style={{ width: '100%', maxWidth: 420, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-sunken)', display: 'block' }}>
+      <line x1={0} y1={145} x2={300} y2={145} stroke="var(--border)" strokeWidth={1} strokeDasharray="4 4" />
+      {/* Ground truth boxes (missed GTs highlighted in bad colour) */}
+      {gts.map((g) => {
+        const missed = missedGtIds.has(g.id);
+        return (
+          <g key={g.id}>
+            <rect
+              x={g.x1}
+              y={g.y1}
+              width={g.x2 - g.x1}
+              height={g.y2 - g.y1}
+              fill={missed ? 'var(--c-bad)' : 'var(--c-a)'}
+              fillOpacity={missed ? 0.18 : 0.12}
+              stroke={missed ? 'var(--c-bad)' : 'var(--c-a)'}
+              strokeWidth={missed ? 2.2 : 1.5}
+              strokeDasharray="4 2"
+            />
+            <text x={g.x1 + 3} y={g.y2 - 4} fill={missed ? 'var(--c-bad)' : 'var(--c-a)'} fontSize={9} fontWeight={700}>
+              {missed ? `MISSED ${g.id}` : `GT ${g.id}`}
+            </text>
+          </g>
+        );
+      })}
+
+      {/* Dropped / suppressed boxes */}
+      {trace
+        .filter((r) => r.fate === 'suppressed' || r.fate === 'below-conf')
+        .map((r) => {
+          const isFocus = r.det.id === focusId;
+          return (
+            <rect
+              key={r.det.id}
+              x={r.det.x1}
+              y={r.det.y1}
+              width={r.det.x2 - r.det.x1}
+              height={r.det.y2 - r.det.y1}
+              fill={isFocus ? 'var(--accent)' : 'none'}
+              fillOpacity={isFocus ? 0.14 : 0}
+              stroke={isFocus ? 'var(--accent)' : 'var(--text-muted)'}
+              strokeOpacity={isFocus ? 0.95 : 0.32}
+              strokeWidth={isFocus ? 2.2 : 1}
+              strokeDasharray="2 2"
+              style={{ cursor: 'pointer' }}
+              onClick={() => onFocus(isFocus ? null : r.det.id)}
+            />
+          );
+        })}
+
+      {/* Kept boxes: TP in good colour, FP in bad colour */}
+      {trace
+        .filter((r) => r.fate === 'kept-tp' || r.fate === 'kept-fp')
+        .map((r) => {
+          const isTp = r.fate === 'kept-tp';
+          const isFocus = r.det.id === focusId;
+          const isActor = r.det.id === actorId;
+          const stroke = isActor ? 'var(--accent)' : isTp ? 'var(--c-good)' : 'var(--c-bad)';
+          return (
+            <g key={r.det.id} style={{ cursor: 'pointer' }} onClick={() => onFocus(isFocus ? null : r.det.id)}>
+              <rect
+                x={r.det.x1}
+                y={r.det.y1}
+                width={r.det.x2 - r.det.x1}
+                height={r.det.y2 - r.det.y1}
+                fill={isFocus ? stroke : 'none'}
+                fillOpacity={isFocus ? 0.15 : 0}
+                stroke={stroke}
+                strokeWidth={isFocus || isActor ? 2.8 : 2}
+              />
+              <text x={r.det.x1 + 2} y={Math.max(11, r.det.y1 - 3)} fill={stroke} fontSize={9} fontWeight={700}>
+                {r.det.id} {r.finalScore.toFixed(2)} {isTp ? 'TP' : 'FP'}
+              </text>
+            </g>
+          );
+        })}
+    </svg>
+  );
+}
+
 export function DetectorTuningLab() {
-  const [briefId, setBriefId] = useState<DetBriefId>('clean');
+  const [activeIdx, setActiveIdx] = useState<number>(0);
+  const briefId = DET_LAB_BRIEFS[activeIdx].id;
   const [st, setSt] = useState<DetLabState>(loadDetLab);
-  const [showOpt, setShowOpt] = useState(false);
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const progress = useLabProgress(DET_LAB_PROG_KEY, () => ({ solved: loadLegacyDetSolved() }));
+  const log = useMachineLog(18);
 
   useEffect(() => {
     try {
-      localStorage.setItem(DET_LAB_KEY, JSON.stringify(st));
+      localStorage.setItem(DET_LAB_KEY, JSON.stringify({ ...st, solved: progress.solved }));
     } catch {
       /* ignore */
     }
-  }, [st]);
+  }, [st, progress.solved]);
 
-  const res = useMemo(() => evalDetLab(briefId, st.conf, st.nmsIou, st.mode), [briefId, st.conf, st.nmsIou, st.mode]);
-  const keptIds = useMemo(() => new Set(res.kept.map((d) => d.id)), [res.kept]);
+  const tr = useMemo(() => traceDetLab(briefId, st.conf, st.nmsIou, st.mode), [briefId, st.conf, st.nmsIou, st.mode]);
   const exhaust = useMemo(() => detLabExhaustive(briefId), [briefId]);
+  const grid = useMemo(() => detLabGrid(briefId), [briefId]);
+  const hint = useMemo(() => detLabHint(briefId, st.conf, st.nmsIou, st.mode), [briefId, st.conf, st.nmsIou, st.mode]);
+  const realCode = useMemo(() => detectorRealCode(st.mode, st.conf, st.nmsIou), [st.mode, st.conf, st.nmsIou]);
+  const tweenedMetrics = useTweenedArray([tr.recall, tr.precision, tr.f1], 240);
 
-  useEffect(() => {
-    if (res.pass && !st.solved[briefId]) {
-      setSt((p) => ({ ...p, solved: { ...p.solved, [briefId]: true } }));
+  const curOptimal = tr.pass && tr.f1 >= 0.999;
+
+  const updateState = (patch: Partial<DetLabState>) => {
+    const next = { ...st, ...patch };
+    const ev = traceDetLab(briefId, next.conf, next.nmsIou, next.mode);
+    setSt(next);
+    const modeStr = next.mode === 'hard' ? `Hard NMS IoU=${next.nmsIou.toFixed(2)}` : 'Soft-NMS';
+    log.push(
+      `B${activeIdx + 1}: ${modeStr}, conf=${next.conf.toFixed(2)} → TP ${ev.tp}, FP ${ev.fp}, FN ${ev.fn}, F1 ${ev.f1.toFixed(2)} (${ev.pass ? 'PASS' : 'FAIL'})`,
+      ev.pass ? 'good' : ev.fn > 0 ? 'bad' : undefined,
+    );
+  };
+
+  const resetBrief = () => {
+    setSt(DET_LAB_DEFAULT);
+    setFocusId(null);
+    log.push(`B${activeIdx + 1}: reset to Hard NMS, conf=0.15, IoU=0.85`);
+  };
+
+  const statusText = useMemo(() => {
+    const metrics = `TP ${tr.tp} · FP ${tr.fp} · FN ${tr.fn} · Recall ${pct1(tr.recall)} · Precision ${pct1(tr.precision)} · F1 ${tr.f1.toFixed(2)}`;
+    if (tr.pass) {
+      return curOptimal
+        ? `${metrics} — perfect F1 = 1.00!`
+        : `${metrics} — brief passed. Optional goal: can you trim the remaining false positive for F1 = 1.00?`;
     }
-  }, [res.pass, briefId, st.solved]);
+    if (tr.fn > 0) {
+      return `${metrics} — missed ground truth: ${[...tr.missedGtIds].join(', ')}.`;
+    }
+    return `${metrics}.`;
+  }, [tr, curOptimal]);
 
-  const brief = DET_LAB_BRIEFS.find((b) => b.id === briefId)!;
-  const solvedCount = Object.values(st.solved).filter(Boolean).length;
+  // Columns for 42-config post-solve grid: 5 Hard IoU columns + 1 Soft-NMS column
+  const gridCols: { key: string; label: string; mode: NmsMode; nmsIou: number }[] = [
+    ...LAB_NMS_IOUS.map((t) => ({ key: `hard-${t}`, label: `H ${t.toFixed(2)}`, mode: 'hard' as const, nmsIou: t })),
+    { key: 'soft', label: 'Soft', mode: 'soft' as const, nmsIou: 0.5 },
+  ];
 
   return (
-    <Widget
+    <LabShell
       title="Lab: Tune the Object Detector"
-      wide
       caption={
         <>
-          Configure post-processing (Hard NMS vs Soft-NMS, confidence cut-off, IoU threshold) across three real traffic scenes, exhaustively verified over all 42 settings per brief. Solved: <strong>{solvedCount}/3</strong>.
+          Tune Hard NMS vs Soft-NMS and confidence cut-offs across three traffic scenes — inspect every raw box&apos;s suppression or Gaussian decay trace live.
         </>
       }
+      briefs={DET_LAB_BRIEFS.map((b, i) => ({
+        id: b.id,
+        tab: `Brief ${i + 1}`,
+        title: b.title,
+        text: b.story,
+      }))}
+      active={activeIdx}
+      onSelect={(i) => {
+        setActiveIdx(i);
+        setFocusId(null);
+      }}
+      progress={progress}
+      passing={tr.pass}
+      optimal={curOptimal}
+      status={statusText}
+      hint={hint}
+      actions={
+        <button type="button" className="btn" onClick={resetBrief}>
+          Reset brief
+        </button>
+      }
+      log={{
+        title: 'Detector bench log',
+        lines: log.lines,
+        onClear: log.clear,
+        empty: 'Adjust NMS mode, confidence, or IoU threshold to record post-processing runs.',
+      }}
+      reveal={{
+        label: `exhaustive search (${exhaust.total} configs)`,
+        content: (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ fontSize: 13 }}>
+              <strong>
+                {exhaust.passing}/{exhaust.total}
+              </strong>{' '}
+              pass · {exhaust.summary}
+            </div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+              All 42 settings: confidence rows × NMS columns (highlighted cells pass; outlined cell = your current setting)
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="num-table" style={{ width: '100%', fontSize: 11.5, textAlign: 'center' }}>
+                <thead>
+                  <tr>
+                    <th>Conf</th>
+                    {gridCols.map((col) => (
+                      <th key={col.key}>{col.label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {LAB_CONFS.map((c) => (
+                    <tr key={c}>
+                      <td style={{ fontWeight: 600 }}>{c.toFixed(2)}</td>
+                      {gridCols.map((col) => {
+                        const cell = grid.find(
+                          (g) => g.mode === col.mode && g.conf === c && (col.mode === 'soft' || g.nmsIou === col.nmsIou),
+                        )!;
+                        const isCur = st.mode === col.mode && st.conf === c && (col.mode === 'soft' || st.nmsIou === col.nmsIou);
+                        return (
+                          <td
+                            key={col.key}
+                            style={{
+                              background: cell.pass
+                                ? 'color-mix(in srgb, var(--c-good) 22%, var(--bg))'
+                                : 'color-mix(in srgb, var(--c-bad) 10%, var(--bg))',
+                              color: cell.pass ? 'var(--c-good)' : 'var(--text-muted)',
+                              fontWeight: cell.pass || isCur ? 700 : 400,
+                              outline: isCur ? '2px solid var(--accent)' : undefined,
+                              outlineOffset: -2,
+                            }}
+                          >
+                            {cell.f1.toFixed(2)}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ),
+      }}
     >
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-        {DET_LAB_BRIEFS.map((b, i) => (
-          <button
-            key={b.id}
-            type="button"
-            className="btn"
-            style={{
-              borderColor: briefId === b.id ? 'var(--accent)' : 'var(--border)',
-              background: briefId === b.id ? 'var(--bg-sunken)' : 'transparent',
-              fontWeight: briefId === b.id ? 600 : 400,
-            }}
-            onClick={() => {
-              setBriefId(b.id);
-              setShowOpt(false);
-            }}
-          >
-            {st.solved[b.id] ? '✓ ' : ''}Brief {i + 1}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{brief.title}</div>
-      <p style={{ fontSize: 13.5, color: 'var(--text-muted)', marginTop: 0, marginBottom: 12, lineHeight: 1.5 }}>{brief.story}</p>
-
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
         <Segmented
           label="NMS mode"
           value={st.mode}
-          onChange={(v) => setSt((p) => ({ ...p, mode: v }))}
+          onChange={(v) => updateState({ mode: v })}
           options={[
             { value: 'hard', label: 'Hard NMS' },
             { value: 'soft', label: 'Soft-NMS' },
@@ -475,51 +686,102 @@ export function DetectorTuningLab() {
         <Segmented
           label="Confidence"
           value={st.conf}
-          onChange={(v) => setSt((p) => ({ ...p, conf: v }))}
+          onChange={(v) => updateState({ conf: v })}
           options={LAB_CONFS.map((c) => ({ value: c, label: c.toFixed(2) }))}
         />
         {st.mode === 'hard' && (
           <Segmented
             label="NMS IoU"
             value={st.nmsIou}
-            onChange={(v) => setSt((p) => ({ ...p, nmsIou: v }))}
+            onChange={(v) => updateState({ nmsIou: v })}
             options={LAB_NMS_IOUS.map((t) => ({ value: t, label: t.toFixed(2) }))}
           />
         )}
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center' }}>
-        <SceneSvg gts={res.scene.gts} allDets={res.scene.dets} keptIds={keptIds} showGt />
-        <div className="readouts" style={{ flex: '1 1 220px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 8, margin: 0 }}>
-          <div className="readout">
-            <div className="readout-label">Recall</div>
-            <div className="readout-value" style={{ color: res.recall >= 0.999 ? 'var(--c-good)' : 'var(--c-bad)' }}>{pct1(res.recall)}</div>
+      {/* Animated metric bars */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, marginBottom: 12 }}>
+        {[
+          { label: 'Recall', val: tweenedMetrics[0], raw: tr.recall, ok: tr.recall >= 0.999 },
+          { label: 'Precision', val: tweenedMetrics[1], raw: tr.precision, ok: tr.precision >= 0.8 },
+          { label: 'F1 score', val: tweenedMetrics[2], raw: tr.f1, ok: tr.pass },
+        ].map((m) => (
+          <div key={m.label} style={{ padding: 8, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-sunken)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+              <span>{m.label}</span>
+              <strong style={{ fontFamily: 'var(--mono)', color: m.ok ? 'var(--c-good)' : 'var(--c-bad)' }}>
+                {m.label === 'F1 score' ? m.raw.toFixed(3) : pct1(m.raw)}
+              </strong>
+            </div>
+            <div style={{ height: 8, borderRadius: 4, background: 'var(--bg)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, m.val * 100))}%`, background: m.ok ? 'var(--c-good)' : 'var(--c-bad)' }} />
+            </div>
           </div>
-          <div className="readout">
-            <div className="readout-label">Precision</div>
-            <div className="readout-value" style={{ color: res.precision >= 0.8 ? 'var(--c-good)' : 'var(--c-bad)' }}>{pct1(res.precision)}</div>
+        ))}
+      </div>
+
+      {/* Live scene + clickable NMS suppression trace */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 14, alignItems: 'start', marginBottom: 12 }}>
+        <div>
+          <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 4 }}>
+            Road frame (solid = kept TP/FP · dashed = GT or MISSED · click any box or row to inspect)
           </div>
-          <div className="readout">
-            <div className="readout-label">TP / FP / FN</div>
-            <div className="readout-value" style={{ fontSize: 15 }}>{res.tp} / {res.fp} / {res.fn}</div>
-          </div>
-          <div className="readout">
-            <div className="readout-label">Status</div>
-            <div className="readout-value" style={{ color: res.pass ? 'var(--c-good)' : 'var(--c-bad)' }}>{res.pass ? 'PASS' : 'FAIL'}</div>
-          </div>
+          <LabSceneSvg gts={tr.scene.gts} trace={tr.trace} missedGtIds={tr.missedGtIds} focusId={focusId} onFocus={setFocusId} />
+        </div>
+
+        <div style={{ maxHeight: 235, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+          <table className="num-table" style={{ width: '100%', fontSize: 11.5 }}>
+            <thead>
+              <tr>
+                <th>Box</th>
+                <th>{st.mode === 'soft' ? 'Raw → Soft' : 'Score'}</th>
+                <th>Fate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tr.trace.map((r) => {
+                const isFocus = r.det.id === focusId;
+                const fateColor =
+                  r.fate === 'kept-tp' ? 'var(--c-good)' : r.fate === 'kept-fp' ? 'var(--c-bad)' : 'var(--text-muted)';
+                const fateText =
+                  r.fate === 'kept-tp'
+                    ? `TP → ${r.matchedGtId}`
+                    : r.fate === 'kept-fp'
+                      ? 'FP (extra)'
+                      : r.fate === 'below-conf'
+                        ? `below ${st.conf.toFixed(2)}`
+                        : r.suppressedBy
+                          ? st.mode === 'soft'
+                            ? `decayed by ${r.suppressedBy} (IoU ${r.overlapWithActor.toFixed(2)})`
+                            : `supp by ${r.suppressedBy} (IoU ${r.overlapWithActor.toFixed(2)})`
+                          : 'suppressed';
+                return (
+                  <tr
+                    key={r.det.id}
+                    onClick={() => setFocusId(isFocus ? null : r.det.id)}
+                    style={{
+                      cursor: 'pointer',
+                      background: isFocus ? 'color-mix(in srgb, var(--accent) 14%, transparent)' : undefined,
+                    }}
+                  >
+                    <td style={{ fontWeight: 600 }}>
+                      {r.det.id} <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>({r.det.cls})</span>
+                    </td>
+                    <td style={{ fontFamily: 'var(--mono)' }}>
+                      {st.mode === 'soft' && Math.abs(r.finalScore - r.det.score) > 0.005
+                        ? `${r.det.score.toFixed(2)} → ${r.finalScore.toFixed(2)}`
+                        : r.det.score.toFixed(2)}
+                    </td>
+                    <td style={{ color: fateColor, fontWeight: r.fate.startsWith('kept') ? 600 : 400 }}>{fateText}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
-        <button type="button" className="btn" onClick={() => setShowOpt((v) => !v)}>
-          {showOpt ? 'Hide exhaustive check' : `Reveal exhaustive search (${exhaust.total} configs)`}
-        </button>
-        {showOpt && (
-          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            <strong>{exhaust.passing}/{exhaust.total}</strong> pass · {exhaust.summary}
-          </div>
-        )}
-      </div>
-    </Widget>
+      <LiveCode note={st.mode === 'hard' ? 'torchvision.ops.batched_nms' : 'Gaussian Soft-NMS'} code={realCode} />
+    </LabShell>
   );
 }

@@ -295,6 +295,177 @@ export function evalDetLab(brief: DetBriefId, conf: number, nmsIou: number, mode
   return { ...ev, kept, scene, pass };
 }
 
+export type BoxFate = 'kept-tp' | 'kept-fp' | 'suppressed' | 'below-conf';
+
+export type DetTraceRow = {
+  det: Detection;
+  finalScore: number;
+  fate: BoxFate;
+  matchedGtId: string | null;
+  suppressedBy: string | null;
+  overlapWithActor: number;
+};
+
+/** Full per-box NMS / Soft-NMS trace for live inspection in the Object Detector lab. */
+export function traceDetLab(brief: DetBriefId, conf: number, nmsIou: number, mode: NmsMode) {
+  const res = evalDetLab(brief, conf, nmsIou, mode);
+  const { scene } = res;
+  const matchById = new Map(res.rows.map((r) => [r.det.id, r]));
+  const matchedGtIds = new Set(res.rows.filter((r) => r.isTp && r.matchedGtId).map((r) => r.matchedGtId!));
+  const missedGtIds = new Set(scene.gts.filter((g) => !matchedGtIds.has(g.id)).map((g) => g.id));
+
+  const trace: DetTraceRow[] = [];
+
+  if (mode === 'hard') {
+    const hard = runHardNms(scene.dets, nmsIou, conf);
+    const suppressedByMap = new Map<string, { by: string; ov: number }>();
+    for (const step of hard.steps) {
+      for (const s of step.suppressed) {
+        suppressedByMap.set(s.id, { by: step.pickedId, ov: s.iouWithPicked });
+      }
+    }
+    const sorted = scene.dets.slice().sort((a, b) => b.score - a.score);
+    for (const det of sorted) {
+      const m = matchById.get(det.id);
+      if (m) {
+        trace.push({
+          det,
+          finalScore: det.score,
+          fate: m.isTp ? 'kept-tp' : 'kept-fp',
+          matchedGtId: m.matchedGtId,
+          suppressedBy: null,
+          overlapWithActor: m.bestIou,
+        });
+      } else if (det.score < conf) {
+        trace.push({
+          det,
+          finalScore: det.score,
+          fate: 'below-conf',
+          matchedGtId: null,
+          suppressedBy: null,
+          overlapWithActor: 0,
+        });
+      } else {
+        const sup = suppressedByMap.get(det.id);
+        trace.push({
+          det,
+          finalScore: 0,
+          fate: 'suppressed',
+          matchedGtId: null,
+          suppressedBy: sup?.by ?? null,
+          overlapWithActor: sup?.ov ?? 0,
+        });
+      }
+    }
+  } else {
+    // Re-run Soft-NMS step by step to capture final decayed score & main suppressor
+    const sigma = 0.45;
+    const pool = scene.dets.map((d) => ({ det: d, score: d.score, topActor: null as string | null, topOv: 0 }));
+    const finalScores = new Map<string, { score: number; actor: string | null; ov: number }>();
+    while (pool.length > 0) {
+      let bestIdx = 0;
+      for (let i = 1; i < pool.length; i++) {
+        if (pool[i].score > pool[bestIdx].score) bestIdx = i;
+      }
+      const picked = pool.splice(bestIdx, 1)[0];
+      finalScores.set(picked.det.id, { score: picked.score, actor: picked.topActor, ov: picked.topOv });
+      if (picked.score < conf) {
+        for (const rest of pool) {
+          finalScores.set(rest.det.id, { score: rest.score, actor: rest.topActor, ov: rest.topOv });
+        }
+        break;
+      }
+      for (const other of pool) {
+        if (other.det.cls !== picked.det.cls) continue;
+        const ov = iou(picked.det, other.det);
+        if (ov > 0) {
+          other.score *= Math.exp(-(ov * ov) / sigma);
+          if (ov > other.topOv) {
+            other.topOv = ov;
+            other.topActor = picked.det.id;
+          }
+        }
+      }
+    }
+    const sorted = scene.dets.slice().sort((a, b) => b.score - a.score);
+    for (const det of sorted) {
+      const m = matchById.get(det.id);
+      const info = finalScores.get(det.id) ?? { score: det.score, actor: null, ov: 0 };
+      if (m) {
+        trace.push({
+          det,
+          finalScore: info.score,
+          fate: m.isTp ? 'kept-tp' : 'kept-fp',
+          matchedGtId: m.matchedGtId,
+          suppressedBy: info.actor,
+          overlapWithActor: info.ov,
+        });
+      } else {
+        const decayedOut = det.score >= conf && info.score < conf;
+        trace.push({
+          det,
+          finalScore: info.score,
+          fate: decayedOut ? 'suppressed' : 'below-conf',
+          matchedGtId: null,
+          suppressedBy: decayedOut ? info.actor : null,
+          overlapWithActor: decayedOut ? info.ov : 0,
+        });
+      }
+    }
+  }
+
+  return { ...res, trace, missedGtIds };
+}
+
+export function detLabGrid(brief: DetBriefId) {
+  const cells: { mode: NmsMode; conf: number; nmsIou: number; f1: number; tp: number; fp: number; fn: number; pass: boolean }[] = [];
+  for (const mode of ['hard', 'soft'] as NmsMode[]) {
+    const ious = mode === 'hard' ? LAB_NMS_IOUS : ([0.5] as const);
+    for (const conf of LAB_CONFS) {
+      for (const nmsIou of ious) {
+        const r = evalDetLab(brief, conf, nmsIou, mode);
+        cells.push({ mode, conf, nmsIou, f1: r.f1, tp: r.tp, fp: r.fp, fn: r.fn, pass: r.pass });
+      }
+    }
+  }
+  return cells;
+}
+
+/** Evidence-only hint for the Object Detector Lab (never names winning buttons or exact thresholds). */
+export function detLabHint(brief: DetBriefId, conf: number, nmsIou: number, mode: NmsMode): string {
+  const tr = traceDetLab(brief, conf, nmsIou, mode);
+  if (tr.pass) {
+    return tr.f1 >= 0.999
+      ? `All targets cleared with F1 = 1.00 (${tr.tp} TP, 0 FP, 0 FN). Inspect the post-solve map to see the whole passing region.`
+      : `Brief cleared (Recall ${(100 * tr.recall).toFixed(1)}%, ${tr.fp} FP). Check the trace to see whether the remaining false positive can be trimmed too.`;
+  }
+  if (tr.fn > 0) {
+    const missed = [...tr.missedGtIds].join(', ');
+    const supRows = tr.trace.filter((r) => r.fate === 'suppressed');
+    const belowRows = tr.trace.filter((r) => r.fate === 'below-conf');
+    // Did an object get wiped out by overlap suppression or by confidence filtering?
+    if (brief === 'crowd' && mode === 'hard' && supRows.some((r) => r.overlapWithActor < 0.7 && r.overlapWithActor > 0.4)) {
+      return `Ground truth ${missed} is missing because its box was suppressed by a neighbouring box at moderate IoU (~0.55), well below the true-duplicate IoUs (≥ 0.84). Look at the trace's IoU column.`;
+    }
+    if (belowRows.some((r) => tr.scene.gts.some((g) => g.cls === r.det.cls && iou(r.det, g) >= 0.5 && tr.missedGtIds.has(g.id)))) {
+      return `Ground truth ${missed} is missing because its highest-scoring detection fell below your current confidence cut-off. Check the trace rows marked below-conf.`;
+    }
+    return `Ground truth ${missed} is missing (Recall ${(100 * tr.recall).toFixed(1)}%). Inspect the trace table to see whether its matching box was dropped by confidence or overlap suppression.`;
+  }
+  // Recall is 100%, so FPs are the blocker
+  const fps = tr.trace.filter((r) => r.fate === 'kept-fp');
+  const minFpScore = Math.min(...fps.map((r) => r.det.score));
+  const hasLowPhantom = fps.some((r) => tr.scene.gts.every((g) => iou(r.det, g) < 0.3));
+  const hasDup = fps.some((r) => tr.scene.gts.some((g) => g.cls === r.det.cls && iou(r.det, g) >= 0.5));
+  if (hasLowPhantom && hasDup) {
+    return `You have ${tr.fp} false positives: both low-scoring background phantoms (down to ${minFpScore.toFixed(2)}) and surviving duplicate boxes on already-matched objects. Check both suppression and confidence.`;
+  }
+  if (hasDup) {
+    return `Recall is 100%, but ${tr.fp} duplicate box${tr.fp > 1 ? 'es' : ''} survived on already-matched objects. Look at their high overlap with the primary detections in the trace.`;
+  }
+  return `Recall is 100%, but ${tr.fp} background phantom${tr.fp > 1 ? 's' : ''} (score as low as ${minFpScore.toFixed(2)}) still clear your confidence filter.`;
+}
+
 export function detLabExhaustive(brief: DetBriefId) {
   let total = 0;
   let passing = 0;

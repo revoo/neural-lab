@@ -99,7 +99,9 @@ Notice how cleaning up our street scene with NMS lifts `AP50` from **0.917 → 1
 
 ## 4. Lab: Tune the Object Detector
 
-Deploy the detector across three distinct traffic scenes. Every brief is checked exhaustively across all 42 `(mode, conf, nmsIou)` combinations.
+<LabJob>You own the perception post-processor on an autonomous shuttle. The neural backbone already runs at 30 fps — your job is to tune confidence cut-offs and Hard vs Soft-NMS so duplicate boxes vanish without erasing shoulder-to-shoulder pedestrians or missing a distant foggy cyclist.</LabJob>
+
+Deploy the detector across three distinct traffic scenes and inspect every raw box's suppression or Gaussian score decay live.
 
 <DetectorTuningLab />
 
@@ -108,6 +110,14 @@ Deploy the detector across three distinct traffic scenes. Every brief is checked
   - **Brief 2 (Crowded sidewalk, GT overlap `0.53`):** Tight Hard NMS (`IoU = 0.40`) wipes out the overlapping second pedestrian (`Recall = 66.7%`, FAIL). Raising Hard NMS to `IoU = 0.50–0.65` OR switching to **Soft-NMS** (`conf = 0.35`) rescues both pedestrians (`11/42` pass, best `F1 = 1.00`).
   - **Brief 3 (Autonomous-braking gate):** The distant foggy cyclist scores only `0.32`, so any `conf ≥ 0.35` misses them (`Recall = 75%`, FAIL!). Lowering `conf` to **`0.30`** catches all 4 road users with **0 False Positives** (`10/42` pass) — a vivid reminder that safety-critical recall dictates your operating point.
 </Deeper>
+
+<ForReal>
+
+In production `torchvision` and YOLO pipelines, post-processing runs `torchvision.ops.batched_nms(boxes, scores, labels, iou_threshold)` on GPU right after the detection head, often with *per-class* confidence thresholds: autonomous vehicles run a far lower threshold for vulnerable road users (pedestrians, cyclists) than for roadside signs, and pair multi-frame trackers (SORT / ByteTrack) downstream to filter single-frame phantoms without sacrificing recall. Newer transformer detectors such as DETR and RT-DETR replace anchor-grid NMS altogether via one-to-one Hungarian matching during training.
+
+</ForReal>
+
+<HistoryCard id="object-detection" />
 
 ---
 

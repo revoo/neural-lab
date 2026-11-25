@@ -592,6 +592,25 @@ export const HISTORY: HistoryEntry[] = [
       after: { text: 'ResNet (2015) combined small 3×3 residual blocks with global average pooling, setting the template for a decade of modern vision backbones.', source: WP('Residual_neural_network') },
     },
   },
+  {
+    id: 'object-detection',
+    lessonId: 'object-detection',
+    lab: 'Tune the Object Detector',
+    idea: 'From sliding cascades to R-CNN, YOLO, and Soft-NMS',
+    years: [2001, 2013, 2015, 2017],
+    when: '2001 · 2013 · 2015 · 2017',
+    who: [
+      { text: 'Paul Viola and Michael Jones introduce boosted cascades of Haar-like features (2001), detecting faces at 15 fps on a 700 MHz Pentium III.', source: WP('Viola%E2%80%93Jones_object_detection_framework') },
+      { text: 'Ross Girshick, Jeff Donahue, Trevor Darrell, and Jitendra Malik introduce R-CNN (2013), pairing selective-search region proposals with CNN features.', source: WP('Region-based_convolutional_neural_network') },
+      { text: 'Joseph Redmon, Santosh Divvala, Ross Girshick, and Ali Farhadi introduce YOLO (2015), predicting boxes and class scores in a single forward pass.', source: WP('You_Only_Look_Once') },
+      { text: 'Navaneeth Bodla, Bharat Singh, Rama Chellappa, and Larry S. Davis propose Soft-NMS (2017), decaying overlapping box scores continuously instead of zeroing them.', source: 'https://arxiv.org/abs/1704.04503' },
+    ],
+    story: {
+      before: { text: 'Early detectors slid hand-crafted classifiers across thousands of windows and scales, then merged overlapping hits with hard thresholds.', source: WP('Viola%E2%80%93Jones_object_detection_framework') },
+      this: { text: 'Two-stage region networks (R-CNN / Faster R-CNN) and single-shot grid detectors (YOLO) brought deep CNNs to localisation — while Soft-NMS fixed greedy suppression deleting crowded neighbours.', source: 'https://arxiv.org/abs/1704.04503' },
+      after: { text: 'Modern real-time detectors pair multi-scale feature pyramids with tuned NMS — or eliminate NMS altogether with end-to-end set matching.', source: WP('You_Only_Look_Once') },
+    },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */
