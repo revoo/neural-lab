@@ -261,6 +261,47 @@ export function evalContrastBrief3(optId: BatchOption) {
   return { ...opt, prob, pass: prob >= 0.95 - 1e-9 && opt.vramGiB <= 8.0 + 1e-9 };
 }
 
+/** Evidence-only hint for the Contrastive Training Lab (never names winning buttons or exact settings). */
+export function contrastLabHint(
+  id: ContrastBriefId,
+  st: { b1Negs: boolean; b1Tau: number; b2Tau: number; b3Opt: BatchOption },
+): string {
+  if (id === 'circle') {
+    const r = evalContrastBrief1(st.b1Negs, st.b1Tau);
+    if (r.pass) {
+      return Math.abs(st.b1Tau - 0.15) < 1e-6
+        ? 'Both alignment and uniformity hit their optimum on the wheel (Top-1 100%, uniformity −2.336).'
+        : `All three checks pass (Top-1 100%, mean cos ${r.meanPairCos.toFixed(3)}, uniformity ${r.uniformity.toFixed(3)}). Check whether another temperature pushes uniformity even lower.`;
+    }
+    if (!st.b1Negs) {
+      return `Without repulsive negatives, all 8 image–text pairs collapse onto a single dot on the wheel (mean pairwise cosine = ${r.meanPairCos.toFixed(3)}), making the 8×8 cosine matrix flat.`;
+    }
+    return `Pairs align and retrieve cleanly (Top-1 ${(100 * r.top1Acc).toFixed(0)}%), but mean pairwise cosine is still ${r.meanPairCos.toFixed(3)} (> 0.05). At high temperature, repulsive gradients flatten out before the wheel opens fully.`;
+  }
+  if (id === 'temp') {
+    const r = evalContrastBrief2(st.b2Tau);
+    if (r.pass) {
+      return r.invTau === 20
+        ? 'Sharpest safe temperature reached: 100.0% hard-negative focus at logit scale 20 (≤ 25).'
+        : `Safe and focused: ${(100 * r.hardShareOfNegs).toFixed(1)}% hard-negative share at logit scale ${r.invTau.toFixed(0)} (≤ 25). Optional goal: can you sharpen focus further without crossing 25?`;
+    }
+    if (r.invTau > 25) {
+      return `Hard-negative focus is ${(100 * r.hardShareOfNegs).toFixed(1)}%, but dividing cosines by ${st.b2Tau} pushes logit scale to ${r.invTau.toFixed(0)} (> 25), risking FP16 softmax overflow.`;
+    }
+    return `Logit scale is safe (${r.invTau.toFixed(0)} ≤ 25), but the hard negative gets only ${(100 * r.hardShareOfNegs).toFixed(1)}% of repulsive weight (< 80%) — easy negatives are still soaking up gradient.`;
+  }
+  const r = evalContrastBrief3(st.b3Opt);
+  if (r.pass) {
+    return r.vramGiB < 0.7
+      ? `Passed at the lowest VRAM footprint (${r.vramGiB.toFixed(2)} GiB, ${(100 * r.prob).toFixed(1)}% hard-negative coverage)!`
+      : `Passed (${(100 * r.prob).toFixed(1)}% coverage in ${r.vramGiB.toFixed(2)} GiB ≤ 8.0 GiB). Check how much activation memory can be saved by decoupling negative count from active batch size.`;
+  }
+  if (r.vramGiB > 8.0) {
+    return `Hard-negative coverage is ${(100 * r.prob).toFixed(1)}%, but backpropagating through ${r.activeB} active encoder graphs takes ${r.vramGiB.toFixed(2)} GiB (> 8.0 GiB).`;
+  }
+  return `VRAM fits easily (${r.vramGiB.toFixed(2)} GiB ≤ 8.0 GiB), but with only ${r.totalNegs} negatives per step, probability of seeing a 1% hard negative is just ${(100 * r.prob).toFixed(1)}% (< 95%).`;
+}
+
 export function contrastLabExhaustive(id: ContrastBriefId) {
   if (id === 'circle') {
     let total = 0;

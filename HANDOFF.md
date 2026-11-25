@@ -207,7 +207,7 @@ The owner asked for this next, in a fresh session. `docs/LAB_IMPROVEMENTS.md` re
 - [x] one-hot-vs-dense · Choose & Size the Representation
 - [x] word-embeddings · Train & Debug Word2Vec
 - [x] similarity-search · Tune the Vector Index
-- [ ] contrastive-learning · Tune Contrastive Training
+- [x] contrastive-learning · Tune Contrastive Training
 - [ ] rnns · Tame BPTT
 - [ ] lstms-grus · Wire the Gated Cell
 - [ ] seq2seq-attention · Break the Bottleneck

@@ -83,7 +83,9 @@ In-batch InfoNCE only sees negatives that happen to land inside the same mini-ba
 
 ## 4. Lab: Tune Contrastive Training
 
-Configure three real contrastive training pipelines — every brief exhaustively checked across all menu choices.
+<LabJob>You are training a dual-encoder image–text retrieval model on an 8 GiB GPU. Stop representation collapse on the unit hypersphere, tune the InfoNCE temperature to mine hard negatives without FP16 overflow, and decouple negative count from mini-batch VRAM with a momentum queue.</LabJob>
+
+Configure three real contrastive training pipelines and inspect the unit-circle wheel, cosine similarity matrix, and repulsive weights live.
 
 <ContrastiveLab />
 
@@ -92,6 +94,14 @@ Configure three real contrastive training pipelines — every brief exhaustively
   - **Brief 2 (Hard-negative focus without overflow):** `τ = 0.02` explodes logit scale to `50 > 25`; `τ ≥ 0.50` dilutes hard-negative focus below `80%`. `τ = 0.05, 0.10, 0.25` pass (`3/6`), with **`τ = 0.05`** hitting **100.0%** hard-negative focus at safe scale `20`.
   - **Brief 3 (95% hard-negative coverage under 8 GiB VRAM):** `SimCLR B=64` (`46.9%`) and `B=256` (`92.3%`) miss coverage; `SimCLR B=2048` blows VRAM (`16.0 GiB`). `SimCLR B=512` (`4.0 GiB`), `MoCo B=64 + Q=512` (**0.63 GiB**, `99.4%` — lowest VRAM!), and `MoCo B=64 + Q=4096` (`1.50 GiB`, `100.0%`) all pass (`3/6`).
 </Deeper>
+
+<ForReal>
+
+OpenAI's **CLIP** (and open-source **OpenCLIP** / **SigLIP**) learns the temperature as a trainable parameter `logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))`, explicitly clamping `logit_scale.exp() <= 100` after every optimiser step to prevent the exact softmax-overflow instability you saw in Brief 2! Meanwhile, modern dense text retrievers (E5, BGE, Contriever) combine in-batch InfoNCE with mined BM25/cross-encoder hard negatives — and **SigLIP** replaces the cross-GPU batch softmax with pairwise sigmoid loss so large-batch training scales cleanly across hundreds of devices.
+
+</ForReal>
+
+<HistoryCard id="contrastive-learning" />
 
 ---
 

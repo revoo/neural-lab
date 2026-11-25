@@ -667,6 +667,25 @@ export const HISTORY: HistoryEntry[] = [
       after: { text: 'Vector databases built on IVF, HNSW, and scalar/product quantization now sit behind semantic search, recommendation engines, and RAG pipelines.', source: WP('Hierarchical_navigable_small_world') },
     },
   },
+  {
+    id: 'contrastive-learning',
+    lessonId: 'contrastive-learning',
+    lab: 'Tune Contrastive Training',
+    idea: 'InfoNCE, Momentum Contrast (MoCo), SimCLR, and CLIP',
+    years: [2018, 2019, 2020, 2021],
+    when: '2018 · 2019 · 2020 · 2021',
+    who: [
+      { text: 'Aaron van den Oord, Yazhe Li, and Oriol Vinyals introduce Contrastive Predictive Coding (2018), formalising the InfoNCE loss across speech, images, text, and RL.', source: 'https://arxiv.org/abs/1807.03748' },
+      { text: 'Kaiming He, Haoqi Fan, Yuxin Wu, Saining Xie, and Ross Girshick introduce MoCo (2019), decoupling dictionary size from mini-batch VRAM with a FIFO queue and momentum encoder.', source: 'https://arxiv.org/abs/1911.05722' },
+      { text: 'Ting Chen, Simon Kornblith, Mohammad Norouzi, and Geoffrey Hinton publish SimCLR (2020), matching supervised ResNet-50 on ImageNet with large-batch contrastive learning.', source: 'https://arxiv.org/abs/2002.05709' },
+      { text: 'Alec Radford, Jong Wook Kim, Ilya Sutskever, and colleagues at OpenAI release CLIP (2021), training symmetric image–text InfoNCE on 400M web pairs for zero-shot vision.', source: 'https://arxiv.org/abs/2103.00020' },
+    ],
+    story: {
+      before: { text: 'Vision models relied heavily on expensive human-labelled datasets like ImageNet and could only predict a fixed list of pre-chosen categories.', source: 'https://arxiv.org/abs/2103.00020' },
+      this: { text: 'Pulling matched views or image–caption pairs together while pushing thousands of negatives apart on the unit hypersphere learned transferable features with zero manual class labels.', source: 'https://arxiv.org/abs/2002.05709' },
+      after: { text: 'Contrastive encoders like CLIP became the shared vision–language backbone behind modern multimodal LLMs, diffusion models, and zero-shot semantic search.', source: 'https://arxiv.org/abs/2103.00020' },
+    },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */
