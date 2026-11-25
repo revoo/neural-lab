@@ -11,7 +11,7 @@ For a 16-layer or 100-layer network, multiplying 16 or 100 numbers together is a
 - Multiply by **0.25** sixteen times and your signal shrinks to $0.25^{16} \approx 2.3 \times 10^{-10}$ — **<Term id="vanishing-gradients">vanishing gradients</Term>**: the early layers receive zero learning signal and freeze in place.
 - Multiply by **4.0** sixteen times and your signal balloons to $4^{16} \approx 4.3 \times 10^{9}$ — **exploding gradients**: one update sends weights straight to `NaN`.
 
-For nearly two decades — from the late 1980s until the early 2010s — this single exponential knife-edge kept neural networks shallow. Let’s take the compound-interest machine apart and watch the four inventions that finally tamed it: **ReLU**, **variance-preserving initialisation (Xavier & He)**, **LayerNorm**, and **residual skip connections**.
+For nearly two decades — from the late 1980s until the early 2010s — this single exponential knife-edge kept neural networks shallow. In 1991, a student named Sepp Hochreiter formally identified this failure — the vanishing gradient problem — in his German diploma thesis at the Technical University of Munich. <Src href="https://en.wikipedia.org/wiki/Vanishing_gradient_problem" /> <Src href="https://en.wikipedia.org/wiki/Sepp_Hochreiter" /> Practical fixes that made very deep feedforward networks train reliably took roughly two more decades. Let’s take the compound-interest machine apart and watch the four inventions that finally tamed it: **ReLU**, **variance-preserving initialisation (Xavier & He)**, **LayerNorm**, and **residual skip connections**.
 
 ---
 

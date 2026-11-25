@@ -15,6 +15,8 @@ The optimizers in this lesson are two simple ideas, and one combination of them:
 
 Each is a few lines of code on top of gradient descent. Together, they train almost every large model in existence.
 
+Adam, introduced in 2014, quickly became the default optimiser across deep learning. <Src href="https://arxiv.org/abs/1412.6980" /> In 2018, Reddi, Kale and Kumar showed a flaw in its convergence proof and built a simple convex problem on which Adam fails to converge <Src href="https://arxiv.org/abs/1904.09237" /> — a paper that won a Best Paper award at ICLR 2018 <Src href="https://iclr.cc/Conferences/2018/ScheduleOverview" /> — while Adam itself kept working in practice.
+
 ## Momentum: a heavy ball
 
 <Analogy title="Think of a heavy ball rolling downhill">

@@ -11,13 +11,11 @@ import { questions } from './quiz';
 
 At the end of <LessonLink to="one-hot-vs-dense">the one-hot vs dense lesson</LessonLink>, we left a cliff-hanger: if dense semantic vectors beat one-hot vectors so decisively, **where do the numbers come from?** Nobody is going to hand-label 300 coordinates for every word in the English language!
 
-In 1957, the linguist J. R. Firth dropped one sentence that became the backbone of modern NLP:
-
-> *“You shall know a word by the company it keeps.”*
+The idea that a word's meaning comes from its neighbours goes back to linguistics in the 1950s — Zellig Harris (1954) and J. R. Firth (1957), who popularised the idea that "a word is characterized by the company it keeps". <Src href="https://en.wikipedia.org/wiki/Distributional_semantics" />
 
 That is the **<Term id="distributional-hypothesis">distributional hypothesis</Term>**. Even if you have never read a dictionary definition of *king* and *queen*, notice that both appear beside *royal*, *crown*, and *palace* — while *king* co-occurs with *male* and *man*, and *queen* co-occurs with *female* and *woman*.
 
-In 2013, **<Term id="word2vec">Word2Vec</Term>** turned Firth’s insight into a tiny, blistering-fast self-supervised neural network: slide a window over raw unlabelled sentences and train every word’s dense vector to predict its neighbours. No human labels required — just text!
+In 2013, Tomáš Mikolov and colleagues at Google turned that insight into **<Term id="word2vec">Word2Vec</Term>**, a fast neural method that learns dense word vectors from surrounding context in unlabelled text — no human labels required, just text. <Src href="https://en.wikipedia.org/wiki/Word2Vec" />
 
 ---
 

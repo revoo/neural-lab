@@ -9,6 +9,8 @@ That makes choosing a loss a design decision, not a formality. And it's less obv
 
 This lesson is about the three losses that cover the vast majority of practice: **squared error**, **absolute error**, and **cross-entropy** — what each one really asks for, and how to choose.
 
+Squared error is far older than computers. Adrien-Marie Legendre published the method of least squares in 1805; Carl Friedrich Gauss later claimed to have used it since 1795, including to predict where astronomers could relocate the newly discovered asteroid Ceres, setting off a priority dispute between them. <Src href="https://en.wikipedia.org/wiki/Least_squares" />
+
 ## The simplest possible model
 
 To see what a loss wants, strip the model down until there's nothing left but the loss. Here's a model for delivery times that ignores every input and predicts **one number** for every delivery. Training it means choosing that number. Which number is best?

@@ -9,6 +9,8 @@ And one layer won't be enough. You saw in the attention lesson that "it" can't u
 
 The **transformer block** is the answer to both problems at once. It's the unit that gets stacked: GPT-2 small has 12 of them, GPT-3 has 96. Each block has just four ingredients, and you've met three of them.
 
+Normalisation inside a network is a good reminder of how this field often moves. Batch normalisation (2015) was originally motivated as a fix for "internal covariate shift" <Src href="https://arxiv.org/abs/1502.03167" />; three years later, Santurkar and colleagues argued that stability of layer input distributions had little to do with its success, and that it helps mostly by smoothing the optimisation landscape. <Src href="https://arxiv.org/abs/1805.11604" /> In deep learning, a technique often works well before anyone agrees on why.
+
 ## The idea: communicate, then compute, on a shared whiteboard
 
 <Analogy title="Think of a team working on a shared document">

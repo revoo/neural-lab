@@ -20,6 +20,8 @@ On the real exam, with new questions, the first student is lost. Their 100% meas
 
 Hold on to the mapping, because each piece has a real counterpart. Last year's paper is the **training data**. The real exam is new data, which we imitate with a **<Term id="test-set">test set</Term>** held back from training. The teacher's mistakes are **noise**: quirks of these particular examples that won't recur. And a big enough model, like a good enough memory, can learn the noise along with the pattern.
 
+Even the textbook U-shaped curve you are about to see has a twist. In a 2019 paper, Mikhail Belkin and colleagues showed that as a model's capacity grows past the point where it fits the training data exactly, test error can fall *again* — a curve they called "double descent" — and theory is still catching up with modern practice. <Src href="https://arxiv.org/abs/1812.11118" />
+
 ## The capacity dial
 
 To see this cleanly, take the simplest model whose flexibility you can turn with a single knob: a **polynomial**. Degree 0 is a flat line, degree 1 a straight line, degree 2 a parabola, and each extra degree adds one more coefficient and one more possible bend. Fitting one is exact and instant — no gradient descent needed — so we can watch nothing but the effect of flexibility.

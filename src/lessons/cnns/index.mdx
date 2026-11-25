@@ -19,6 +19,8 @@ By stacking three simple ingredients over and over:
 2. **Nonlinearity (`ReLU`)** between layers so two stacked layers don’t collapse into one linear filter.
 3. **<Term id="pooling">Pooling</Term> (or strided convolutions)** to shrink spatial maps, rapidly grow each neuron’s field of view, and trade exact pixel coordinates for shift invariance.
 
+Convolutional networks were already reading handwritten digits at Bell Labs in 1989. <Src href="https://en.wikipedia.org/wiki/LeNet" /> They transformed computer vision twenty-three years later, in 2012, when AlexNet — trained on 1.2 million images using two consumer Nvidia GTX 580 graphics cards — won the ImageNet competition by more than 10.8 percentage points over the runner-up. <Src href="https://en.wikipedia.org/wiki/AlexNet" />
+
 ---
 
 ## 1. Receptive fields: how `3×3` sees the whole scene

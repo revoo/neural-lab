@@ -330,7 +330,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 â†
 - [x] WP3 The Prologue
 - [x] WP4 New lesson: the Perceptron
 - [x] WP5 Era labels and the timeline
-- [ ] WP6.1 Opening hooks
+- [x] WP6.1 Opening hooks
 - [ ] WP6.2 "You are standing where they stood"
 - [ ] WP7 Era interludes (EraStrip + four interludes)
 - [ ] WP8.1 `svm`

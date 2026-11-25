@@ -34,6 +34,8 @@ To reason about trade-offs like these mathematically, we package the robot's wor
 
 A strategy — a rule telling the agent which arrow to press in every square — is called a **<Term id="policy">policy</Term>**, written $\pi(a \mid s)$.
 
+Richard Bellman, who developed dynamic programming in the 1950s and gave this lesson's central equation its name, later wrote in his autobiography that he chose "dynamic programming" partly to disguise mathematical work at RAND from Defense Secretary Charles Wilson, who he said had a "pathological fear and hatred of the word 'research'" — though Russell and Norvig note the dates don't quite line up, since Bellman used the term in print in 1952, a year before Wilson took office. <Src href="https://en.wikipedia.org/wiki/Dynamic_programming" />
+
 ## How patient should an agent be? The discount factor
 
 Suppose an episode yields a sequence of rewards $R_1, R_2, R_3, \dots$. Why not simply add them all up? Two reasons: if an episode can run forever, an undiscounted sum can blow up to infinity; and in practice, a pound today is worth more than a pound ten steps from now when the world is uncertain.
