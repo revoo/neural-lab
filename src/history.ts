@@ -36,6 +36,20 @@ const WP = (page: string) => `https://en.wikipedia.org/wiki/${page}`;
 
 export const HISTORY: HistoryEntry[] = [
   {
+    id: "forecaster",
+    lessonId: "probability",
+    lab: "Calibrate the Forecaster",
+    idea: "A probability distribution with temperature",
+    years: [1902, 1989, 1990],
+    when: "1902 · 1989 · 1990",
+    who: [{ text: "Josiah Willard Gibbs investigated the general form of the Boltzmann distribution in 1902.", source: WP("Boltzmann_distribution") }],
+    story: {
+      before: { text: "In statistical mechanics, the distribution assigns probabilities to states according to energy and absolute temperature.", source: WP("Boltzmann_distribution") },
+      this: { text: "The same normalised exponential form can turn scores into probabilities.", source: WP("Softmax_function") },
+      after: { text: "The machine learning name softmax is credited to John S. Bridle in conference papers presented in 1989 and published in 1990.", source: WP("Softmax_function") },
+    },
+  },
+  {
     id: "slipping-gear",
     lessonId: "chain-rule",
     lab: "Find the Slipping Gear",

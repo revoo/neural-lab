@@ -18,7 +18,8 @@ _Last updated: lab-improvement treatment completed for all 21 post-review labs (
 - **Done [Codex Meridian 6]:** WP1.8 Lab 6, Which Knob, and How Far? (`gradients`).
 - **Done [Codex Meridian 6]:** WP1.8 Lab 7, Find the Slipping Gear (`chain-rule`).
 - **History placement:** The calculus dispute is anchored in 1710–1716 and the chain-rule card in 1970 to fit the timeline. Both cards still give the sourced seventeenth-century events in their text.
-- **Next:** WP1.8 Lab 8, Calibrate the Forecaster.
+- **Done [Codex Meridian 6]:** WP1.8 Lab 8, Calibrate the Forecaster (`probability`).
+- **Next:** WP1.8 Lab 9, Twenty Questions Compressor.
 - **Deviations from the plan (recorded):** WP1.3's vectors opener quotes the neuron lesson's real example `[4 links, 5 exclamation marks, 0 mentions of your name]` (the plan said `[3, 6]`). WP1.5 skipped the plan's "rotate then shear" Predict: `matrix-multiplication` already asks exactly that. Lab 1's data was re-tuned by random search (the first draft had 227/375 perfect settings), and brief 4's text became "find a second route" because links turned out not to be the easy route. Lab 2's data: two real emails were moved off the spam's angular range so brief 4 (cosine) is solvable. WP1.7 colour audit: Eqs and widgets already agree; `probability`'s SoftmaxLab colours by class rather than by role and was left alone.
 - **Known follow-ups:** `similarity-search` says "In the RAG lesson we searched…" although RAG comes later (fix in WP2.2); `scaling-laws` ends "Next: Inference & Hardware" (fix in WP2.1, when RL moves in between); the vectors lesson's "A trap hiding in plain sight" section now overlaps Lab 1's brief 3 (trim in WP1.9).
 - **Open questions for the owner:** none so far.
@@ -148,9 +149,11 @@ Session 3 (owner's order): first a **Matrix theme**, then resume "Next steps" wi
 
 ## Next steps (in order)
 
-1. Resume the curriculum plan at WP1.8 Lab 4. Use the progress checklist in `HANDOFF.md` and the lab specifications in `docs/CURRICULUM_PLAN.md`.
+1. Resume the curriculum plan at WP1.8 Lab 9, Twenty Questions Compressor. Use the progress checklist in `HANDOFF.md` and the lab specifications in `docs/CURRICULUM_PLAN.md`.
 
 ## Labs built so far
+
+- **Calibrate the Forecaster** (probability).
 
 - **Find the Slipping Gear** (chain-rule).
 

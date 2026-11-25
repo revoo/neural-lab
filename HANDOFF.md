@@ -2,7 +2,7 @@
 
 You're picking up **Neural Lab**, an interactive website that teaches AI from first principles: Feynman-style explanation, 3Blue1Brown-style visuals, Zachtronics-style labs. This file is the onboarding procedure. Follow it in order. (Agent rules in brief: `AGENTS.md` / `CLAUDE.md`.)
 
-## 0. Resume here: curriculum plan, WP1.8 Lab 7 complete
+## 0. Resume here: curriculum plan, WP1.8 Lab 8 complete
 
 The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented step by step (WP0 → WP9), and for **WP0 through WP2** in the current run. The previous agent (Claude Opus 5.5) stopped at the owner's request after WP1.8 Lab 2. Work through Lab 2 was pushed on `claude/cool-feynman-4hci4d`.
 
@@ -30,7 +30,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented step by step (WP
 
 ### What to do next, in order
 
-1. **WP1.8 Lab 8:** `probability` · Calibrate the Forecaster. Follow `docs/CURRICULUM_PLAN.md` §WP1.8.
+1. **WP1.8 Lab 9:** `information` · Twenty Questions Compressor. Follow `docs/CURRICULUM_PLAN.md` §WP1.8.
 2. **WP1.10** "Why this, and not something else?" in all nine toolkit lessons, and extend `src/curriculum.test.ts` test 6 to require that heading.
 3. **WP1.9** re-read Module 1: remove teasers that duplicate a `Bridge`; trim the vectors lesson's "A trap hiding in plain sight" section, which now overlaps Lab 1's brief 3; add about 15 minutes per lab to `minutes` in `src/curriculum.ts`.
 4. **WP2.1–2.4.** Known fixes that belong there: `scaling-laws` ends "Next: Inference & Hardware", which becomes wrong once RL moves before fine-tuning (WP2.1); `similarity-search` says "In the RAG lesson we searched…" although RAG comes later (WP2.2: reword when it moves next to RAG). WP2.4 switches the summary test from `it.todo` to `it`.
@@ -294,7 +294,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 �
 - [x] WP1.5 Predict-first moments
 - [x] WP1.6 KL divergence in `information`
 - [x] WP1.7 Motion: the 3Blue1Brown pass
-- [ ] WP1.8 Nine maths labs (**IN PROGRESS**: Labs 1–7 done; next is Lab 8):
+- [ ] WP1.8 Nine maths labs (**IN PROGRESS**: Labs 1–8 done; next is Lab 9):
   - [x] Lab 1 vectors · The Feature Workbench
   - [x] Lab 2 dot-product · Tune the Spam Scorer
   - [x] Lab 3 matrices · Untangle the Data
@@ -302,7 +302,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 �
   - [x] Lab 5 derivatives · The Sensitivity Probe
   - [x] Lab 6 gradients · Which Knob, and How Far?
   - [x] Lab 7 chain-rule · Find the Slipping Gear
-  - [ ] Lab 8 probability · Calibrate the Forecaster
+  - [x] Lab 8 probability · Calibrate the Forecaster
   - [ ] Lab 9 information · Twenty Questions Compressor
 - [ ] WP1.10 "Why this, and not something else?"
 - [ ] WP1.9 Re-read Module 1 as a learner

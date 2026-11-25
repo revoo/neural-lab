@@ -1,3 +1,4 @@
+import { ForecastLab } from './ForecastLab'
 import { SoftmaxLab } from './SoftmaxLab'
 import { questions } from './quiz'
 
@@ -131,6 +132,26 @@ Try both extremes in the lab, and press "Sample" a few times at each. At low tem
 "Turning the temperature down makes the model smarter, or more accurate." Temperature doesn't change anything the model has learned. The logits — the model's actual opinion — are identical. Temperature only changes how that opinion is converted into a choice. Low temperature makes a model *predictable*, which can be useful (for code, or factual answers) but can also make it repetitive. High temperature makes it *varied*, which can be useful (for brainstorming) but makes unlikely, possibly wrong, choices more frequent.
 
 </Misconception>
+
+## Lab: Calibrate the Forecaster
+
+A forecaster gives each kind of weather a score. Compare the forecast with the observations. Think about which differences between the scores would make their bars line up.
+
+<LabJob>Calibrate a weather model’s forecast against observations of sun, cloud, rain and snow.</LabJob>
+
+<ForecastLab />
+
+<Deeper title="Debrief: read the gaps between scores" tag="Spoiler">
+
+Softmax keeps the ratios when you slide every score by the same amount. That means you can set the sun score to zero and still reach the same forecast. For the fixed scores here, a temperature of 1.7 gives the observation frequencies exactly. In the snow-free case, an exact match would require a zero numerator. A finite score can make the numerator tiny, but it stays positive.
+
+</Deeper>
+
+<ForReal>Temperature is a way to adjust a model’s confidence while preserving its ordering of outcomes. If two outcomes have very different scores, a higher temperature brings their probabilities closer together.</ForReal>
+
+<HistoryCard id="forecaster" />
+
+You've just worked with the probability bars that <LessonLink to="information">cross-entropy</LessonLink> will score, and the temperature that <LessonLink to="sampling">sampling</LessonLink> uses.
 
 ## In code
 
