@@ -256,4 +256,4 @@ The most widely used VAE today is hiding inside image generators. Stable Diffusi
 
 </InTheWild>
 
-VAEs generate in one shot: one random code, one pass through the decoder. That's fast, but it asks a lot of one network, which is why VAE samples tend to be a little blurry. What if, instead, you built a picture gradually, starting from pure noise and removing a little at a time? Next: **diffusion**.
+VAEs generate in one shot, trained to keep pixel reconstruction error low — which is why their samples tend to blur whenever two sharp choices are equally plausible. What if you dropped pixel error altogether and trained a second network to catch blurry fakes? That duel is <LessonLink to="gans">GANs: A Forger and a Detective</LessonLink>.

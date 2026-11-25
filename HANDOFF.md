@@ -2,9 +2,9 @@
 
 You're picking up **Neural Lab**, an interactive website that teaches AI from first principles: Feynman-style explanation, 3Blue1Brown-style visuals, Zachtronics-style labs. This file is the onboarding procedure. Follow it in order. (Agent rules in brief: `AGENTS.md` / `CLAUDE.md`.)
 
-## 0. Resume here: curriculum plan, WP7 complete, next WP8
+## 0. Resume here: curriculum plan, WP8.2 complete, next WP8.3
 
-The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented step by step (WP0 → WP9). WP0 to WP7 are done and pushed on `claude/cool-feynman-4hci4d`: Claude Opus 5.5 did WP0–WP1.7, Labs 1–2, WP1.10, WP1.9 and WP2–WP5; Codex Meridian 6 did Labs 3–9; Gemini Antigravity is finishing WP6–WP9 without pausing.
+The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented step by step (WP0 → WP9). WP0 to WP8.2 are done and pushed on `claude/cool-feynman-4hci4d`: Claude Opus 5.5 did WP0–WP1.7, Labs 1–2, WP1.10, WP1.9 and WP2–WP5; Codex Meridian 6 did Labs 3–9; Gemini Antigravity is finishing WP6–WP9 without pausing.
 
 **Read first, in this order:** `AGENTS.md`, this file (especially "Owner's standing instructions" and "Curriculum plan: progress" at the end), `docs/CURRICULUM_PLAN.md` §0 and §1 and the section for your step, and the "Current state" block at the top of `docs/ROADMAP.md`.
 
@@ -36,10 +36,12 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented step by step (WP
 | WP1.9 | `minutes` +15 for each toolkit lesson; vectors' units section trimmed to point at Lab 1's brief 3; two closing teasers cut; consistent backprop cost (about three forward passes). Widget fixes: Sensitivity Probe chart legend and axes; Build the Pipeline counts every intermediate layer as hidden (`meets`, brief 2 optimum now 50,816); Calibrate the Forecaster's `shownPercent` never shows a positive probability as 0. |
 | WP6 | WP6.1 sourced opening hooks in 12 lessons (`neuron`, `gradient-descent`, `loss-functions`, `activation-functions`, `backpropagation`, `vanishing-gradients`, `optimizers`, `overfitting`, `cnns`, `transformer-block`, `mdps`, `word-embeddings`); WP6.2 "You are standing where they stood" `Insight` notes in 6 remaining labs (`logic-lab`, `network-from-scratch`, `vanishing-gradients`, `attention`, `chain-rule`, `information`; `perceptron` already had its note). |
 | WP7 | `src/components/EraStrip.tsx` (+ `eraStrip.test.ts`, registered in `mdxComponents.tsx`) and four 8-minute sourced interlude lessons (`interlude-first-winter` in `neuron`, `interlude-second-winter` in `classical`, `interlude-big-bang` in `vision`, `interlude-chatgpt` in `llms`). |
+| WP8.1 | `src/lessons/svm/` in `classical` after `linear-regression`: exact 2D hard-margin solver, SMO soft-margin, 3D paraboloid lift, `WidenTheStreetLab` (4 briefs), history `svm` (56 entries), glossary `svm`, `support-vector`, `margin`, `kernel-trick`. |
+| WP8.2 | `src/lessons/gans/` in `generative` after `autoencoders`: live 1D GAN on 3-mode Gaussian (`gan.ts`, exact finite-diff checked backprop), `GanDuelWidget`, `DuelBalanceLab` (30-setting × 5-seed search in `search.run.ts`/`results.ts`), history `gans` (57 entries), glossary `gan`, `mode-collapse`, `minimax-game`. |
 
 ### What to do next, in order
 
-1. **WP8:** `svm` (WP8.1), `gans` (WP8.2), `open-questions` with new `epilogue` module (WP8.3).
+1. **WP8.3:** `open-questions` ("What Nobody Understands Yet") with new `epilogue` module.
 2. **WP9:** Final documentation across `ROADMAP.md`, `HANDOFF.md`, `VISION.md`, and `CURRICULUM_AUDIT.md`.
 
 ### How each maths lab was built (copy this)
@@ -335,7 +337,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 �
 - [x] WP6.2 "You are standing where they stood"
 - [x] WP7 Era interludes (EraStrip + four interludes)
 - [x] WP8.1 `svm`
-- [ ] WP8.2 `gans`
+- [x] WP8.2 `gans`
 - [ ] WP8.3 `open-questions`
 - [ ] WP9 Final documentation
 

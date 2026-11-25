@@ -257,6 +257,7 @@ export const MODULES: ModuleMeta[] = [
     blurb: 'VAEs, GANs and diffusion: how machines learn to create.',
     lessons: [
       { id: 'autoencoders', title: 'Autoencoders and VAEs', summary: 'Why averaging two faces makes a ghost, how a bottleneck finds the hidden knobs behind data, and how a VAE makes new faces — and Lab: The Face Printer.', minutes: 40, load: () => import('./lessons/autoencoders/index.mdx') },
+      { id: 'gans', title: 'GANs: A Forger and a Detective', summary: 'Two networks in a duel: one forges data, one tries to catch it. Why the duel produces sharp samples, why it breaks, and how to keep it balanced.', minutes: 35, load: () => import('./lessons/gans/index.mdx') },
       { id: 'diffusion', title: 'Diffusion: Adding and Removing Noise', summary: 'Dissolve data into noise step by step, then learn to run the film backwards: how a denoiser turns static into samples — and Lab: Spend the Step Budget.', minutes: 40, load: () => import('./lessons/diffusion/index.mdx') },
       { id: 'guidance', title: 'Guidance and Conditioning', summary: 'Ask a generator for a particular class, turn the request up, and watch quality rise while variety drains away — and Lab: Tune the Guidance.', minutes: 35, load: () => import('./lessons/guidance/index.mdx') },
     ],

@@ -36,6 +36,23 @@ const WP = (page: string) => `https://en.wikipedia.org/wiki/${page}`;
 
 export const HISTORY: HistoryEntry[] = [
   {
+    id: 'gans',
+    lessonId: 'gans',
+    lab: 'Keep the Duel Balanced',
+    idea: 'Generative adversarial networks and the two-player minimax duel',
+    years: [2014, 2021],
+    when: '2014 · 2021',
+    who: [
+      { text: 'Ian J. Goodfellow, Jean Pouget-Abadie, Mehdi Mirza, Bing Xu, David Warde-Farley, Sherjil Ozair, Aaron Courville and Yoshua Bengio at Université de Montréal introduced Generative Adversarial Networks in June 2014.', source: 'https://arxiv.org/abs/1406.2661' },
+      { text: 'Prafulla Dhariwal and Alex Nichol (OpenAI) showed in May 2021 that diffusion models surpass GANs on ImageNet synthesis.', source: 'https://arxiv.org/abs/2105.05233' },
+    ],
+    story: {
+      before: { text: 'Deep generative models relied on Markov chains or approximate inference networks (such as variational autoencoders, introduced around the same time in 2013–2014).', source: 'https://arxiv.org/abs/1406.2661' },
+      this: { text: 'Goodfellow et al. (2014) trained a generator G and discriminator D together via backpropagation in a minimax two-player game, proving a unique equilibrium with G matching the data and D equal to 1/2 everywhere.', source: 'https://arxiv.org/abs/1406.2661' },
+      after: { text: 'In 2021, Dhariwal and Nichol achieved FID 2.97 on ImageNet 128×128 and 4.59 on 256×256 with diffusion models, matching BigGAN-deep while maintaining better coverage of the distribution.', source: 'https://arxiv.org/abs/2105.05233' },
+    },
+  },
+  {
     id: 'svm',
     lessonId: 'svm',
     lab: 'Widen the Street',
