@@ -4,6 +4,7 @@ import { LiveCode } from '../../components/LabJob';
 import { peftLoraLines } from './realCode';
 import { Widget } from '../../components/Widget';
 import { AnswerReveal } from '../../components/AnswerReveal';
+import { MachineLog, useMachineLog } from '../../components/MachineLog';
 import { Segmented, Slider } from '../../components/controls';
 import {
   LAB_ERR_GOAL,
@@ -495,6 +496,28 @@ export function LiveLoraTrainer() {
 
 const LAB_KEY = 'nl-lora-lab-v1';
 
+
+/** One colour scale for all three layers, so a small shift looks small. */
+const LAB_SHIFT_MAX = Math.max(...LAB_LAYERS.flatMap((l) => l.svd.matrix.flat().map(Math.abs)));
+
+/** An 8×8 matrix as coloured cells: blue for positive, red for negative, strength by size (shared scale). */
+function MiniMatrix({ M, max, label }: { M: number[][]; max: number; label: string }) {
+  const n = M.length;
+  const c = 7;
+  return (
+    <div style={{ textAlign: 'center' }}>
+      <svg viewBox={`0 0 ${n * c} ${n * c}`} width={n * c} height={n * c} role="img" aria-label={label} style={{ display: 'block', border: '1px solid var(--border)' }}>
+        {M.map((row, i) =>
+          row.map((v, j) => (
+            <rect key={`${i}-${j}`} x={j * c} y={i * c} width={c} height={c} fill={v >= 0 ? 'var(--c-pos)' : 'var(--c-neg)'} opacity={Math.min(1, Math.abs(v) / max)} />
+          )),
+        )}
+      </svg>
+      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{label}</div>
+    </div>
+  );
+}
+
 export function LoraBudgetLab() {
   const [ranks, setRanks] = useState<[number, number, number]>(() => {
     try {
@@ -539,10 +562,16 @@ export function LoraBudgetLab() {
     }
   }, [ev.passes, solvedOnce]);
 
+  const log = useMachineLog();
   const setLayerRank = (idx: number, r: number) => {
     const next: [number, number, number] = [...ranks] as [number, number, number];
     next[idx] = r;
     setRanks(next);
+    const after = evaluateLoraLab(next);
+    log.push(
+      `${LAB_LAYERS[idx].name.split(' · ')[0]}: r ${ranks[idx]} → ${r} · layer MSE ${ev.layerMses[idx].toFixed(5)} → ${after.layerMses[idx].toFixed(5)} · ${after.totalParams} of ${LAB_PARAM_BUDGET} params · avg MSE ${after.avgMse.toFixed(5)}${after.passes ? ' · passes' : ''}`,
+      after.passes ? 'good' : after.fitsBudget ? 'info' : 'bad',
+    );
   };
 
   return (
@@ -608,6 +637,17 @@ export function LoraBudgetLab() {
                   ))}
                 </div>
 
+                {(() => {
+                  const rec = reconstructRankR(layer.svd, r);
+                  const missed = layer.svd.matrix.map((row, i) => row.map((v, j) => v - rec.approx[i][j]));
+                  const max = LAB_SHIFT_MAX;
+                  return (
+                    <div style={{ display: 'flex', gap: 6 }} title="The layer's shift ΔW split into the part rank r captures and the part it misses (one colour scale for all layers)">
+                      <MiniMatrix M={rec.approx} max={max} label="captured" />
+                      <MiniMatrix M={missed} max={max} label="missed" />
+                    </div>
+                  );
+                })()}
                 {/* Mini singular-value spectrum (first 5 values) */}
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 26 }} title="Singular values σ₁..σ₅ of this layer’s shift">
                   {layer.svd.singularValues.slice(0, 5).map((sv, k) => (
@@ -678,6 +718,7 @@ export function LoraBudgetLab() {
           <strong>{sol.best.avgMse.toFixed(5)}</strong> (16× lower than uniform [1,1,1]’s {sol.uniformR1.avgMse.toFixed(5)}!).
         </div>
       </AnswerReveal>
+      <MachineLog lines={log.lines} onClear={log.clear} empty="Change a layer's rank: the layer's error and the budget are logged here." />
     </Widget>
   );
 }
