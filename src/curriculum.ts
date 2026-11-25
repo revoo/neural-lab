@@ -142,8 +142,8 @@ export const MODULES: ModuleMeta[] = [
       { id: 'one-hot-vs-dense', title: 'One-Hot vs Dense Vectors', summary: 'The orthogonality curse, why E[id] skips 99.999% zero multiplications, zero-shot synonym transfer vs integer IDs — and Lab: Choose & Size the Representation.', minutes: 30, load: () => import('./lessons/one-hot-vs-dense/index.mdx') },
       { id: 'word-embeddings', title: 'Word Embeddings', summary: 'Skip-Gram with Negative Sampling trained live on raw sentences, king − man + woman ≈ queen emerging from co-occurrence, K = 0 collapse, 16,667× softmax speedup — and Lab: Train & Debug Word2Vec.', minutes: 35, load: () => import('./lessons/word-embeddings/index.mdx') },
       { id: 'similarity-search', title: 'Similarity Search', summary: 'Unit-norm metric equivalence, IVF Voronoi buckets & multi-probe recall, random-hyperplane LSH vs IVF, 10M-vector RAM compression (INT8 & PQ-64) — and Lab: Tune the Vector Index.', minutes: 35, load: () => import('./lessons/similarity-search/index.mdx') },
+      { id: 'contrastive-learning', title: 'Contrastive Learning & Representation Spaces', summary: 'How InfoNCE pulls positive pairs together and pushes in-batch negatives apart on the unit hypersphere, temperature τ hard-negative focus, why alignment without negatives collapses to one point — and Lab: Tune the Contrastive Objective.', minutes: 35, load: () => import('./lessons/contrastive-learning/index.mdx') },
     ],
-    planned: ['Contrastive learning'],
   },
   { id: 'sequences', number: 11, title: 'Sequence Models', blurb: 'RNNs, LSTMs, and the bottleneck that motivated attention.', lessons: [], planned: ['Recurrent networks', 'LSTMs and GRUs', 'Encoder–decoder and early attention'] },
   {

@@ -1,0 +1,122 @@
+{/* authored-by: Gemini Antigravity */}
+import { Eq } from '../../components/Eq';
+import { Predict } from '../../components/Predict';
+import { Callout, Deeper } from '../../components/Callout';
+import { Term } from '../../components/Term';
+import { Quiz } from '../../components/Quiz';
+import { TemperatureFocusWidget, CircleUniformityWidget, ContrastiveLab } from './Widgets';
+import { questions } from './quiz';
+
+# Contrastive Learning & Representation Spaces
+
+Word2Vec gave us dense embeddings for **single words**. What if we want one unified vector space for **entire sentences**, **whole photographs**, or even **images and text together** (like OpenAI’s CLIP, where searching `"a golden retriever on a skateboard"` retrieves the exact matching photograph with zero task-specific labels)?
+
+Enter **<Term id="contrastive-learning">contrastive learning</Term>** (SimCLR, MoCo, CLIP, modern sentence-embedding models). The recipe fits on a postcard:
+
+1. Take a mini-batch of $B$ matched **positive pairs** $(\ca{a_i}, \cb{b_i})$ — either two augmented crops of the same photograph (SimCLR), or an image paired with its caption (CLIP).
+2. L2-normalise every embedding onto the unit hypersphere ($\|\ca{a_i}\| = \|\cb{b_i}\| = 1$).
+3. Treat the other $B - 1$ items in the mini-batch as **in-batch negatives**, and train a $B$-way softmax classifier (**<Term id="infonce">InfoNCE</Term>**) to pick the single true match out of the crowd!
+
+---
+
+## 1. InfoNCE and why temperature $\tau$ mines hard negatives
+
+Divide every pairwise cosine similarity $\ca{a_i} \cdot \cb{b_j}$ by a scalar **temperature** $\cc{\tau} \gt 0$, and compute cross-entropy to pick diagonal match $j = i$:
+
+<Eq
+  words="InfoNCE loss  =  cross-entropy of picking the true match i out of all B candidates at temperature τ"
+  tex="\mathcal{L}_{\text{InfoNCE}} = -\frac{1}{B}\sum_{i=1}^{B} \log \frac{\exp(\ca{a_i}\cdot\cb{b_i} / \cc{\tau})}{\sum_{j=1}^{B} \exp(\ca{a_i}\cdot\cb{b_j} / \cc{\tau})}"
+>
+  - $\ca{a_i}, \cb{b_i}$ — L2-normalised embeddings of the $i$-th matching pair (e.g., image $i$ and caption $i$)
+  - $\cb{b_j}$ ($j \neq i$) — the $B - 1$ **in-batch negatives** (mismatched captions)
+  - $\cc{\tau}$ — **temperature** (`1/τ` is CLIP’s learned logit scale; typically `τ ≈ 0.05–0.15`)
+</Eq>
+
+Why does $\cc{\tau}$ matter so dramatically? Because the softmax weight $p_{ij}$ controls **how hard gradient descent pushes each negative away**. When $\cc{\tau}$ is small, an easy negative (`cos = 0.10`) gets almost zero softmax probability, while a **hard negative** (`dog` vs `cat`, `cos = 0.70`) soaks up **nearly 100%** of the repulsive gradient — automatic hard-negative mining built right into cross-entropy!
+
+Slide $\tau$ below and watch the hard negative’s share of repulsive force jump from **49.5%** (`τ = 1.00`) to **100.0%** (`τ = 0.05`).
+
+<TemperatureFocusWidget />
+
+---
+
+## 2. Alignment & Uniformity: the two laws of a healthy embedding space
+
+Wang & Isola (2020) proved a beautiful geometric theorem: InfoNCE simultaneously optimises two competing forces on the unit hypersphere (<Term id="alignment-uniformity">Alignment & Uniformity</Term>):
+
+1. **Alignment:** matched pairs $(\ca{a_i}, \cb{b_i})$ should map to the same point ($\mathbb{E}[\|\ca{a_i} - \cb{b_i}\|^2] \to 0$).
+2. **Uniformity:** distinct items should spread evenly across the whole hypersphere, preserving maximal information.
+
+<Predict
+  question="What happens if we drop the negative pairs and train purely on Alignment (pulling matched image and text vectors together on the unit circle)?"
+  options={[
+    'Each of the 8 pairs stays in its own clean spot on the circle.',
+    'Total representation collapse: all 8 pairs converge onto the exact same point on the circle (mean pairwise cosine = +1.000), destroying retrieval!',
+    'Alignment loss blows up to infinity.',
+  ]}
+  answer={1}
+>
+  Without negatives pushing different pairs apart, mapping *every* image and *every* caption to the exact same dot achieves `0.0000` alignment loss while destroying all meaning (`mean pairwise cosine = +1.000`, uniformity `0.000`)!
+</Predict>
+
+Watch 8 image–text pairs start crammed into an 80° arc and train live under all three regimes below.
+
+<CircleUniformityWidget />
+
+Notice how closely **InfoNCE (`τ = 0.15`)** approaches geometric perfection: 8 points evenly spaced on a unit circle have exact theoretical mean off-diagonal cosine $-1/7 = -0.143$, and real gradient descent on InfoNCE fans our 8 pairs out to **`−0.136`** (`uniformity = −2.336`) while snapping every image circle dead-centre inside its matching text ring (**100.0% zero-shot Top-1 retrieval**)!
+
+---
+
+## 3. Why contrastive learners crave huge batches (or a MoCo queue)
+
+In-batch InfoNCE only sees negatives that happen to land inside the same mini-batch. If tricky confusable “hard negatives” make up `1%` of your corpus, the probability that a mini-batch of size $B$ includes at least one is $1 - 0.99^{B-1}$:
+
+- At `B = 64`: only **46.9%** chance! More than half your updates never even see a hard negative.
+- At `B = 512`: **99.4%** chance — why SimCLR trains with `B = 4,096` and CLIP with `B = 32,768`!
+- **MoCo’s clever bypass:** instead of keeping 4,096 full encoder activation graphs in GPU VRAM, maintain a **FIFO queue** of $Q$ precomputed embeddings from a slow-moving momentum encoder. You only backpropagate through a tiny active batch (`B = 64`, **0.63 GiB** VRAM) while still contrasting against thousands of negatives!
+
+<Callout kind="info" title="Module 10 complete — and a bridge to Module 11">
+  Across Module 10 you went from sparse orthogonal one-hot vectors (`one-hot-vs-dense`), to Word2Vec learning geometry from co-occurrence (`word-embeddings`), to searching 10 million vectors in milliseconds (`similarity-search`), to shaping entire multimodal hyperspheres with InfoNCE (`contrastive-learning`). Note also that **autoencoders and VAEs** — another major representation-learning family — already have their own dedicated deep-dive in **Module 17**! Next up is **Module 11 · Sequence Models (RNNs, LSTMs, and Seq2Seq Attention)**, tracing the exact path that led to Transformers.
+</Callout>
+
+---
+
+## 4. Lab: Tune Contrastive Training
+
+Configure three real contrastive training pipelines — every brief exhaustively checked across all menu choices.
+
+<ContrastiveLab />
+
+<Deeper title="Exhaustive lab takeaways">
+  - **Brief 1 (Unit-circle alignment & uniformity):** Alignment-only collapses (`mean cos = +1.000`). `τ = 2.0` leaves pairs cramped (`mean cos = +0.061`). InfoNCE at `τ = 0.05, 0.15, 0.50` all pass (`3/8` total), with **`τ = 0.15`** achieving the cleanest uniformity (`−2.336`, `mean cos = −0.136`, `100%` Top-1).
+  - **Brief 2 (Hard-negative focus without overflow):** `τ = 0.02` explodes logit scale to `50 > 25`; `τ ≥ 0.50` dilutes hard-negative focus below `80%`. `τ = 0.05, 0.10, 0.25` pass (`3/6`), with **`τ = 0.05`** hitting **100.0%** hard-negative focus at safe scale `20`.
+  - **Brief 3 (95% hard-negative coverage under 8 GiB VRAM):** `SimCLR B=64` (`46.9%`) and `B=256` (`92.3%`) miss coverage; `SimCLR B=2048` blows VRAM (`16.0 GiB`). `SimCLR B=512` (`4.0 GiB`), `MoCo B=64 + Q=512` (**0.63 GiB**, `99.4%` — lowest VRAM!), and `MoCo B=64 + Q=4096` (`1.50 GiB`, `100.0%`) all pass (`3/6`).
+</Deeper>
+
+---
+
+## 5. InfoNCE temperature sweep in 10 lines of NumPy
+
+```python
+import numpy as np
+
+def softmax(x, axis=-1):
+    e = np.exp(x - np.max(x, axis=axis, keepdims=True))
+    return e / e.sum(axis=axis, keepdims=True)
+
+cos_row = np.array([0.85, 0.70, 0.10, -0.05])  # [true, hard_neg, easy_1, easy_2]
+for tau in [1.0, 0.25, 0.10, 0.05]:
+    p = softmax(cos_row / tau)
+    hard_share = p[1] / p[1:].sum()
+    print(f"tau={tau:4.2f} (1/tau={1/tau:4.0f}): P(true)={p[0]:.3f} | hard-neg share={100*hard_share:5.1f}%")
+# tau=1.00 (1/tau=   1): P(true)=0.365 | hard-neg share= 49.5%
+# tau=0.25 (1/tau=   4): P(true)=0.615 | hard-neg share= 87.7%
+# tau=0.10 (1/tau=  10): P(true)=0.817 | hard-neg share= 99.7%
+# tau=0.05 (1/tau=  20): P(true)=0.953 | hard-neg share=100.0%
+```
+
+---
+
+## Check your understanding
+
+<Quiz questions={questions} />
