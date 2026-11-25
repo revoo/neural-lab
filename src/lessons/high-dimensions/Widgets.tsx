@@ -1,6 +1,7 @@
 // authored-by: Claude Opus 5.5
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Widget } from '../../components/Widget';
+import { MachineLog, useMachineLog } from '../../components/MachineLog';
 import { Segmented, Slider } from '../../components/controls';
 import { Plot, usePlot } from '../../components/plot';
 import {
@@ -326,6 +327,72 @@ function loadPack(): PackSave {
   return d;
 }
 
+
+/**
+ * Brief 1's arrows drawn inside a cube you can turn by dragging: ±1 vectors in
+ * 3D are the cube's corners, so the arrows are diagonals. Clashing arrows are red.
+ */
+function Cube3D({ rows, bad }: { rows: number[][]; bad: Set<string> }) {
+  const [ang, setAng] = useState({ yaw: 0.6, pitch: -0.45 });
+  const drag = useRef<{ x: number; y: number } | null>(null);
+  const S = 220;
+  const sc = 58;
+  const proj = ([x, y, z]: number[]): [number, number, number] => {
+    const cy = Math.cos(ang.yaw), sy = Math.sin(ang.yaw), cp = Math.cos(ang.pitch), sp = Math.sin(ang.pitch);
+    const x1 = cy * x + sy * z;
+    const z1 = -sy * x + cy * z;
+    const y1 = cp * y - sp * z1;
+    const z2 = sp * y + cp * z1;
+    return [S / 2 + sc * x1, S / 2 - sc * y1, z2];
+  };
+  const corners = [-1, 1].flatMap((a) => [-1, 1].flatMap((b) => [-1, 1].map((c) => [a, b, c])));
+  const edges: [number[], number[]][] = [];
+  for (const a of corners) for (const b of corners) if (a.reduce((t, v, i) => t + (v !== b[i] ? 1 : 0), 0) === 1 && a.join() < b.join()) edges.push([a, b]);
+  const clash = (i: number) => [...bad].some((k) => k.split(',').map(Number).includes(i));
+  const o = proj([0, 0, 0]);
+  return (
+    <div>
+      <svg
+        viewBox={`0 0 ${S} ${S}`}
+        width={S}
+        height={S}
+        style={{ touchAction: 'none', cursor: 'grab', display: 'block' }}
+        role="img"
+        aria-label="The arrows inside a cube; drag to turn it"
+        onPointerDown={(e) => {
+          drag.current = { x: e.clientX, y: e.clientY };
+          (e.target as Element).setPointerCapture?.(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          if (!drag.current) return;
+          const dx = e.clientX - drag.current.x;
+          const dy = e.clientY - drag.current.y;
+          drag.current = { x: e.clientX, y: e.clientY };
+          setAng((a) => ({ yaw: a.yaw + dx * 0.012, pitch: Math.max(-1.4, Math.min(1.4, a.pitch + dy * 0.012)) }));
+        }}
+        onPointerUp={() => (drag.current = null)}
+      >
+        {edges.map(([a, b], k) => {
+          const p = proj(a), q = proj(b);
+          return <line key={k} x1={p[0]} y1={p[1]} x2={q[0]} y2={q[1]} stroke="var(--border-strong)" strokeWidth={1} />;
+        })}
+        {rows.map((r, i) => {
+          const p = proj(r);
+          const col = clash(i) ? 'var(--c-bad)' : 'var(--accent)';
+          return (
+            <g key={i}>
+              <line x1={o[0]} y1={o[1]} x2={p[0]} y2={p[1]} stroke={col} strokeWidth={2.5} />
+              <circle cx={p[0]} cy={p[1]} r={4} fill={col} />
+              <text x={p[0] + 6} y={p[1] - 6} fontSize={12} fontWeight={700} fill={col}>{i + 1}</text>
+            </g>
+          );
+        })}
+      </svg>
+      <div className="muted" style={{ fontSize: 12, maxWidth: 260 }}>Drag to turn the cube. Every ±1 arrow in 3D ends at a corner, so it runs along a diagonal of the cube.</div>
+    </div>
+  );
+}
+
 export function PackLab() {
   const [save, setSave] = useState<PackSave>(() => loadPack());
   const [bi, setBi] = useState(0);
@@ -351,7 +418,17 @@ export function PackLab() {
     if (c.pass && c.bad.length === 0) optimal = optimal || nr.length >= maxPacking(brief.d, brief.maxDot).length;
     persist({ ...save, [brief.id]: { ...entry, rows: nr, solved: entry.solved || c.pass, optimal } });
   };
-  const flip = (i: number, j: number) => setRows(rows.map((r, k) => (k === i ? r.map((x, m) => (m === j ? -x : x)) : r)));
+  const log = useMachineLog();
+  const flip = (i: number, j: number) => {
+    const nr = rows.map((r, k) => (k === i ? r.map((x, m) => (m === j ? -x : x)) : r));
+    setRows(nr);
+    const after = checkPacking(brief, nr);
+    const withI = after.bad.filter(([a, b]) => a === i || b === i).map(([a, b]) => (a === i ? b : a) + 1);
+    log.push(
+      `row ${i + 1}, entry ${j + 1} flipped: ${withI.length ? `now clashes with row${withI.length > 1 ? 's' : ''} ${withI.join(', ')}` : `clashes with nothing`} · ${after.bad.length} clashing pair${after.bad.length === 1 ? '' : 's'} in all`,
+      withI.length ? 'bad' : 'good',
+    );
+  };
   const addRow = () => rows.length < 16 && setRows([...rows, new Array(brief.d).fill(1)]);
   const removeRow = (i: number) => rows.length > 1 && setRows(rows.filter((_, k) => k !== i));
   const declare = () => persist({ ...save, [brief.id]: { ...entry, declared: true } });
@@ -423,6 +500,7 @@ export function PackLab() {
           </div>
         </div>
         <div style={{ display: 'grid', gap: 10 }}>
+          {brief.d === 3 && <Cube3D rows={rows} bad={badSet} />}
           <div style={{ overflowX: 'auto' }}>
             <table className="num-table">
               <tbody>
@@ -490,6 +568,7 @@ export function PackLab() {
           )}
         </div>
       </div>
+      <MachineLog lines={log.lines} onClear={log.clear} empty="Flip an entry: which rows it now clashes with is logged here." />
     </Widget>
   );
 }
