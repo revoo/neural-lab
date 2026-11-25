@@ -109,7 +109,16 @@ export const MODULES: ModuleMeta[] = [
       { id: 'diagnosis-lab', title: 'Lab: The Model Clinic', summary: 'Ten broken training runs, the instruments to examine them, and a menu of root causes. Diagnose each one, then fix it.', minutes: 45, load: () => import('./lessons/diagnosis-lab/index.mdx') },
     ],
   },
-  { id: 'classical', number: 8, title: 'Classical Machine Learning', blurb: 'Trees, nearest neighbours, SVMs, clustering — and when they beat neural networks.', lessons: [], planned: ['Linear and logistic regression', 'k-nearest neighbours', 'Decision trees and forests', 'k-means and PCA'] },
+  {
+    id: 'classical',
+    number: 8,
+    title: 'Classical Machine Learning',
+    blurb: 'Trees, nearest neighbours, SVMs, clustering — and when they beat neural networks.',
+    lessons: [
+      { id: 'linear-regression', title: 'Linear and Logistic Regression', summary: 'Exact normal equations and the collinearity trap, why OLS breaks on classification, calibrated log-odds, precision/recall & ROC AUC — and a feature-engineering lab.', minutes: 35, load: () => import('./lessons/linear-regression/index.mdx') },
+    ],
+    planned: ['k-nearest neighbours', 'Decision trees and forests', 'k-means and PCA'],
+  },
   { id: 'vision', number: 9, title: 'Computer Vision', blurb: 'From pixels to convolutions to object detectors.', lessons: [], planned: ['Images as tensors', 'Convolution and kernels', 'CNNs and feature maps', 'Object detection'] },
   { id: 'embeddings', number: 10, title: 'Embeddings & Representations', blurb: 'Meaning as geometry: learned spaces where similar things sit close together.', lessons: [], planned: ['One-hot vs dense vectors', 'Word embeddings', 'Similarity search', 'Autoencoders'] },
   { id: 'sequences', number: 11, title: 'Sequence Models', blurb: 'RNNs, LSTMs, and the bottleneck that motivated attention.', lessons: [], planned: ['Recurrent networks', 'LSTMs and GRUs', 'Encoder–decoder and early attention'] },
