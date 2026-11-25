@@ -6,7 +6,7 @@ const isUrl = (u: string) => /^https?:\/\/\S+$/.test(u);
 
 describe('history data', () => {
   it('has one entry per reviewed lab, with unique ids', () => {
-    expect(HISTORY.length).toBe(45);
+    expect(HISTORY.length).toBe(46);
     expect(new Set(HISTORY.map((h) => h.id)).size).toBe(HISTORY.length);
   });
 

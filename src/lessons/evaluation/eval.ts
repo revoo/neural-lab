@@ -454,13 +454,32 @@ export function briefPasses(b: EvalBrief, d: EvalDesign, r: ReturnType<typeof ev
   return true;
 }
 
+export type EvalPassPoint = { design: EvalDesign; eval: ReturnType<typeof evaluateEvalDesign> };
+
+const POWER_CURVE_CACHE = new Map<string, { n: number; power: number; fpr: number; cost: number }[]>();
+
+/** Exact power curve across all allowed sample sizes for the current (mode, grader, alpha). */
+export function evalPowerCurve(d: EvalDesign, b: EvalBrief) {
+  const key = `${b.id}:${d.mode}:${d.grader}:${d.alpha}`;
+  const hit = POWER_CURVE_CACHE.get(key);
+  if (hit) return hit;
+  const ns = b.maxN !== undefined ? LAB_NS.filter((x) => x <= b.maxN!) : [...LAB_NS];
+  const curve = ns.map((n) => {
+    const r = evaluateEvalDesign({ ...d, n }, b);
+    return { n, power: r.power, fpr: r.fpr, cost: r.cost };
+  });
+  POWER_CURVE_CACHE.set(key, curve);
+  return curve;
+}
+
 const EXHAUSTIVE_CACHE = new Map<string, ReturnType<typeof computeLabExhaustive>>();
 
 function computeLabExhaustive(b: EvalBrief) {
   let total = 0;
   let passing = 0;
   let bestCost = Infinity;
-  let best: { design: EvalDesign; eval: ReturnType<typeof evaluateEvalDesign> }[] = [];
+  let best: EvalPassPoint[] = [];
+  const passingPts: EvalPassPoint[] = [];
 
   for (const mode of LAB_MODES)
     for (const grader of GRADERS.map((g) => g.id))
@@ -472,6 +491,7 @@ function computeLabExhaustive(b: EvalBrief) {
           const ev = evaluateEvalDesign(design, b);
           if (!briefPasses(b, design, ev)) continue;
           passing++;
+          passingPts.push({ design, eval: ev });
           if (ev.cost < bestCost - 1e-9) {
             bestCost = ev.cost;
             best = [{ design, eval: ev }];
@@ -481,7 +501,8 @@ function computeLabExhaustive(b: EvalBrief) {
         }
       }
 
-  return { total, passing, bestCost, best };
+  passingPts.sort((a, b2) => a.eval.cost - b2.eval.cost || b2.eval.power - a.eval.power);
+  return { total, passing, bestCost, best, passingPts };
 }
 
 export function labExhaustive(b: EvalBrief) {
@@ -491,3 +512,43 @@ export function labExhaustive(b: EvalBrief) {
   EXHAUSTIVE_CACHE.set(b.id, res);
   return res;
 }
+
+/** Evidence-only hint for EvalSizingLab: reports measurements without naming winning settings. */
+export function evalLabHint(
+  brief: EvalBrief,
+  design: EvalDesign,
+  ev: ReturnType<typeof evaluateEvalDesign>,
+): string {
+  const okPow = ev.power >= brief.minPower - 1e-9;
+  const okFpr = ev.fpr <= brief.maxFpr + 1e-9;
+  const g = GRADER_BY_ID[design.grader];
+  const pct1 = (v: number) => `${(100 * v).toFixed(1)}%`;
+  const pct2 = (v: number) => `${(100 * v).toFixed(2)}%`;
+
+  if (okPow && okFpr) {
+    const best = labExhaustive(brief).bestCost;
+    if (ev.cost <= best + 1e-9) {
+      return `This suite passes both targets at ${ev.cost.toLocaleString()} credits — the lowest grading cost across the search space for this brief.`;
+    }
+    return `Both targets pass (power ${pct1(ev.power)}, FPR ${pct2(ev.fpr)}) at ${ev.cost.toLocaleString()} credits. A cheaper combination of protocol, grader, and sample size can still clear the brief.`;
+  }
+
+  if (!okFpr) {
+    return `Exact false-positive rate is ${pct2(ev.fpr)}, above the brief’s ${pct1(brief.maxFpr)} ceiling (your current cap is ${(design.alpha * 100).toFixed(0)}%). Tighten the significance cap so a no-op change cannot slip through.`;
+  }
+
+  const curve = evalPowerCurve(design, brief);
+  const topPoint = curve[curve.length - 1];
+  const topPower = topPoint.power;
+  const atten = 2 * g.accuracy - 1;
+
+  if (topPower < brief.minPower - 1e-9) {
+    if (g.accuracy < 1) {
+      return `Power is ${pct1(ev.power)} (need ≥ ${pct1(brief.minPower)}), and even at the largest allowed sample size (${topPoint.n.toLocaleString()} items) this curve tops out at ${pct1(topPower)}. Notice the ${(g.accuracy * 100).toFixed(0)}%-accurate grader shrinks the true +${(brief.delta * 100).toFixed(1)} pp lift to +${(ev.observedGap * 100).toFixed(2)} pp (× ${atten.toFixed(2)}) and adds noise to every comparison.`;
+    }
+    return `Power is ${pct1(ev.power)} (need ≥ ${pct1(brief.minPower)}), and even at ${topPoint.n.toLocaleString()} items this curve peaks at ${pct1(topPower)}. Shared question-difficulty variance is swamping the +${(brief.delta * 100).toFixed(1)} pp signal under this protocol.`;
+  }
+
+  return `Power is ${pct1(ev.power)} (need ≥ ${pct1(brief.minPower)}). Look at the power curve above: this protocol and grader do cross the ${pct1(brief.minPower)} line before ${topPoint.n.toLocaleString()} items — you just do not have enough test questions yet to separate a +${(ev.observedGap * 100).toFixed(2)} pp observed lift from sampling noise.`;
+}
+

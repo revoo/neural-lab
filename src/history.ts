@@ -838,6 +838,46 @@ export const HISTORY: HistoryEntry[] = [
       after: { text: 'Model-agnostic tool protocols (such as MCP), sandboxed code execution, and compiler/test-backed retry loops now power modern coding and enterprise agents.', source: 'https://arxiv.org/abs/2305.15334' },
     },
   },
+  {
+    id: 'evaluation',
+    lessonId: 'evaluation',
+    lab: 'Size Your Eval Suite',
+    idea: 'McNemar’s Paired Test, MMLU & LLM-as-a-Judge',
+    years: [1947, 2020, 2023],
+    when: '1947 · 2020 · 2023',
+    who: [
+      {
+        text: 'Quinn McNemar (1947, Psychometrika) introduces the paired 2×2 test for correlated proportions, comparing two tests on the same subjects purely through their discordant outcomes.',
+        source: WP('McNemar%27s_test'),
+      },
+      {
+        text: 'Dan Hendrycks, Collin Burns, Steven Basart, Andy Zou, Mantas Mazeika, Dawn Song, and Jacob Steinhardt (September 2020) publish MMLU (Measuring Massive Multitask Language Understanding) as a broad multitask benchmark.',
+        source: 'https://arxiv.org/abs/2009.03300',
+      },
+      {
+        text: 'Lianmin Zheng, Wei-Lin Chiang, Ying Sheng, Siyuan Zhuang, Zhanghao Wu, Ion Stoica, and colleagues (June 2023, NeurIPS) analyse LLM-as-a-judge biases and release MT-Bench and Chatbot Arena.',
+        source: 'https://arxiv.org/abs/2306.05685',
+      },
+    ],
+    story: {
+      before: {
+        text: 'Frequentist power analysis quantifies the chance of detecting a real gain as a function of effect size, sample size, test statistic, and significance threshold — yet small or unpaired evaluations routinely miss true improvements or chase noise.',
+        source: WP('Power_(statistics)'),
+      },
+      this: {
+        text: 'McNemar’s test drops shared agreements and runs an exact binomial check on the discordant pairs alone; decades later, Zheng et al. documented position, verbosity, and self-enhancement biases in pairwise LLM judges and showed GPT-4 can exceed 80% agreement with human preferences.',
+        source: 'https://arxiv.org/abs/2306.05685',
+      },
+      after: {
+        text: 'Production AI teams combine deterministic unit-test benchmarks such as SWE-bench (2023) with position-swapped LLM judges and locked held-out suites calibrated against human labels.',
+        source: 'https://arxiv.org/abs/2310.06770',
+      },
+    },
+    dispute: {
+      text: 'Automated LLM judges scale far more cheaply than human annotators, yet Zheng et al. showed measurable position, verbosity, and self-enhancement biases and weaker reasoning on hard maths or coding questions — making calibration against exact or human checks essential.',
+      source: 'https://arxiv.org/abs/2306.05685',
+    },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */

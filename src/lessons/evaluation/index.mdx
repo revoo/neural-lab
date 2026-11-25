@@ -179,6 +179,10 @@ Every eval suite balances three numbers: **<Term id="statistical-power">statisti
 
 For each brief below, pick **Unpaired** or **Paired**, a grader (**Exact 100%** at 5 cr/item, **Dual-pass LLM 93%** at 1 cr, or **Fast LLM 85%** at 0.4 cr), the number of test questions $n$, and your false-positive cap. Every power and false-positive number is computed by exact binomial / McNemar sums. Meet all three briefs — and optionally, find the cheapest suite for each.
 
+<LabJob>
+You are the evaluation engineer signing off on release gates for a production LLM assistant. Before anyone spends budget running graders or freezes a release decision, you have to size the test suite so real improvements are reliably caught (high statistical power) while no-op changes stay out of production (bounded false-positive rate) — without burning thousands of unnecessary credits.
+</LabJob>
+
 <EvalSizingLab />
 
 <Deeper title="Debrief: one winning grader per brief" tag="Spoiler">
@@ -192,6 +196,12 @@ Each brief has a unique cheapest optimum — and **all three graders win one bri
 Notice one pattern across all three briefs: **every single optimum is Paired.** Paying 1.5× per item to evaluate both models on the same frozen questions beats unpaired grading every time.
 
 </Deeper>
+
+<ForReal>
+Every serious AI release pipeline runs this exact power-versus-cost calculation. In Python, teams feed discordant paired counts directly into `scipy.stats.binomtest` or `statsmodels.stats.contingency_tables.mcnemar` on frozen test suites, pairing cheap automated checks in CI with calibrated human audits for major releases. Public evaluation harnesses such as EleutherAI’s `lm-evaluation-harness` and Inspect AI log per-question pass/fail records specifically so two checkpoints can be compared item-by-item rather than by noisy aggregate averages — and benchmark efforts from MMLU (2020) and MT-Bench / Chatbot Arena (2023) to SWE-bench (2023) all grapple with the same triad of paired variance reduction, judge calibration, and held-out leakage.
+</ForReal>
+
+<HistoryCard id="evaluation" />
 
 <Quiz questions={questions} />
 
