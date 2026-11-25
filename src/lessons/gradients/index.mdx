@@ -1,3 +1,4 @@
+import { KnobLab } from './KnobLab'
 import { GradientField } from './GradientField'
 import { questions } from './quiz'
 
@@ -127,6 +128,26 @@ The third one is the foundation of <LessonLink to="gradient-descent">gradient de
 Along a contour, $f$ doesn't change: $\Delta f = 0$. From the formula above, that means $\nabla f \cdot \Delta\mathbf{x} = 0$ for any small step along the contour. A zero dot product means perpendicular. So the gradient is at right angles to every contour it crosses — which is why, on the heatmap, the purple arrow always cuts straight across the contour lines like a stream running straight down a hillside.
 
 </Deeper>
+
+## Lab: Which Knob, and How Far?
+
+The model has a loss landscape with several directions to choose from. The probe tells you the slope in each direction. Now you have to turn those readings into an actual move.
+
+<LabJob>Find a low loss with as few turns as possible. Then see if you can move while keeping the loss nearly constant.</LabJob>
+
+<KnobLab />
+
+<Deeper title="Debrief: walking on a tilted bowl" tag="Spoiler">
+
+The shortest one-knob route takes 17 turns. For combined moves, two was the best found by searching fixed lengths from 0.01 to 2 in steps of 0.01 while pointing downhill at every step. Other directions can meet that budget too.
+
+A perpendicular move has zero slope at the start. As the bowl curves, the loss still changes. The third knob gives you a nearly flat direction here, so a whole unit of movement raises the loss by only 0.0005.
+
+</Deeper>
+
+<ForReal>A training algorithm must decide both where to point and how far to move. The gradient gives it a direction at the current setting, and the learning rate controls the size of the update.</ForReal>
+
+You've just taken the kind of downhill step that <LessonLink to="gradient-descent">gradient descent</LessonLink> automates. Its descent golf lab includes the history of <LessonLink to="gradient-descent">Cauchy’s 1847 rule</LessonLink>.
 
 ## In code
 
