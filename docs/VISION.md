@@ -41,6 +41,8 @@ An experienced software engineer and lifelong learner — *not* a university stu
 
 7. **Session 3 working order (owner).** Build the Matrix theme first, then work through the roadmap's "Next steps" in order (Module 7 → Module 5's network-from-scratch → Module 12), committing and pushing after every finished lesson, comparing methods fairly (each competitor at its own searched best, averaged over fixed seeds) and reporting honestly when a textbook story doesn't hold in our small problems.
 
+8. **Proportionate checking (November 2026).** This is a static educational site: keep correctness strict (every number a learner reads is computed, lab optimums are searched, history is sourced), but keep process light. Tests and build before each commit; the full page checker once per lesson or work package; screenshots in every theme only for new widgets; no tests for arithmetic a reader can check in their head.
+
 ## Lesson methodology
 
 Ideally each major lesson: (1) explain the problem, (2) build an intuitive mental model, (3) interactive visualisation, (4) let the learner manipulate variables, (5) explain the maths, (6) show code, (7) test understanding, (8) a challenging experiment exposing an edge case or limitation, (9) summarise transferable principles, (10) connect to real-world AI.

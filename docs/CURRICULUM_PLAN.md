@@ -48,6 +48,8 @@ _Written November 2026 from `docs/CURRICULUM_AUDIT.md`, plus the owner's follow-
 
 ### 0.3 Checks after every step
 
+> **Relaxed by the owner (Nov 2026):** run `npm test` and `npm run build` before every commit; run the two `check-pages` passes once per lab or work package (and after shared-component, CSS or curriculum changes); screenshots in all three themes only for new widgets. See `CLAUDE.md`, "How often to check".
+
 Run these in order. All must pass before you commit:
 
 ```bash

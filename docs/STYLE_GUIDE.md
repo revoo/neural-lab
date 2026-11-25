@@ -78,7 +78,7 @@ Where a concept can be *built*, make it a lab:
 - **Compare fairly.** When a widget races methods against each other, give each its own best hyperparameters (found by a grid search, stated in the caption) and average random effects over fixed seeds. Otherwise the race measures your tuning, not the method.
 - **Report what you actually found.** If a well-known technique (e.g. learning-rate warmup) makes no difference in our small problems, say so and explain where it does matter — never stage a demo to make it look useful.
 - **References for puzzles:** exhaustive optimum where feasible; otherwise "best found by searching <stated space>", from a committed script whose result is re-verified by a test.
-- **Pin quoted behaviour with tests.** If the prose says "this preset stalls near 50%", a test should check it.
+- **Pin quoted behaviour with tests.** If the prose says "this preset stalls near 50%", a test should check it. That applies to numbers code produces (searches, training runs, simulations, optimums); plain arithmetic shown in the prose doesn't need its own test.
 - **A result that worked once may be luck (session 3).** Before the prose credits a fix or a method, re-run it with other seeds; if it doesn't hold up, say so (the model clinic's "ReLU fix" is the example). When differences between methods are smaller than the seed-to-seed spread, say you can't name a winner (the regularisation race).
 - **Impossible puzzles are allowed — and good — when the impossibility teaches something** (the hidden-key attention puzzle). Give the learner a way to declare it impossible, and verify the claim exhaustively in a test.
 - **Count the solution space when it's finite** ("24 of the 1,024 combinations are correct", "5 one-change fixes exist") and compute it in a committed script or test rather than estimating.
@@ -92,7 +92,8 @@ Where a concept can be *built*, make it a lab:
 - Register lessons in `src/curriculum.ts`. Add glossary terms in `src/glossary.ts`.
 - Test any non-trivial maths (`*.test.ts`, Vitest). Gradient code is always checked numerically.
 - Draw networks with `src/components/NetDiagram.tsx` (weights `W[l][j][i]`, thumbnails, selection, badges).
-- Verify every number you quote with a script: `node --experimental-strip-types --import ./scripts/ts-hooks.mjs scratch/x.ts` runs TypeScript that imports lesson/lib modules. Check widgets with `scripts/shoot-widgets.cjs` and `scripts/drive-widget.cjs` in all three themes (light, dark, matrix — the scripts' default) and at phone width.
+- Verify every number you quote with a script: `node --experimental-strip-types --import ./scripts/ts-hooks.mjs scratch/x.ts` runs TypeScript that imports lesson/lib modules. Check new widgets with `scripts/shoot-widgets.cjs` and `scripts/drive-widget.cjs` in all three themes (light, dark, matrix — the scripts' default) and at phone width; small tweaks need one theme and phone width.
+- Keep checks proportionate: tests and build before every commit; the full page checker once per lesson or work package (and after shared-component or CSS changes). Correctness of what the learner reads (numbers, optimums, history) stays strict; process around it can be light.
 
 ### The matrix theme (session 3)
 

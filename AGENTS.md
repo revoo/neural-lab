@@ -21,8 +21,8 @@ Neural Lab is an interactive website that teaches AI from first principles to so
 - **No fake interactivity.** Widgets compute real values; captions say what to try; live notes explain the current state.
 - **Labs and puzzles:** give primitives, a clear objective, observable machinery and multiple valid solutions. Ask for a working solution first, with optional optimisation goals after. Compute optimums exhaustively, or label them "best found by searching <stated space>", produced by a committed script and re-verified by a test. No badges or points.
 - **Compare fairly and report honestly.** Each competing method gets its own best settings, found by search, and random effects are averaged over fixed seeds. If something doesn't behave as the textbook says in our small problems, say so. Re-check a "fix" with other seeds before crediting it.
-- **Verify every number quoted in prose by running it, and pin it with a test.** Run every code snippet you put in a lesson (NumPy is installed; for PyTorch try `pip install torch --index-url https://download.pytorch.org/whl/cpu`, or plain `pip install torch` if that index is blocked).
-- **Three themes: light, dark and matrix.** Colour widgets only through CSS variables (`var(--c-a)`, `var(--accent)`, …), never hard-coded hex. Check every widget in all three themes and at phone width (390px).
+- **Verify every number quoted in prose by running it.** Pin the ones that code produces (solver results, lab optimums, simulation and training outcomes, widget readouts the prose quotes) with a test, so they can't drift when the code changes. Arithmetic a reader can check in their head (2 × 3 × 0.5 = 3) doesn't need a test. Run every code snippet you put in a lesson (NumPy is installed; for PyTorch try `pip install torch --index-url https://download.pytorch.org/whl/cpu`, or plain `pip install torch` if that index is blocked).
+- **Three themes: light, dark and matrix.** Colour widgets only through CSS variables (`var(--c-a)`, `var(--accent)`, …), never hard-coded hex. Look at every **new** widget in all three themes and at phone width (390px); for a small change to an existing widget, one theme plus phone width is enough.
 - **After every finished lesson:** commit, push, and update the "Current state" block, the status table and "Next steps" in `docs/ROADMAP.md`. Assume the session can end at any moment and someone else will continue from the repository alone.
 
 - **Owner's standing instructions** (branch and no-PR rule, the invisible authorship watermark, environment tips) are in `HANDOFF.md` under "Owner's standing instructions". Read them every session.
@@ -42,6 +42,8 @@ node --experimental-strip-types --import ./scripts/ts-hooks.mjs scratch/x.ts   #
 ```
 
 The scripts use Playwright with a preinstalled Chromium (`require('playwright')`). `scratch/` is git-ignored: put throwaway scripts and screenshots there.
+
+**How often to check (keep it proportionate: this is a static teaching site).** Before every commit: `npm test` and `npm run build`. Once per finished lesson or work package, and after any change to a shared component, `src/styles/global.css` or `src/curriculum.ts`: both `check-pages` runs. Screenshots: for new or substantially changed widgets. Small related steps may share a commit.
 
 ## Where things live
 

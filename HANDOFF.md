@@ -44,9 +44,9 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented step by step (WP
 5. **History.** Add the entry at the top of `HISTORY` in `src/history.ts`, with every sentence a `Claim` with its source, checked on the page itself. Fetch pages with `curl -sL "https://en.wikipedia.org/w/index.php?title=<Page>&action=raw"`. Leave out anything you can't confirm, and record "dropped: <claim>, reason" in `docs/ROADMAP.md`. Raise the count in `src/history.test.ts`.
 6. **Checks, then screenshots.** Run the checks (below), then `node scripts/drive-widget.cjs <lessonId> 0 '[{"shot":"x"}]' --title="<widget title>"` in all three themes, plus `--width=390 --themes=light`. Look at the PNGs in `scratch/shots/`. Check that captions don't name colours that change between themes.
 
-### Checks after every step
+### Checks
 
-`npm test` → `npm run build` → `rg "<MODEL_NAME>" dist/` (must be empty) → with `npm run dev` running: `node scripts/check-pages.cjs` and `node scripts/check-pages.cjs --theme=matrix`. Then `git fetch origin claude/cool-feynman-4hci4d && git merge --no-edit FETCH_HEAD`, commit as `Curriculum plan WPx.y: …` with your `Authored-by:` trailer, and push. No pull requests, no other branches.
+Before every commit: `npm test` → `npm run build` → `rg "<MODEL_NAME>" dist/` (must be empty). Once per lab or work package (and after shared-component, CSS or curriculum changes), with `npm run dev` running: `node scripts/check-pages.cjs` and `node scripts/check-pages.cjs --theme=matrix`. Then `git fetch origin claude/cool-feynman-4hci4d && git merge --no-edit FETCH_HEAD`, commit as `Curriculum plan WPx.y: …` with your `Authored-by:` trailer, and push. No pull requests, no other branches.
 
 ### Gotchas found in this run
 
@@ -141,8 +141,9 @@ Assume the session can disconnect at any moment and someone else will continue f
 - Conversational, warm, precise prose (British spelling); structural analogies; predict before reveal; let the learner feel the problem first; address real misconceptions.
 - Every widget computes real numbers and colours only through CSS variables (never hard-coded hex; use `--c-good`/`--c-bad`, not `--good`/`--bad`). Labs give primitives, a clear objective, automatic checking, `localStorage` persistence and multiple valid solutions. Optimums are computed exhaustively, or labelled "best found by searching <stated space>" and produced by a committed script re-verified by a test.
 - Compare competing methods fairly (each at its own searched best, averaged over fixed seeds) and report honestly when results don't match the textbook story.
-- Verify every quoted number by running it and pin it with a Vitest test. Check every hand-written gradient against central finite differences. Run every code snippet you put in a lesson.
-- Visually inspect every new widget in a real browser in light, dark and matrix themes and at 390px (`scripts/shoot-widgets.cjs`, `scripts/drive-widget.cjs`).
+- Verify every quoted number by running it, and pin numbers that code produces (solvers, optimums, simulations, quoted widget readouts) with a Vitest test; plain arithmetic in prose needs no test. Check every hand-written gradient against central finite differences. Run every code snippet you put in a lesson.
+- Visually inspect every new widget in a real browser in light, dark and matrix themes and at 390px (`scripts/shoot-widgets.cjs`, `scripts/drive-widget.cjs`); for small tweaks, one theme plus 390px is enough.
+- **Proportionate checks (owner, Nov 2026):** this is a static teaching site. Before every commit run `npm test` and `npm run build`; run both `check-pages` passes once per finished lesson or work package, and after changes to shared components, `global.css` or `curriculum.ts`. Small related steps may share a commit. Keep correctness strict (numbers, optimums, history); keep process light.
 
 **Environment tips.**
 - The dev server can stop between runs. If `check-pages` fails with `ERR_CONNECTION_REFUSED`, restart `npm run dev`; that isn't a page failure.
