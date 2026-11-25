@@ -212,7 +212,7 @@ The owner asked for this next, in a fresh session. `docs/LAB_IMPROVEMENTS.md` re
 - [x] lstms-grus · Wire the Gated Cell
 - [x] seq2seq-attention · Break the Bottleneck
 - [x] autoencoders · The Face Printer
-- [ ] diffusion · Spend the Step Budget
+- [x] diffusion · Spend the Step Budget
 - [ ] guidance · Tune the Guidance
 - [ ] rag · Tune the Retriever
 - [ ] tool-calling · Harden the Agent Pipeline

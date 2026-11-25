@@ -4,6 +4,11 @@ import { Widget } from '../../components/Widget';
 import { Segmented, Slider } from '../../components/controls';
 import { Arrow, Handle, Plot, usePlot } from '../../components/plot';
 import { LogChart } from '../../components/LogChart';
+import { AnswerReveal } from '../../components/AnswerReveal';
+import { LiveCode } from '../../components/LabJob';
+import { MachineLog, useMachineLog } from '../../components/MachineLog';
+import { useReplay } from '../../components/motion';
+import { ReplayControls } from '../../components/ReplayControls';
 import { createRng } from '../../lib/rng';
 import {
   LAB_LEVELS,
@@ -32,8 +37,9 @@ import {
   type Pt,
 } from './diffusion';
 import { LEARN, lossFloor, noiseTrainer, type NoiseNet } from './learned';
-import { BRIEFS } from './lab';
+import { BRIEFS, stepBudgetHint } from './lab';
 import { LAB_RESULTS } from './labResults';
+import { stepBudgetRealCode } from './realCode';
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 const DATASETS: Record<string, Mixture> = { ring: RING, smiley: SMILEY, lopsided: LOPSIDED };
@@ -587,25 +593,27 @@ function loadLab(): LabState {
   return d;
 }
 
-const LAB_HINTS: Record<LabBriefId, string> = {
-  ring: 'Where does the work happen? Go back to the forward widget: below some signal share the shape has essentially gone, so stops there are wasted. And the final jump to clean data is a single best guess: how noisy can the last stop be before that guess lands between blobs?',
-  smiley: 'The eyes and the blobs of the smile are close together, so the sampler must decide between neighbours late, at fairly low noise. Spend stops where those decisions happen. Compare the two samplers too.',
-  lopsided: 'Watch the rare blob’s count. Samples have to commit to the rare blob early, while the noise is still large enough for some of them to wander that far.',
-};
-
 export function StepBudgetLab() {
   const [lab, setLab] = useState<LabState>(() => loadLab());
   const [briefIdx, setBriefIdx] = useState(0);
   const [hint, setHint] = useState(false);
-  const [showOpt, setShowOpt] = useState(false);
+  const log = useMachineLog(20);
+
   const brief = BRIEFS[briefIdx];
   const entry = lab[brief.id];
   const mix = LAB_MIX[brief.id];
-  const run = useMemo(() => labRun(brief.id, entry.levels, entry.eta), [brief.id, entry.levels, entry.eta]);
+  const run = useMemo(() => labRun(brief.id, entry.levels, entry.eta, undefined, true), [brief.id, entry.levels, entry.eta]);
   const pass = run.judge.tv <= brief.maxTv;
   const rec = LAB_RESULTS[brief.id];
   const savedRef = useRef(lab);
   savedRef.current = lab;
+
+  const scheduleStops = useMemo(() => [0, ...[...entry.levels].sort((a, b) => a - b), 1], [entry.levels]);
+  const maxFrame = Math.max(0, run.path.length - 1);
+  const replay = useReplay(maxFrame, 520, `${brief.id}:${entry.eta}:${entry.levels.join(',')}`, false);
+  const frameIdx = Math.min(replay.i, maxFrame);
+  const shownPts = run.path[frameIdx] ?? run.xs;
+  const activeAlpha = scheduleStops[frameIdx] ?? 1;
 
   const persist = (next: LabState) => {
     setLab(next);
@@ -615,7 +623,16 @@ export function StepBudgetLab() {
       // ignore storage errors
     }
   };
-  const update = (patch: Partial<LabEntry>) => persist({ ...lab, [brief.id]: { ...entry, ...patch } });
+  const update = (patch: Partial<LabEntry>) => {
+    const nextEntry = { ...entry, ...patch };
+    persist({ ...lab, [brief.id]: nextEntry });
+    const nextRun = labRun(brief.id, nextEntry.levels, nextEntry.eta);
+    const nextPass = nextRun.judge.tv <= brief.maxTv;
+    log.push(
+      `${brief.id}: ${nextEntry.eta === 0 ? 'DDIM' : 'DDPM'} ${nextRun.steps} steps [${[0, ...nextEntry.levels, 1].join('→')}] → TV ${pct(nextRun.judge.tv)} (${nextPass ? 'PASS' : 'FAIL'})`,
+      nextPass ? 'good' : 'bad',
+    );
+  };
 
   useEffect(() => {
     if (!pass) return;
@@ -628,6 +645,8 @@ export function StepBudgetLab() {
   const rare = brief.id === 'lopsided' ? run.judge.counts[1] / LAB_SAMPLES : null;
   const row = rec.perSteps.find((p) => p.steps === rec.fewest)!;
   const below = rec.perSteps.find((p) => p.steps === rec.fewest - 1)!;
+  const hintText = useMemo(() => stepBudgetHint(brief.id, entry.levels, run.judge.offShape, rare), [brief.id, entry.levels, run.judge.offShape, rare]);
+  const liveCode = useMemo(() => stepBudgetRealCode(entry.levels, entry.eta), [entry.levels, entry.eta]);
 
   return (
     <Widget
@@ -635,7 +654,7 @@ export function StepBudgetLab() {
       wide
       caption={
         <>
-          The denoiser is perfect; your job is the <strong>step plan</strong>. The sampler always starts from pure noise (ᾱ = 0) and always finishes on clean data; you choose the signal shares where it stops in between, and the sampler. Every stop costs one call to the denoiser. Results update instantly (2,000 samples, fixed starting noise). Objective: get the probability out of place under the brief’s limit. Optional: use as few steps as possible. Your plans are saved in this browser.
+          The denoiser is perfect; your job is the <strong>step plan</strong>. The sampler always starts from pure noise (ᾱ = 0) and always finishes on clean data; you choose the signal shares where it stops in between, and the sampler. Scrub or press Play to watch all 2,000 noisy points jump step by step through your chosen stops. Objective: get the probability out of place under the brief’s limit. Optional: use as few steps as possible. Your plans are saved in this browser.
         </>
       }
     >
@@ -644,7 +663,6 @@ export function StepBudgetLab() {
         onChange={(i) => {
           setBriefIdx(i);
           setHint(false);
-          setShowOpt(false);
         }}
         options={BRIEFS.map((b, i) => ({ value: i, label: `${lab[b.id].solved ? '✓ ' : ''}${b.title.split(' · ')[0]}` }))}
       />
@@ -674,12 +692,37 @@ export function StepBudgetLab() {
         <button type="button" className="btn" onClick={() => setHint((h) => !h)}>{hint ? 'Hide hint' : 'Hint'}</button>
         {entry.solved && <span className="status good">Solved{entry.fewest !== null ? ` · fewest so far: ${entry.fewest} steps` : ''}</span>}
       </div>
-      {hint && <div className="live-note" style={{ marginBottom: 12 }}>{LAB_HINTS[brief.id]}</div>}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16, alignItems: 'start' }}>
-        <Scatter label="Samples produced by your step plan">
-          <Blobs mix={mix} />
-          <Dots pts={run.xs} r={1.4} opacity={0.45} />
-        </Scatter>
+      {hint && <div className="live-note" style={{ marginBottom: 12 }}>{hintText}</div>}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16, alignItems: 'start', marginBottom: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Scatter label={`Samples at stop ${frameIdx}/${maxFrame} (ᾱ = ${activeAlpha})`}>
+            <Blobs mix={mix} />
+            <Dots pts={shownPts} r={1.4} opacity={0.45} />
+          </Scatter>
+          <ReplayControls r={replay} label="stop" />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center', fontFamily: 'var(--mono)', fontSize: 11 }}>
+            {scheduleStops.map((a, idx) => (
+              <button
+                key={`${a}-${idx}`}
+                type="button"
+                onClick={() => replay.seek(idx)}
+                style={{
+                  padding: '2px 6px',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--mono)',
+                  fontSize: 11,
+                  border: `1px solid ${idx === frameIdx ? 'var(--accent)' : 'var(--border)'}`,
+                  background: idx === frameIdx ? 'var(--accent)' : 'var(--bg-subtle)',
+                  color: idx === frameIdx ? 'var(--bg)' : 'var(--text-muted)',
+                  fontWeight: idx === frameIdx ? 700 : 400,
+                }}
+              >
+                {idx === 0 ? '0 (noise)' : idx === scheduleStops.length - 1 ? '1 (clean)' : `ᾱ=${a}`}
+              </button>
+            ))}
+          </div>
+        </div>
         <div style={{ display: 'grid', gap: 10 }}>
           <span className={`status ${pass ? 'good' : 'bad'}`} style={{ justifySelf: 'start' }}>
             {pass ? 'Meets the brief' : 'Not yet'}
@@ -714,16 +757,56 @@ export function StepBudgetLab() {
           </div>
         </div>
       </div>
-      {entry.solved && (
-        <div style={{ marginTop: 14 }}>
-          <button type="button" className="btn" onClick={() => setShowOpt((s) => !s)}>{showOpt ? 'Hide' : 'Show'} the exhaustive search</button>
-          {showOpt && (
-            <div className="live-note" style={{ marginTop: 10 }}>
+
+      <LiveCode note="Hugging Face diffusers custom timesteps" code={liveCode} />
+
+      <div style={{ marginTop: 12 }}>
+        <AnswerReveal solved={entry.solved} stuckKey={`step-budget:${brief.id}`} label="the exhaustive step-budget search">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+            <div className="live-note">
               Every plan with up to {rec.fewest} steps was tried, with both samplers. No plan with {rec.fewest - 1} steps works (the best reaches {pct(below.best)}). With <strong>{rec.fewest} steps</strong>, {row.passing} of {row.total} plans work ({row.ddim} with DDIM, {row.ddpm} with DDPM); the best reaches {pct(row.best)}. Starting from two other sets of random noise, the fewest steps needed is {rec.fewestWithOtherSeeds.join(' and ')}, so the answer isn’t luck.
             </div>
-          )}
-        </div>
-      )}
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--mono)', fontSize: 11.5 }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '4px 6px', borderBottom: '1px solid var(--border)' }}>Steps</th>
+                    <th style={{ textAlign: 'right', padding: '4px 6px', borderBottom: '1px solid var(--border)' }}>Plans tried</th>
+                    <th style={{ textAlign: 'right', padding: '4px 6px', borderBottom: '1px solid var(--border)' }}>Passing (DDIM / DDPM)</th>
+                    <th style={{ textAlign: 'right', padding: '4px 6px', borderBottom: '1px solid var(--border)' }}>Best TV</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rec.perSteps.map((p) => (
+                    <tr
+                      key={p.steps}
+                      style={{
+                        color: p.passing > 0 ? 'var(--c-good)' : 'var(--text-muted)',
+                        fontWeight: p.passing > 0 ? 700 : 400,
+                        background: p.passing > 0 ? 'color-mix(in srgb, var(--c-good) 12%, transparent)' : 'transparent',
+                      }}
+                    >
+                      <td style={{ padding: '4px 6px' }}>{p.steps}</td>
+                      <td style={{ textAlign: 'right', padding: '4px 6px' }}>{p.total.toLocaleString()}</td>
+                      <td style={{ textAlign: 'right', padding: '4px 6px' }}>{p.passing} ({p.ddim} / {p.ddpm})</td>
+                      <td style={{ textAlign: 'right', padding: '4px 6px' }}>{pct(p.best)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </AnswerReveal>
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <MachineLog
+          title="STEP BUDGET LOG"
+          lines={log.lines}
+          onClear={log.clear}
+          empty="Toggle signal-share stops or switch DDIM/DDPM to log runs."
+        />
+      </div>
     </Widget>
   );
 }

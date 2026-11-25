@@ -763,6 +763,25 @@ export const HISTORY: HistoryEntry[] = [
       after: { text: 'VAEs became the first-stage image compressors inside Latent Diffusion and Stable Diffusion, while VQ-VAEs and sparse autoencoders now power multimodal tokenisation and mechanistic interpretability.', source: WP('Autoencoder') },
     },
   },
+  {
+    id: 'diffusion',
+    lessonId: 'diffusion',
+    lab: 'Spend the Step Budget',
+    idea: 'Diffusion Probabilistic Models (DDPM), DDIM & EDM Step Schedules',
+    years: [2015, 2020, 2022],
+    when: '2015 · 2020 · 2022',
+    who: [
+      { text: 'Jascha Sohl-Dickstein, Eric Weiss, Niru Maheswaranathan, and Surya Ganguli (2015) introduce diffusion generative models inspired by nonequilibrium thermodynamics, destroying structure with Gaussian noise and learning to reverse it.', source: 'https://arxiv.org/abs/1503.03585' },
+      { text: 'Jonathan Ho, Ajay Jain, and Pieter Abbeel publish Denoising Diffusion Probabilistic Models (DDPM, June 2020), showing that predicting the added noise with squared error matches GAN image quality.', source: 'https://arxiv.org/abs/2006.11239' },
+      { text: 'Jiaming Song, Chenlin Meng, and Stefano Ermon introduce DDIM (October 2020), replacing stochastic reverse steps with deterministic non-Markovian jumps that cut sampling steps 10–50×.', source: 'https://arxiv.org/abs/2010.02502' },
+      { text: 'Tero Karras, Miika Aittala, Timo Aila, and Samuli Laine at NVIDIA (EDM, 2022) dissect the diffusion design space and show concentrating sampling steps at lower noise dramatically cuts denoiser calls.', source: 'https://arxiv.org/abs/2206.00364' },
+    ],
+    story: {
+      before: { text: 'One-shot generators forced a single pass to map noise straight to crisp pixels (yielding blurry VAEs or unstable adversarial GANs).', source: 'https://arxiv.org/abs/2006.11239' },
+      this: { text: 'Iterative denoising turned generation into simple supervised noise prediction, while deterministic samplers (DDIM) and non-uniform step schedules shrank 1,000-step sampling down to a handful of calls.', source: 'https://arxiv.org/abs/2206.00364' },
+      after: { text: 'Diffusion and its straight-line cousin flow matching now drive image, video, audio, and protein-structure generators including Stable Diffusion, DALL·E, Sora, and AlphaFold 3.', source: 'https://arxiv.org/abs/2010.02502' },
+    },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */

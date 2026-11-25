@@ -189,6 +189,10 @@ Every call to the denoiser costs time: in an image model, one call is one full p
 
 Here the denoiser is perfect, so the only thing being tested is your **step plan**. The sampler always starts from pure noise and always finishes on clean data; you choose the signal shares where it stops in between, and whether it's DDIM or DDPM. Each brief has a quality limit. The optional goal is to meet it with as few steps as possible, and every plan of every size has been tried, so the fewest possible is known.
 
+<LabJob>
+  Every denoiser call in an image generator is a full pass through a multi-billion-parameter U-Net or DiT, so cutting step count directly slashes latency and GPU bills. Design a custom reverse-diffusion stop schedule (`ᾱ` levels) and pick between DDIM and DDPM to hit each distribution's quality target in as few denoiser calls as possible.
+</LabJob>
+
 <StepBudgetLab />
 
 <Deeper title="Debrief: where the steps should go" tag="Spoiler">
@@ -202,6 +206,12 @@ Here the denoiser is perfect, so the only thing being tested is your **step plan
 **Is this luck?** Every number above comes from one fixed set of starting noise. We re-ran the whole search from two other sets: the fewest steps needed came out the same for all three briefs (4, 5 and 4), though the exact counts of working plans moved around. Real samplers follow the same principles: Karras and colleagues (2022) found that spacing steps so they bunch up at low noise beats even spacing, and modern image samplers concentrate their effort the same way.
 
 </Deeper>
+
+<ForReal>
+  In Hugging Face `diffusers`, swapping `DDPMScheduler` for `DDIMScheduler` or `DPMSolverMultistepScheduler` and passing custom `timesteps` (or Karras sigmas via `use_karras_sigmas=True`) implements this exact optimisation. Production pipelines rarely space steps uniformly through training time `t = 1000…0`: they place a few coarse stops where global layout and rare modes commit, then pack the remaining calls near clean data where fine detail sharpens.
+</ForReal>
+
+<HistoryCard id="diffusion" />
 
 <Quiz questions={questions} />
 
