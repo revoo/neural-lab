@@ -1,0 +1,224 @@
+{/* authored-by: Gemini Antigravity */}
+import { HorizonAndRiskExplorer, BellmanStepper, PolicyArchitectLab } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: no teacher, delayed feedback, and consequences
+
+Everything you have built so far — classifiers, regressors, even language models — had a remarkably patient teacher. On every single example, the teacher handed you the exact right answer: *"this image is a 7"*, *"the next token was `the`"*. You compared your prediction with the target, computed a gradient, and adjusted the weights.
+
+Now imagine teaching a robot to cross a warehouse, an algorithm to play Go, or a reasoning model to write a working program. Nobody hands you the optimal move at step 4. Instead:
+
+1. **You only get a sparse, delayed score** — a win or a loss forty moves later, or a unit test suite that passes or fails at the end.
+2. **Your own actions change the future.** Turn left instead of right and you enter a completely different room with different choices ahead.
+3. **The world pushes back unpredictably.** A wheel slips on a wet tile; an opponent surprises you.
+
+This is the world of **reinforcement learning** (RL): learning *what to do* from consequences rather than labels. And before an agent can learn from trial and error, we need a clean language for describing the game it is playing — and what it even means for a strategy to be "optimal".
+
+<Analogy title="Think of a delivery robot on a battery budget">
+
+Picture a small robot navigating a warehouse floor. Every square it can stand on is a **state**. The four buttons on its controller — up, right, down, left — are its **actions**. Each step drains a little battery (`−0.1`), falling down a loading pit wrecks a wheel (`−10`), a nearby charging coin pays `+2`, and reaching the main Vault pays `+10`.
+
+Notice the two traps right away:
+- **Short-term greed:** grabbing the nearby `+2` coin feels good immediately, but ends the trip and throws away the `+10` Vault five squares away.
+- **Hidden risk:** walking straight along the edge of the loading pits is the shortest route, yet if the floor is even slightly slippery, one bad wheel slip wipes out the entire run.
+
+</Analogy>
+
+To reason about trade-offs like these mathematically, we package the robot's world into five pieces — a **<Term id="mdp">Markov Decision Process (MDP)</Term>**:
+
+- **States** $s \in \mathcal{S}$: every situation the agent can find itself in (here, a grid square). "Markov" simply means the current state holds everything that matters for the future — you don't need the full history of how you got there.
+- **Actions** $a \in \mathcal{A}$: the choices available at each state (`↑`, `→`, `↓`, `←`).
+- **Transitions** $P(s' \mid s, a)$: the physics of the world — if you are in state $s$ and try action $a$, the probability of landing in $s'$.
+- **Rewards** $R(s, a, s')$: the immediate score you collect on that step.
+- **Discount factor** $\gamma \in [0, 1)$: how much you value a reward one step from now compared to right now.
+
+A strategy — a rule telling the agent which arrow to press in every square — is called a **<Term id="policy">policy</Term>**, written $\pi(a \mid s)$.
+
+## How patient should an agent be? The discount factor
+
+Suppose an episode yields a sequence of rewards $R_1, R_2, R_3, \dots$. Why not simply add them all up? Two reasons: if an episode can run forever, an undiscounted sum can blow up to infinity; and in practice, a pound today is worth more than a pound ten steps from now when the world is uncertain.
+
+So we multiply each future reward by a power of the **<Term id="discount-factor">discount factor</Term>** $\gamma$:
+
+<Eq
+  words="\text{total discounted return} = \text{reward now} + \cp{\gamma}\cdot\text{next reward} + \cp{\gamma}^2\cdot\text{two steps later} + \cdots"
+  tex="\cc{G_t} = \cb{R_{t+1}} + \cp{\gamma}\,\cb{R_{t+2}} + \cp{\gamma}^2\,\cb{R_{t+3}} + \cdots = \sum_{k=0}^{\infty} \cp{\gamma}^k\,\cb{R_{t+k+1}}"
+>
+
+- $\cc{G_t}$ — the **return** starting from time step $t$: the total score the agent cares about maximising
+- $\cb{R_{t+k+1}}$ — the immediate reward earned $k+1$ steps from now
+- $\cp{\gamma}$ — the **discount factor** between $0$ and $1$: $\gamma = 0$ is totally myopic (only the very next step counts); $\gamma = 0.90$ gives an effective planning horizon of roughly $1/(1-\gamma) = 10$ steps
+
+</Eq>
+
+Before you touch the sliders below, test your intuition on our 6×4 warehouse — **The Two-Treasure Cliff**. Start `S` sits at `(2,0)`. A small `+2` Gem is just **2 steps** away, while the `+10` Vault sits **5 steps** straight right along a row of three `−10` pits.
+
+<Predict
+  question="With no slip (0%), start at γ = 0.90 and slide γ down to 0.50. What happens to the optimal policy?"
+  options={[
+    'Nothing changes: +10 is always five times larger than +2, so the Vault always wins',
+    'Below a sharp threshold (around γ = 0.60), the optimal policy flips completely to the nearby +2 Gem',
+    'The agent stops moving altogether because step costs are negative',
+  ]}
+  answer={1}
+>
+
+Below $\gamma \approx 0.603$, the optimal policy flips completely to the `+2` Gem. At $\gamma = 0.50$, a `+10` prize 5 steps away is discounted by $0.5^4 = 0.0625$ down to just `0.625` before step costs (`+0.44` net), whereas the `+2` Gem 2 steps away pays `-0.1 + 0.5 × 2 = +0.90`. Discounting isn't merely a mathematical convenience — it literally defines how far ahead the agent is willing to plan.
+
+</Predict>
+
+Try both knobs below: first slide **$\gamma$** across `0.60`, then return to **$\gamma = 0.90$** and dial **slip** up to `20%`.
+
+<HorizonAndRiskExplorer />
+
+Notice what happened when you added **20% slip** at $\gamma = 0.90$. If the robot stubbornly kept the deterministic 5-step cliff-edge sprint, its expected return would crash from `+6.22` down to **`+2.38`** — falling into a `−10` pit **19.0%** of the time! Instead, the optimal policy automatically detours inland onto Row 1: two extra steps of battery drain, yet expected return jumps to **`+3.51`** with a **97.6%** Vault rate and only **1.0%** pit risk. Nobody programmed a rule saying *"stay away from pits"*. Caution emerged purely from maximising expected discounted return.
+
+## Value functions and the Bellman equation
+
+How did the widget find that exact optimal policy instantaneously? Through the central idea of reinforcement learning: the **<Term id="value-function">value function</Term>**.
+
+Instead of enumerating every possible path to the end of time (which explodes exponentially with length), attach **one cached number** to every square:
+
+- $V^\pi(s)$ is the expected discounted return if you start in square $s$ and follow policy $\pi$.
+- $V^*(s)$ is the best possible expected return you could ever achieve from square $s$ under *any* policy.
+
+Now ask a beautifully recursive question — Richard Bellman's 1957 insight: *if you already knew the true optimal values $V^*(s')$ of your neighbouring squares, how would you compute the optimal value of the square you're standing on right now?*
+
+You would just look **one step ahead**. For each of your four actions, compute the expected immediate reward plus $\gamma$ times the cached value of wherever you land — and pick the action with the highest total:
+
+<Eq
+  words="\text{best value here} = \max_{\text{action}} \;\; \mathbb{E}\Big[\,\text{immediate reward} + \cp{\gamma}\cdot\text{best value next}\,\Big]"
+  tex="\ca{V^*(s)} = \max_{a \in \mathcal{A}} \sum_{s'} \cp{P(s' \mid s, a)}\Big(\cb{R(s, a, s')} + \cp{\gamma}\,\ca{V^*(s')}\Big)"
+>
+
+- $\ca{V^*(s)}$ — the **optimal state value**: best expected return starting from state $s$
+- $\max_{a \in \mathcal{A}}$ — try every available action and keep the highest expected score (its winner is the optimal arrow $\pi^*(s)$!)
+- $\cp{P(s' \mid s, a)}$ — transition probability of landing in next state $s'$ when trying action $a$
+- $\cb{R(s, a, s')}$ — immediate reward received on that single step
+- $\cp{\gamma}\,\ca{V^*(s')}$ — discounted value of all future steps from $s'$ onward, already summarised in one number
+
+</Eq>
+
+That equation is the **<Term id="bellman-equation">Bellman optimality equation</Term>**. If you're a software engineer, you already recognise what it is: **dynamic programming**. Just like shortest-path algorithms cache the distance from each neighbour so you never recompute the whole tail of a path, Bellman's equation caches the entire future in $V^*(s')$.
+
+Better yet, it gives us a dirt-simple algorithm called **<Term id="value-iteration">Value Iteration</Term>**:
+
+1. Start with a terrible guess: $V_0(s) = 0$ for every square.
+2. Sweep across every square and overwrite $V_{k+1}(s)$ using the right-hand side of Bellman's equation with the previous table $V_k$.
+3. Repeat until the numbers stop changing.
+
+Because $\gamma < 1$, every sweep shrinks the worst-case error by at least a factor of $\gamma$ — a mathematical **contraction mapping** guaranteed to converge to the unique true $V^*$ from *any* starting guess. Watch the values ripple backwards from the Vault one sweep at a time, and click any square to read its exact 4-action arithmetic.
+
+<BellmanStepper />
+
+<Deeper title="Why is Value Iteration guaranteed to converge?" tag="Maths">
+
+Call one full Bellman sweep the operator $\mathcal{T}$: it maps a value vector $V$ to a new vector $\mathcal{T}V$. Take any two value vectors $U$ and $V$. At any state $s$, the difference between their best actions cannot exceed the largest difference on any single action:
+
+$$
+\big|(\mathcal{T}U)(s) - (\mathcal{T}V)(s)\big| \;\le\; \max_{a} \sum_{s'} P(s'\mid s,a)\,\gamma\,\big|U(s') - V(s')\big| \;\le\; \gamma\,\|U - V\|_\infty.
+$$
+
+Because $0 \le \gamma < 1$, each sweep multiplies the largest error anywhere on the grid by at most $\gamma$. After $k$ sweeps, the error is at most $\gamma^k \|V_0 - V^*\|_\infty \to 0$. By Banach's fixed-point theorem, $V^*$ is unique and Value Iteration always finds it.
+
+</Deeper>
+
+## Lab: Wire the Policy
+
+Now turn the tables. Instead of letting Value Iteration choose the arrows, **you** wire the policy by hand across three grids. Every time you click a square to rotate its arrow, the lab solves the exact linear system $(I - \gamma P^\pi) V^\pi = R^\pi$ for the true expected return of your policy — including every slip and recovery path — and checks it against the exact Bellman optimum $V^*(S)$.
+
+Pay special attention to **Level 3 (The Ice Corridor)**. A sensible safe route clears the primary target easily, yet falls `0.074` short of the true Bellman optimum (`2.352`). Finding that last `0.074` reveals a genuinely counterintuitive trick that only exists in stochastic MDPs.
+
+<PolicyArchitectLab />
+
+<Deeper title="After Level 3: why aiming into a wall beats crossing the gap" tag="Spoiler">
+
+In **Level 3 (The Ice Corridor)**, square `(0,2)` sits directly above a `−12` pit with **30% slip** (`70%` intended, `15%` left, `15%` right).
+
+- If you point **`→`** at `(0,2)` to cross the gap, you cross cleanly `70%` of the time, bounce harmlessly off the north wall `15%` of the time — and slip south straight into the `−12` pit **`15%` of the time**. Overall pit rate from `S`: **18.5%**, giving `V(S) = 2.279`.
+- If you instead deliberately point **`↑`** straight into the north wall at `(0,2)`, you bounce safely in place `70%` of the time, slip west `15%`, and slip east onto `(0,3)` **`15%` of the time** — with **0% chance of slipping south into the pit!** Paying a few `−0.08` step costs to wait for an eastward slip drops the overall pit rate to **1.9%** and lifts expected return to the exact Bellman optimum **`V*(S) = 2.352`**.
+
+Real stochastic control policies — from spacecraft station-keeping to robot manipulation — exploit physical guardrails like this all the time.
+
+</Deeper>
+
+## In code
+
+Exact Value Iteration on our 6×4 Two-Treasure Cliff is 30 lines of plain Python with zero libraries:
+
+```python
+import math
+
+ROWS, COLS = 4, 6
+TERMINALS = {(3, 1): 2.0, (3, 2): -10.0, (3, 3): -10.0, (3, 4): -10.0, (2, 5): 10.0}
+STEP_COST = -0.1
+DIRS = [(-1, 0), (0, 1), (1, 0), (0, -1)]  # Up, Right, Down, Left
+
+def transitions(r, c, a, slip):
+    outcomes = [(a, 1 - slip), ((a - 1) % 4, slip / 2), ((a + 1) % 4, slip / 2)]
+    res = []
+    for d, p in outcomes:
+        if p == 0: continue
+        nr, nc = r + DIRS[d][0], c + DIRS[d][1]
+        if not (0 <= nr < ROWS and 0 <= nc < COLS): nr, nc = r, c
+        res.append((p, nr, nc))
+    return res
+
+def value_iteration(gamma=0.9, slip=0.2, tol=1e-10):
+    V = [[0.0] * COLS for _ in range(ROWS)]
+    for _ in range(500):
+        delta, new_V = 0.0, [[0.0] * COLS for _ in range(ROWS)]
+        for r in range(ROWS):
+            for c in range(COLS):
+                if (r, c) in TERMINALS: continue
+                best = max(
+                    sum(p * (TERMINALS[(nr, nc)] if (nr, nc) in TERMINALS
+                             else STEP_COST + gamma * V[nr][nc])
+                        for p, nr, nc in transitions(r, c, a, slip))
+                    for a in range(4)
+                )
+                new_V[r][c] = best
+                delta = max(delta, abs(best - V[r][c]))
+        V = new_V
+        if delta < tol: break
+    return V
+
+for label, g, s in [("Myopic  (g=0.5, slip=0.0)", 0.5, 0.0),
+                    ("Patient (g=0.9, slip=0.0)", 0.9, 0.0),
+                    ("Slip    (g=0.9, slip=0.2)", 0.9, 0.2)]:
+    print(f"{label} -> V*(Start) = {value_iteration(g, s)[2][0]:.4f}")
+```
+
+Running it prints the exact values from our explorer:
+
+```text
+Myopic  (g=0.5, slip=0.0) -> V*(Start) = 0.9000
+Patient (g=0.9, slip=0.0) -> V*(Start) = 6.2171
+Slip    (g=0.9, slip=0.2) -> V*(Start) = 3.5146
+```
+
+<Misconception>
+
+"Maximising immediate reward at every step maximises total reward." That is only true when $\gamma = 0$. In any sequential decision problem, an action that pays less right now — taking a negative step cost to walk past a `+2` gem, detouring around a slippery cliff, or even bouncing safely off a guardrail wall — can unlock a vastly higher future value $V^*(s')$. Value functions exist specifically to put immediate rewards and future consequences on the same scale.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- A **Markov Decision Process (MDP)** formalises sequential decision-making as five pieces: states $\mathcal{S}$, actions $\mathcal{A}$, transitions $P(s' \mid s, a)$, rewards $R$, and a discount factor $\gamma$.
+- The **discount factor** $\gamma$ controls the agent's planning horizon ($\approx 1/(1-\gamma)$ steps): small $\gamma$ makes the agent myopic; large $\gamma$ lets distant rewards outweigh nearby temptations.
+- **Stochastic transitions** naturally produce risk-averse detours — and even surprising wall-guardrail tricks — directly from maximising expected discounted return.
+- The **Bellman optimality equation**, $V^*(s) = \max_a \sum_{s'} P(s' \mid s, a)[R + \gamma V^*(s')]$, turns infinite-horizon planning into a one-step lookahead over cached neighbour values.
+- **Value Iteration** repeatedly applies Bellman backups from $V_0 = 0$; because $\gamma < 1$ contracts error every sweep, it converges to the unique optimum $V^*$.
+
+</Takeaways>
+
+<InTheWild>
+
+Value Iteration and its close cousin Policy Iteration power real-world dynamic programming whenever the transition model is known — from aircraft collision-avoidance systems (ACAS X, deployed commercially worldwide) to inventory control and energy-grid dispatch. In modern AI, the same Bellman equation sits underneath AlphaZero's tree search and every value-based RL algorithm. Yet Value Iteration has one glaring limitation: we had to *hand* it the exact transition probabilities $P(s' \mid s, a)$ and reward table $R$ up front.
+
+</InTheWild>
+
+What if nobody hands you the simulator's rules — no map, no slip probability, no reward table — and the agent must discover what works purely by trying actions in the dark? Next: **Q-learning and the exploration–exploitation trade-off**.

@@ -156,7 +156,16 @@ export const MODULES: ModuleMeta[] = [
       { id: 'kv-cache', title: 'KV Caching & Memory-Bound Decoding', summary: 'Why naive decoding wastes 400× work, how GQA shrinks the KV cache, why an H100 runs at 0.36% compute during single-user chat — and Lab: VRAM Tetris.', minutes: 35, load: () => import('./lessons/kv-cache/index.mdx') },
     ],
   },
-  { id: 'rl', number: 16, title: 'Reinforcement Learning', blurb: 'Agents that learn from consequences — and exploit badly specified rewards.', lessons: [], planned: ['States, actions, rewards', 'Q-learning', 'Policy gradients', 'Reward hacking'] },
+  {
+    id: 'rl',
+    number: 16,
+    title: 'Reinforcement Learning',
+    blurb: 'Agents that learn from consequences — and exploit badly specified rewards.',
+    lessons: [
+      { id: 'mdps', title: 'States, Actions, Rewards & Value', summary: 'How discount factor γ controls myopia, how stochastic transitions create cautious detours, Bellman’s dynamic-programming equation — and Lab: Wire the Policy.', minutes: 30, load: () => import('./lessons/mdps/index.mdx') },
+    ],
+    planned: ['Q-learning', 'Policy gradients', 'Reward hacking'],
+  },
   { id: 'generative', number: 17, title: 'Generative Models & Diffusion', blurb: 'VAEs, GANs and diffusion: how machines learn to create.', lessons: [], planned: ['Autoencoders and VAEs', 'Diffusion: adding and removing noise', 'Guidance and conditioning'] },
   { id: 'systems', number: 18, title: 'AI Systems Engineering', blurb: 'RAG, tools, agents and evaluation: models inside real software.', lessons: [], planned: ['Retrieval-augmented generation', 'Tool calling and agents', 'Evaluation'] },
 ];
