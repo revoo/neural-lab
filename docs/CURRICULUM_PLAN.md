@@ -261,7 +261,8 @@ The maths prose is **not** dry. It's problem-first, uses analogies, and has live
 - 6 have no `<Predict>`;
 - 4 of the core widgets don't move (derivatives, dot product, chain rule, matrix multiplication);
 - the AI connection is a promise about distant things ("a transformer layer has 4,096 × 14,336 matrices", "PyTorch's `.grad`") rather than "here is the exact line where you'll use this in two lessons";
-- each lesson ends by pointing to the *next maths lesson*, not to the AI that uses it.
+- each lesson ends by pointing to the *next maths lesson*, not to the AI that uses it;
+- only 3 of the 9 lessons ask "why this operation and not the obvious alternative?" (WP1.10).
 
 WP1 fixes all of that.
 
@@ -592,6 +593,40 @@ First read `matrix-multiplication/ShapeLab.tsx`. If it already has a shape-chain
 - **Bridge line:** "Cross-entropy loss is the cost of the code your model's beliefs imply, and KL is the waste. Both return in Module 4, in language models (perplexity), and in RLHF."
 
 **Accept (each lab):** the HANDOFF "Definition of done" for labs; solver tests green; screenshots checked in all themes and at phone width; one commit per lab.
+
+### WP1.10 "Why this, and not something else?"
+
+**Why this step exists (owner's request).** A learner should finish each maths lesson knowing not only *how* the operation works and *where* AI uses it, but *why AI uses this operation rather than the obvious alternatives*. Today only three Module 1 lessons do this: `probability` (try divide-by-sum before softmax), `information` (squared error against cross-entropy) and `derivatives` (random search against slopes). The other six never ask "why not something else?".
+
+**The three tests.** Every rival is judged by the same three questions, which explain nearly every design choice in deep learning. State them once, in `vectors`, as an `<Insight title="The three tests every AI building block must pass">`. Repeat them as a one-line reminder in each later section.
+
+1. **Does it mean the right thing for the task?** For example, does it measure agreement with evidence?
+2. **Can training nudge it?** It must be smooth, with useful slopes, so gradient descent can improve it a little at a time.
+3. **Is it cheap at enormous scale?** It should be multiply-adds that a GPU can do billions of at once.
+
+**What to add.** In each of the 9 lessons, add a section `## Why this, and not something else?`. Put it **after** the main widget and "Writing it down", and **before** the lab. It contains:
+
+- a `<Predict>` asking which rival the learner would have picked, or whether a given rival works;
+- 2–3 rivals, each tried on the lesson's own running example (the spam emails, the house prices, the weather forecaster, …). Show real computed numbers, in a small widget `RivalBench.tsx` in the lesson folder or a table computed by a test-pinned function, with each rival marked pass or fail on each of the three tests;
+- one closing sentence: "That's why every neural network uses <this>."
+
+In `probability`, `information` and `derivatives`, **don't duplicate** what's already there. Retitle or extend the existing comparison to match this format, and add the three-test verdicts.
+
+| Lesson | Rivals to try (on the running example) | What each rival shows (check with real numbers) |
+|---|---|---|
+| vectors | (a) a hand-written rule ("more than 3 links means spam"); (b) squash all measurements into one combined number; (c) a list of numbers, i.e. a vector | (a) fails test 2: a rule has no knob to nudge, and someone must rewrite it for every new trick. (b) loses information: two very different emails get the same number (find such a pair in the data). (c) keeps every measurement, and turns "similar" into "close in space", which every later tool uses. |
+| dot-product | (a) count the features where both are "high"; (b) multiply all features together; (c) take the maximum feature; (d) distance between the email and a "typical spam" point; (e) the weighted sum, i.e. the dot product | (a) ignores *how much*. (b) one zero feature wipes out all the evidence, and the slopes are messy. (c) uses only one piece of evidence. (d) works for similarity but has no direction of "for or against", and needs the typical point. (e) passes all three: a weight's slope is just its input (∂/∂wᵢ = xᵢ), the sign carries evidence for or against, and it's pure multiply-adds. Pin one email where each rival ranks it wrongly. |
+| matrices | (a) a separate loop of dot products for each neuron; (b) a hand-written lookup table from inputs to outputs; (c) a matrix | (a) is the same maths, but the matrix form is what GPUs run as one operation (show the count of separate operations against one). (b) can't generalise to inputs it hasn't seen, and has no slopes. (c) is linear: the simplest map training can learn by slopes. State its limit (lines stay lines), which sets up the "kink" in the lab and in activation functions. |
+| matrix-multiplication | (a) push each example through the layers one at a time; (b) collapse a stack of layers into one matrix by hand; (c) batch matrix multiplication | (a) gives the same answers far more slowly (count the operations for a batch of 32). (b) shows that a stack of linear layers *is* one matrix, which explains why activation functions exist. (c) is one big multiply-add, and the whole reason GPUs suit deep learning. |
+| derivatives | extend the existing random-search discussion: (a) random search; (b) try every setting on a grid; (c) the slope | Count the model runs needed for 1, 10 and 1,000,000 knobs with (a) and (b), against 2 runs per knob for a measured slope. Then point forward: backprop gets every slope for the price of about three runs. |
+| gradients | (a) improve one knob at a time (coordinate descent); (b) try random directions and keep any that help; (c) the gradient | Run all three on the same tilted bowl for a fixed budget, and pin the losses reached. (c) is the steepest direction for a small step, which follows from the dot-product argument in this lesson. |
+| chain-rule | (a) nudge every weight separately and re-run the whole pipeline (finite differences); (b) the chain rule, walked backwards | Count the pipeline runs for 5, 1,000 and 1,000,000 weights. (a) needs one run per weight, while (b) needs one forward and one backward walk. This previews `backpropagation`'s cost widget, and links to it. |
+| probability | extend the existing section: (a) divide by the sum; (b) clamp negatives to zero, then divide; (c) pick the top score only (argmax); (d) a sigmoid for each class; (e) softmax | Add the three-test verdicts. (a) and (b) break on negative scores, and (b) has dead slopes. (c) has no slope at all (fails test 2). (d) gives probabilities that don't sum to 1. (e) passes: always positive, sums to 1, smooth, and depends only on differences between scores. |
+| information | extend the existing section: (a) accuracy (right or wrong); (b) squared error on the probabilities; (c) cross-entropy | Add the three-test verdicts. (a) is flat, so it has no slope almost everywhere (fails test 2). (b) barely punishes confident mistakes (show the numbers already in the lesson). (c) punishes confident mistakes without limit, and pairs with softmax to give the simple gradient p − y. |
+
+**Tests.** Every number in these sections is produced by a function in the lesson's `.ts` file and pinned in its test. That includes the email each rival misranks, the operation counts, and the losses reached. Extend `src/curriculum.test.ts` test 6: every `foundations` lesson also contains the heading `## Why this, and not something else?`.
+
+**Accept:** all 9 lessons have the section; every rival is shown failing with a real computed number rather than an assertion; the three tests appear in `vectors` and are referred to in each later section.
 
 ### WP1.9 Re-read Module 1 as a learner
 
