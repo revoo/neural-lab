@@ -817,3 +817,53 @@ export function lstmLabExhaustive(brief: LstmBriefId) {
       : 'none',
   };
 }
+
+export function lstmLabHint(
+  brief: LstmBriefId,
+  state: {
+    b1F: number;
+    b1I: number;
+    b1O: number;
+    b2Cell: 'rnn' | 'lstm';
+    b2Bias: number;
+    b3Kind: CellKind;
+    b3H: number;
+  },
+): string {
+  if (brief === 'gates') {
+    const r = evalLstmBrief1(state.b1F, state.b1I, state.b1O);
+    if (r.pass) {
+      return `Cue retention is ${(100 * r.retentionRatio).toFixed(1)}% with max corridor leak ${r.maxCorridorH.toFixed(3)} — all three valves are doing their jobs.`;
+    }
+    if (r.retentionRatio < 0) {
+      return `The cell state flipped negative (${(100 * r.retentionRatio).toFixed(1)}% retention) because hostile negative pulses are writing onto the highway faster than the stored cue survives.`;
+    }
+    if (r.retentionRatio < 0.55) {
+      return `Only ${(100 * r.retentionRatio).toFixed(1)}% of the initial cue reaches t = 5 — either the memory conveyor is leaking away each step or distractors are still slipping into the cell.`;
+    }
+    return `The cell preserves ${(100 * r.retentionRatio).toFixed(1)}% of the cue, but corridor output leak hits ${r.maxCorridorH.toFixed(3)} (limit 0.15) because the read valve stays open during the corridor.`;
+  }
+  if (brief === 'bias') {
+    const r = evalLstmBrief2(state.b2Cell, state.b2Bias);
+    if (r.pass) {
+      return `Step-1 gradient ratio is ${r.ratio.toFixed(3)} (≥ 0.04) — the additive highway keeps the 25-step signal alive.`;
+    }
+    if (state.b2Cell === 'rnn') {
+      return `A plain recurrent cell has no forget gate at all, so changing bias does not rescue its 25-step decay (${r.ratio.toExponential(1)}). Compare against an architecture with an additive cell highway.`;
+    }
+    const fOpen = 1 / (1 + Math.exp(-state.b2Bias));
+    return `At current bias, each step multiplies the cell gradient by σ(b_f) = ${fOpen.toFixed(3)}, leaving ${fOpen.toFixed(3)}²⁴ = ${r.ratio.toExponential(1)} after 24 backward steps. Higher initial gate openness compounds dramatically across 24 steps.`;
+  }
+  const r = evalLstmBrief3(state.b3Kind, state.b3H);
+  if (r.pass) {
+    return `${state.b3Kind.toUpperCase()} at H = ${r.H} uses ${r.params.toLocaleString()} / 1,800 params with a gated highway. Check whether any gated cell can fit even wider H inside 1,800 params.`;
+  }
+  if (!r.isGated) {
+    return `This cell fits ${r.params.toLocaleString()} params, but without a gated highway its long-range gradients vanish across lag 14.`;
+  }
+  if (r.params > 1800) {
+    return `${r.params.toLocaleString()} parameters exceed the 1,800 microcontroller cap. Remember gate count multiplies every weight matrix (3× vs 4×).`;
+  }
+  return `Parameter count (${r.params.toLocaleString()}) fits the cap, but hidden width H = ${r.H} is below the required minimum width of 12.`;
+}
+

@@ -705,6 +705,25 @@ export const HISTORY: HistoryEntry[] = [
       after: { text: 'Those exact mathematical limits of vanilla BPTT motivated gated cells (LSTMs and GRUs), sequence-to-sequence attention, and eventually modern state-space models.', source: WP('Vanishing_gradient_problem') },
     },
   },
+  {
+    id: 'lstms-grus',
+    lessonId: 'lstms-grus',
+    lab: 'Wire the Gated Cell',
+    idea: 'LSTM Constant Error Carousel, Forget Gate & Gated Recurrent Unit (GRU)',
+    years: [1997, 1999, 2014, 2015],
+    when: '1997 · 1999 · 2014 · 2015',
+    who: [
+      { text: 'Sepp Hochreiter and Jürgen Schmidhuber publish Long Short-Term Memory in Neural Computation (1997), introducing the Constant Error Carousel with input and output gates to carry gradients across hundreds of steps.', source: WP('Long_short-term_memory') },
+      { text: 'Felix Gers, Jürgen Schmidhuber, and Fred Cummins add the forget gate (ICANN 1999 / Neural Computation 2000), allowing an LSTM cell to reset its own state on continual streams.', source: WP('Long_short-term_memory') },
+      { text: 'Kyunghyun Cho, Bart van Merriënboer, Caglar Gulcehre, Dzmitry Bahdanau, and Yoshua Bengio introduce the Gated Recurrent Unit (GRU) at EMNLP 2014, merging cell and hidden state with 25% fewer parameters.', source: 'https://arxiv.org/abs/1406.1078' },
+      { text: 'Junyoung Chung, Caglar Gulcehre, KyungHyun Cho, and Yoshua Bengio (2014) and Klaus Greff et al. (2015) systematically compare gated variants, confirming the forget gate as critical and showing GRUs rival LSTMs.', source: 'https://arxiv.org/abs/1412.3555' },
+    ],
+    story: {
+      before: { text: 'Plain tanh RNNs overwrote their hidden state every step, causing gradients to decay exponentially over lags of more than a handful of tokens.', source: WP('Long_short-term_memory') },
+      this: { text: 'Splitting off an additive cell highway guarded by learned sigmoid gates let recurrent networks remember cues across long horizons without exploding or vanishing.', source: WP('Long_short-term_memory') },
+      after: { text: 'LSTMs and GRUs powered Google Translate, speech recognition, and game-playing agents throughout the 2010s until attention removed the final sequential bottleneck.', source: WP('Long_short-term_memory') },
+    },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */

@@ -4,6 +4,8 @@ import { Predict } from '../../components/Predict';
 import { Callout, Deeper } from '../../components/Callout';
 import { Term } from '../../components/Term';
 import { Quiz } from '../../components/Quiz';
+import { LabJob, ForReal } from '../../components/LabJob';
+import { HistoryCard } from '../../components/HistoryCard';
 import { LstmGatePlayground, CarouselWidget, RaceAndParamsWidget, LstmLab } from './Widgets';
 import { questions } from './quiz';
 
@@ -104,7 +106,9 @@ Look at that clean result:
 
 ## 4. Lab: Wire the Gated Cell
 
-Configure gates to protect a cue through hostile distractors, rescue a 25-step gradient highway with forget-gate bias, and pack maximum gated capacity into a 1,800-parameter microcontroller budget.
+<LabJob>
+  You are shipping a tiny always-on wake-word detector for a battery-powered voice earbud. You need to understand how each LSTM valve protects memory across distractor frames, why a freshly initialised `nn.LSTM` stalls on 25-step sequences until you boost its forget-gate bias, and how to pick between `nn.RNN`, `nn.GRU`, and `nn.LSTM` when flash memory caps your model at 1,800 parameters.
+</LabJob>
 
 <LstmLab />
 
@@ -113,6 +117,12 @@ Configure gates to protect a cue through hostile distractors, rescue a 25-step g
   - **Brief 2 (25-step highway):** `2/10` pass — **LSTM with `b_f = +2`** (`0.048`) and **`b_f = +3`** (`0.312`). Plain RNN (`6.4×10⁻⁴`) and naive `b_f = 0` LSTM (`6.0×10⁻⁸`) both fail.
   - **Brief 3 (Edge parameter budget `D = 16, ≤ 1,800` params):** Vanilla RNN lacks a gated highway; `LSTM H = 16` needs `2,112` params (over budget!). `3/12` pass (`GRU H=12`, `LSTM H=12`, `GRU H=16`), with **`GRU H = 16` (`1,584` params)** packing the highest capacity inside the cap!
 </Deeper>
+
+<ForReal>
+  In PyTorch, `nn.LSTM` packs all four gate biases into `bias_ih_l0` and `bias_hh_l0` in `(i, f, g, o)` order — slicing `[H:2*H]` and filling it with `+1.0` or `+2.0` (following Gers et al. 2000 and Jozefowicz et al. 2015) is a classic production trick to keep gradients alive on epoch 1. And on edge DSPs, audio wake-word chips, and real-time control loops, `nn.GRU` remains widely chosen over `nn.LSTM` whenever the 25% parameter and MAC savings buy a wider hidden state inside the same SRAM envelope.
+</ForReal>
+
+<HistoryCard id="lstms-grus" />
 
 ---
 

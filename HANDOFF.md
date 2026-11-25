@@ -209,7 +209,7 @@ The owner asked for this next, in a fresh session. `docs/LAB_IMPROVEMENTS.md` re
 - [x] similarity-search · Tune the Vector Index
 - [x] contrastive-learning · Tune Contrastive Training
 - [x] rnns · Tame BPTT
-- [ ] lstms-grus · Wire the Gated Cell
+- [x] lstms-grus · Wire the Gated Cell
 - [ ] seq2seq-attention · Break the Bottleneck
 - [ ] autoencoders · The Face Printer
 - [ ] diffusion · Spend the Step Budget
