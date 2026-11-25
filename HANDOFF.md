@@ -2,6 +2,62 @@
 
 You're picking up **Neural Lab**, an interactive website that teaches AI from first principles: Feynman-style explanation, 3Blue1Brown-style visuals, Zachtronics-style labs. This file is the onboarding procedure. Follow it in order. (Agent rules in brief: `AGENTS.md` / `CLAUDE.md`.)
 
+## 0. Resume here: curriculum plan, paused after WP1.8 Lab 2 (for the next agent, e.g. ChatGPT/Codex)
+
+The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented step by step (WP0 → WP9), and for **WP0 through WP2** in the current run. The previous agent (Claude Opus 5.5) stopped at the owner's request after WP1.8 Lab 2. Everything below is committed and pushed on `claude/cool-feynman-4hci4d`.
+
+**Read first, in this order:** `AGENTS.md`, this file (especially "Owner's standing instructions" and "Curriculum plan: progress" at the end), `docs/CURRICULUM_PLAN.md` §0 and §1 and the section for your step, and the "Current state" block at the top of `docs/ROADMAP.md`.
+
+**Your name for the authorship watermark.** Don't reuse "Claude Opus 5.5". Pick a new, unique `<MODEL_NAME>` for your model (see "Owner's standing instructions"), and use it in file headers, the `Authored-by:` commit trailer and roadmap entries. After `npm run build`, `rg "<MODEL_NAME>" dist/` must find nothing.
+
+### Done so far
+
+| Step | What exists now |
+|---|---|
+| WP0.1 | `ModuleRef` (renders the live module number, linked) in `src/components/Term.tsx`; `Src` (source link) in `src/components/Src.tsx`; both registered in `src/mdxComponents.tsx`. Test: `src/components/moduleRef.test.ts`. |
+| WP0.2–0.3 | No lesson prose types "Module N" or "last/next/previous lesson/module" any more: they're `ModuleRef` / `LessonLink`. |
+| WP0.4 | `src/curriculum.test.ts` enforces the above, checks every `LessonLink`/`ModuleRef` target, consecutive module numbers and one registration per lesson folder, and (test 6, added in WP1.4) that every toolkit lesson has a `<Bridge to>` a later module. The plain-summary test is `it.todo` until WP2.4. `node scripts/forward-links.cjs` prints links that point later in the course; read it after any reorder. |
+| WP1.1 | Module 1 is "The Maths Toolkit" (9 lessons). `statistics` sits between `loss-functions` and `sgd-minibatch`; `high-dimensions` opens Module 8 (`classical`). Their prose was re-tensed to fit. |
+| WP1.2 | `src/components/MachineMap.tsx` (+ `machineMap.test.ts`): SVG of the learning machine; two-column layout under 560px. |
+| WP1.3 | A `<MachineMap highlight="…" />` plus a "**Where this is going.**" paragraph before the second `##` of each toolkit lesson. |
+| WP1.4 | `src/components/Bridge.tsx` ("Where you'll use this next"); one `<Bridge>` after `</InTheWild>` in each toolkit lesson. |
+| WP1.5 | 16 new `<Predict>`s; every number pinned in `src/lessons/derivatives/predicts.test.ts` (one file for all nine lessons). |
+| WP1.6 | `klDivergence` in `src/lib/prob.ts` (tests in `src/lib/lib.test.ts`); KL section + `KLExplorer.tsx` + `kl.ts`/`kl.test.ts` + quiz `information.kl` in `information`; glossary `kl-divergence` now points at `information`. |
+| WP1.7 | "Play" animations in `TangentExplorer`, `DotExplorer`, `ChainExplorer`, `CompositionDemo` (all via `useFramePlayer`, so reduced motion jumps to the end); frame values pinned in `src/lessons/chain-rule/motion.test.ts`. |
+| WP1.8 Lab 1 | `src/lessons/vectors/featureLab.ts`, `featureLab.test.ts`, `FeatureLab.tsx`; history entry `feature-workbench`. |
+| WP1.8 Lab 2 | `src/lessons/dot-product/spamLab.ts`, `spamLab.test.ts`, `SpamLab.tsx`; history entry `spam-scorer`. `src/history.test.ts` now expects 48 entries. |
+
+### What to do next, in order
+
+1. **WP1.8 Lab 3:** `matrices` · "Untangle the Data". Then Labs 4–9 (matrix-multiplication, derivatives, gradients, chain-rule, probability, information). The full spec of each is in `docs/CURRICULUM_PLAN.md` §WP1.8. One commit per lab; tick its line in "Curriculum plan: progress" below in the same commit.
+2. **WP1.10** "Why this, and not something else?" in all nine toolkit lessons, and extend `src/curriculum.test.ts` test 6 to require that heading.
+3. **WP1.9** re-read Module 1: remove teasers that duplicate a `Bridge`; trim the vectors lesson's "A trap hiding in plain sight" section, which now overlaps Lab 1's brief 3; add about 15 minutes per lab to `minutes` in `src/curriculum.ts`.
+4. **WP2.1–2.4.** Known fixes that belong there: `scaling-laws` ends "Next: Inference & Hardware", which becomes wrong once RL moves before fine-tuning (WP2.1); `similarity-search` says "In the RAG lesson we searched…" although RAG comes later (WP2.2: reword when it moves next to RAG). WP2.4 switches the summary test from `it.todo` to `it`.
+5. After each work package, update the "Current state" block in `docs/ROADMAP.md`.
+
+### How each maths lab was built (copy this)
+
+1. **Solver and test first.** Put the logic, level data and an exhaustive (or clearly labelled) solver in `src/lessons/<id>/<name>Lab.ts`, and the test in `<name>Lab.test.ts`. The test pins the counts quoted in the prose and checks that each brief is solvable, has more than one answer, and that a random setting usually fails.
+2. **Tune the data, not the idea.** Labs 1 and 2 both needed it. Write a throwaway random-search script in `scratch/` and run it with `node --experimental-strip-types --import ./scripts/ts-hooks.mjs scratch/x.ts`. Examples: `scratch/lab1search.ts`, `scratch/lab2.ts` (`scratch/` is git-ignored and may be gone; the pattern is simple).
+3. **UI on `LabShell`.** Use `useLabProgress('<lessonId>-lab')`, a `localStorage` key for the learner's settings, `useMachineLog`, an evidence-only `hint`, and a `reveal` (the solution map or search summary, shown only after a solve or a confirmed "I'm stuck"). `src/lessons/vectors/FeatureLab.tsx` and `src/lessons/dot-product/SpamLab.tsx` are the models.
+4. **MDX.** Add `## Lab: <name>` just before `## In code`, containing: a short intro, `<LabJob>`, the widget, a `<Deeper title="Debrief: …" tag="Spoiler">` with the solver's numbers, `<ForReal>`, `<HistoryCard id="…" />`, and a "You've just…" line that links forward with `LessonLink`/`ModuleRef`.
+5. **History.** Add the entry at the top of `HISTORY` in `src/history.ts`, with every sentence a `Claim` with its source, checked on the page itself. Fetch pages with `curl -sL "https://en.wikipedia.org/w/index.php?title=<Page>&action=raw"`. Leave out anything you can't confirm, and record "dropped: <claim>, reason" in `docs/ROADMAP.md`. Raise the count in `src/history.test.ts`.
+6. **Checks, then screenshots.** Run the checks (below), then `node scripts/drive-widget.cjs <lessonId> 0 '[{"shot":"x"}]' --title="<widget title>"` in all three themes, plus `--width=390 --themes=light`. Look at the PNGs in `scratch/shots/`. Check that captions don't name colours that change between themes.
+
+### Checks after every step
+
+`npm test` → `npm run build` → `rg "<MODEL_NAME>" dist/` (must be empty) → with `npm run dev` running: `node scripts/check-pages.cjs` and `node scripts/check-pages.cjs --theme=matrix`. Then `git fetch origin claude/cool-feynman-4hci4d && git merge --no-edit FETCH_HEAD`, commit as `Curriculum plan WPx.y: …` with your `Authored-by:` trailer, and push. No pull requests, no other branches.
+
+### Gotchas found in this run
+
+- **Heredocs.** The agent's command-safety check refused heredocs containing `${…}`. Write helper scripts as files instead.
+- **`<Predict>` inside a list.** A `<Predict>` inserted between Markdown list items breaks the MDX parse ("Unexpected end of file before attribute name"). Put it before or after the list.
+- **JSX attribute strings don't process escapes.** In `question="…"`, write `\mathbf` with a single backslash. If you generate Predicts with `json.dumps`, un-double the backslashes in the attribute.
+- **Distance plots.** When a lab's point is that something is close or far, draw both axes on one scale (`equalScale` in `FeatureLab.tsx`), or the picture lies.
+- **Dot-product rankings depend only on the direction of w.** A 2D search over w is therefore one angle. `spamLab.ts` sweeps it in 0.01° steps.
+- **Flaky page check.** `check-pages.cjs` once reported a one-off horizontal overflow on `/learn/evaluation` at 390px; a rerun was clean.
+- **Lessons on the other agent's list** (unticked in "Next task" below): make only minimal line edits there; never reformat them.
+
 ## 1. Get oriented (≈10 minutes)
 
 Read, in this order:
