@@ -1,0 +1,115 @@
+{/* authored-by: Gemini Antigravity */}
+import { Eq } from '../../components/Eq';
+import { Predict } from '../../components/Predict';
+import { Callout, Deeper } from '../../components/Callout';
+import { Term } from '../../components/Term';
+import { Quiz } from '../../components/Quiz';
+import { EmbeddingMapWidget, AnalogyWidget, Word2VecLab } from './Widgets';
+import { questions } from './quiz';
+
+# Word Embeddings
+
+At the end of the previous lesson, we left a cliff-hanger: if dense semantic vectors beat one-hot vectors so decisively, **where do the numbers come from?** Nobody is going to hand-label 300 coordinates for every word in the English language!
+
+In 1957, the linguist J. R. Firth dropped one sentence that became the backbone of modern NLP:
+
+> *“You shall know a word by the company it keeps.”*
+
+That is the **<Term id="distributional-hypothesis">distributional hypothesis</Term>**. Even if you have never read a dictionary definition of *king* and *queen*, notice that both appear beside *royal*, *crown*, and *palace* — while *king* co-occurs with *male* and *man*, and *queen* co-occurs with *female* and *woman*.
+
+In 2013, **<Term id="word2vec">Word2Vec</Term>** turned Firth’s insight into a tiny, blistering-fast self-supervised neural network: slide a window over raw unlabelled sentences and train every word’s dense vector to predict its neighbours. No human labels required — just text!
+
+---
+
+## 1. Skip-Gram with Negative Sampling (SGNS)
+
+Given a centre word $\ca{c}$ (say `"king"`) and a real neighbouring context word $\cg{o}$ inside window $\pm W$ (say `"royal"`), we want their dot product $\cb{u_o^\top v_c}$ to be **large and positive**.
+
+Why not just put a full softmax over the entire vocabulary of $V = 100,000$ words? Because computing the softmax denominator requires **100,000 dot products for every single word pair** — impossibly slow on billions of tokens!
+
+**<Term id="negative-sampling">Negative sampling</Term>** turns a 100,000-way softmax into $1 + K$ tiny binary logistic regressions: pull the 1 real neighbour $\cg{o}$ *together*, and push $K$ randomly drawn noise words $\cc{n_1, \dots, n_K}$ *apart*:
+
+<Eq
+  words="SGNS loss  =  reward real neighbour  +  push K random noise words away"
+  tex="\mathcal{L} = -\log \sigma(\cb{u_o^\top} \ca{v_c}) - \sum_{k=1}^{K} \log \sigma(-\cc{u_{n_k}^\top} \ca{v_c})"
+>
+  - $\ca{v_c} \in \mathbb{R}^d$ — centre-word embedding for word $c$
+  - $\cb{u_o} \in \mathbb{R}^d$ — context embedding for the real neighbouring word $o$
+  - $\cc{u_{n_k}} \in \mathbb{R}^d$ — context embeddings of $K$ random noise words (typically $K = 5$, drawn from unigram frequency$^{0.75}$)
+  - $\sigma(z) = 1 / (1 + e^{-z})$ — sigmoid probability (wants $\cb{u_o^\top}\ca{v_c} \gg 0$ and $\cc{u_{n_k}^\top}\ca{v_c} \ll 0$)
+</Eq>
+
+With $K = 5$ on a 100,000-word vocabulary, SGNS computes **6** dot products per pair instead of **100,000** — a **16,667× speedup**!
+
+<Predict
+  question="Suppose you simplify SGNS by setting negative samples K = 0 — training ONLY on the real neighbouring pairs −log σ(u_oᵀ v_c). What happens to the 41 word vectors after 140 epochs?"
+  options={[
+    'They learn the exact same semantic map, just faster.',
+    'All vectors shrink to the zero vector [0, 0, …].',
+    'Representation collapse: every word vector points in the exact same direction (mean pairwise cosine → +0.84) so every pair scores high, destroying analogies!',
+  ]}
+  answer={2}
+>
+  Without negative samples pushing unrelated pairs apart, the easiest way to drive every $\sigma(u_o^\top v_c) \to 1$ is to align *every* word vector into one narrow cone! On our 41-word corpus, `K = 0` sends mean pairwise cosine shooting up to **+0.84** and breaks 3 of 4 analogies. Turning on even `K = 1` negative sample restores the repulsive force and spreads the words isotropically around the sphere (`mean cos ≈ 0.00`).
+</Predict>
+
+Watch real SGNS train live from epoch 0 to epoch 140 on our 34-sentence English corpus below — then flip `K` to `0` to witness collapse firsthand.
+
+<EmbeddingMapWidget />
+
+---
+
+## 2. Linear analogies: `king − man + woman ≈ queen`
+
+Why do linear vector analogies emerge out of a dumb co-occurrence game?
+
+Because SGNS implicitly factorises the log co-occurrence ratio (pointwise mutual information, PMI — proven by Levy & Goldberg 2014). Moving from `"man"` to `"woman"` shifts co-occurrence log-odds along a consistent **gender direction** (`male → female`). Moving from `"king"` to `"queen"` shifts log-odds by the **exact same gender ratio** while keeping royalty fixed — so their embedding vectors form a geometric **parallelogram**!
+
+Test all four analogies directly on our freshly trained 6D SGNS vectors below.
+
+<AnalogyWidget />
+
+<Callout kind="warn" title="Two honest caveats about Word2Vec analogies">
+  First, standard analogy evaluation (including Mikolov et al. 2013) **explicitly excludes the three query words `a, b, c`** when searching for the nearest neighbour — otherwise `king − man + woman` often lands closer to `king` itself when the gender shift is smaller than the royalty distance! Second, static word embeddings assign **one fixed vector per word**, so `"river bank"` and `"savings bank"` get mashed into a single averaged vector. That polysemy bottleneck is exactly why Transformers (Module 12) run self-attention on top of an embedding table to build *contextual* embeddings.
+</Callout>
+
+---
+
+## 3. Lab: Train & Debug Word2Vec
+
+Fix representation collapse, find the minimal embedding dimension that nails all four analogies, and scale past the softmax wall. Every brief is exhaustively verified.
+
+<Word2VecLab />
+
+<Deeper title="Exhaustive lab takeaways">
+  - **Brief 1 (Cure collapse):** `K = 0` collapses (`mean cos = +0.835`, `1/4` analogies). Every non-zero negative sample count (`K = 1, 3, 5`) restores isotropic spread (`mean cos ≈ 0.00`) and hits **`4/4`** analogies (`3/4` pass).
+  - **Brief 2 (Minimal dimension for 4/4 analogies):** In **2D** (`d = 2`), **0 of 3** windows pass (max `2/4`): you simply cannot pack independent Royalty, Gender, and Capital/Country directions cleanly onto a flat sheet. At **`d = 3, window = 3`**, SGNS unlocks **`4/4`** analogies (`9/15` configs pass across `d = 3..8`).
+  - **Brief 3 (Scaling to `V = 100,000`):** Full Softmax burns `100,000` dot products/pair. **`SGNS K = 5`** takes just **6** dot products/pair — **`16,667×` faster** (`2/6` pass: `K = 5` and `K = 10`).
+</Deeper>
+
+---
+
+## 4. One exact SGNS step in 10 lines of NumPy
+
+```python
+import numpy as np
+
+def sigmoid(x): return 1.0 / (1.0 + np.exp(-x))
+
+v_c = np.array([0.4, -0.2, 0.1])
+u_pos = np.array([0.3, 0.5, -0.1])
+u_negs = np.array([[-0.2, 0.4, 0.6], [0.5, -0.3, 0.2]])
+
+p_pos = sigmoid(v_c @ u_pos)
+p_negs = sigmoid(u_negs @ v_c)  # probability wrongly assigned to noise words
+loss = -np.log(p_pos) - np.sum(np.log(1.0 - p_negs))
+grad_vc = (p_pos - 1.0) * u_pos + np.sum(p_negs[:, None] * u_negs, axis=0)
+print(f"SGNS loss: {loss:.4f} | grad_vc: {np.round(grad_vc, 4).tolist()}")
+# SGNS loss: 2.1755 | grad_vc: [0.0405, -0.2296, 0.4487]
+```
+
+---
+
+## Check your understanding
+
+<Quiz questions={questions} />
