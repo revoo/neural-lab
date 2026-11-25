@@ -114,7 +114,7 @@ Session 3 (owner's order): first a **Matrix theme**, then resume "Next steps" wi
 
 ## Labs built so far
 
-_A review of the 25 labs that existed on 25 November 2026 (Modules 1–7 and 12–16), with a prioritised improvement plan (hint and answer-reveal fixes, real-world briefs, motion, machine logs, sourced history cards and a timeline page), is in `docs/LAB_IMPROVEMENTS.md`. Not implemented yet; its "Suggested order of work" is the plan. Labs added later (Modules 8–10, 17, 18) were not reviewed, but its cross-cutting ideas apply to them too._
+_A review of the 25 labs that existed on 25 November 2026 (Modules 1–7 and 12–16), with a prioritised improvement plan (hint and answer-reveal fixes, real-world briefs, motion, machine logs, sourced history cards and a timeline page), is in `docs/LAB_IMPROVEMENTS.md`. Not implemented yet; its "Suggested order of work" is the plan. Labs added later (Modules 8, 17 and 18) were not reviewed, but its cross-cutting ideas apply to them too._
 
 - **Build the Tabular Ensemble** (Module 8, decision-trees): pick Single Tree, Random Forest, or Gradient Boosting + depth + ensemble size across 3 briefs; exhaustive over 35 configs per brief; each tree family wins one brief with fewest total leaves (Single Tree 3 leaves / 99.6%, GBT 40 leaves / 98.8%, RF 30 leaves / 97.6%; persisted in `nl-trees-lab-v1`).
 - **Rescue the kNN Classifier** (Module 8, knn): diagnose and fix 3 broken kNN setups (unscaled telemetry, 6-column table with 4 pure noise columns, small minority fault pockets); exhaustive over 48 / 1,512 / 24 configs (best 99.4% scaled; 2 signal cols 95.0%; L2 distance-weighted k=15 96.0% acc & 100.0% recall; persisted in `nl-knn-lab-v1`).

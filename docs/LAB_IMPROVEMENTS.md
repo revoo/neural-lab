@@ -1,6 +1,6 @@
 # Neural Lab — lab improvement suggestions
 
-_Review written 25 November 2026. It covers the 25 labs that existed then (Modules 1–7 and 12–16); labs added later (Modules 8–10, 17, 18) were not reviewed, though the cross-cutting ideas apply to them too. Nothing in it has been implemented yet. Live, editable version: https://claude.ai/artifact/LgGJiBKRH3VkRNvxFuKmCD_
+_Review written 25 November 2026. It covers the 25 labs that existed then (Modules 1–7 and 12–16); labs added later (Modules 8, 17 and 18) were not reviewed, though the cross-cutting ideas apply to them too. Nothing in it has been implemented yet. Live, editable version: https://claude.ai/artifact/LgGJiBKRH3VkRNvxFuKmCD_
 
 **For an implementing agent:** follow `HANDOFF.md`, `CLAUDE.md`/`AGENTS.md` and `docs/STYLE_GUIDE.md` as usual. Work through "Suggested order of work" at the end of this file, one step per commit. Every number or date a lab quotes must be re-run or re-checked and pinned by a test. Places marked † below still need a source.
 
