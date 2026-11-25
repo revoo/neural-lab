@@ -102,7 +102,9 @@ Because the exact same `3×3` kernel visits every coordinate, convolution is **t
 
 ## 4. Lab: Design the Kernel
 
-Before a CNN learns its kernels by backpropagation, design two real `3×3` ternary kernels yourself (every test is checked exhaustively against all **$3^9 = 19,683$** ternary `3×3` kernels!) and engineer a zero-drop two-layer convolutional stack.
+<LabJob>Before trusting backpropagation to learn hundreds of convolutional filters, craft two surgical 3×3 edge detectors by hand (checked against all 19,683 ternary 3×3s!) and engineer a zero-drop downsampling stack for a vision backbone.</LabJob>
+
+Design two real `3×3` ternary kernels yourself and watch them convolve live over the test patches and a 10×10 edge scene — then configure a zero-drop two-layer convolutional stack.
 
 <KernelDesignLab />
 
@@ -111,6 +113,14 @@ Before a CNN learns its kernels by backpropagation, design two real `3×3` terna
   - **Brief 2 (45° diagonal-edge detector):** **67** of **19,683** pass; the maximum achievable diagonal response while keeping vertical and horizontal leak `≤ 1` is **+3**, achieved by only **4** optimal kernels (such as `[-1, +1, +1; 0, -1, +1; 0, 0, -1]`).
   - **Brief 3 (`17×17 → 5×5` zero-drop stack):** Only **2 of 12** `(K, P, S)` settings hit `17 → 9 → 5` with zero dropped border pixels: `K=3, P=1, S=2` (**18 weights/filter**) and `K=5, P=2, S=2` (**50 weights/filter**). Notice that two `3×3` layers beat `5×5` on parameter efficiency — the exact insight behind VGGNet!
 </Deeper>
+
+<ForReal>
+
+Open the first convolutional layer of almost any trained ImageNet network (AlexNet, ResNet, ConvNeXt) and you will find learned filters that look startlingly like the oriented edge detectors you just built by hand — vertical, horizontal, and 45° diagonal Gabor-like kernels — plus colour-opponent blobs. Meanwhile, mismatched padding/stride in real PyTorch or ONNX models silently drops the bottom/right pixel row on even dimensions (causing subtle object-detection box drift!).
+
+</ForReal>
+
+<HistoryCard id="convolution" />
 
 ---
 

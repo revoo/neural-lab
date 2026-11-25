@@ -1,14 +1,23 @@
 // authored-by: Gemini Antigravity
 import { useEffect, useMemo, useState } from 'react';
 import { Widget } from '../../components/Widget';
+import { LabShell, useLabProgress } from '../../components/LabShell';
+import { LiveCode } from '../../components/LabJob';
+import { useMachineLog } from '../../components/MachineLog';
 import { Segmented, Slider } from '../../components/controls';
 import {
   CONV_LAB_BRIEFS,
   KERNEL_PRESETS,
+  LAB_EDGE_SCENE,
+  PATCH_DIAG,
+  PATCH_FLAT,
+  PATCH_HORIZ,
+  PATCH_VERT,
   TEST_IMAGES,
   compareDenseVsConvParams,
   conv2d,
   convLabExhaustive,
+  convLabHint,
   droppedBorderPixels,
   evalDiagonalKernel,
   evalStackShape,
@@ -20,6 +29,7 @@ import {
   type ConvBriefId,
   type Kernel3,
 } from './conv';
+import { convCodeLines } from './realCode';
 
 function fmtK(v: number): string {
   if (Math.abs(v - 1 / 9) < 1e-4) return '1/9';
@@ -478,10 +488,34 @@ function loadConvLab(): ConvLabState {
   }
 }
 
+function seedConvProgress() {
+  const old = loadConvLab();
+  const solved: Record<string, boolean> = {};
+  for (const b of CONV_LAB_BRIEFS) {
+    if (old.solved[b.id]) solved[b.id] = true;
+  }
+  return { solved, optimal: {} };
+}
+
+function toKernel3(arr: readonly number[]): Kernel3 {
+  return [
+    [arr[0], arr[1], arr[2]],
+    [arr[3], arr[4], arr[5]],
+    [arr[6], arr[7], arr[8]],
+  ];
+}
+
+function dotPatch(w: readonly number[], p: readonly number[]) {
+  let s = 0;
+  for (let i = 0; i < 9; i++) s += w[i] * p[i];
+  return s;
+}
+
 export function KernelDesignLab() {
-  const [briefId, setBriefId] = useState<ConvBriefId>('vertical');
+  const [briefIdx, setBriefIdx] = useState(0);
   const [st, setSt] = useState<ConvLabState>(loadConvLab);
-  const [showOpt, setShowOpt] = useState(false);
+  const progress = useLabProgress('nl-conv-lab-v1-shell', seedConvProgress);
+  const log = useMachineLog();
 
   useEffect(() => {
     try {
@@ -491,32 +525,84 @@ export function KernelDesignLab() {
     }
   }, [st]);
 
+  const brief = CONV_LAB_BRIEFS[briefIdx];
+  const briefId = brief.id;
+
   const vRes = useMemo(() => evalVerticalKernel(st.vertW), [st.vertW]);
   const dRes = useMemo(() => evalDiagonalKernel(st.diagW), [st.diagW]);
   const sRes = useMemo(() => evalStackShape(st.k, st.pad, st.stride), [st.k, st.pad, st.stride]);
   const exhaust = useMemo(() => convLabExhaustive(briefId), [briefId]);
 
   const curPass = briefId === 'vertical' ? vRes.pass : briefId === 'diagonal' ? dRes.pass : sRes.pass;
+  const curOpt =
+    curPass &&
+    (briefId === 'vertical' ? vRes.nnz === 4 : briefId === 'diagonal' ? dRes.diag === 3 : sRes.weightsPerFilter === 18);
+
   useEffect(() => {
     if (curPass && !st.solved[briefId]) {
       setSt((p) => ({ ...p, solved: { ...p.solved, [briefId]: true } }));
     }
   }, [curPass, briefId, st.solved]);
 
+  const activeKernel = briefId === 'vertical' ? st.vertW : st.diagW;
+
+  // Live 10x10 feature map of the learner's 3x3 kernel convolved (pad=1) over LAB_EDGE_SCENE
+  const sceneMap = useMemo(() => {
+    if (briefId === 'stack-shape') return null;
+    const out = conv2d(LAB_EDGE_SCENE, toKernel3(activeKernel), 1, 1);
+    let maxAbs = 1;
+    for (const row of out) for (const v of row) maxAbs = Math.max(maxAbs, Math.abs(v));
+    return { out, maxAbs };
+  }, [briefId, activeKernel]);
+
   const cycleLabWeight = (which: 'vertW' | 'diagW', idx: number) => {
-    setSt((p) => {
-      const arr = [...p[which]];
-      arr[idx] = arr[idx] === -1 ? 0 : arr[idx] === 0 ? 1 : -1;
-      return { ...p, [which]: arr };
-    });
+    const arr = [...st[which]];
+    const nextVal = arr[idx] === -1 ? 0 : arr[idx] === 0 ? 1 : -1;
+    arr[idx] = nextVal;
+    const next = { ...st, [which]: arr };
+    setSt(next);
+    const r = Math.floor(idx / 3);
+    const c = idx % 3;
+    if (which === 'vertW') {
+      const ev = evalVerticalKernel(arr);
+      log.push(
+        `cell(${r},${c})→${nextVal > 0 ? '+1' : nextVal} · flat=${ev.flat} horiz=${ev.horiz} vert=+${ev.vertPeak} nnz=${ev.nnz} ${ev.pass ? '✓' : '✗'}`,
+        ev.pass ? 'good' : 'info',
+      );
+    } else {
+      const ev = evalDiagonalKernel(arr);
+      log.push(
+        `cell(${r},${c})→${nextVal > 0 ? '+1' : nextVal} · flat=${ev.flat} V/H=${ev.vert}/${ev.horiz} diag=${ev.diag >= 0 ? `+${ev.diag}` : ev.diag} ${ev.pass ? '✓' : '✗'}`,
+        ev.pass ? 'good' : 'info',
+      );
+    }
   };
 
-  const brief = CONV_LAB_BRIEFS.find((b) => b.id === briefId)!;
-  const solvedCount = Object.values(st.solved).filter(Boolean).length;
+  const updateStack = (patch: Partial<Pick<ConvLabState, 'k' | 'pad' | 'stride'>>) => {
+    const next = { ...st, ...patch };
+    setSt(next);
+    const r = evalStackShape(next.k, next.pad, next.stride);
+    log.push(
+      `K=${next.k} P=${next.pad} S=${next.stride} → 17→${r.h1}→${r.h2} · drops (${r.drop1},${r.drop2}) · ${r.weightsPerFilter} w/filter ${r.pass ? '✓' : '✗'}`,
+      r.pass ? 'good' : 'info',
+    );
+  };
+
+  const resetBrief = () => {
+    if (briefId === 'vertical') setSt((p) => ({ ...p, vertW: [...CLAB_DEFAULT.vertW] }));
+    else if (briefId === 'diagonal') setSt((p) => ({ ...p, diagW: [...CLAB_DEFAULT.diagW] }));
+    else updateStack({ k: 3, pad: 0, stride: 2 });
+  };
+
+  const liveCode = useMemo(() => convCodeLines(briefId, st), [briefId, st]);
+  const shellBriefs = useMemo(
+    () => CONV_LAB_BRIEFS.map((b, i) => ({ id: b.id, tab: `Brief ${i + 1}`, title: b.title, text: b.story })),
+    [],
+  );
 
   const renderTernaryEditor = (which: 'vertW' | 'diagW', arr: number[]) => (
     <div>
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Click cells to cycle −1 → 0 → +1</div>
+      <div className="field-label" style={{ marginBottom: 6 }}>Your 3×3 kernel (click to cycle −1 → 0 → +1)</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 52px)', gap: 5 }}>
         {arr.map((w, idx) => (
           <button
@@ -524,11 +610,11 @@ export function KernelDesignLab() {
             type="button"
             onClick={() => cycleLabWeight(which, idx)}
             style={{
-              height: 44,
+              height: 46,
               borderRadius: 6,
               border: '1px solid var(--border)',
               ...actStyle(w, 1),
-              fontFamily: 'var(--mono)',
+              fontFamily: 'var(--font-mono)',
               fontSize: 15,
               fontWeight: 700,
               cursor: 'pointer',
@@ -541,103 +627,231 @@ export function KernelDesignLab() {
     </div>
   );
 
-  return (
-    <Widget
-      title="Lab: Design the Kernel"
-      wide
-      caption={
-        <>
-          Craft real <code>3×3</code> ternary kernels (exhaustively verified against all <strong>19,683</strong> possible ternary kernels!) and engineer a zero-drop convolutional stack. Solved: <strong>{solvedCount}/3</strong>.
-        </>
-      }
+  const renderPatchCard = (label: string, patch: number[], val: number, ok: boolean, rule: string) => (
+    <div
+      style={{
+        padding: '7px 8px',
+        borderRadius: 7,
+        border: `1.5px solid ${ok ? 'var(--c-good)' : 'var(--c-bad)'}`,
+        background: 'var(--bg)',
+        display: 'grid',
+        gap: 4,
+        justifyItems: 'center',
+      }}
     >
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-        {CONV_LAB_BRIEFS.map((b, i) => (
-          <button
-            key={b.id}
-            type="button"
-            className="btn"
+      <div style={{ fontSize: 11, fontWeight: 600 }}>{label}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 13px)', gap: 1.5 }}>
+        {patch.map((px, i) => (
+          <div
+            key={i}
             style={{
-              borderColor: briefId === b.id ? 'var(--accent)' : 'var(--border)',
-              background: briefId === b.id ? 'var(--bg-sunken)' : 'transparent',
-              fontWeight: briefId === b.id ? 600 : 400,
+              width: 13,
+              height: 13,
+              borderRadius: 2,
+              background: px === 1 ? 'var(--text)' : 'var(--bg-sunken)',
+              border: '1px solid var(--border)',
+              opacity: px === 1 ? 0.85 : 1,
             }}
-            onClick={() => {
-              setBriefId(b.id);
-              setShowOpt(false);
-            }}
-          >
-            {st.solved[b.id] ? '✓ ' : ''}Brief {i + 1}
-          </button>
+          />
         ))}
       </div>
+      <div className="mono" style={{ fontSize: 12, fontWeight: 700, color: ok ? 'var(--c-good)' : 'var(--c-bad)' }}>
+        {val > 0 ? `+${val}` : val} {ok ? '✓' : '✗'}
+      </div>
+      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{rule}</div>
+    </div>
+  );
 
-      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{brief.title}</div>
-      <p style={{ fontSize: 13.5, color: 'var(--text-muted)', marginTop: 0, marginBottom: 12, lineHeight: 1.5 }}>{brief.story}</p>
+  const statusNode =
+    briefId === 'vertical' ? (
+      vRes.pass ? (
+        <>
+          <strong>{curOpt ? 'Optimal — 4 non-zero weights (proven minimum)!' : 'Passing vertical-edge kernel!'}</strong>{' '}
+          Peak +{vRes.vertPeak} · flat 0 · horiz leak 0 · {vRes.nnz} non-zero weights.{' '}
+          {!curOpt && 'Optional: can you zero out extra weights down to 4 non-zeros and still pass?'}
+        </>
+      ) : (
+        <>
+          <strong>Not yet.</strong> Flat sum {vRes.flat} (= 0) · horiz leak {vRes.horiz} (= 0) · vert peak +{vRes.vertPeak} (≥ +2). Watch the patch responses and 10×10 feature map update live as you click cells.
+        </>
+      )
+    ) : briefId === 'diagonal' ? (
+      dRes.pass ? (
+        <>
+          <strong>{curOpt ? 'Optimal — maximum +3 diagonal response!' : 'Passing 45° diagonal-edge kernel!'}</strong>{' '}
+          Diag +{dRes.diag} · flat 0 · V/H leak {dRes.vert}/{dRes.horiz}.{' '}
+          {!curOpt && 'Optional: can you push the diagonal response all the way to +3 while keeping V/H leak ≤ 1?'}
+        </>
+      ) : (
+        <>
+          <strong>Not yet.</strong> Flat {dRes.flat} (= 0) · V/H leak {dRes.vert}/{dRes.horiz} (≤ 1) · diag {dRes.diag >= 0 ? `+${dRes.diag}` : dRes.diag} (≥ +2).
+        </>
+      )
+    ) : sRes.pass ? (
+      <>
+        <strong>{curOpt ? 'Optimal — 18 weights/filter!' : 'Passing zero-drop stack!'}</strong> 17 → {sRes.h1} → {sRes.h2} with 0 dropped border pixels ({sRes.weightsPerFilter} weights/filter).{' '}
+        {!curOpt && 'Optional: can you hit 17 → 9 → 5 with fewer weights per filter?'}
+      </>
+    ) : (
+      <>
+        <strong>Not yet.</strong> Shape 17 → {sRes.h1} → {sRes.h2} (target 5) · dropped border pixels L1={sRes.drop1}, L2={sRes.drop2} (need 0, 0).
+      </>
+    );
 
-      {briefId === 'vertical' && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center' }}>
-          {renderTernaryEditor('vertW', st.vertW)}
-          <div className="readouts" style={{ flex: '1 1 260px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, margin: 0 }}>
-            <div className="readout">
-              <div className="readout-label">Flat sum (= 0)</div>
-              <div className="readout-value" style={{ color: vRes.flat === 0 ? 'var(--c-good)' : 'var(--c-bad)' }}>{vRes.flat}</div>
+  const revealContent = (
+    <div style={{ display: 'grid', gap: 8 }}>
+      <div style={{ fontSize: 13.5, lineHeight: 1.55 }}>
+        Exhaustive check of all <strong>{exhaust.total.toLocaleString()}</strong> configurations: <strong>{exhaust.passing}</strong> pass. {exhaust.summary}.
+      </div>
+      {exhaust.sampleOptKernel && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>One optimal 3×3 kernel:</span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 30px)', gap: 3 }}>
+            {exhaust.sampleOptKernel.map((w, idx) => (
+              <div
+                key={idx}
+                className="mono"
+                style={{
+                  height: 28,
+                  borderRadius: 4,
+                  border: '1px solid var(--border)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  ...actStyle(w, 1),
+                }}
+              >
+                {w > 0 ? '+1' : String(w)}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // Brief 3: 1D stride coverage ruler for Layer 1 (H = 17 + 2*pad)
+  const l1Total = 17 + 2 * st.pad;
+  const l1Covered = st.k + (Math.max(1, sRes.h1) - 1) * st.stride;
+
+  return (
+    <LabShell
+      title="Lab: Design the Kernel"
+      caption={
+        <>
+          Craft real <code>3×3</code> ternary kernels (exhaustively verified against all <strong>19,683</strong> possible ternary 3×3 kernels) and watch them convolve live over the test patches and a 10×10 edge scene — then engineer a zero-drop 2-layer convolutional stack.
+        </>
+      }
+      briefs={shellBriefs}
+      active={briefIdx}
+      onSelect={(i) => setBriefIdx(i)}
+      progress={progress}
+      passing={curPass}
+      optimal={curOpt}
+      status={statusNode}
+      statusTone={curPass ? 'good' : 'neutral'}
+      hint={convLabHint(briefId, st)}
+      reveal={{ label: `the exhaustive search (${exhaust.total.toLocaleString()} configs)`, content: revealContent }}
+      log={{
+        lines: log.lines,
+        onClear: log.clear,
+        title: 'Kernel bench log',
+        empty: 'Click a kernel cell or change K/P/S to record a test run.',
+      }}
+      actions={
+        <button type="button" className="btn small" onClick={resetBrief}>
+          Reset brief
+        </button>
+      }
+    >
+      {/* Briefs 1 & 2: Ternary 3x3 Editor + Live Patch Responses + 10x10 Feature Map */}
+      {briefId !== 'stack-shape' && sceneMap && (
+        <div style={{ display: 'grid', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px, 100%), 1fr))', gap: 14, alignItems: 'start' }}>
+            {/* Left: Editor + Patch Response Cards */}
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-start' }}>
+                {renderTernaryEditor(briefId === 'vertical' ? 'vertW' : 'diagW', activeKernel)}
+                <div style={{ flex: '1 1 160px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(84px, 1fr))', gap: 6 }}>
+                  {briefId === 'vertical' ? (
+                    <>
+                      {renderPatchCard('Flat', PATCH_FLAT, vRes.flat, vRes.flat === 0, 'need = 0')}
+                      {renderPatchCard('Horiz', PATCH_HORIZ, vRes.horiz, vRes.horiz === 0, 'need = 0')}
+                      {renderPatchCard('Vert', PATCH_VERT, vRes.vertPeak, vRes.vertPeak >= 2, 'need ≥ +2')}
+                    </>
+                  ) : (
+                    <>
+                      {renderPatchCard('Flat', PATCH_FLAT, dRes.flat, dRes.flat === 0, 'need = 0')}
+                      {renderPatchCard('Vert', PATCH_VERT, dotPatch(st.diagW, PATCH_VERT), dRes.vert <= 1, '|r| ≤ 1')}
+                      {renderPatchCard('Horiz', PATCH_HORIZ, dotPatch(st.diagW, PATCH_HORIZ), dRes.horiz <= 1, '|r| ≤ 1')}
+                      {renderPatchCard('Diag ↘', PATCH_DIAG, dRes.diag, dRes.diag >= 2, 'need ≥ +2')}
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="readout">
-              <div className="readout-label">Horiz leak (= 0)</div>
-              <div className="readout-value" style={{ color: vRes.horiz === 0 ? 'var(--c-good)' : 'var(--c-bad)' }}>{vRes.horiz}</div>
-            </div>
-            <div className="readout">
-              <div className="readout-label">Vert peak (≥ +2)</div>
-              <div className="readout-value" style={{ color: vRes.vertPeak >= 2 ? 'var(--c-good)' : 'var(--c-bad)' }}>+{vRes.vertPeak}</div>
-            </div>
-            <div className="readout">
-              <div className="readout-label">Non-zero weights</div>
-              <div className="readout-value" style={{ color: vRes.pass ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                {vRes.nnz} {vRes.pass ? (vRes.nnz === 4 ? '(Opt!)' : 'PASS') : 'FAIL'}
+
+            {/* Right: Live 10x10 Scene Input -> Your Convolved Feature Map */}
+            <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-sunken)', border: '1px solid var(--border)', display: 'grid', gap: 8 }}>
+              <div className="field-label" style={{ margin: 0 }}>Live convolution on a 10×10 edge scene (box + 45° diagonal)</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, justifyContent: 'center', alignItems: 'center' }}>
+                <div style={{ display: 'grid', gap: 3, justifyItems: 'center' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Input scene</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 14px)', gap: 1 }}>
+                    {LAB_EDGE_SCENE.flatMap((row, r) =>
+                      row.map((v, c) => (
+                        <div
+                          key={`in-${r}-${c}`}
+                          style={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: 2,
+                            background: v === 1 ? 'var(--text)' : 'var(--bg)',
+                            border: '1px solid var(--border)',
+                            opacity: v === 1 ? 0.85 : 1,
+                          }}
+                        />
+                      )),
+                    )}
+                  </div>
+                </div>
+                <span className="mono" style={{ fontSize: 16, color: 'var(--text-muted)' }}>* K →</span>
+                <div style={{ display: 'grid', gap: 3, justifyItems: 'center' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Your feature map</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 14px)', gap: 1 }}>
+                    {sceneMap.out.flatMap((row, r) =>
+                      row.map((v, c) => (
+                        <div
+                          key={`out-${r}-${c}`}
+                          title={`(${r},${c}): ${v}`}
+                          style={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: 2,
+                            border: '1px solid var(--border)',
+                            ...actStyle(v, sceneMap.maxAbs),
+                          }}
+                        />
+                      )),
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {briefId === 'diagonal' && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center' }}>
-          {renderTernaryEditor('diagW', st.diagW)}
-          <div className="readouts" style={{ flex: '1 1 260px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, margin: 0 }}>
-            <div className="readout">
-              <div className="readout-label">Flat sum (= 0)</div>
-              <div className="readout-value" style={{ color: dRes.flat === 0 ? 'var(--c-good)' : 'var(--c-bad)' }}>{dRes.flat}</div>
-            </div>
-            <div className="readout">
-              <div className="readout-label">Vert / Horiz (≤ 1)</div>
-              <div className="readout-value" style={{ color: dRes.vert <= 1 && dRes.horiz <= 1 ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                {dRes.vert} / {dRes.horiz}
-              </div>
-            </div>
-            <div className="readout">
-              <div className="readout-label">Diagonal (≥ +2)</div>
-              <div className="readout-value" style={{ color: dRes.diag >= 2 ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                {dRes.diag >= 0 ? `+${dRes.diag}` : dRes.diag}
-              </div>
-            </div>
-            <div className="readout">
-              <div className="readout-label">Status</div>
-              <div className="readout-value" style={{ color: dRes.pass ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                {dRes.pass ? (dRes.diag === 3 ? 'PASS (Opt +3!)' : 'PASS') : 'FAIL'}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
+      {/* Brief 3: 2-Layer Shape Pyramid + 1D Stride-Drop Ruler */}
       {briefId === 'stack-shape' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'grid', gap: 12 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
             <Segmented
               label="Kernel"
               value={st.k}
-              onChange={(v) => setSt((p) => ({ ...p, k: v }))}
+              onChange={(v) => updateStack({ k: v })}
               options={[
                 { value: 3, label: '3×3' },
                 { value: 5, label: '5×5' },
@@ -646,7 +860,7 @@ export function KernelDesignLab() {
             <Segmented
               label="Padding"
               value={st.pad}
-              onChange={(v) => setSt((p) => ({ ...p, pad: v }))}
+              onChange={(v) => updateStack({ pad: v })}
               options={[
                 { value: 0, label: '0' },
                 { value: 1, label: '1' },
@@ -656,50 +870,83 @@ export function KernelDesignLab() {
             <Segmented
               label="Stride"
               value={st.stride}
-              onChange={(v) => setSt((p) => ({ ...p, stride: v }))}
+              onChange={(v) => updateStack({ stride: v })}
               options={[
                 { value: 1, label: '1' },
                 { value: 2, label: '2' },
               ]}
             />
           </div>
-          <div className="readouts" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(125px, 1fr))', gap: 8, margin: 0 }}>
-            <div className="readout">
-              <div className="readout-label">Shape flow (→ 5)</div>
-              <div className="readout-value" style={{ color: sRes.h2 === 5 ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                17 → {sRes.h1} → {sRes.h2}
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px, 100%), 1fr))', gap: 12, alignItems: 'center' }}>
+            {/* Visual spatial pyramid */}
+            <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-sunken)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-around', gap: 8 }}>
+              {[
+                { label: 'Input', size: 17, ok: true },
+                { label: 'After L1', size: sRes.h1, ok: sRes.drop1 === 0 },
+                { label: 'After L2', size: sRes.h2, ok: sRes.h2 === 5 && sRes.drop2 === 0 },
+              ].map((stage, i) => {
+                const px = Math.max(18, Math.min(72, Math.round(stage.size * 4)));
+                return (
+                  <div key={stage.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {i > 0 && <span className="mono" style={{ color: 'var(--text-muted)' }}>→</span>}
+                    <div style={{ display: 'grid', gap: 4, justifyItems: 'center' }}>
+                      <div
+                        style={{
+                          width: px,
+                          height: px,
+                          borderRadius: 4,
+                          border: `2px solid ${stage.ok ? 'var(--c-a)' : 'var(--c-bad)'}`,
+                          background: `color-mix(in srgb, ${stage.ok ? 'var(--c-a)' : 'var(--c-bad)'} 22%, var(--bg))`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 11,
+                          fontWeight: 700,
+                        }}
+                        className="mono"
+                      >
+                        {stage.size}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{stage.label}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 1D Stride-Drop Ruler for Layer 1 */}
+            <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-sunken)', border: '1px solid var(--border)', display: 'grid', gap: 6 }}>
+              <div className="field-label" style={{ margin: 0 }}>Layer 1 row ruler (17 px + {2 * st.pad} pad · dropped={sRes.drop1})</div>
+              <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                {Array.from({ length: l1Total }, (_, idx) => {
+                  const isPad = idx < st.pad || idx >= st.pad + 17;
+                  const dropped = idx >= l1Covered;
+                  return (
+                    <div
+                      key={idx}
+                      title={dropped ? 'Dropped border pixel!' : isPad ? 'Zero padding' : 'Active input pixel'}
+                      style={{
+                        width: 11,
+                        height: 18,
+                        borderRadius: 2,
+                        border: '1px solid var(--border)',
+                        background: dropped ? 'var(--c-bad)' : isPad ? 'var(--bg)' : 'var(--c-a)',
+                        opacity: dropped ? 0.95 : isPad ? 0.5 : 0.78,
+                      }}
+                    />
+                  );
+                })}
               </div>
-            </div>
-            <div className="readout">
-              <div className="readout-label">Dropped border</div>
-              <div className="readout-value" style={{ color: sRes.drop1 === 0 && sRes.drop2 === 0 ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                L1: {sRes.drop1} · L2: {sRes.drop2}
-              </div>
-            </div>
-            <div className="readout">
-              <div className="readout-label">Weights / filter</div>
-              <div className="readout-value">{sRes.weightsPerFilter}</div>
-            </div>
-            <div className="readout">
-              <div className="readout-label">Status</div>
-              <div className="readout-value" style={{ color: sRes.pass ? 'var(--c-good)' : 'var(--c-bad)' }}>
-                {sRes.pass ? (sRes.weightsPerFilter === 18 ? 'PASS (Opt 18!)' : 'PASS') : 'FAIL'}
+              <div className="mono" style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+                Weights/filter: <strong>{sRes.weightsPerFilter}</strong> · L1 drops {sRes.drop1}, L2 drops {sRes.drop2}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
-        <button type="button" className="btn" onClick={() => setShowOpt((v) => !v)}>
-          {showOpt ? 'Hide exhaustive check' : `Reveal exhaustive search (${exhaust.total.toLocaleString()} configs)`}
-        </button>
-        {showOpt && (
-          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            <strong>{exhaust.passing}/{exhaust.total.toLocaleString()}</strong> pass · {exhaust.summary}
-          </div>
-        )}
-      </div>
-    </Widget>
+      <LiveCode code={liveCode} note="PyTorch F.conv2d / nn.Conv2d" />
+    </LabShell>
   );
 }

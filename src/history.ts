@@ -555,6 +555,24 @@ export const HISTORY: HistoryEntry[] = [
       after: { text: 'Modern vision frameworks pack RGB frames into standardised FP16/FP32 NCHW tensors — still obeying the same sampling and colour-space rules.', source: WP('Rec._709') },
     },
   },
+  {
+    id: 'convolution',
+    lessonId: 'convolution',
+    lab: 'Design the Kernel',
+    idea: 'Edge-detecting kernels and the Neocognitron',
+    years: [1959, 1968, 1979],
+    when: '1959 · 1968 · 1979',
+    who: [
+      { text: 'David Hubel and Torsten Wiesel discover orientation-selective simple and complex cells in mammalian primary visual cortex (1959).', source: WP('Neocognitron') },
+      { text: 'Irwin Sobel and Gary Feldman present the 3×3 isotropic edge-gradient kernel at the Stanford Artificial Intelligence Laboratory (SAIL) in 1968.', source: WP('Sobel_operator') },
+      { text: 'Kunihiko Fukushima proposes the Neocognitron (1979/1980), a hierarchical multilayered network that learns shift-invariant convolutional filters.', source: WP('Neocognitron') },
+    ],
+    story: {
+      before: { text: 'Early computer vision relied on hand-crafted integer kernels like Sobel\'s 3×3 filters to extract vertical and horizontal edges.', source: WP('Sobel_operator') },
+      this: { text: 'Fukushima stacked local receptive fields with weight sharing inspired by Hubel and Wiesel, letting a network learn spatial filters automatically.', source: WP('Neocognitron') },
+      after: { text: 'Combining learned convolutional stacks with backpropagation produced modern CNNs — whose first layers still spontaneously rediscover oriented edge filters.', source: WP('Neocognitron') },
+    },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */

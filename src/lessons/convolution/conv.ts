@@ -275,12 +275,22 @@ export const CONV_LAB_BRIEFS: ConvBrief[] = [
 ];
 
 // Canonical 3x3 test patches (row-major 9 values)
-const PATCH_FLAT = [1, 1, 1, 1, 1, 1, 1, 1, 1];
-const PATCH_VERT = [0, 0, 1, 0, 0, 1, 0, 0, 1];       // dark left -> bright right
-const PATCH_VERT_MID = [0, 1, 1, 0, 1, 1, 0, 1, 1];   // shifted vertical step
-const PATCH_HORIZ = [0, 0, 0, 0, 0, 0, 1, 1, 1];      // dark top -> bright bottom
-const PATCH_HORIZ_MID = [0, 0, 0, 1, 1, 1, 1, 1, 1];  // shifted horizontal step
-const PATCH_DIAG = [0, 1, 1, 0, 0, 1, 0, 0, 0];       // bright upper-right triangle
+export const PATCH_FLAT = [1, 1, 1, 1, 1, 1, 1, 1, 1];
+export const PATCH_VERT = [0, 0, 1, 0, 0, 1, 0, 0, 1];       // dark left -> bright right
+export const PATCH_VERT_MID = [0, 1, 1, 0, 1, 1, 0, 1, 1];   // shifted vertical step
+export const PATCH_HORIZ = [0, 0, 0, 0, 0, 0, 1, 1, 1];      // dark top -> bright bottom
+export const PATCH_HORIZ_MID = [0, 0, 0, 1, 1, 1, 1, 1, 1];  // shifted horizontal step
+export const PATCH_DIAG = [0, 1, 1, 0, 0, 1, 0, 0, 0];       // bright upper-right triangle
+
+/** 10x10 synthetic test scene containing a clean vertical edge, horizontal edge, and 45° bright-upper-right diagonal edge. */
+export const LAB_EDGE_SCENE: number[][] = Array.from({ length: 10 }, (_, r) =>
+  Array.from({ length: 10 }, (_, c) => {
+    // Upper-right diagonal half in top-right quadrant + bright box in bottom-left
+    if (r < 5 && c >= 5 && c - 5 >= r) return 1;
+    if (r >= 6 && r <= 8 && c >= 1 && c <= 3) return 1;
+    return 0;
+  }),
+);
 
 function dot9(w: readonly number[], p: readonly number[]): number {
   let s = 0;
@@ -318,7 +328,46 @@ export function evalStackShape(k: 3 | 5, pad: 0 | 1 | 2, stride: 1 | 2) {
   return { k, pad, stride, h1, h2, drop1, drop2, weightsPerFilter, pass };
 }
 
-type ExhaustSummary = { total: number; passing: number; summary: string };
+/** Evidence-only hint for Design the Kernel. */
+export function convLabHint(
+  briefId: ConvBriefId,
+  st: { vertW: number[]; diagW: number[]; k: 3 | 5; pad: 0 | 1 | 2; stride: 1 | 2 },
+): string {
+  if (briefId === 'vertical') {
+    const r = evalVerticalKernel(st.vertW);
+    if (r.pass) {
+      return r.nnz > 4
+        ? `It passes with ${r.nnz} non-zero weights! Check whether you can zero out a whole row and still keep the vertical peak ≥ +2.`
+        : 'Optimal sparsity — 4 non-zero weights is the proven minimum over all 19,683 ternary 3×3 kernels!';
+    }
+    if (r.flat !== 0) return `The 9 weights sum to ${r.flat}, so flat regions glow instead of staying silent. Balance positive and negative weights so the sum is 0.`;
+    if (r.horiz !== 0) return `Horizontal leak is ${r.horiz}: each row of your kernel must sum to 0 on its own so a top-vs-bottom step cancels out completely.`;
+    return 'Zero flat sum and zero horizontal leak are met, but the vertical peak is too weak. Put negative weights on the dark left side and positive weights on the bright right side across more than one row.';
+  }
+  if (briefId === 'diagonal') {
+    const r = evalDiagonalKernel(st.diagW);
+    if (r.pass) {
+      return r.diag < 3
+        ? `Passing at +${r.diag}! Look at the 3 bright upper-right pixels of the diagonal patch: can you align +1s over all three while balancing −1s elsewhere so vertical and horizontal leak stay ≤ 1?`
+        : 'Optimal +3 response — one of only 4 maximal ternary kernels out of 19,683!';
+    }
+    if (r.flat !== 0) return `Flat sum is ${r.flat} (needs 0): balance your +1 and −1 weights equally.`;
+    if (r.diag < 2) return 'Compare your 3×3 grid against the Diagonal test patch: place +1 weights where that patch is bright (upper-right corner) and −1 weights where it is dark.';
+    return `Diagonal response is strong (+${r.diag}), but vertical (${r.vert}) or horizontal (${r.horiz}) leak exceeds 1. Spread the −1 weights along the main diagonal rather than stacking them in one row or column.`;
+  }
+  const r = evalStackShape(st.k, st.pad, st.stride);
+  if (r.pass) {
+    return r.weightsPerFilter > 18
+      ? `It passes with ${r.weightsPerFilter} weights/filter! Check whether a smaller kernel with matching half-padding hits the exact same 17 → 9 → 5 sequence.`
+      : 'Optimal! 18 weights per filter is the leanest zero-drop 17 → 9 → 5 stack.';
+  }
+  if (r.drop1 > 0 || r.drop2 > 0) {
+    return `Look at the 1D stride ruler: L1 drops ${r.drop1} border pixel(s) and L2 drops ${r.drop2}. For stride 2 with zero drops, (H + 2P − K) must be even — try pairing an odd kernel with half-padding P = (K − 1) / 2.`;
+  }
+  return `Output size is currently 17 → ${r.h1} → ${r.h2} (target is 5). To halve a 17×17 map twice cleanly (17 → 9 → 5), you need stride > 1.`;
+}
+
+type ExhaustSummary = { total: number; passing: number; summary: string; sampleOptKernel?: number[] };
 const EXHAUST_CACHE = new Map<ConvBriefId, ExhaustSummary>();
 
 export function convLabExhaustive(id: ConvBriefId): ExhaustSummary {
@@ -353,6 +402,7 @@ export function convLabExhaustive(id: ConvBriefId): ExhaustSummary {
   let passing = 0;
   let bestMetric = id === 'vertical' ? Infinity : -Infinity;
   let bestCount = 0;
+  let sampleOptKernel: number[] | undefined;
 
   for (let mask = 0; mask < 19683; mask++) {
     let x = mask;
@@ -368,6 +418,7 @@ export function convLabExhaustive(id: ConvBriefId): ExhaustSummary {
       if (r.nnz < bestMetric) {
         bestMetric = r.nnz;
         bestCount = 1;
+        sampleOptKernel = [...w];
       } else if (r.nnz === bestMetric) {
         bestCount++;
       }
@@ -378,6 +429,7 @@ export function convLabExhaustive(id: ConvBriefId): ExhaustSummary {
       if (r.diag > bestMetric) {
         bestMetric = r.diag;
         bestCount = 1;
+        sampleOptKernel = [...w];
       } else if (r.diag === bestMetric) {
         bestCount++;
       }
@@ -389,7 +441,7 @@ export function convLabExhaustive(id: ConvBriefId): ExhaustSummary {
       ? `Fewest non-zero weights: ${bestMetric} (${bestCount} optimal kernels out of all 19,683 ternary 3×3s)`
       : `Maximum diagonal response: +${bestMetric} (${bestCount} optimal kernels out of all 19,683 ternary 3×3s)`;
 
-  const res = { total, passing, summary };
+  const res = { total, passing, summary, sampleOptKernel };
   EXHAUST_CACHE.set(id, res);
   return res;
 }
