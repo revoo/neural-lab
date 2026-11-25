@@ -3,6 +3,7 @@ import { Widget } from '../../components/Widget';
 import { Segmented, Slider, Toggle } from '../../components/controls';
 import { Plot, usePlot } from '../../components/plot';
 import { Heatmap, diverging, fieldImage, sequential } from '../../components/heatmap';
+import { MachineLog, useMachineLog } from '../../components/MachineLog';
 import { NetDiagram } from '../../components/NetDiagram';
 import {
   DATASET_LABELS,
@@ -180,6 +181,37 @@ export function TrainingLab() {
   const [showTest, setShowTest] = useState(true);
   const [running, setRunning] = useState(false);
   const [hist, setHist] = useState<Hist>([]);
+  // Event log: flag the moments worth noticing while a run trains.
+  const events = useMachineLog();
+  const flags = useRef<{ overfit: boolean; perfect: boolean; half: boolean; diverged: boolean }>({ overfit: false, perfect: false, half: false, diverged: false });
+  useEffect(() => {
+    if (hist.length <= 1) {
+      flags.current = { overfit: false, perfect: false, half: false, diverged: false };
+      return;
+    }
+    const last = hist[hist.length - 1];
+    const f = flags.current;
+    const k = 4; // compare checkpoints a few frames apart, so noise doesn't count as a trend
+    if (!f.overfit && hist.length > 3 * k) {
+      const a = hist[hist.length - 1 - 3 * k], b = hist[hist.length - 1 - 2 * k], c = hist[hist.length - 1 - k];
+      if (a.test < b.test && b.test < c.test && c.test < last.test && last.train < a.train) {
+        f.overfit = true;
+        events.push(`step ${last.step}: test loss up 3 checks in a row (${a.test.toFixed(3)} → ${last.test.toFixed(3)}) while train loss falls: overfitting has started`, 'bad');
+      }
+    }
+    if (!f.half && last.testAcc >= 0.9) {
+      f.half = true;
+      events.push(`step ${last.step}: test accuracy reached ${(100 * last.testAcc).toFixed(0)}%`, 'good');
+    }
+    if (!f.perfect && last.trainAcc >= 1) {
+      f.perfect = true;
+      events.push(`step ${last.step}: every training point right (test ${(100 * last.testAcc).toFixed(0)}%)`);
+    }
+    if (!f.diverged && !Number.isFinite(last.train)) {
+      f.diverged = true;
+      events.push(`step ${last.step}: the loss is no longer a number: training diverged`, 'bad');
+    }
+  }, [hist]); // eslint-disable-line react-hooks/exhaustive-deps
   const [version, setVersion] = useState(0);
   const [snaps, setSnaps] = useState<Snapshot[]>([]);
   const [bests, setBests] = useState<Record<string, number>>(loadBests);
@@ -560,6 +592,7 @@ export function TrainingLab() {
             Loss: <span className="c-a">train ——</span> <span className="c-b">test - - -</span>
           </div>
           <LossChart hist={hist} snaps={snaps} />
+          <MachineLog lines={events.lines} onClear={events.clear} title="Events" empty="Moments worth noticing during a run are flagged here." />
         </div>
         <div className="widget-col" style={{ flex: '1 1 300px' }}>
           {challenge ? (
