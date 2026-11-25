@@ -173,8 +173,8 @@ Running this prints `GPT-3 175B: L=2.0085 | opt 53.0B params, 0.99T tokens -> L*
 
 <InTheWild>
 
-OpenAI's GPT-4 technical report (2023) famously revealed that they predicted GPT-4's final training loss accurately using runs requiring **less than 1/1,000th** of GPT-4's compute — turning billion-dollar pretraining from blind guesswork into quantitative engineering. Since 2023, nearly every open-weights family (Llama 3, Gemma 2, Qwen 2.5, Mistral) has deliberately embraced **over-training** smaller models (7B–70B) on 10–36 trillion tokens so they fit cleanly on consumer and datacentre GPUs. And that brings us straight to the hardware underneath it all.
+OpenAI's GPT-4 technical report (2023) famously revealed that they predicted GPT-4's final training loss accurately using runs requiring **less than 1/1,000th** of GPT-4's compute — turning billion-dollar pretraining from blind guesswork into quantitative engineering. Since 2023, nearly every open-weights family (Llama 3, Gemma 2, Qwen 2.5, Mistral) has deliberately embraced **over-training** smaller models (7B–70B) on 10–36 trillion tokens so they fit cleanly on consumer and datacentre GPUs.
 
 </InTheWild>
 
-You've completed <ModuleRef id="llms" short /> — from next-token prediction and perplexity through sampling to scaling laws. Next: **<ModuleRef id="inference" />** — what actually happens on the GPU, why floating-point precision and quantisation matter, and why KV caching and memory bandwidth rule LLM serving speed.
+You've completed <ModuleRef id="llms" short /> — from next-token prediction and perplexity through sampling to scaling laws. Next: **<ModuleRef id="rl" />** — agents that learn from rewards rather than from right answers. It looks like a detour from language models, but it is the machinery that turns a next-token predictor into an assistant in <ModuleRef id="finetuning" short />.

@@ -14,6 +14,8 @@ That is where **preference alignment** comes in: **<Term id="rlhf">RLHF</Term>**
 
 ## 1. Why preferences beat scores — and why RLHF needs a KL leash
 
+In <ModuleRef id="rl" /> an agent learned a <LessonLink to="policy-gradients">policy</LessonLink>, a rule for choosing actions, by chasing rewards, and the <LessonLink to="reward-hacking">reward-hacking lab</LessonLink> showed what happens when the reward is slightly wrong. RLHF is the same machine with a language model as the policy and a learned model of human preferences as the reward.
+
 Ask ten humans to rate an assistant reply from 1 to 10 and they disagree wildly (one person’s 7 is another person’s 9). Show them **two** replies side by side and ask *"Which one is better? ($y_w \succ y_l$)"*, and agreement jumps sharply.
 
 The classic **RLHF** pipeline turns those pairwise votes into an assistant in two steps:

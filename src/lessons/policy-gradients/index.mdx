@@ -291,7 +291,7 @@ The policy never settles exactly on 0.586: each episode's update is a noisy samp
 
 <InTheWild>
 
-PPO became the workhorse of deep reinforcement learning: OpenAI Five played Dota 2 with it, and it trained the policy in the RLHF pipeline behind InstructGPT and the first ChatGPT — the same pipeline you met in the RLHF lesson, where the "action" is a whole answer and the reward comes from a learned reward model. There the critic is another large network, which doubles the memory bill. DeepSeek's **GRPO** (2024) drops it: for each prompt it samples a group of answers and uses the group's average reward as the baseline (dividing by the group's spread, too). That's exactly Brief 2's lesson — a baseline *per situation*, here estimated by sampling the same prompt several times instead of learning V(s).
+PPO became the workhorse of deep reinforcement learning: OpenAI Five played Dota 2 with it, and it trained the policy in the RLHF pipeline behind InstructGPT and the first ChatGPT — the pipeline coming up in <ModuleRef id="finetuning" />, where the "action" is a whole answer and the reward comes from a learned reward model. There the critic is another large network, which doubles the memory bill. DeepSeek's **GRPO** (2024) drops it: for each prompt it samples a group of answers and uses the group's average reward as the baseline (dividing by the group's spread, too). That's exactly Brief 2's lesson — a baseline *per situation*, here estimated by sampling the same prompt several times instead of learning V(s).
 
 </InTheWild>
 

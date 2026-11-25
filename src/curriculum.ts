@@ -181,8 +181,20 @@ export const MODULES: ModuleMeta[] = [
     ],
   },
   {
-    id: 'finetuning',
+    id: 'rl',
     number: 14,
+    title: 'Reinforcement Learning',
+    blurb: 'Agents that learn from consequences — and exploit badly specified rewards.',
+    lessons: [
+      { id: 'mdps', title: 'States, Actions, Rewards & Value', summary: 'How discount factor γ controls myopia, how stochastic transitions create cautious detours, Bellman’s dynamic-programming equation — and Lab: Wire the Policy.', minutes: 30, load: () => import('./lessons/mdps/index.mdx') },
+      { id: 'q-learning', title: 'Q-Learning & Exploration', summary: 'Multi-armed bandits and UCB1, model-free TD backups on a live Q-table, Q-learning vs SARSA on Cliff Walking — and Lab: Tune the Q-Learner.', minutes: 35, load: () => import('./lessons/q-learning/index.mdx') },
+      { id: 'policy-gradients', title: 'Policy Gradients, Baselines & Actor-Critic', summary: 'Why some problems need random policies, the log-derivative push, why baselines are free, actor-critic’s one-step judgement, PPO’s clip — and Lab: Stabilise the Policy Gradient.', minutes: 40, load: () => import('./lessons/policy-gradients/index.mdx') },
+      { id: 'reward-hacking', title: 'Lab: The Reward-Hacking Sandbox', summary: 'Why optimisers farm renewable bonuses, the boat-race loop solved exactly, naive vs potential-based shaping — and a lab where an exact optimiser attacks every reward you write.', minutes: 35, load: () => import('./lessons/reward-hacking/index.mdx') },
+    ],
+  },
+  {
+    id: 'finetuning',
+    number: 15,
     title: 'Training & Fine-Tuning',
     blurb: 'Pretraining, fine-tuning, LoRA, RLHF and the rest of the post-training toolkit.',
     lessons: [
@@ -192,24 +204,12 @@ export const MODULES: ModuleMeta[] = [
   },
   {
     id: 'inference',
-    number: 15,
+    number: 16,
     title: 'Inference & Hardware',
     blurb: 'What actually happens on the GPU, and why memory bandwidth rules everything.',
     lessons: [
       { id: 'quantization', title: 'Floating-Point Formats & Quantisation', summary: 'Flip the bits of FP16, BF16 and FP8, watch one outlier crush per-tensor INT4, and solve a mixed-precision quantisation budget lab.', minutes: 30, load: () => import('./lessons/quantization/index.mdx') },
       { id: 'kv-cache', title: 'KV Caching & Memory-Bound Decoding', summary: 'Why naive decoding wastes 400× work, how GQA shrinks the KV cache, why an H100 runs at 0.36% compute during single-user chat — and Lab: VRAM Tetris.', minutes: 35, load: () => import('./lessons/kv-cache/index.mdx') },
-    ],
-  },
-  {
-    id: 'rl',
-    number: 16,
-    title: 'Reinforcement Learning',
-    blurb: 'Agents that learn from consequences — and exploit badly specified rewards.',
-    lessons: [
-      { id: 'mdps', title: 'States, Actions, Rewards & Value', summary: 'How discount factor γ controls myopia, how stochastic transitions create cautious detours, Bellman’s dynamic-programming equation — and Lab: Wire the Policy.', minutes: 30, load: () => import('./lessons/mdps/index.mdx') },
-      { id: 'q-learning', title: 'Q-Learning & Exploration', summary: 'Multi-armed bandits and UCB1, model-free TD backups on a live Q-table, Q-learning vs SARSA on Cliff Walking — and Lab: Tune the Q-Learner.', minutes: 35, load: () => import('./lessons/q-learning/index.mdx') },
-      { id: 'policy-gradients', title: 'Policy Gradients, Baselines & Actor-Critic', summary: 'Why some problems need random policies, the log-derivative push, why baselines are free, actor-critic’s one-step judgement, PPO’s clip — and Lab: Stabilise the Policy Gradient.', minutes: 40, load: () => import('./lessons/policy-gradients/index.mdx') },
-      { id: 'reward-hacking', title: 'Lab: The Reward-Hacking Sandbox', summary: 'Why optimisers farm renewable bonuses, the boat-race loop solved exactly, naive vs potential-based shaping — and a lab where an exact optimiser attacks every reward you write.', minutes: 35, load: () => import('./lessons/reward-hacking/index.mdx') },
     ],
   },
   {
