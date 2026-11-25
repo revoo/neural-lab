@@ -148,7 +148,7 @@ The owner asked for the plan in `docs/LAB_IMPROVEMENTS.md` to be implemented in 
   - [x] Compress the corpus: live re-segmenting sentence + merge log; "optimum" settled: beam search (width up to 128, pinned in bpe.test.ts) finds no total below 1,806 bits, goal relabelled "best total found"
   - [x] Build a previous-word head: clock hands under the bars
   - [x] Superposition: rotatable cube for Brief 1, clash log
-  - [ ] Write the backward pass: collection of the correct versions, wrong-but-trains call-out, gradient-check log
+  - [x] Write the backward pass: collection of the correct versions, wrong-but-trains call-out, gradient-check log
   - [ ] Training-lab challenges: reference network's neuron maps after a challenge
   - [ ] Rescue the deep network: per-layer log
   - [ ] Attention puzzles: worked q·k → ÷√2 → exp → share table

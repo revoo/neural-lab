@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Widget } from '../../components/Widget';
+import { MachineLog, useMachineLog } from '../../components/MachineLog';
 import { Segmented } from '../../components/controls';
 import { LogChart } from '../../components/LogChart';
 import {
   OPTIONS,
+  numericalGrads,
   PARTNER,
   SLOTS,
   X_XOR,
@@ -318,6 +320,34 @@ export function BackwardLab() {
     }
   }, [pass, key]); // eslint-disable-line react-hooks/exhaustive-deps
   const failedAt = !run.ok ? run.slot : null;
+  const log = useMachineLog();
+  // A gradient-check log: a few weights, yours against the measured slope.
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      const code = SLOTS.map((sl) => OPTIONS[sl][choice[sl]].code).join(' · ');
+      if (!run.ok) {
+        log.push(`${code} → shape error in ${run.slot}`, 'bad');
+        return;
+      }
+      const num = numericalGrads(P);
+      log.push(`gradient check: ${code}`);
+      for (const [k, i, j] of [['W1', 0, 2], ['W2', 1, 0], ['b1', 0, 1]] as const) {
+        const mine = run.grads[k][i][j];
+        const meas = num[k][i][j];
+        const ok = Math.abs(mine - meas) / Math.max(1e-8, Math.abs(mine) + Math.abs(meas)) < 1e-5;
+        log.push(`   ${k}[${i},${j}]: yours ${mine.toFixed(6)}, measured ${meas.toFixed(6)} ${ok ? '✓' : '✗'}`, ok ? 'info' : 'bad');
+      }
+      log.push(`   ${pass ? 'every weight agrees: correct' : 'some weights disagree: wrong, however well it trains'}`, pass ? 'good' : 'bad');
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [wrongTrains, setWrongTrains] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(STORE + ':wrong-trains') ?? '[]');
+    } catch {
+      return [];
+    }
+  });
 
   return (
     <Widget
@@ -401,7 +431,18 @@ export function BackwardLab() {
               disabled={!check.ok}
               onClick={() => {
                 const r = train(choice, 3, 1, 300);
-                setTrained({ losses: r.losses, acc: r.error ? 0 : accuracy(r.P), error: r.error });
+                const acc = r.error ? 0 : accuracy(r.P);
+                setTrained({ losses: r.losses, acc, error: r.error });
+                log.push(`trained 300 steps: final loss ${r.losses[r.losses.length - 1]?.toFixed(4)}, ${acc * 4} of 4 right${!pass && acc === 1 ? ' · wrong gradients, and it trained anyway' : ''}`, acc === 1 ? 'good' : 'bad');
+                if (!pass && acc === 1 && !wrongTrains.includes(key)) {
+                  const next = [...wrongTrains, key];
+                  setWrongTrains(next);
+                  try {
+                    localStorage.setItem(STORE + ':wrong-trains', JSON.stringify(next));
+                  } catch {
+                    /* ignore */
+                  }
+                }
               }}
             >
               ▶ Train 300 steps with this code
@@ -428,12 +469,32 @@ export function BackwardLab() {
               </div>
             </>
           )}
+          {!pass && trained && trained.acc === 1 && (
+            <div className="callout misconception" style={{ margin: '10px 0' }}>
+              <div className="callout-title">Wrong, and it trained anyway</div>
+              You’ve found {wrongTrains.length} of the 2 wrong backward passes in these menus that still solve XOR. “It trained” is not evidence the gradients are right; the gradient check is.
+            </div>
+          )}
           <div style={{ marginTop: 10, fontSize: 13.5 }}>
-            <strong>Correct versions found: {found.length}</strong>
-            <span className="muted"> — different ways of writing a backward pass that passes the check.</span>
+            <strong>Correct versions found: {found.length} of 24</strong>
+            <span className="muted"> — different ways of writing a backward pass that pass the check (24 of the 1,024 combinations do).</span>
           </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(18px, 1fr))', gap: 3, maxWidth: 300, marginTop: 6 }} aria-label="Collection of correct versions found">
+            {Array.from({ length: 24 }, (_, i) => {
+              const f = found[i];
+              return (
+                <span
+                  key={i}
+                  title={f ? SLOTS.map((sl, k) => `${sl} = ${OPTIONS[sl][Number(f[k])].code}`).join('\n') : 'not found yet'}
+                  style={{ height: 18, borderRadius: 4, border: '1px solid var(--border)', background: f ? 'var(--c-good)' : 'var(--bg-sunken)', opacity: f ? 0.85 : 1 }}
+                />
+              );
+            })}
+          </div>
+          {found.length > 0 && <div className="muted" style={{ fontSize: 12 }}>Hover a filled square to see that version.</div>}
         </div>
       </div>
+      <MachineLog lines={log.lines} onClear={log.clear} empty="Fill the blanks: each gradient check is logged here, weight by weight." />
       {found.length > 0 && (
         <div className="nfs-golf">
           <h4 style={{ margin: '0 0 6px' }}>Optional: train it fast</h4>
