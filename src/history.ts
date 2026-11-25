@@ -36,6 +36,20 @@ const WP = (page: string) => `https://en.wikipedia.org/wiki/${page}`;
 
 export const HISTORY: HistoryEntry[] = [
   {
+    id: 'pipeline',
+    lessonId: 'matrix-multiplication',
+    lab: 'Build the Pipeline',
+    idea: 'Faster matrix multiplication',
+    years: [1969],
+    when: '1969',
+    who: [{ text: 'Volker Strassen published a faster matrix multiplication algorithm in 1969.', source: WP('Strassen_algorithm') }],
+    story: {
+      before: { text: 'Schoolbook multiplication computes each output by taking one row against one column.', source: WP('Strassen_algorithm') },
+      this: { text: 'Strassen used sums and differences of blocks to reduce the number of block multiplications.', source: WP('Strassen_algorithm') },
+      after: { text: 'The result established that the schoolbook algorithm for general matrix multiplication could be beaten.', source: WP('Strassen_algorithm') },
+    },
+  },
+  {
     id: 'untangle',
     lessonId: 'matrices',
     lab: 'Untangle the Data',

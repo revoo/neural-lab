@@ -2,7 +2,7 @@
 
 You're picking up **Neural Lab**, an interactive website that teaches AI from first principles: Feynman-style explanation, 3Blue1Brown-style visuals, Zachtronics-style labs. This file is the onboarding procedure. Follow it in order. (Agent rules in brief: `AGENTS.md` / `CLAUDE.md`.)
 
-## 0. Resume here: curriculum plan, WP1.8 Lab 3 complete
+## 0. Resume here: curriculum plan, WP1.8 Lab 4 complete
 
 The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented step by step (WP0 → WP9), and for **WP0 through WP2** in the current run. The previous agent (Claude Opus 5.5) stopped at the owner's request after WP1.8 Lab 2. Work through Lab 2 was pushed on `claude/cool-feynman-4hci4d`.
 
@@ -294,11 +294,11 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 �
 - [x] WP1.5 Predict-first moments
 - [x] WP1.6 KL divergence in `information`
 - [x] WP1.7 Motion: the 3Blue1Brown pass
-- [ ] WP1.8 Nine maths labs (**IN PROGRESS**: Labs 1–3 done; next is Lab 4):
+- [ ] WP1.8 Nine maths labs (**IN PROGRESS**: Labs 1–4 done; next is Lab 5):
   - [x] Lab 1 vectors · The Feature Workbench
   - [x] Lab 2 dot-product · Tune the Spam Scorer
   - [x] Lab 3 matrices · Untangle the Data
-  - [ ] Lab 4 matrix-multiplication · Build the Pipeline
+  - [x] Lab 4 matrix-multiplication · Build the Pipeline
   - [ ] Lab 5 derivatives · The Sensitivity Probe
   - [ ] Lab 6 gradients · Which Knob, and How Far?
   - [ ] Lab 7 chain-rule · Find the Slipping Gear

@@ -1,3 +1,4 @@
+import { PipelineLab } from './PipelineLab'
 import { MatMulStepper } from './MatMulStepper'
 import { CompositionDemo } from './CompositionDemo'
 import { ShapeLab } from './ShapeLab'
@@ -124,6 +125,28 @@ Element-wise operations like `+` need matching shapes — except that libraries 
 The most common use is adding a bias: a `(128,)` vector added to a `(32, 128)` batch gets repeated for each of the 32 rows. The most common bug is the same thing going subtly wrong, because broadcasting will happily produce a result of the "wrong" shape without any error at all.
 
 <ShapeLab />
+
+## Lab: Build the Pipeline
+
+Every tile expects a particular number of inputs. The output width of each tile has to fit the input width of the one that follows. What happens to the batch dimension as you add layers?
+
+<LabJob>Wire a digit reader to turn a batch of images into ten scores per image. Once it works, see how cheaply you can build it.</LabJob>
+
+<PipelineLab />
+
+<Deeper title="Debrief: the cost of a working chain" tag="Spoiler">
+
+The search tried all 1,110 chains of up to three tiles. Eight reached the score shape. With at least one wide hidden layer, the smallest chain uses 9,120 weights. With two wide hidden layers, the cheapest batch takes 1,908,736 multiply-adds.
+
+For the grid, the shortest recipe takes three tiles and there are three such recipes. Doubling commutes with both the shear and the turn, so you can move it through the chain. Swapping the shear and the turn changes where the marked diagonal lands.
+
+</Deeper>
+
+<ForReal>Layer widths set the cost of a forward pass. Every extra input to a layer adds one weight for each output, and the layer uses that weight again for each image in the batch.</ForReal>
+
+<HistoryCard id="pipeline" />
+
+You've just wired the batch flow that runs in <LessonLink to="forward-propagation">the forward pass</LessonLink>.
 
 ## In code
 
