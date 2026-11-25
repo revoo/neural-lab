@@ -34,7 +34,7 @@ Weights and biases come in half-steps between −2 and +2. The puzzles start wit
 
 Think in terms of **what the bias means**: it's the tally when every input is off. Then each input that switches on adds its weight. For AND, you want "nothing" and "one input" to stay at or below zero, but "both inputs" to climb above it. Every single-neuron puzzle is a variation on that reasoning: decide where the tally *starts*, and how far each input *moves* it.
 
-For XOR, remember the last lesson: one neuron draws one line, and XOR needs two. So use the hidden layer to build two simpler detectors — gates you've already built — and let the output neuron combine their answers. That's the whole trick of hidden layers, and now it's in your hands rather than on a diagram.
+For XOR, remember <LessonLink to="neuron">the neuron lesson</LessonLink>: one neuron draws one line, and XOR needs two. So use the hidden layer to build two simpler detectors — gates you've already built — and let the output neuron combine their answers. That's the whole trick of hidden layers, and now it's in your hands rather than on a diagram.
 
 ## What you just discovered
 

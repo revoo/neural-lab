@@ -9,7 +9,7 @@ import { questions } from './quiz';
 
 # CNNs and Feature Maps
 
-In the previous lesson, a single `3×3` kernel could spot a vertical edge or a tiny cross. Real images are far richer than edges: a photograph of a bicycle contains spokes, tyres, handlebars, pedals, and a rider — shapes spanning dozens or hundreds of pixels.
+In <LessonLink to="convolution">the convolution lesson</LessonLink>, a single `3×3` kernel could spot a vertical edge or a tiny cross. Real images are far richer than edges: a photograph of a bicycle contains spokes, tyres, handlebars, pedals, and a rider — shapes spanning dozens or hundreds of pixels.
 
 How does a **<Term id="cnn">Convolutional Neural Network (CNN)</Term>** go from tiny `3×3` local dot products to recognising a whole bicycle anywhere in a high-resolution photo?
 
@@ -44,7 +44,7 @@ Build stacks below and watch how quickly pooling expands the receptive field —
 
 ## 2. Pooling: trading pixel coordinates for shift invariance
 
-Remember from the previous lesson that convolution is translation **equivariant**: nudge an edge 1 pixel to the right, and the feature map nudges 1 pixel to the right.
+Remember from <LessonLink to="convolution">the convolution lesson</LessonLink> that convolution is translation **equivariant**: nudge an edge 1 pixel to the right, and the feature map nudges 1 pixel to the right.
 
 Add **`2×2` Max Pooling** (stride 2): each `2×2` block simply reports its single strongest activation. If an edge jitters by 1 pixel inside its `2×2` block, the pooled output does not budge by a single decimal place!
 

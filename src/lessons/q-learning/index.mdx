@@ -4,7 +4,7 @@ import { questions } from './quiz'
 
 ## The problem: learning without the simulator's source code
 
-Value Iteration from the previous lesson felt almost like magic — give it a grid, and it instantly handed back the exact optimal policy. Yet it had one glaring catch: we had to hand it the entire **transition table** $P(s' \mid s, a)$ and **reward table** $R$ up front.
+Value Iteration from <LessonLink to="mdps">the MDPs lesson</LessonLink> felt almost like magic — give it a grid, and it instantly handed back the exact optimal policy. Yet it had one glaring catch: we had to hand it the entire **transition table** $P(s' \mid s, a)$ and **reward table** $R$ up front.
 
 In real problems, nobody gives you the physics engine. You don't know ahead of time which corridor holds a pit, which ad headline converts best, or how a real robot arm responds to torque on a worn joint. You can only **try an action, watch what happens next, and update your beliefs**.
 

@@ -4,7 +4,7 @@ import { questions } from './quiz'
 
 ## The problem: one shot is too much to ask
 
-The VAE in the last lesson generated a face in one go: one random code, one pass through the decoder, done. That's fast, but it asks a single network to turn pure randomness into a finished picture in a single leap, and its pictures came out a little soft.
+The VAE in <LessonLink to="autoencoders">the autoencoders lesson</LessonLink> generated a face in one go: one random code, one pass through the decoder, done. That's fast, but it asks a single network to turn pure randomness into a finished picture in a single leap, and its pictures came out a little soft.
 
 Here's a strange observation that leads somewhere better. *Destroying* a picture is trivially easy. Add a little random noise, then a little more, and after enough rounds any picture becomes static. No learning needed. The question **<Term id="diffusion-model">diffusion models</Term>** ask is: what if we learned to undo that destruction, one small step at a time?
 
@@ -227,7 +227,7 @@ Here the denoiser is perfect, so the only thing being tested is your **step plan
 
 <InTheWild>
 
-Stable Diffusion, DALL·E 2 and 3 and Imagen are diffusion models, and the same idea generates video (Sora, Veo), audio and even protein structures (AlphaFold 3 builds its predicted structures with a diffusion module). Most image models don't diffuse pixels directly: they run diffusion in the latent space of a VAE-style autoencoder, as you saw at the end of the last lesson, so each denoiser call works on a 64 × 64 × 4 latent rather than a 512 × 512 × 3 image. Samplers have been an active engineering field of their own. DDIM made 50-step generation practical; solvers such as DPM-Solver and the step spacing of Karras et al. (2022) brought good images to around 20 steps; and *distillation* and *consistency models* train a student network to jump in 1 to 4 steps. Newer models such as Stable Diffusion 3 use **flow matching**, a close cousin that trains the network to predict a straight-line direction from noise to data instead of the noise itself.
+Stable Diffusion, DALL·E 2 and 3 and Imagen are diffusion models, and the same idea generates video (Sora, Veo), audio and even protein structures (AlphaFold 3 builds its predicted structures with a diffusion module). Most image models don't diffuse pixels directly: they run diffusion in the latent space of a VAE-style autoencoder, as you saw at the end of <LessonLink to="autoencoders">the autoencoders lesson</LessonLink>, so each denoiser call works on a 64 × 64 × 4 latent rather than a 512 × 512 × 3 image. Samplers have been an active engineering field of their own. DDIM made 50-step generation practical; solvers such as DPM-Solver and the step spacing of Karras et al. (2022) brought good images to around 20 steps; and *distillation* and *consistency models* train a student network to jump in 1 to 4 steps. Newer models such as Stable Diffusion 3 use **flow matching**, a close cousin that trains the network to predict a straight-line direction from noise to data instead of the noise itself.
 
 </InTheWild>
 

@@ -31,7 +31,7 @@ Hand a document to one researcher and ask them to find the main character, the t
 
 </Analogy>
 
-That's **<Term id="multi-head-attention">multi-head attention</Term>**. Each head is a complete attention computation, exactly the one you built in the last lesson, on its own (shorter) vectors. The heads' outputs are **concatenated** — laid end to end — and a final learned matrix, $W_O$, mixes them back into one vector per word, the editor stapling the notes together.
+That's **<Term id="multi-head-attention">multi-head attention</Term>**. Each head is a complete attention computation, exactly the one you built in <LessonLink to="attention">the attention lesson</LessonLink>, on its own (shorter) vectors. The heads' outputs are **concatenated** — laid end to end — and a final learned matrix, $W_O$, mixes them back into one vector per word, the editor stapling the notes together.
 
 <Eq
   words="\text{multi-head output} = \big[\,\text{head}_1 \;\big|\; \text{head}_2 \;\big|\; \cdots \;\big|\; \text{head}_h\,\big] \times \text{output mixer}"

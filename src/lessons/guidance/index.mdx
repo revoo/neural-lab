@@ -4,7 +4,7 @@ import { questions } from './quiz'
 
 ## The problem: "a cat in a hat", not just any picture
 
-The diffusion model from the last lesson makes *some* plausible sample, chosen by its random starting noise. Useful, but not what anyone types into an image generator. People ask for something: a class ("a dog"), a sentence ("a watercolour of a lighthouse at dusk"), a sketch to follow. The model has to be **steered**.
+The diffusion model from <LessonLink to="diffusion">the diffusion lesson</LessonLink> makes *some* plausible sample, chosen by its random starting noise. Useful, but not what anyone types into an image generator. People ask for something: a class ("a dog"), a sentence ("a watercolour of a lighthouse at dusk"), a sketch to follow. The model has to be **steered**.
 
 There are two ideas here, and the second is the one that made text-to-image generation look as good as it does. The first, **<Term id="conditioning">conditioning</Term>**, gives the denoiser the request as an extra input. The second, **<Term id="classifier-free-guidance">guidance</Term>**, exaggerates the effect of that input. Guidance has a price, and in our small world we can measure exactly what it is.
 
@@ -33,7 +33,7 @@ The label's push is large exactly where the classifier is unsure, and nearly zer
   tex="\cc{\nabla_x \log p(x \mid \text{blue})} = \nabla_x \log p(x) + \cv{\nabla_x \log p(\text{blue} \mid x)}"
 >
 
-- $p(x)$ — how likely the noisy point $x$ is, ignoring labels; its gradient $\nabla_x \log p(x)$ points towards likelier data (the "score" from the last lesson's deeper note, which the denoiser's best guess is equivalent to)
+- $p(x)$ — how likely the noisy point $x$ is, ignoring labels; its gradient $\nabla_x \log p(x)$ points towards likelier data (the "score" from the deeper note in <LessonLink to="diffusion">the diffusion lesson</LessonLink>, which the denoiser's best guess is equivalent to)
 - $\cc{p(x \mid \text{blue})}$ — how likely $x$ is among blue data only: what a **conditional** denoiser follows
 - $\cv{p(\text{blue} \mid x)}$ — a **classifier**'s confidence that the noisy point is blue. Its gradient points the way the point should move to look more blue
 - The equation is Bayes' rule, $p(x \mid \text{blue}) = p(x)\, p(\text{blue} \mid x) / p(\text{blue})$, after taking logs and gradients (the constant $p(\text{blue})$ disappears)
@@ -49,7 +49,7 @@ Here's the trick that every modern image generator uses. If the label's push hel
   tex="\cp{\tilde\varepsilon} = \hat\varepsilon(x_t) + \cg{w}\,\big(\cc{\hat\varepsilon(x_t, \text{blue})} - \hat\varepsilon(x_t)\big)"
 >
 
-- $\hat\varepsilon(x_t)$ — the denoiser's noise prediction **without** the label (guessing the noise and guessing the clean point are interchangeable, as in the last lesson)
+- $\hat\varepsilon(x_t)$ — the denoiser's noise prediction **without** the label (guessing the noise and guessing the clean point are interchangeable, as in <LessonLink to="diffusion">the diffusion lesson</LessonLink>)
 - $\cc{\hat\varepsilon(x_t, \text{blue})}$ — its prediction **with** the label
 - $\cg{w}$ — the **guidance scale**: $w = 0$ ignores the label, $w = 1$ is plain conditioning, $w > 1$ exaggerates the label
 - $\cp{\tilde\varepsilon}$ — the **guided** prediction, used in place of the ordinary one at every sampling step
@@ -197,4 +197,4 @@ Classifier-free guidance is in practically every text-to-image and text-to-video
 
 </InTheWild>
 
-That completes the generative toolkit: VAEs that generate in one shot from a well-organised latent space, diffusion models that build samples out of noise one best guess at a time, and guidance to steer them. The last module puts models to work inside real software: **AI systems engineering**.
+That completes the generative toolkit: VAEs that generate in one shot from a well-organised latent space, diffusion models that build samples out of noise one best guess at a time, and guidance to steer them. <ModuleRef id="systems" /> puts models to work inside real software: **AI systems engineering**.

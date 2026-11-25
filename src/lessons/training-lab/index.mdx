@@ -73,7 +73,7 @@ Load **Few noisy points, big network**: 100 very noisy points on the circle, onl
 
 The training loss falls; training accuracy climbs above 90%. Meanwhile the **test** loss *rises* — in our run, from 1.4 at step 100 to almost 5 by step 2,000 — and test accuracy hovers in the mid-50s. Look at the background: the network has drawn little islands around individual noisy training points. It has **memorised** the training data, noise and all, instead of learning the circle.
 
-This gap between training and test performance is called **<Term id="overfitting">overfitting</Term>**, and it's why the test set exists: a model is only as good as its performance on data it hasn't seen. It's the subject of the next module.
+This gap between training and test performance is called **<Term id="overfitting">overfitting</Term>**, and it's why the test set exists: a model is only as good as its performance on data it hasn't seen. It's the subject of <ModuleRef id="generalization" />.
 
 ## Challenges
 
@@ -160,4 +160,4 @@ The TensorFlow Playground, built by Daniel Smilkov and Shan Carter in 2016, gave
 
 </InTheWild>
 
-The last experiment opened a question we've been able to ignore until now: a network that's perfect on its training data can still be useless. Why does that happen, how do you detect it, and what can you do about it? That's the next module.
+The last experiment opened a question we've been able to ignore until now: a network that's perfect on its training data can still be useless. Why does that happen, how do you detect it, and what can you do about it? That's <ModuleRef id="generalization" />.

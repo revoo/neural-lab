@@ -76,7 +76,7 @@ For a model, the inputs to this function are the parameters, and $f$ is the loss
 
 ### Why the gradient points uphill
 
-Remember the most useful fact from the last lesson: for small nudges, a smooth function behaves like a straight line. With several inputs, the same idea says that for a small step $\Delta\mathbf{x}$ (a small vector of nudges, one per input), the output changes by
+Remember the most useful fact from <LessonLink to="derivatives">the derivatives lesson</LessonLink>: for small nudges, a smooth function behaves like a straight line. With several inputs, the same idea says that for a small step $\Delta\mathbf{x}$ (a small vector of nudges, one per input), the output changes by
 
 <Eq
   words="\text{change in height} \approx \text{add up, over every input, } (\text{steepness along it} \times \text{how far you moved along it})"
@@ -106,7 +106,7 @@ Along a contour, $f$ doesn't change: $\Delta f = 0$. From the formula above, tha
 
 ## In code
 
-The numerical approach from the last lesson extends directly — nudge one input at a time:
+The numerical approach from <LessonLink to="derivatives">the derivatives lesson</LessonLink> extends directly — nudge one input at a time:
 
 ```python
 import numpy as np

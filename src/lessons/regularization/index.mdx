@@ -3,7 +3,7 @@ import { questions } from './quiz'
 
 ## The problem: keep the big model, lose the bad habits
 
-The last lesson left you with two cures for overfitting, and neither is always available.
+<LessonLink to="overfitting">The overfitting lesson</LessonLink> left you with two cures for overfitting, and neither is always available.
 
 **Get more data.** The most reliable cure there is: the degree-11 polynomial went from hopeless to excellent when its 12 points became 100. But data costs money, time and sometimes patients' consent. Often the dataset you have is the dataset you've got.
 
@@ -11,7 +11,7 @@ The last lesson left you with two cures for overfitting, and neither is always a
 
 So the real question is: can we keep the big, easy-to-train model and stop it memorising noise? Yes, and the tools for it have a collective name: **<Term id="regularization">regularisation</Term>**, any change to training that deliberately gives up a little fit on the training data in exchange for doing better on new data.
 
-This lesson builds the three most widely used regularisers on the problem you already know: 12 noisy points from a hidden curve, and a 1,153-parameter network that, left alone, ends with zero training error and a test error of 0.213. One thing first, though. Every cure has a *strength* to choose — how early to stop, how hard to penalise — and the last lesson warned you not to choose with the test set. So we add 12 more points from the same source as a **<Term id="validation-set">validation set</Term>**. Training never sees them; we're free to look at them as often as we like.
+This lesson builds the three most widely used regularisers on the problem you already know: 12 noisy points from a hidden curve, and a 1,153-parameter network that, left alone, ends with zero training error and a test error of 0.213. One thing first, though. Every cure has a *strength* to choose — how early to stop, how hard to penalise — and <LessonLink to="overfitting">the overfitting lesson</LessonLink> warned you not to choose with the test set. So we add 12 more points from the same source as a **<Term id="validation-set">validation set</Term>**. Training never sees them; we're free to look at them as often as we like.
 
 ## Cure 1: stop before it memorises
 
@@ -157,7 +157,7 @@ Step back and the three cures share one idea. Among all the models that fit the 
 - **weight decay** prefers small weights, which make gentle functions;
 - **dropout** prefers solutions that don't depend on any one neuron.
 
-You met the same idea at the end of the last lesson: when infinitely many polynomials fitted the 12 points perfectly, choosing the one with the *smallest coefficients* tamed the error. That preference was weight decay in disguise. Regularisation is how you tell a model which of the many explanations of its data to believe, when the data alone can't decide.
+You met the same idea at the end of <LessonLink to="overfitting">the overfitting lesson</LessonLink>: when infinitely many polynomials fitted the 12 points perfectly, choosing the one with the *smallest coefficients* tamed the error. That preference was weight decay in disguise. Regularisation is how you tell a model which of the many explanations of its data to believe, when the data alone can't decide.
 
 <Deeper title="Other regularisers you'll meet" tag="Going further">
 

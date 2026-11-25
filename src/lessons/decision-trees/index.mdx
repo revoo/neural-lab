@@ -4,7 +4,7 @@ import { questions } from './quiz'
 
 ## The problem: messy tables break distance-based models
 
-In the last lesson, k-nearest neighbours fell apart twice: first when one column was measured in euros and another in years, and again when we added irrelevant noise columns. Real business tables look like that *every day* — mixed units, skewed distributions, dozens of useless columns, and non-linear threshold rules ("flag if temperature > 5.5°C AND RPM > 4,200").
+In <LessonLink to="knn">the k-nearest neighbours lesson</LessonLink>, k-nearest neighbours fell apart twice: first when one column was measured in euros and another in years, and again when we added irrelevant noise columns. Real business tables look like that *every day* — mixed units, skewed distributions, dozens of useless columns, and non-linear threshold rules ("flag if temperature > 5.5°C AND RPM > 4,200").
 
 Enter the undisputed workhorse of tabular machine learning: **<Term id="decision-tree">decision trees</Term>** — and the two ensemble families built out of them, **<Term id="random-forest">Random Forests</Term>** and **<Term id="gradient-boosting">Gradient Boosted Trees</Term>** (XGBoost, LightGBM, CatBoost).
 

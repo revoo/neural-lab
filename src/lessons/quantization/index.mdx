@@ -137,7 +137,7 @@ Run on 15 normal weights plus one 6.5 outlier, per-tensor INT4 (`group_size=16`)
 
 <Misconception>
 
-"4-bit quantisation makes a model 4× dumber." On modern 7B–70B LLMs, well-tuned 4-bit group-wise quantisation (`Q4_K_M`, AWQ, GPTQ) typically loses less than 1–2% on benchmarks and barely moves perplexity — while cutting memory footprint by **3.5–4×** and making single-user token generation **3–4× faster** (for a reason you will see in the very next lesson!). Where 4-bit *does* hurt noticeably is on very tiny models (1B–3B, where every weight carries heavy load) or ultra-aggressive 2-bit/3-bit quantisation without calibration.
+"4-bit quantisation makes a model 4× dumber." On modern 7B–70B LLMs, well-tuned 4-bit group-wise quantisation (`Q4_K_M`, AWQ, GPTQ) typically loses less than 1–2% on benchmarks and barely moves perplexity — while cutting memory footprint by **3.5–4×** and making single-user token generation **3–4× faster** (for a reason you will see in <LessonLink to="kv-cache">the KV cache lesson</LessonLink>!). Where 4-bit *does* hurt noticeably is on very tiny models (1B–3B, where every weight carries heavy load) or ultra-aggressive 2-bit/3-bit quantisation without calibration.
 
 </Misconception>
 

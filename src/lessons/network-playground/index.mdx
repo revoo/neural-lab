@@ -3,7 +3,7 @@ import { questions } from './quiz'
 
 ## The problem: a machine nobody designed
 
-In the last lesson, every neuron had a job you could name — "south coast of the west island" — because I chose every weight by hand. Real networks aren't built that way. Their weights are found by a training algorithm, and nobody, including the people who trained them, is told what each neuron ended up doing.
+In <LessonLink to="forward-propagation">the forward pass lesson</LessonLink>, every neuron had a job you could name — "south coast of the west island" — because I chose every weight by hand. Real networks aren't built that way. Their weights are found by a training algorithm, and nobody, including the people who trained them, is told what each neuron ended up doing.
 
 That's uncomfortable for an engineer. If you can't say what the parts of a system do, how do you debug it, trust it, or make it smaller?
 
@@ -127,7 +127,7 @@ The parameter panel shows the cost of every architecture you try, layer by layer
 
 </Eq>
 
-Notice what adding a single neuron costs: one weight from every neuron in the layer before, one weight to every neuron in the layer after, and a bias. In the middle of a network of wide layers, that's a lot more than in a thin one. Try adding a second hidden layer, then a third, and watch how the total grows. Whether those parameters are better spent on *more layers* or *wider layers* is a deep question, and it's the subject of the next lesson.
+Notice what adding a single neuron costs: one weight from every neuron in the layer before, one weight to every neuron in the layer after, and a bias. In the middle of a network of wide layers, that's a lot more than in a thin one. Try adding a second hidden layer, then a third, and watch how the total grows. Whether those parameters are better spent on *more layers* or *wider layers* is a deep question, and it's the subject of <LessonLink to="depth-and-width">the depth and width lesson</LessonLink>.
 
 ## In code
 

@@ -4,7 +4,7 @@ import { questions } from './quiz'
 
 ## The problem: a probability distribution isn't a word
 
-In the last lesson you watched a language model turn a prompt into a probability distribution over its entire vocabulary. That distribution is only half of generation. Before the autoregressive loop can take its next step, **you have to pick one single token** from that distribution.
+In <LessonLink to="next-token-prediction">the next-token prediction lesson</LessonLink> you watched a language model turn a prompt into a probability distribution over its entire vocabulary. That distribution is only half of generation. Before the autoregressive loop can take its next step, **you have to pick one single token** from that distribution.
 
 Two obvious strategies immediately come to mind — and both fail in surprisingly nasty ways:
 

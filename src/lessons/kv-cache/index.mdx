@@ -4,7 +4,7 @@ import { questions } from './quiz';
 
 # KV Caching & Memory-Bound Decoding
 
-In the last lesson we shrank a model’s weights from 16 bits down to 4 bits — and something peculiar happens when you run that quantised model on a real GPU: **single-user token generation speeds up by more than 3×**, even though the GPU still multiplies numbers in floating point and does the exact same number of arithmetic operations.
+In <LessonLink to="quantization">the quantisation lesson</LessonLink> we shrank a model’s weights from 16 bits down to 4 bits — and something peculiar happens when you run that quantised model on a real GPU: **single-user token generation speeds up by more than 3×**, even though the GPU still multiplies numbers in floating point and does the exact same number of arithmetic operations.
 
 How can doing the *exact same arithmetic* run more than three times faster?
 
