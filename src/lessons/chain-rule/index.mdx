@@ -160,6 +160,10 @@ Each sensitivity needs the slopes of the stages that follow it. Calculating each
 
 <ForReal>A neural network’s backward pass uses the same reuse. When a sigmoid saturates, a tiny slope multiplies every derivative that passes through it.</ForReal>
 
+<Insight title="You are standing where they stood">
+Your backward walk, reusing the running product, is reverse-mode differentiation — described by Seppo Linnainmaa in his 1970 master’s thesis and still the core of every framework’s `backward()`.
+</Insight>
+
 <HistoryCard id="slipping-gear" />
 
 You've just walked backwards through a miniature <LessonLink to="backpropagation">backpropagation</LessonLink> calculation and seen how a <LessonLink to="vanishing-gradients">vanishing gradient</LessonLink> cuts off earlier stages.
