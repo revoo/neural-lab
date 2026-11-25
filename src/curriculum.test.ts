@@ -57,5 +57,18 @@ describe('curriculum guard rails', () => {
     expect([...ids].sort()).toEqual(dirs);
   });
 
+  it('every Maths Toolkit lesson bridges to a later module', async () => {
+    const order = ALL_LESSONS.map((l) => l.id);
+    const src = new Map((await lessonSources()).map((l) => [l.id, l.raw]));
+    for (const l of MODULES.find((m) => m.id === 'foundations')!.lessons) {
+      const m = src.get(l.id)!.match(/<Bridge to="([^"]+)"/);
+      expect(m, `${l.id} needs a <Bridge to="…">`).toBeTruthy();
+      const target = ALL_LESSONS.find((x) => x.id === m![1]);
+      expect(target, `${l.id} → ${m![1]}`).toBeTruthy();
+      expect(target!.module.id, `${l.id} bridges inside its own module`).not.toBe('foundations');
+      expect(order.indexOf(target!.id)).toBeGreaterThan(order.indexOf(l.id));
+    }
+  });
+
   it.todo('summaries are plain: at most 30 words, no symbols (switched on in WP2.4)');
 });

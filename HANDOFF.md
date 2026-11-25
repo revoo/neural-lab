@@ -232,7 +232,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 â†
 - [x] WP1.1 Move `statistics` and `high-dimensions` out of Module 1
 - [x] WP1.2 The Machine Map component
 - [x] WP1.3 "Where this is going" openers
-- [ ] WP1.4 `Bridge` sections
+- [x] WP1.4 `Bridge` sections
 - [ ] WP1.5 Predict-first moments
 - [ ] WP1.6 KL divergence in `information`
 - [ ] WP1.7 Motion: the 3Blue1Brown pass

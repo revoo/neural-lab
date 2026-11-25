@@ -155,4 +155,10 @@ The chain rule, applied backwards over a recorded graph of operations, is exactl
 
 </InTheWild>
 
+<Bridge to="backpropagation">
+
+Backpropagation is the chain rule applied in reverse order, reusing each product once: $\cg{\frac{\partial L}{\partial u}} = \sum_{v \,\in\, \text{children of } u} \cg{\frac{\partial L}{\partial v}} \cdot \frac{\partial v}{\partial u}$. That turns one slow measurement per weight into every slope for about the cost of three forward passes. <LessonLink to="vanishing-gradients">Vanishing gradients</LessonLink> shows what happens when many small factors multiply.
+
+</Bridge>
+
 That completes our calculus toolkit. We have one more mathematical idea to build before we can assemble a learning machine: how models express *uncertainty*, as probabilities — and how to measure how wrong a probabilistic guess was.

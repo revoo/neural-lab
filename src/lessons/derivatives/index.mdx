@@ -173,4 +173,10 @@ Every time a neural network trains, it computes the derivative of the loss with 
 
 </InTheWild>
 
+<Bridge to="gradient-descent">
+
+Gradient descent nudges each weight against its slope: $\cp{w_{\text{new}}} = \cp{w_{\text{old}}} - \cb{\eta} \cdot \cg{\frac{\partial L}{\partial w}}$. Without the slope, training would be blind guessing. <LessonLink to="network-from-scratch">A Neural Network from Scratch</LessonLink> checks its own backward pass by measuring slopes with the finite differences from this lesson.
+
+</Bridge>
+
 One knob at a time is a start. But a real model has millions of knobs, all affecting the loss at once. Next: what a derivative looks like when there are many inputs — and the arrow that points uphill.

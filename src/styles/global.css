@@ -266,6 +266,9 @@ code, kbd, pre { font-family: var(--font-mono); }
 :root[data-theme='matrix'] .machine-map .mm-box .mm-caption { font-size: 9.6px; }
 .callout.insight { border-left-color: var(--c-c); }
 .callout.insight .callout-title { color: var(--c-c); }
+.callout.bridge { border-left-color: var(--accent); }
+.callout.bridge .callout-title { color: var(--accent-text); }
+.callout.bridge .callout-title a { text-transform: none; letter-spacing: 0; }
 .callout.misconception { border-left-color: var(--c-bad); }
 .callout.misconception .callout-title { color: var(--c-bad); }
 .callout.wild { border-left-color: var(--c-a); }

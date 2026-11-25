@@ -146,4 +146,10 @@ Almost all of the parameters in a modern neural network live in matrices. A sing
 
 </InTheWild>
 
+<Bridge to="forward-propagation">
+
+A layer computes $\cp{\mathbf{a}^{(l)}} = \cg{f}\big(\ca{W^{(l)}}\,\mathbf{a}^{(l-1)} + \cc{\mathbf{b}^{(l)}}\big)$: each row of $\ca{W}$ is one neuron's weight vector, the "panel of judges" from this lesson. Without the bend $\cg{f}$, any stack of these is still one matrix, which is why <LessonLink to="activation-functions">activation functions</LessonLink> exist.
+
+</Bridge>
+
 So far, one matrix acts on one vector. In practice, we push *many* vectors through *many* matrices, one after another. That's where matrix multiplication — and the shape rules that keep it straight — come in.

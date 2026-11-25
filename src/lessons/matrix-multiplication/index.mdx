@@ -179,4 +179,10 @@ If you profile a large language model, you'll find that the overwhelming majorit
 
 </InTheWild>
 
+<Bridge to="forward-propagation">
+
+A batch of 32 inputs goes through a layer as one product, $X\,\ca{W}^{\mathsf{T}}$ (in code, `X @ W.T`), and the shape rules from this lesson decide whether it runs: get one inner size wrong and the model crashes before computing anything. <LessonLink to="depth-and-width">Depth and width</LessonLink> counts a network's parameters as the sizes of these matrices.
+
+</Bridge>
+
 That completes our linear algebra toolkit. Vectors store information, dot products compare it, and matrices transform it. Next, we turn to the other half of machine learning maths: how to measure **change** — the key to how models learn.

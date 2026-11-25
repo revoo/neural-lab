@@ -181,4 +181,10 @@ Every modern AI system runs on vectors. When you type a word into a large langua
 
 </InTheWild>
 
+<Bridge to="neuron">
+
+The neuron lesson feeds exactly these email vectors, like $\mathbf{x}$ = `[4 links, 5 exclamation marks, 0 mentions of your name]`, into a neuron that computes $\ca{\mathbf{w}}\cdot\mathbf{x} + \cc{b}$, and its decision boundary is a line in this same arrow space. Without the arrow reading, "the neuron draws a line" would mean nothing. The units trap from this lesson comes back in <LessonLink to="knn">k-nearest neighbours</LessonLink>, as feature scaling.
+
+</Bridge>
+
 Next, we'll look at the single most important operation you can perform on two vectors. It's three lines of code, it powers everything from neurons to attention, and it answers a deceptively simple question: *how much do these two vectors agree?*

@@ -192,4 +192,10 @@ Large language models are trained with exactly this loss, one token at a time: a
 
 </InTheWild>
 
+<Bridge to="loss-functions">
+
+Cross-entropy, $L = -\ln p_{\text{correct}}$, is the loss that trains every classifier and language model. Without a measure of surprise, a model that says 51% for the right answer would score the same as one that says 99%. KL divergence returns as the leash in <LessonLink to="rlhf-dpo">RLHF</LessonLink> and as the pull towards the bell curve in <LessonLink to="autoencoders">autoencoders</LessonLink>.
+
+</Bridge>
+
 That completes the mathematical foundations. You now have every tool needed to build and train a neural network: vectors, dot products, matrices, derivatives, gradients, the chain rule, softmax and cross-entropy. Time to put them together — starting with a single artificial neuron.

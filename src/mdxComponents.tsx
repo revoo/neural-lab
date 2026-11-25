@@ -9,6 +9,7 @@ import { Quiz } from './components/Quiz';
 import { Term, LessonLink, ModuleRef } from './components/Term';
 import { Src } from './components/Src';
 import { MachineMap } from './components/MachineMap';
+import { Bridge } from './components/Bridge';
 import { Tex } from './components/Tex';
 import { Eq } from './components/Eq';
 import { LabJob, ForReal } from './components/LabJob';
@@ -30,6 +31,7 @@ export const mdxComponents = {
   ModuleRef,
   Src,
   MachineMap,
+  Bridge,
   Tex,
   Eq,
   LabJob,

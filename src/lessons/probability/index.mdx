@@ -150,4 +150,10 @@ Every time a large language model writes a word, its final layer produces one lo
 
 </InTheWild>
 
+<Bridge to="loss-functions">
+
+A classifier's output is the softmax distribution $\mathbf{p}$ from this lesson, and cross-entropy compares it with the truth: $L = -\ln p_{\text{correct}}$. Without probabilities there would be nothing to be surprised by. <LessonLink to="sampling">Sampling</LessonLink> uses the same temperature dial to make language models more or less adventurous.
+
+</Bridge>
+
 We now have models that output probabilities. Next question: when the correct answer turns out to be "cat", how do we score a prediction that said 60% cat versus one that said 95% cat? The answer involves logarithms — and a beautifully simple idea called surprise.

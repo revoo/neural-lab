@@ -203,4 +203,10 @@ The dot product is everywhere once you know to look. Each **neuron** in a neural
 
 </InTheWild>
 
+<Bridge to="neuron">
+
+The neuron's first step is the score $\ca{\mathbf{w}}\cdot\mathbf{x} + \cc{b}$: your spam score plus a cut-off. Without the dot product there is no score to cut. In attention (<ModuleRef id="transformers" />), the same dot product scores how much one word should look at another.
+
+</Bridge>
+
 So far we've combined two vectors into a single number. Next, we'll do something more ambitious: use a grid of numbers — a *matrix* — to transform *every* vector in space at once.

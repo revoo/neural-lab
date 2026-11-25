@@ -152,4 +152,10 @@ When you call `loss.backward()` in PyTorch, what you get back — stored in each
 
 </InTheWild>
 
+<Bridge to="gradient-descent">
+
+One training step is $\cp{\mathbf{w}} \leftarrow \cp{\mathbf{w}} - \cb{\eta}\, \cg{\nabla L}$: the gradient from this lesson, scaled by the learning rate $\cb{\eta}$. Without the gradient you'd be turning millions of knobs one at a time, with no idea which way.
+
+</Bridge>
+
 We can now measure sensitivity with many inputs. But a neural network isn't one function — it's a long *chain* of functions, each feeding the next. How do sensitivities pass through a chain? That's the chain rule, and it's next.
