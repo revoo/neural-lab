@@ -215,7 +215,7 @@ The owner asked for this next, in a fresh session. `docs/LAB_IMPROVEMENTS.md` re
 - [x] diffusion · Spend the Step Budget
 - [x] guidance · Tune the Guidance
 - [x] rag · Tune the Retriever
-- [ ] tool-calling · Harden the Agent Pipeline
+- [x] tool-calling · Harden the Agent Pipeline
 - [ ] evaluation · Size Your Eval Suite
 
 **After each lab:** `npx tsc --noEmit -p .`, the lesson's tests, then screenshots with `node scripts/drive-widget.cjs <lessonId> 0 '[{"shot":"x"}]' --title="<widget title text>"` in light, dark and matrix, and at `--width=390`. Commit with the `Authored-by` trailer and push. **At the end:** run `npm test`, `npm run build` (then check the watermark is absent from `dist/`), `node scripts/check-pages.cjs` and `--theme=matrix`. Update `docs/ROADMAP.md` "Current state" and tick this list.

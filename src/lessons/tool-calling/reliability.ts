@@ -330,6 +330,7 @@ export function labExhaustive(b: LabBrief) {
   let passing = 0;
   let bestCost = Infinity;
   let best: { cfg: PipelineConfig; eval: PipelineEval }[] = [];
+  const passingPts: { cost: number; pTask: number; pSilent: number }[] = [];
 
   for (const s0 of STAGE_OPTIONS)
     for (const s1 of STAGE_OPTIONS)
@@ -341,6 +342,7 @@ export function labExhaustive(b: LabBrief) {
           if (!briefPasses(b, ev)) continue;
           passing++;
           const rounded = Math.round(ev.expectedCost * 100) / 100;
+          passingPts.push({ cost: rounded, pTask: ev.pTask, pSilent: ev.pSilentAny });
           if (rounded < bestCost - 1e-9) {
             bestCost = rounded;
             best = [{ cfg, eval: ev }];
@@ -349,5 +351,33 @@ export function labExhaustive(b: LabBrief) {
           }
         }
 
-  return { total, passing, bestCost, best };
+  return { total, passing, bestCost, best, passingPts };
 }
+
+export function pipelineLabHint(b: LabBrief, cfg: PipelineConfig): string {
+  const ev = evaluatePipeline(cfg);
+  if (briefPasses(b, ev)) {
+    return `Meets all targets at ${ev.expectedCost.toFixed(2)} credits/ticket (${(100 * ev.pTask).toFixed(1)}% success, ${(100 * ev.pSilentAny).toFixed(1)}% silent). Optional: inspect each stage's credit cost and see where a cheaper model + verifier still holds the brief.`;
+  }
+  const okBadAct = b.maxBadAction === undefined || ev.pBadAction <= b.maxBadAction + 1e-9;
+  const okSilent = ev.pSilentAny <= b.maxSilent + 1e-9;
+  if (!okBadAct) {
+    const s4 = ev.stageStats[3];
+    return `Stage 4 commits ${(100 * ev.pBadAction).toFixed(2)}% silent bad actions (limit ${(100 * b.maxBadAction!).toFixed(2)}%). Because its verifier only catches 95% of mistakes, reducing Stage 4's silent leak (${(100 * s4.pSilent).toFixed(2)}%) requires lowering how often errors slip past the guard.`;
+  }
+  if (!okSilent) {
+    let worstIdx = 0;
+    for (let i = 1; i < 4; i++) {
+      if (ev.stageStats[i].pSilent > ev.stageStats[worstIdx].pSilent) worstIdx = i;
+    }
+    const st = LAB_STAGES[worstIdx];
+    return `Whole-pipeline silent failures hit ${(100 * ev.pSilentAny).toFixed(1)}% (limit ${(100 * b.maxSilent).toFixed(1)}%). The biggest silent leak is ${st.name} (${(100 * ev.stageStats[worstIdx].pSilent).toFixed(2)}%); any unchecked stage passes 100% of its errors downstream silently.`;
+  }
+  let weakIdx = 0;
+  for (let i = 1; i < 4; i++) {
+    if (ev.stageStats[i].pOk < ev.stageStats[weakIdx].pOk) weakIdx = i;
+  }
+  const st = LAB_STAGES[weakIdx];
+  return `End-to-end success is ${(100 * ev.pTask).toFixed(1)}% (need ≥ ${(100 * b.minSuccess).toFixed(1)}%). The weakest stage in the waterfall is ${st.name} (${(100 * ev.stageStats[weakIdx].pOk).toFixed(1)}% ok); check whether a deterministic verifier + retry or higher base accuracy lifts that bottleneck most cheaply.`;
+}
+

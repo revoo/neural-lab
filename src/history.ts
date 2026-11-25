@@ -819,6 +819,25 @@ export const HISTORY: HistoryEntry[] = [
       after: { text: 'Hybrid lexical-plus-vector RAG pipelines with rerankers now underpin enterprise search, customer support assistants, and codebase Q&A across production AI.', source: WP('Retrieval-augmented_generation') },
     },
   },
+  {
+    id: 'tool-calling',
+    lessonId: 'tool-calling',
+    lab: 'Harden the Agent Pipeline',
+    idea: 'ReAct, Toolformer, Gorilla & Constrained JSON Decoding',
+    years: [2022, 2023],
+    when: '2022 · 2023',
+    who: [
+      { text: 'Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, and colleagues (October 2022) publish ReAct, interleaving language-model reasoning steps with external tool actions and observations.', source: 'https://arxiv.org/abs/2210.03629' },
+      { text: 'Timo Schick, Jane Dwivedi-Yu, Roberto Dessì, Roberta Raileanu, and colleagues at Meta AI introduce Toolformer (February 2023), showing LLMs can learn in a self-supervised loop when and how to invoke calculators, search, and APIs.', source: 'https://arxiv.org/abs/2302.04761' },
+      { text: 'Shishir Patil, Tianjun Zhang, Xin Wang, and Joseph Gonzalez at UC Berkeley publish Gorilla (May 2023), showing retrieval-aware training dramatically reduces hallucinated API calls.', source: 'https://arxiv.org/abs/2305.15334' },
+      { text: 'Brandon Willard and Rémi Louf (July 2023) introduce finite-state-machine guided generation (Outlines), guaranteeing syntactically valid JSON schemas with negligible decoding overhead.', source: 'https://arxiv.org/abs/2307.09702' },
+    ],
+    story: {
+      before: { text: 'Early chat models could only emit free-form prose and failed at arithmetic, live data lookup, and structured API execution.', source: 'https://arxiv.org/abs/2210.03629' },
+      this: { text: 'Turning tool calls into a host-verified loop with structured JSON outputs, deterministic guards, and selective retries turned brittle text generators into reliable multi-step workflows.', source: 'https://arxiv.org/abs/2307.09702' },
+      after: { text: 'Model-agnostic tool protocols (such as MCP), sandboxed code execution, and compiler/test-backed retry loops now power modern coding and enterprise agents.', source: 'https://arxiv.org/abs/2305.15334' },
+    },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */
