@@ -236,7 +236,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 �
 - [x] WP1.5 Predict-first moments
 - [x] WP1.6 KL divergence in `information`
 - [x] WP1.7 Motion: the 3Blue1Brown pass
-- [ ] WP1.8 Nine maths labs:
+- [ ] WP1.8 Nine maths labs (**IN PROGRESS**: Labs 1–2 done; next is Lab 3):
   - [x] Lab 1 vectors · The Feature Workbench
   - [x] Lab 2 dot-product · Tune the Spam Scorer
   - [ ] Lab 3 matrices · Untangle the Data
@@ -264,3 +264,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 �
 - [ ] WP9 Final documentation
 
 Notes for whoever continues: WP1.10 is done before WP1.9 (WP1.9 re-reads everything, so it comes last in WP1).
+- Labs follow one pattern: logic and solver in `src/lessons/<id>/<name>Lab.ts` with a test written first; tune the level data (a scratch random-search script works well) until the test shows "solvable, more than one answer, a random setting usually fails"; then the UI on `LabShell`; then `## Lab: …` before "## In code" with `LabJob`, a spoiler `Deeper` debrief, `ForReal`, `HistoryCard`, and a "You've just…" line. Bump the count in `src/history.test.ts` for each new history entry.
+- Draw 2D lab plots with both axes on the same scale when distance matters (`equalScale` in `src/lessons/vectors/FeatureLab.tsx`): otherwise the picture lies about which points are close.
+- Writing scripts: heredocs containing `${…}` are refused by the command-safety check; write Python/TS helpers into `scratch/` with the file tool. A `<Predict>` placed between list items breaks the MDX parse: put it before or after the list.
+- `scripts/check-pages.cjs` occasionally reports a one-off "horizontal overflow" on `/learn/evaluation` at 390px; a rerun is clean.
