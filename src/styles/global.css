@@ -252,6 +252,18 @@ code, kbd, pre { font-family: var(--font-mono); }
 .callout.analogy { border-left-color: #d79b1b; }
 .callout.analogy .callout-title { color: #b57d06; }
 .src-link a { font-size: 0.75em; }
+.prose > .machine-map { max-width: var(--wide-w); margin: 1.4em auto; }
+.machine-map svg { display: block; width: 100%; height: auto; max-width: 100%; }
+.machine-map .mm-box rect { fill: var(--bg-elev); stroke: var(--border-strong); stroke-width: 1.2; }
+.machine-map .mm-box .mm-label { fill: var(--text); font-family: var(--font-mono); font-size: 15px; font-weight: 600; }
+.machine-map .mm-box .mm-caption { fill: var(--text-muted); font-family: var(--font-ui); font-size: 11px; }
+.machine-map .mm-box:hover rect, .machine-map .mm-box:focus rect { fill: var(--bg-hover); }
+.machine-map .mm-box.on rect { stroke: var(--accent); stroke-width: 2.4; }
+.machine-map .mm-box.on .mm-label, .machine-map .mm-box.on .mm-caption { fill: var(--accent-text); }
+.machine-map .mm-row { fill: var(--text-muted); font-family: var(--font-ui); font-size: 11px; letter-spacing: 0.06em; font-weight: 600; }
+.machine-map .mm-arrow-label { fill: var(--text-muted); font-family: var(--font-ui); font-size: 11px; font-style: italic; }
+.machine-map figcaption { margin-top: 6px; }
+:root[data-theme='matrix'] .machine-map .mm-box .mm-caption { font-size: 9.6px; }
 .callout.insight { border-left-color: var(--c-c); }
 .callout.insight .callout-title { color: var(--c-c); }
 .callout.misconception { border-left-color: var(--c-bad); }

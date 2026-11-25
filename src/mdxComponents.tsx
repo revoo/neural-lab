@@ -8,6 +8,7 @@ import { Predict } from './components/Predict';
 import { Quiz } from './components/Quiz';
 import { Term, LessonLink, ModuleRef } from './components/Term';
 import { Src } from './components/Src';
+import { MachineMap } from './components/MachineMap';
 import { Tex } from './components/Tex';
 import { Eq } from './components/Eq';
 import { LabJob, ForReal } from './components/LabJob';
@@ -28,6 +29,7 @@ export const mdxComponents = {
   LessonLink,
   ModuleRef,
   Src,
+  MachineMap,
   Tex,
   Eq,
   LabJob,
