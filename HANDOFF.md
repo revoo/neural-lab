@@ -313,7 +313,7 @@ The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 â†
 - [x] WP2.1 Move RL before fine-tuning
 - [x] WP2.2 Move `similarity-search` into Module 18
 - [x] WP2.3 Tokens, not words: two short notes
-- [ ] WP2.4 Plain-language lesson summaries
+- [x] WP2.4 Plain-language lesson summaries
 - [ ] WP3 The Prologue
 - [ ] WP4 New lesson: the Perceptron
 - [ ] WP5 Era labels and the timeline

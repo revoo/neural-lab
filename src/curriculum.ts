@@ -115,10 +115,10 @@ export const MODULES: ModuleMeta[] = [
     blurb: 'Trees, nearest neighbours, SVMs, clustering — and when they beat neural networks.',
     lessons: [
       { id: 'high-dimensions', title: 'High-Dimensional Geometry', summary: 'Why almost all of an orange is peel in 768 dimensions, why random arrows are perpendicular, why neighbours look alike — and Lab: Superposition.', minutes: 30, load: () => import('./lessons/high-dimensions/index.mdx') },
-      { id: 'linear-regression', title: 'Linear and Logistic Regression', summary: 'Exact normal equations and the collinearity trap, why OLS breaks on classification, calibrated log-odds, precision/recall & ROC AUC — and a feature-engineering lab.', minutes: 35, load: () => import('./lessons/linear-regression/index.mdx') },
-      { id: 'knn', title: 'k-Nearest Neighbours', summary: 'Zero-training lazy learning, clickable neighbour voting and the bias–variance dial k, the feature-scaling disaster, curse of dimensionality — and Lab: Rescue the kNN Classifier.', minutes: 30, load: () => import('./lessons/knn/index.mdx') },
-      { id: 'decision-trees', title: 'Decision Trees and Random Forests', summary: 'Gini impurity splits, scale invariance, how Random Forests average variance away, how Gradient Boosted Trees fit residuals — and Lab: Build the Tabular Ensemble.', minutes: 35, load: () => import('./lessons/decision-trees/index.mdx') },
-      { id: 'clustering-pca', title: 'k-Means and PCA', summary: 'Unsupervised structure without labels: Lloyd’s algorithm and the k-Means++ fix, Silhouette scores and concentric rings, PCA as Pythagoras — and Lab: Compress & Segment.', minutes: 35, load: () => import('./lessons/clustering-pca/index.mdx') },
+      { id: 'linear-regression', title: 'Linear and Logistic Regression', summary: 'The oldest learning machine: fit a line by least squares, see why it fails at yes-or-no questions, fix it with logistic regression — and a feature-engineering lab.', minutes: 35, load: () => import('./lessons/linear-regression/index.mdx') },
+      { id: 'knn', title: 'k-Nearest Neighbours', summary: 'Classify by asking the neighbours: no training at all, one dial that trades memorising for smoothing, and the two ways it quietly breaks — and Lab: Rescue the kNN Classifier.', minutes: 30, load: () => import('./lessons/knn/index.mdx') },
+      { id: 'decision-trees', title: 'Decision Trees and Random Forests', summary: 'Twenty questions as a model: how a tree picks its questions, why one tree overfits and a forest of them doesn’t — and Lab: Build the Tabular Ensemble.', minutes: 35, load: () => import('./lessons/decision-trees/index.mdx') },
+      { id: 'clustering-pca', title: 'k-Means and PCA', summary: 'Finding structure with no labels at all: grouping points into clusters, squashing many features into the few that matter — and Lab: Compress & Segment.', minutes: 35, load: () => import('./lessons/clustering-pca/index.mdx') },
     ],
   },
   {
@@ -127,10 +127,10 @@ export const MODULES: ModuleMeta[] = [
     title: 'Computer Vision',
     blurb: 'From pixels to convolutions to object detectors.',
     lessons: [
-      { id: 'images-as-tensors', title: 'Images as Tensors', summary: 'Pixels as (N, C, H, W) tensors, RGB vs Rec. 709 luminance and shadow-proof HSV hue, spatial aliasing under strided slicing — and Lab: Build the Vision Preprocessor.', minutes: 30, load: () => import('./lessons/images-as-tensors/index.mdx') },
-      { id: 'convolution', title: 'Convolution and Kernels', summary: 'Sliding 3×3 dot products, Sobel/Laplacian/blur filters, output-shape padding & stride arithmetic, translation equivariance — and Lab: Design the Kernel (all 19,683 ternary 3×3s checked).', minutes: 35, load: () => import('./lessons/convolution/index.mdx') },
-      { id: 'cnns', title: 'CNNs and Feature Maps', summary: 'Receptive field & jump growth, VGG stacked-3×3 savings, pooling & Global Average Pooling, a live 55-param CNN crushing a 547-param Dense MLP on unseen shifts — and Lab: Architect the CNN.', minutes: 35, load: () => import('./lessons/cnns/index.mdx') },
-      { id: 'object-detection', title: 'Object Detection', summary: 'Bounding boxes, exact IoU and the small-object penalty, Hard vs Soft Non-Maximum Suppression in crowds, AP50/AP75 & COCO mAP — and Lab: Tune the Object Detector.', minutes: 35, load: () => import('./lessons/object-detection/index.mdx') },
+      { id: 'images-as-tensors', title: 'Images as Tensors', summary: 'What a photo looks like to a network: grids of numbers, colour channels, and why shrinking an image the naive way invents patterns — and Lab: Build the Vision Preprocessor.', minutes: 30, load: () => import('./lessons/images-as-tensors/index.mdx') },
+      { id: 'convolution', title: 'Convolution and Kernels', summary: 'Slide one small pattern-detector across a whole image: edge finders, blurs, and the arithmetic of output sizes — and Lab: Design the Kernel.', minutes: 35, load: () => import('./lessons/convolution/index.mdx') },
+      { id: 'cnns', title: 'CNNs and Feature Maps', summary: 'Stack small detectors into big ones: how each layer sees a wider patch, and why a tiny CNN beats a much bigger plain network — and Lab: Architect the CNN.', minutes: 35, load: () => import('./lessons/cnns/index.mdx') },
+      { id: 'object-detection', title: 'Object Detection', summary: 'Not just what is in the picture but where: drawing boxes, scoring overlaps, removing duplicates in a crowd — and Lab: Tune the Object Detector.', minutes: 35, load: () => import('./lessons/object-detection/index.mdx') },
     ],
   },
   {
@@ -139,9 +139,9 @@ export const MODULES: ModuleMeta[] = [
     title: 'Embeddings & Representations',
     blurb: 'Meaning as geometry: learned spaces where similar things sit close together.',
     lessons: [
-      { id: 'one-hot-vs-dense', title: 'One-Hot vs Dense Vectors', summary: 'The orthogonality curse, why E[id] skips 99.999% zero multiplications, zero-shot synonym transfer vs integer IDs — and Lab: Choose & Size the Representation.', minutes: 30, load: () => import('./lessons/one-hot-vs-dense/index.mdx') },
-      { id: 'word-embeddings', title: 'Word Embeddings', summary: 'Skip-Gram with Negative Sampling trained live on raw sentences, king − man + woman ≈ queen emerging from co-occurrence, K = 0 collapse, 16,667× softmax speedup — and Lab: Train & Debug Word2Vec.', minutes: 35, load: () => import('./lessons/word-embeddings/index.mdx') },
-      { id: 'contrastive-learning', title: 'Contrastive Learning & Representation Spaces', summary: 'How InfoNCE pulls positive pairs together and pushes in-batch negatives apart on the unit hypersphere, temperature τ hard-negative focus, why alignment without negatives collapses to one point — and Lab: Tune the Contrastive Objective.', minutes: 35, load: () => import('./lessons/contrastive-learning/index.mdx') },
+      { id: 'one-hot-vs-dense', title: 'One-Hot vs Dense Vectors', summary: 'Why giving every word its own switch makes all words strangers, and how dense vectors let similar words share what they learn — and Lab: Choose & Size the Representation.', minutes: 30, load: () => import('./lessons/one-hot-vs-dense/index.mdx') },
+      { id: 'word-embeddings', title: 'Word Embeddings', summary: 'Learn what words mean from nothing but the company they keep, and watch analogies like king to queen emerge — and Lab: Train & Debug Word2Vec.', minutes: 35, load: () => import('./lessons/word-embeddings/index.mdx') },
+      { id: 'contrastive-learning', title: 'Contrastive Learning & Representation Spaces', summary: 'Learn representations without labels by pulling matching pairs together and pushing everything else apart, and why skipping the push collapses everything to one point — and Lab: Tune Contrastive Training.', minutes: 35, load: () => import('./lessons/contrastive-learning/index.mdx') },
     ],
   },
   {
@@ -150,9 +150,9 @@ export const MODULES: ModuleMeta[] = [
     title: 'Sequence Models',
     blurb: 'RNNs, LSTMs, and the bottleneck that motivated attention.',
     lessons: [
-      { id: 'rnns', title: 'Recurrent Neural Networks & BPTT', summary: 'Weight sharing across time, unrolling BPTT step-by-step, the ρᵏ vanishing/exploding Jacobian law, Pascanu’s exploding cliff rescued by gradient clipping, long-lag memory decay — and Lab: Tame BPTT.', minutes: 35, load: () => import('./lessons/rnns/index.mdx') },
-      { id: 'lstms-grus', title: 'LSTMs and GRUs', summary: 'How the additive cell-state highway and three gates carry cues past hostile distractors, why forget-gate bias b_f = +2 boosts 25-step gradients 5M×, fair RNN vs GRU vs LSTM race & 25% GRU parameter discount — and Lab: Wire the Gated Cell.', minutes: 35, load: () => import('./lessons/lstms-grus/index.mdx') },
-      { id: 'seq2seq-attention', title: 'Encoder–Decoder and Early Attention', summary: 'Why squeezing a 24-word sentence into one vector crashes accuracy to 31.3%, Bahdanau & Luong cross-attention alignment heatmaps reordering English → French, why O(L) serial depth motivated Transformers — and Lab: Break the Bottleneck.', minutes: 35, load: () => import('./lessons/seq2seq-attention/index.mdx') },
+      { id: 'rnns', title: 'Recurrent Neural Networks & BPTT', summary: 'A network with memory: reuse the same weights at every step, unroll it to train it, and watch long-range signals fade or explode — and Lab: Tame BPTT.', minutes: 35, load: () => import('./lessons/rnns/index.mdx') },
+      { id: 'lstms-grus', title: 'LSTMs and GRUs', summary: 'Give memory a protected highway and gates that decide what to keep, then race plain, gated and LSTM cells fairly — and Lab: Wire the Gated Cell.', minutes: 35, load: () => import('./lessons/lstms-grus/index.mdx') },
+      { id: 'seq2seq-attention', title: 'Encoder–Decoder and Early Attention', summary: 'Squeeze a whole sentence into one vector and translation falls apart; let the decoder look back at every word and it recovers — and Lab: Break the Bottleneck.', minutes: 35, load: () => import('./lessons/seq2seq-attention/index.mdx') },
     ],
   },
   {
@@ -176,7 +176,7 @@ export const MODULES: ModuleMeta[] = [
     lessons: [
       { id: 'next-token-prediction', title: 'Next-Token Prediction & Perplexity', summary: 'How a transformer writes one token at a time, what perplexity really means, why neural embeddings beat lookup tables — and Shannon’s betting game.', minutes: 30, load: () => import('./lessons/next-token-prediction/index.mdx') },
       { id: 'sampling', title: 'Sampling: Temperature, Top-k and Top-p', summary: 'Why greedy loops, why raw sampling falls into the long tail, how nucleus sampling adapts to confidence, beam search — and a sampler-tuning lab with an impossible level.', minutes: 30, load: () => import('./lessons/sampling/index.mdx') },
-      { id: 'scaling-laws', title: 'Scaling Laws & Compute-Optimal Training', summary: 'Why training costs 6ND FLOPs, how Chinchilla balances parameters against tokens, why Llama 3 breaks Chinchilla on purpose — and a compute-budget lab.', minutes: 30, load: () => import('./lessons/scaling-laws/index.mdx') },
+      { id: 'scaling-laws', title: 'Scaling Laws & Compute-Optimal Training', summary: 'How much better does a model get with more size, data and compute? The surprisingly regular answer, the famous correction, and a compute-budget lab.', minutes: 30, load: () => import('./lessons/scaling-laws/index.mdx') },
     ],
   },
   {
@@ -185,10 +185,10 @@ export const MODULES: ModuleMeta[] = [
     title: 'Reinforcement Learning',
     blurb: 'Agents that learn from consequences — and exploit badly specified rewards.',
     lessons: [
-      { id: 'mdps', title: 'States, Actions, Rewards & Value', summary: 'How discount factor γ controls myopia, how stochastic transitions create cautious detours, Bellman’s dynamic-programming equation — and Lab: Wire the Policy.', minutes: 30, load: () => import('./lessons/mdps/index.mdx') },
-      { id: 'q-learning', title: 'Q-Learning & Exploration', summary: 'Multi-armed bandits and UCB1, model-free TD backups on a live Q-table, Q-learning vs SARSA on Cliff Walking — and Lab: Tune the Q-Learner.', minutes: 35, load: () => import('./lessons/q-learning/index.mdx') },
-      { id: 'policy-gradients', title: 'Policy Gradients, Baselines & Actor-Critic', summary: 'Why some problems need random policies, the log-derivative push, why baselines are free, actor-critic’s one-step judgement, PPO’s clip — and Lab: Stabilise the Policy Gradient.', minutes: 40, load: () => import('./lessons/policy-gradients/index.mdx') },
-      { id: 'reward-hacking', title: 'Lab: The Reward-Hacking Sandbox', summary: 'Why optimisers farm renewable bonuses, the boat-race loop solved exactly, naive vs potential-based shaping — and a lab where an exact optimiser attacks every reward you write.', minutes: 35, load: () => import('./lessons/reward-hacking/index.mdx') },
+      { id: 'mdps', title: 'States, Actions, Rewards & Value', summary: 'Decisions with consequences: how an agent weighs now against later, why uncertainty makes it cautious, and the equation that plans ahead — and Lab: Wire the Policy.', minutes: 30, load: () => import('./lessons/mdps/index.mdx') },
+      { id: 'q-learning', title: 'Q-Learning & Exploration', summary: 'Learning by trial and error: the explore-or-exploit dilemma, a value table that fills itself in, and a cliff that separates bold from careful — and Lab: Tune the Q-Learner.', minutes: 35, load: () => import('./lessons/q-learning/index.mdx') },
+      { id: 'policy-gradients', title: 'Policy Gradients, Baselines & Actor-Critic', summary: 'Skip the value table and adjust behaviour directly: why randomness helps, why a baseline costs nothing, how clipping keeps steps safe — and Lab: Stabilise the Policy Gradient.', minutes: 40, load: () => import('./lessons/policy-gradients/index.mdx') },
+      { id: 'reward-hacking', title: 'Lab: The Reward-Hacking Sandbox', summary: 'Write a reward, and an optimiser finds the loophole: the boat that circles forever, why bonuses backfire, and a lab where an exact optimiser attacks every reward you write.', minutes: 35, load: () => import('./lessons/reward-hacking/index.mdx') },
     ],
   },
   {
@@ -197,8 +197,8 @@ export const MODULES: ModuleMeta[] = [
     title: 'Training & Fine-Tuning',
     blurb: 'Pretraining, fine-tuning, LoRA, RLHF and the rest of the post-training toolkit.',
     lessons: [
-      { id: 'lora', title: 'LoRA & Low-Rank Fine-Tuning', summary: 'Why full fine-tuning blows up VRAM, how factoring ΔW = BA compresses updates 128×, why B=0 & A~N breaks symmetry — and a rank-allocation budget lab.', minutes: 30, load: () => import('./lessons/lora/index.mdx') },
-      { id: 'rlhf-dpo', title: 'RLHF & Direct Preference Optimisation (DPO)', summary: 'Watch a proxy reward model trigger Goodhart’s law, see how DPO cancels Z(x) to drop the reward model, catch likelihood displacement — and tune an alignment pipeline.', minutes: 35, load: () => import('./lessons/rlhf-dpo/index.mdx') },
+      { id: 'lora', title: 'LoRA & Low-Rank Fine-Tuning', summary: 'Fine-tune a giant model by training a tiny add-on: why the change a model needs is far smaller than the model — and a rank-budget lab.', minutes: 30, load: () => import('./lessons/lora/index.mdx') },
+      { id: 'rlhf-dpo', title: 'RLHF & Direct Preference Optimisation (DPO)', summary: 'Teaching a model what people prefer: why optimising a learned score backfires, how a leash keeps it honest, a simpler method without the scorer — and an alignment lab.', minutes: 35, load: () => import('./lessons/rlhf-dpo/index.mdx') },
     ],
   },
   {
@@ -207,8 +207,8 @@ export const MODULES: ModuleMeta[] = [
     title: 'Inference & Hardware',
     blurb: 'What actually happens on the GPU, and why memory bandwidth rules everything.',
     lessons: [
-      { id: 'quantization', title: 'Floating-Point Formats & Quantisation', summary: 'Flip the bits of FP16, BF16 and FP8, watch one outlier crush per-tensor INT4, and solve a mixed-precision quantisation budget lab.', minutes: 30, load: () => import('./lessons/quantization/index.mdx') },
-      { id: 'kv-cache', title: 'KV Caching & Memory-Bound Decoding', summary: 'Why naive decoding wastes 400× work, how GQA shrinks the KV cache, why an H100 runs at 0.36% compute during single-user chat — and Lab: VRAM Tetris.', minutes: 35, load: () => import('./lessons/kv-cache/index.mdx') },
+      { id: 'quantization', title: 'Floating-Point Formats & Quantisation', summary: 'How many bits can a number lose before the model notices? Flip bits in real number formats, watch one outlier ruin compression — and a mixed-precision lab.', minutes: 30, load: () => import('./lessons/quantization/index.mdx') },
+      { id: 'kv-cache', title: 'KV Caching & Memory-Bound Decoding', summary: 'Why generating text one token at a time leaves a GPU mostly idle, and how caching past work fixes the waste — and Lab: VRAM Tetris.', minutes: 35, load: () => import('./lessons/kv-cache/index.mdx') },
     ],
   },
   {
@@ -217,9 +217,9 @@ export const MODULES: ModuleMeta[] = [
     title: 'Generative Models & Diffusion',
     blurb: 'VAEs, GANs and diffusion: how machines learn to create.',
     lessons: [
-      { id: 'autoencoders', title: 'Autoencoders and VAEs', summary: 'Why averaging two faces makes a ghost, how a bottleneck discovers the knobs behind the data, why a plain autoencoder can’t generate, the VAE’s smudges and KL pull, posterior collapse — and Lab: The Face Printer.', minutes: 40, load: () => import('./lessons/autoencoders/index.mdx') },
-      { id: 'diffusion', title: 'Diffusion: Adding and Removing Noise', summary: 'Dissolve data into noise exactly, meet the perfect denoiser and its blurry best guesses, run DDIM and DDPM backwards, train a denoiser — and Lab: Spend the Step Budget.', minutes: 40, load: () => import('./lessons/diffusion/index.mdx') },
-      { id: 'guidance', title: 'Guidance and Conditioning', summary: 'Give the denoiser a label, split its push into “towards data” plus “towards looking like the class”, turn that up with classifier-free guidance and watch variety drain away — and Lab: Tune the Guidance.', minutes: 35, load: () => import('./lessons/guidance/index.mdx') },
+      { id: 'autoencoders', title: 'Autoencoders and VAEs', summary: 'Why averaging two faces makes a ghost, how a bottleneck finds the hidden knobs behind data, and how a VAE makes new faces — and Lab: The Face Printer.', minutes: 40, load: () => import('./lessons/autoencoders/index.mdx') },
+      { id: 'diffusion', title: 'Diffusion: Adding and Removing Noise', summary: 'Dissolve data into noise step by step, then learn to run the film backwards: how a denoiser turns static into samples — and Lab: Spend the Step Budget.', minutes: 40, load: () => import('./lessons/diffusion/index.mdx') },
+      { id: 'guidance', title: 'Guidance and Conditioning', summary: 'Ask a generator for a particular class, turn the request up, and watch quality rise while variety drains away — and Lab: Tune the Guidance.', minutes: 35, load: () => import('./lessons/guidance/index.mdx') },
     ],
   },
   {
@@ -228,10 +228,10 @@ export const MODULES: ModuleMeta[] = [
     title: 'AI Systems Engineering',
     blurb: 'Vector search, RAG, tools, agents and evaluation: models inside real software.',
     lessons: [
-      { id: 'similarity-search', title: 'Similarity Search', summary: 'Unit-norm metric equivalence, IVF Voronoi buckets & multi-probe recall, random-hyperplane LSH vs IVF, 10M-vector RAM compression (INT8 & PQ-64) — and Lab: Tune the Vector Index.', minutes: 35, load: () => import('./lessons/similarity-search/index.mdx') },
-      { id: 'rag', title: 'Retrieval-Augmented Generation', summary: 'Why models need to look things up, lexical vs semantic vs hybrid search computed on a real labelled set, chunk size against prompt cost, recall at k — and Lab: Tune the Retriever.', minutes: 35, load: () => import('./lessons/rag/index.mdx') },
-      { id: 'tool-calling', title: 'Tool Calling and Agents', summary: 'How a next-token predictor acts on the world through a host-run agent loop, why structured outputs aren’t enough without backend guards, compounding reliability pⁿ and verifiers — and Lab: Harden the Agent Pipeline.', minutes: 35, load: () => import('./lessons/tool-calling/index.mdx') },
-      { id: 'evaluation', title: 'Evaluation: Measuring AI Without Fooling Yourself', summary: 'Paired McNemar comparisons vs unpaired noise, the exact winner’s curse of eval overfitting, LLM-as-a-judge position bias and attenuation — and Lab: Size Your Eval Suite.', minutes: 35, load: () => import('./lessons/evaluation/index.mdx') },
+      { id: 'similarity-search', title: 'Similarity Search', summary: 'Finding the nearest of ten million vectors without checking them all: buckets, random hashes and compression, and what each shortcut costs — and Lab: Tune the Vector Index.', minutes: 35, load: () => import('./lessons/similarity-search/index.mdx') },
+      { id: 'rag', title: 'Retrieval-Augmented Generation', summary: 'Why models need to look things up, keyword versus meaning-based search measured on real questions, and how chunk size trades accuracy for cost — and Lab: Tune the Retriever.', minutes: 35, load: () => import('./lessons/rag/index.mdx') },
+      { id: 'tool-calling', title: 'Tool Calling and Agents', summary: 'How a text predictor acts on the world through tool calls, why each step’s small failure rate compounds, and what makes agents safe — and Lab: Harden the Agent Pipeline.', minutes: 35, load: () => import('./lessons/tool-calling/index.mdx') },
+      { id: 'evaluation', title: 'Evaluation: Measuring AI Without Fooling Yourself', summary: 'Is model B really better, or just lucky? Fair comparisons, the trap of tuning on your test, judges that play favourites — and Lab: Size Your Eval Suite.', minutes: 35, load: () => import('./lessons/evaluation/index.mdx') },
     ],
   },
 ];

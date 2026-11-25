@@ -77,5 +77,9 @@ describe('curriculum guard rails', () => {
     }
   });
 
-  it.todo('summaries are plain: at most 30 words, no symbols (switched on in WP2.4)');
+  it('summaries are plain: at most 30 words, no symbols', () => {
+    const symbols = /[\u0370-\u03ff\u1d00-\u1dbf\u2070-\u209f=^_~²³]/;
+    const bad = ALL_LESSONS.filter((l) => l.summary.split(/\s+/).length > 30 || symbols.test(l.summary)).map((l) => `${l.id}: ${l.summary}`);
+    expect(bad).toEqual([]);
+  });
 });
