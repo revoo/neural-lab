@@ -196,7 +196,7 @@ The owner asked for this next, in a fresh session. `docs/LAB_IMPROVEMENTS.md` re
 7. **Optional:** a live code line (`LiveCode` + a tested `realCode.ts`) where the settings map onto a real library call (e.g. scikit-learn for Module 8, FAISS for similarity search, the PyTorch `nn.LSTM` signature). Moving the lab onto `LabShell` (keep old saves via `useLabProgress(key, seed)`).
 
 **Labs to do** (lesson id · lab):
-- [ ] linear-regression · Feature Engineering + Logistic Regression
+- [x] linear-regression · Feature Engineering + Logistic Regression
 - [ ] knn · Rescue the kNN Classifier
 - [ ] decision-trees · Build the Tabular Ensemble
 - [ ] clustering-pca · Compress & Segment

@@ -463,6 +463,26 @@ export const HISTORY: HistoryEntry[] = [
       after: { text: 'The CoastRunners boat circles a lagoon knocking over targets and scores 20% higher than human players without finishing the race.', source: 'https://openai.com/index/faulty-reward-functions/' },
     },
   },
+  {
+    id: 'linear-regression',
+    lessonId: 'linear-regression',
+    lab: 'Feature Engineering + Logistic Regression',
+    idea: 'Least squares, logistic regression and Ridge',
+    years: [1805, 1944, 1958, 1970],
+    when: '1805 · 1944 · 1958 · 1970',
+    who: [
+      { text: 'Adrien-Marie Legendre publishes the method of least squares in Paris (1805); Carl Friedrich Gauss publishes it in 1809 after using it at age 24 to relocate the lost asteroid Ceres in 1801.', source: WP('Least_squares') },
+      { text: 'Joseph Berkson coins "logit" in 1944 and champions the logistic model; David Cox refines binary logistic regression in 1958.', source: WP('Logistic_regression') },
+      { text: 'Arthur Hoerl and Robert Kennard introduce Ridge regression in Technometrics (1970) to stabilise collinear least squares.', source: WP('Ridge_regression') },
+    ],
+    mood: { text: 'Berkson\'s logit model "was initially dismissed as inferior to the probit model", only reaching equal footing in statistics journals between 1960 and 1970.', source: WP('Logistic_regression') },
+    story: {
+      before: { text: 'Least squares fits continuous curves (such as planetary orbits) in one linear solve, but breaks on binary outcomes and collinear features.', source: WP('Least_squares') },
+      this: { text: 'Logistic regression models log-odds linearly through a sigmoid, while Ridge shifts the diagonal of XᵀX by λI to tame near-singular matrices.', source: WP('Ridge_regression') },
+      after: { text: 'Paired with engineered features, regularised logistic regression became the fast, convex baseline across medicine, credit scoring and large-scale ad prediction.', source: WP('Logistic_regression') },
+    },
+    dispute: { text: 'Legendre published least squares first in 1805, while Gauss claimed in 1809 to have used it since 1795 — sparking a famous priority dispute (though Gauss went further by tying it to the normal distribution).', source: WP('Least_squares') },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */
