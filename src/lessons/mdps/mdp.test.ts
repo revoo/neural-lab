@@ -102,3 +102,20 @@ describe('MDP & Bellman engine (mdps)', () => {
     expect(ev.probLoop).toBeCloseTo(1.0, 6);
   });
 });
+
+describe('sampled episodes', () => {
+  it('outcome frequencies match the exact absorption probabilities', async () => {
+    const { POLICY_LAB_LEVELS, evaluateLabLevel, evaluatePolicyExact, sampleEpisodes } = await import('./mdp');
+    for (const level of POLICY_LAB_LEVELS) {
+      const pol = evaluateLabLevel(level, level.initialPolicy).optimal.policy;
+      const exact = evaluatePolicyExact(level.grid, pol, level.gamma, level.slip);
+      const n = 4000;
+      const eps = sampleEpisodes(level.grid, pol, level.slip, n, 7, 200);
+      for (const [kind, p] of [['goal', exact.probGoal], ['hazard', exact.probHazard]] as const) {
+        const f = eps.filter((e) => e.outcome === kind).length / n;
+        const se = Math.sqrt(Math.max(p * (1 - p), 1e-4) / n);
+        expect(Math.abs(f - p)).toBeLessThan(4 * se + 1e-9);
+      }
+    }
+  });
+});

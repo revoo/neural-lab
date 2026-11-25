@@ -137,7 +137,7 @@ The owner asked for the plan in `docs/LAB_IMPROVEMENTS.md` to be implemented in 
 - [x] 6. Machinery for the four "needs work" labs: Q-Learner maze replay + curves + predict-then-train (6a), sampler live draws (6b), compute-budget map (6c), alignment reply bars + Goodhart dot + prediction + training log (6d). All four are on LabShell.
 - [x] 7. Timeline page built from `src/history.ts`.
 - [x] 8. Decision lines in the Logic workbench.
-- [ ] 9. **IN PROGRESS** Replay helper; reward hacking, Wire the Policy, golf labs, VRAM Tetris falling blocks. Committed as parts 9a–9e; check `git log`. 9a done: `useReplay` (motion.ts) + `ReplayControls`, and the Reward-Hacking Sandbox replay with ledger, pad timer, hack-vs-intended values and log.
+- [ ] 9. **IN PROGRESS** Replay helper; reward hacking, Wire the Policy, golf labs, VRAM Tetris falling blocks. Committed as parts 9a–9e; check `git log`. 9a done: `useReplay` (motion.ts) + `ReplayControls`, and the Reward-Hacking Sandbox replay with ledger, pad timer, hack-vs-intended values and log. 9b done: Wire the Policy "Run 20 episodes" (sampleEpisodes, replayed with slips) + value-change flash + log.
 - [ ] 10. Remaining rows of the three tables.
 
 Notes for whoever continues:

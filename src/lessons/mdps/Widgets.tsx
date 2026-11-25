@@ -1,5 +1,8 @@
 // authored-by: Gemini Antigravity
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useReplay } from '../../components/motion';
+import { ReplayControls } from '../../components/ReplayControls';
+import { MachineLog, useMachineLog } from '../../components/MachineLog';
 import { Widget } from '../../components/Widget';
 import { StuckButton, useStuck } from '../../components/AnswerReveal';
 import { Segmented, Slider } from '../../components/controls';
@@ -13,7 +16,9 @@ import {
   evaluatePolicyExact,
   inspectBellmanBackup,
   isTerminal,
+  sampleEpisodes,
   solveValueIteration,
+  type SampledEpisode,
   type Action,
   type GridMdp,
 } from './mdp';
@@ -30,7 +35,13 @@ function GridSvg({
   showValues = true,
   interactive = false,
   ariaLabel,
+  overlay,
+  flash,
 }: {
+  /** Extra drawing on top, given the centre of a cell (used for sampled episodes). */
+  overlay?: (center: (idx: number) => [number, number]) => ReactNode;
+  /** Cells to outline briefly, keyed by cell index, with the size of their value change. */
+  flash?: Map<number, number>;
   grid: GridMdp;
   V: number[];
   policy: (Action | null)[];
@@ -265,6 +276,15 @@ function GridSvg({
           pointerEvents="none"
         />
       )}
+      {flash &&
+        [...flash.entries()].map(([idx, d]) => {
+          const r = Math.floor(idx / grid.cols);
+          const c = idx % grid.cols;
+          return (
+            <rect key={`f${idx}`} className="value-flash" x={pad + c * cellW + 2} y={pad + r * cellH + 2} width={cellW - 4} height={cellH - 4} rx={7} fill="none" stroke="var(--c-warn)" strokeWidth={1.5 + Math.min(4, d * 3)} pointerEvents="none" />
+          );
+        })}
+      {overlay?.((idx) => [pad + (idx % grid.cols) * cellW + cellW / 2, pad + Math.floor(idx / grid.cols) * cellH + cellH / 2])}
     </svg>
   );
 }
@@ -646,11 +666,49 @@ export function PolicyArchitectLab() {
     }
   };
 
+  const log = useMachineLog();
+  const [flash, setFlash] = useState<Map<number, number> | undefined>(undefined);
+  const flashTimer = useRef<number | null>(null);
   const handleCellClick = (idx: number) => {
     const nextPol = currentPolicy.slice();
     const cur = nextPol[idx];
     nextPol[idx] = cur === null || cur === undefined ? 0 : (((cur + 1) % 4) as Action);
     updatePolicy(nextPol);
+    // Which squares' values moved, and by how much: the ripple of one arrow.
+    const before = curEval.evalResult.V;
+    const after = evaluatePolicyExact(level.grid, nextPol, level.gamma, level.slip);
+    const changed = new Map<number, number>();
+    after.V.forEach((v, i) => {
+      const d = Math.abs(v - before[i]);
+      if (d > 0.005) changed.set(i, d);
+    });
+    setFlash(changed);
+    if (flashTimer.current !== null) window.clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => setFlash(undefined), 1100);
+    const [r, c] = [Math.floor(idx / level.grid.cols), idx % level.grid.cols];
+    log.push(
+      `(${r},${c}) → ${ACTION_ARROWS[nextPol[idx] as Action]} · V(S) ${curEval.evalResult.startValue.toFixed(3)} → ${after.startValue.toFixed(3)} · ${changed.size} square${changed.size === 1 ? '' : 's'} changed value`,
+      after.startValue > curEval.evalResult.startValue + 1e-9 ? 'good' : after.startValue < curEval.evalResult.startValue - 1e-9 ? 'bad' : 'info',
+    );
+  };
+
+  // "Run 20 episodes": sample real slips under the current policy and replay them together.
+  const [episodes, setEpisodes] = useState<{ key: string; eps: SampledEpisode[]; run: number } | null>(null);
+  const runCount = useRef(0);
+  const policyKey = `${level.id}|${currentPolicy.join(',')}`;
+  const liveEps = episodes && episodes.key === policyKey && !showOptimal ? episodes : null;
+  const maxLen = liveEps ? Math.max(...liveEps.eps.map((e) => e.cells.length - 1)) : 0;
+  const replay = useReplay(maxLen, 230, liveEps?.run);
+  const runEpisodes = () => {
+    runCount.current++;
+    const eps = sampleEpisodes(level.grid, currentPolicy, level.slip, 20, 1000 + runCount.current);
+    setEpisodes({ key: policyKey, eps, run: runCount.current });
+    const count = (k: SampledEpisode['outcome']) => eps.filter((e) => e.outcome === k).length;
+    const slips = eps.reduce((a, e) => a + e.slipped.filter(Boolean).length, 0);
+    log.push(
+      `run ${runCount.current}: 20 episodes · vault ${count('goal')}, gem ${count('near')}, pit ${count('hazard')}, still walking ${count('timeout')} · ${slips} slips in all · exact odds: vault ${(100 * curEval.evalResult.probGoal).toFixed(1)}%, pit ${(100 * curEval.evalResult.probHazard).toFixed(1)}%`,
+      count('hazard') > 0 ? 'bad' : 'good',
+    );
   };
 
   const [stuck, markStuck] = useStuck(`wire-policy:${level.id}`);
@@ -710,11 +768,54 @@ export function PolicyArchitectLab() {
             grid={level.grid}
             V={displayV}
             policy={displayPolicy}
-            greedyPath={displayEv.greedyPath}
+            greedyPath={liveEps ? undefined : displayEv.greedyPath}
+            flash={showOptimal ? undefined : flash}
+            overlay={
+              liveEps
+                ? (center) =>
+                    liveEps.eps.map((e, k) => {
+                      const upto = Math.min(replay.i, e.cells.length - 1);
+                      const jitter = ((k % 5) - 2) * 3;
+                      const pts = e.cells.slice(0, upto + 1).map((idx) => center(idx));
+                      const col = e.outcome === 'goal' ? 'var(--c-good)' : e.outcome === 'hazard' ? 'var(--c-bad)' : e.outcome === 'near' ? 'var(--c-a)' : 'var(--text-faint)';
+                      const [hx, hy] = pts[pts.length - 1];
+                      return (
+                        <g key={k} pointerEvents="none">
+                          <polyline points={pts.map(([x, y]) => `${x + jitter},${y + jitter}`).join(' ')} fill="none" stroke={col} strokeWidth={1.4} opacity={0.55} />
+                          {e.slipped.slice(0, upto).map((sl, t) => (sl ? <circle key={t} cx={pts[t + 1][0] + jitter} cy={pts[t + 1][1] + jitter} r={2.6} fill="var(--c-warn)" /> : null))}
+                          <circle cx={hx + jitter} cy={hy + jitter} r={4} fill={upto >= e.cells.length - 1 ? col : 'var(--text)'} stroke="var(--bg)" strokeWidth={1} />
+                        </g>
+                      );
+                    })
+                : undefined
+            }
             onCellClick={showOptimal ? undefined : handleCellClick}
             interactive={!showOptimal}
             ariaLabel={`Policy lab grid for ${level.title}`}
           />
+          <div className="btn-row" style={{ marginTop: 6 }}>
+            <button type="button" className="btn small primary" onClick={runEpisodes} disabled={showOptimal}>
+              Run 20 episodes
+            </button>
+            {liveEps && (
+              <button type="button" className="btn small" onClick={() => setEpisodes(null)}>
+                Clear runs
+              </button>
+            )}
+          </div>
+          {liveEps && (
+            <>
+              <ReplayControls r={replay} />
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {(['goal', 'near', 'hazard', 'timeout'] as const)
+                  .map((k) => [k, liveEps.eps.filter((e) => e.outcome === k && e.cells.length - 1 <= replay.i).length] as const)
+                  .filter(([, v]) => v > 0)
+                  .map(([k, v]) => `${v} ${k === 'goal' ? 'at the vault' : k === 'near' ? 'at the gem' : k === 'hazard' ? 'in the pit' : 'still walking after 40 steps'}`)
+                  .join(' · ') || 'walking…'}
+                . Orange dots are slips: the floor sent the robot sideways.
+              </div>
+            </>
+          )}
         </div>
 
         <div style={{ background: 'var(--bg-sunken)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -840,6 +941,7 @@ export function PolicyArchitectLab() {
               ? `Heads up: your arrows currently trap the agent in a cycle (${(curEval.evalResult.probLoop * 100).toFixed(0)}% loop), paying step cost forever. Break the loop to route toward the +10 Vault.`
               : `Current expected return from S is ${curEval.evalResult.startValue.toFixed(3)} (target ≥ +${level.targetReturn.toFixed(2)}). Notice that in stochastic grids, even squares off your main path matter because a slip can drop you there!`}
       </div>
+      <MachineLog lines={log.lines} onClear={log.clear} empty="Rotate an arrow or run episodes: each change in value, and each batch of runs, is logged here." />
     </Widget>
   );
 }

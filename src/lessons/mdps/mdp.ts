@@ -597,3 +597,62 @@ export function evaluateLabLevel(level: PolicyLabLevel, policy: (Action | null)[
     isOptimal: evalResult.startValue >= optStartValue - 1e-3,
   };
 }
+
+// ------------------------------------------------------------------ Sampled episodes (the lab's "Run 20 episodes")
+
+export type SampledEpisode = {
+  /** Cells visited, start first. */
+  cells: number[];
+  /** slipped[t] is true when step t went sideways instead of the intended way. */
+  slipped: boolean[];
+  outcome: 'goal' | 'near' | 'hazard' | 'timeout';
+  /** Undiscounted reward collected. */
+  reward: number;
+};
+
+/**
+ * Play the policy `n` times from the start with real slips: each step goes the
+ * intended way with probability 1 − slip, else 90° left or right (slip/2 each),
+ * exactly as getTransitions describes. Seeded, so a run can be replayed.
+ */
+export function sampleEpisodes(grid: GridMdp, policy: (Action | null)[], slip: number, n: number, seed: number, maxSteps = 40): SampledEpisode[] {
+  let a = seed >>> 0;
+  const rand = () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const eps: SampledEpisode[] = [];
+  for (let k = 0; k < n; k++) {
+    let idx = cellIndex(grid, grid.start[0], grid.start[1]);
+    const cells = [idx];
+    const slipped: boolean[] = [];
+    let reward = 0;
+    let outcome: SampledEpisode['outcome'] = 'timeout';
+    for (let t = 0; t < maxSteps; t++) {
+      const act = policy[idx] ?? 0;
+      const u = rand();
+      const dir = (u < 1 - slip ? act : u < 1 - slip / 2 ? (act + 3) % 4 : (act + 1) % 4) as Action;
+      const [r, c] = indexToRC(grid, idx);
+      let nr = r + DR[dir];
+      let nc = c + DC[dir];
+      if (nr < 0 || nr >= grid.rows || nc < 0 || nc >= grid.cols || grid.cells[nr][nc].kind === 'wall') {
+        nr = r;
+        nc = c;
+      }
+      idx = cellIndex(grid, nr, nc);
+      const cell = grid.cells[nr][nc];
+      reward += cell.reward;
+      cells.push(idx);
+      slipped.push(dir !== act);
+      if (isTerminal(cell)) {
+        outcome = cell.kind as 'goal' | 'near' | 'hazard';
+        break;
+      }
+    }
+    eps.push({ cells, slipped, outcome, reward });
+  }
+  return eps;
+}
