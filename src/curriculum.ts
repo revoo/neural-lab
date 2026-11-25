@@ -152,8 +152,9 @@ export const MODULES: ModuleMeta[] = [
     blurb: 'RNNs, LSTMs, and the bottleneck that motivated attention.',
     lessons: [
       { id: 'rnns', title: 'Recurrent Neural Networks & BPTT', summary: 'Weight sharing across time, unrolling BPTT step-by-step, the ρᵏ vanishing/exploding Jacobian law, Pascanu’s exploding cliff rescued by gradient clipping, long-lag memory decay — and Lab: Tame BPTT.', minutes: 35, load: () => import('./lessons/rnns/index.mdx') },
+      { id: 'lstms-grus', title: 'LSTMs and GRUs', summary: 'How the additive cell-state highway and three gates carry cues past hostile distractors, why forget-gate bias b_f = +2 boosts 25-step gradients 5M×, fair RNN vs GRU vs LSTM race & 25% GRU parameter discount — and Lab: Wire the Gated Cell.', minutes: 35, load: () => import('./lessons/lstms-grus/index.mdx') },
     ],
-    planned: ['LSTMs and GRUs', 'Encoder–decoder and early attention'],
+    planned: ['Encoder–decoder and early attention'],
   },
   {
     id: 'transformers',
