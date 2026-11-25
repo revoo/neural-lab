@@ -1,8 +1,11 @@
 // authored-by: Neon High
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { LiveCode } from '../../components/LabJob';
 import { hfGenerateLine } from './realCode';
 import { Widget } from '../../components/Widget';
+import { LabShell, useLabProgress } from '../../components/LabShell';
+import { useMachineLog } from '../../components/MachineLog';
+import { useTweenedArray } from '../../components/motion';
 import { Segmented, Slider } from '../../components/controls';
 import { createRng } from '../../lib/rng';
 import {
@@ -10,6 +13,8 @@ import {
   CONTEXTS,
   LAB_LEVELS,
   applySampling,
+  drawTokens,
+  type SamplerMetrics,
   evaluateSampler,
   runBeamSearch,
   solveLabLevel,
@@ -606,6 +611,7 @@ export function BeamVsGreedy() {
 // ------------------------------------------------------------------ 4. Lab: Tune the Sampler
 
 const SAMPLER_LAB_KEY = 'nl-sampling-lab-v1';
+const SAMPLER_PROGRESS_KEY = 'nl-sampling-lab-progress-v1';
 
 function loadSolved(): Record<string, boolean> {
   try {
@@ -617,13 +623,86 @@ function loadSolved(): Record<string, boolean> {
   return {};
 }
 
+const DRAWS = 10;
+
+/** Ten live draws per prompt under the current settings, with the probability bars they come from. */
+function SamplerDraws({ T, k, p, seed }: { T: number; k: number; p: number; seed: number }) {
+  const us = useMemo(() => {
+    const rng = createRng(seed);
+    return CONTEXTS.map(() => Array.from({ length: DRAWS }, () => rng.next()));
+  }, [seed]);
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(250px, 100%), 1fr))', gap: 10, marginBottom: 12 }}>
+      {CONTEXTS.map((ctx, ci) => (
+        <ContextDraws key={ctx.id} ctxIdx={ci} T={T} k={k} p={p} us={us[ci]} />
+      ))}
+    </div>
+  );
+}
+
+function ContextDraws({ ctxIdx, T, k, p, us }: { ctxIdx: number; T: number; k: number; p: number; us: number[] }) {
+  const ctx = CONTEXTS[ctxIdx];
+  const r = useMemo(() => applySampling(ctx.tokens, T, k, p), [ctx, T, k, p]);
+  const shown = useTweenedArray(r.probs, 260);
+  const draws = drawTokens(r.probs, us);
+  const junk = draws.filter((i) => !ctx.tokens[i].valid).length;
+  const max = Math.max(...shown, 0.05);
+  return (
+    <div style={{ background: 'var(--bg-sunken)', border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{ctx.label}</div>
+      <div style={{ fontSize: 13.5, margin: '2px 0 6px' }}>
+        “{ctx.prompt} <span style={{ color: 'var(--text-faint)' }}>…</span>”
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }} aria-label="Ten sampled next words">
+        {draws.map((i, n) => (
+          <span
+            key={n}
+            className="mono"
+            style={{
+              fontSize: 12,
+              padding: '1px 6px',
+              borderRadius: 4,
+              border: `1px solid ${ctx.tokens[i].valid ? 'var(--border)' : 'var(--c-bad)'}`,
+              background: ctx.tokens[i].valid ? 'var(--bg)' : 'color-mix(in srgb, var(--c-bad) 16%, var(--bg))',
+              color: ctx.tokens[i].valid ? 'var(--text)' : 'var(--c-bad)',
+              fontWeight: ctx.tokens[i].valid ? 400 : 700,
+            }}
+          >
+            {ctx.tokens[i].word}
+          </span>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gap: 1.5 }}>
+        {ctx.tokens.map((t, i) => (
+          <div key={t.word} style={{ display: 'grid', gridTemplateColumns: '62px 1fr 38px', gap: 6, alignItems: 'center', fontSize: 10.5, opacity: r.kept[i] ? 1 : 0.4 }}>
+            <span className="mono" style={{ color: t.valid ? 'var(--text-muted)' : 'var(--c-bad)', textDecoration: r.kept[i] ? 'none' : 'line-through', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {t.word}
+            </span>
+            <div style={{ height: 6, background: 'var(--bg)', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{ width: `${(100 * Math.max(0, shown[i])) / max}%`, height: '100%', background: t.valid ? 'var(--c-c)' : 'var(--c-bad)' }} />
+            </div>
+            <span className="mono" style={{ textAlign: 'right', color: 'var(--text-faint)' }}>{(100 * r.probs[i]).toFixed(1)}%</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 11.5, color: junk ? 'var(--c-bad)' : 'var(--text-faint)', marginTop: 6 }}>
+        {junk ? `${junk} of ${DRAWS} draws are ${ctx.id === 'sharp' ? 'wrong answers' : 'tail junk'}` : `no ${ctx.id === 'sharp' ? 'wrong answers' : 'junk'} in these ${DRAWS} draws`} · {r.poolSize} {r.poolSize === 1 ? 'token' : 'tokens'} survive the cut
+      </div>
+    </div>
+  );
+}
+
+const fmtSetting = (T: number, k: number, p: number) => `T ${T.toFixed(1)}, top-k ${k}, top-p ${p.toFixed(2)}`;
+
 export function SamplerLab() {
   const [levelIdx, setLevelIdx] = useState(0);
   const [T, setT] = useState(1.0);
   const [topK, setTopK] = useState(16);
   const [topP, setTopP] = useState(1.0);
-  const [solved, setSolved] = useState<Record<string, boolean>>(loadSolved);
   const [declaredImpossible, setDeclaredImpossible] = useState(false);
+  const [seed, setSeed] = useState(1);
+  const progress = useLabProgress(SAMPLER_PROGRESS_KEY, () => ({ solved: loadSolved() }));
+  const log = useMachineLog();
 
   const level = LAB_LEVELS[levelIdx];
   const stats = useMemo(() => solveLabLevel(level), [level]);
@@ -634,22 +713,22 @@ export function SamplerLab() {
   const m = useMemo(() => evaluateSampler(effT, effK, effP), [effT, effK, effP]);
   const passesNow = level.check(m);
 
-  const markSolved = (id: string) => {
-    setSolved((prev) => {
-      if (prev[id]) return prev;
-      const next = { ...prev, [id]: true };
-      try {
-        localStorage.setItem(SAMPLER_LAB_KEY, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
-  };
-
+  // Log a settled setting (not every slider tick): 450 ms after the last change.
+  const lastLogged = useRef<{ key: string; m: SamplerMetrics } | null>(null);
   useEffect(() => {
-    if (passesNow) markSolved(level.id);
-  }, [passesNow, level.id]);
+    const key = `${levelIdx}|${fmtSetting(effT, effK, effP)}`;
+    const t = window.setTimeout(() => {
+      const prev = lastLogged.current;
+      if (prev?.key === key) return;
+      const delta = prev && prev.key.split('|')[0] === String(levelIdx)
+        ? ` · sharp acc ${pct(prev.m.sharpAcc)} → ${pct(m.sharpAcc)} · flat choices ${f2(prev.m.flatEff)} → ${f2(m.flatEff)} · tail junk ${pct(prev.m.maxTailJunk)} → ${pct(m.maxTailJunk)}`
+        : ` · sharp acc ${pct(m.sharpAcc)} · flat choices ${f2(m.flatEff)} · tail junk ${pct(m.maxTailJunk)}`;
+      log.push(`${level.name.split('. ')[0]}. ${fmtSetting(effT, effK, effP)}${delta}${passesNow ? ' · passes' : ''}`, passesNow ? 'good' : 'info');
+      lastLogged.current = { key, m };
+    }, 450);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [levelIdx, effT, effK, effP]);
 
   const switchLevel = (i: number) => {
     setLevelIdx(i);
@@ -661,143 +740,24 @@ export function SamplerLab() {
 
   const optScore = stats.best ? stats.best.metrics.flatEff : null;
   const nearOpt = passesNow && optScore !== null && m.flatEff >= optScore - 0.05;
+  const solvedNow = passesNow || (!!level.impossible && declaredImpossible);
 
   return (
-    <Widget
+    <LabShell
       title="Lab: Tune the sampler"
-      wide
       caption={
         <>
-          Three engineering challenges evaluated simultaneously across our sharp, medium and flat prompts. Every level’s passing count and optimal score are computed exhaustively over the slider grid (6,080 settings when all three knobs are unlocked).
+          Three engineering challenges evaluated simultaneously across our sharp, medium and flat prompts. Each prompt shows ten live draws of the next word under your settings (tail junk in red) and the probabilities they are drawn from; cut tokens are struck through. Every level’s passing count and optimal score are computed exhaustively over the slider grid (6,080 settings when all three knobs are unlocked).
         </>
       }
-    >
-      <div style={{ marginBottom: 12 }}>
-        <Segmented
-          label="challenge"
-          options={LAB_LEVELS.map((lv, i) => ({
-            value: i,
-            label: `${solved[lv.id] ? '✓ ' : ''}${lv.name}`,
-          }))}
-          value={levelIdx}
-          onChange={switchLevel}
-        />
-      </div>
-
-      <div
-        style={{
-          padding: '10px 12px',
-          borderRadius: 'var(--radius-sm)',
-          background: 'var(--bg-sunken)',
-          border: '1px solid var(--border)',
-          marginBottom: 12,
-          fontSize: 13.5,
-        }}
-      >
-        <strong>Brief:</strong> {level.brief}
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 12 }}>
-        <div style={{ opacity: level.lockTemp !== undefined ? 0.5 : 1, pointerEvents: level.lockTemp !== undefined ? 'none' : 'auto' }}>
-          <Slider
-            label={level.lockTemp !== undefined ? 'temperature T (locked)' : 'temperature T'}
-            value={effT}
-            min={0.1}
-            max={2.0}
-            step={0.1}
-            onChange={setT}
-            format={(v) => v.toFixed(1)}
-            color="accent"
-          />
-        </div>
-        <div style={{ opacity: level.lockK !== undefined ? 0.5 : 1, pointerEvents: level.lockK !== undefined ? 'none' : 'auto' }}>
-          <Slider
-            label={level.lockK !== undefined ? 'top-k (locked)' : 'top-k'}
-            value={effK}
-            min={1}
-            max={16}
-            step={1}
-            onChange={setTopK}
-            format={(v) => `${v}`}
-            color="c-a"
-          />
-        </div>
-        <div style={{ opacity: level.lockP !== undefined ? 0.5 : 1, pointerEvents: level.lockP !== undefined ? 'none' : 'auto' }}>
-          <Slider
-            label={level.lockP !== undefined ? 'top-p (locked)' : 'top-p'}
-            value={effP}
-            min={0.1}
-            max={1.0}
-            step={0.05}
-            onChange={setTopP}
-            format={(v) => v.toFixed(2)}
-            color="c-c"
-          />
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, marginBottom: 12 }}>
-        {[
-          {
-            label: 'sharp accuracy',
-            val: pct(m.sharpAcc),
-            target: level.id === 'factual' ? '≥ 99%' : '≥ 98%',
-            ok: level.id === 'factual' ? m.sharpAcc >= 0.99 : m.sharpAcc >= 0.98,
-          },
-          {
-            label: 'flat eff. choices',
-            val: f2(m.flatEff),
-            target: level.id === 'factual' ? 'bonus: maximise' : level.id === 'topk-trap' ? '≥ 9.0' : '≥ 9.5',
-            ok: level.id === 'factual' ? true : level.id === 'topk-trap' ? m.flatEff >= 9.0 : m.flatEff >= 9.5,
-          },
-          {
-            label: 'max tail junk',
-            val: pct(m.maxTailJunk),
-            target: level.id === 'topk-trap' ? 'unconstrained' : '0.0%',
-            ok: level.id === 'topk-trap' ? true : m.maxTailJunk === 0,
-          },
-        ].map((card) => (
-          <div
-            key={card.label}
-            style={{
-              background: 'var(--bg-sunken)',
-              border: `1px solid ${card.ok ? 'var(--c-good)' : 'var(--border)'}`,
-              borderRadius: 'var(--radius-sm)',
-              padding: '8px 10px',
-            }}
-          >
-            <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{card.label}</div>
-            <div className="mono" style={{ fontSize: 18, fontWeight: 700, color: card.ok ? 'var(--c-good)' : 'var(--c-bad)' }}>
-              {card.val}
-            </div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>
-              {card.ok ? '✓ ' : '○ '}target: {card.target}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {level.impossible && !declaredImpossible && (
-        <div className="btn-row" style={{ marginBottom: 10 }}>
-          <button
-            className="btn primary"
-            onClick={() => {
-              setDeclaredImpossible(true);
-              markSolved(level.id);
-            }}
-          >
-            Declare this impossible
-          </button>
-        </div>
-      )}
-
-      <LiveCode
-        code={hfGenerateLine(effT, effK, effP)}
-        note={effK < 16 && effP < 1 ? 'Hugging Face applies top-p after re-normalising the top-k survivors, so with both on it can cut slightly more than the lab' : 'Hugging Face transformers; top_k=0 and top_p=1.0 mean off'}
-      />
-
-      <div className="live-note">
-        {level.impossible && declaredImpossible ? (
+      briefs={LAB_LEVELS.map((lv) => ({ id: lv.id, tab: lv.name, text: lv.brief }))}
+      active={levelIdx}
+      onSelect={switchLevel}
+      progress={progress}
+      passing={solvedNow}
+      optimal={nearOpt}
+      status={
+        level.impossible && declaredImpossible ? (
           <>
             <strong>Correct — 0 of 16 values of top-k work!</strong> At T = 1.0, reaching ≥ 98% sharp accuracy requires <code>k ≤ 2</code> (which limits flat diversity to at most 2.00 choices). Reaching ≥ 9.0 flat choices requires <code>k ≥ 10</code> (where sharp accuracy has already fallen to 91.9%). That exact tension is why fixed top-k cannot handle both sharp and flat contexts at once — try Level 3 with top-p unlocked!
           </>
@@ -807,27 +767,86 @@ export function SamplerLab() {
               {nearOpt ? 'Exhaustive optimum matched!' : 'Challenge solved!'} ({stats.passing.toLocaleString('en-GB')} of {stats.gridSize.toLocaleString('en-GB')} grid settings pass.)
             </strong>{' '}
             Your setting gives <strong>{f2(m.flatEff)}</strong> effective flat choices at {pct(m.sharpAcc)} sharp accuracy and 0.0% tail junk.
-            {stats.best && (
+            {stats.best && !nearOpt && (
               <>
                 {' '}
-                Exhaustive grid optimum for maximum open-ended diversity under these constraints: <strong>{f2(stats.best.metrics.flatEff)}</strong> choices (e.g. T={stats.best.T.toFixed(1)}, k={stats.best.k}, p={stats.best.p.toFixed(2)}).
+                Optional: the best setting on the grid reaches <strong>{f2(stats.best.metrics.flatEff)}</strong> flat choices under these constraints.
               </>
             )}
-            {level.id === 'balanced' && (
-              <> Notice: 0 temperature-only settings and 0 top-k-only settings pass Level 3 — nucleus top-p is what unlocks it.</>
-            )}
+            {level.id === 'balanced' && <> Notice: 0 temperature-only settings and 0 top-k-only settings pass Level 3 — nucleus top-p is what unlocks it.</>}
           </>
         ) : (
           <>
             <strong>Keep tuning</strong> (sharp pool: {m.sharpPool} {m.sharpPool === 1 ? 'token' : 'tokens'}, flat pool: {m.flatPool} tokens).{' '}
             {m.maxTailJunk > 0 && level.id !== 'topk-trap'
-              ? 'Remember: softmax is strictly positive on every token, so temperature alone can never reach exact 0.0% tail junk — you need top-p or top-k to cut the tail.'
+              ? 'Look at the red draws and bars: softmax gives every token some probability, so temperature alone can never take tail junk to exactly 0.0%. Something has to cut the tail.'
               : level.impossible
                 ? 'Sweep top-k from 1 to 16 and watch sharp accuracy and flat choices pull in opposite directions. If no setting works, declare it impossible.'
-                : 'Try adjusting top-p (around 0.85–0.95) together with temperature to keep sharp focused and flat wide.'}
+                : 'Compare the sharp and flat pools: a cut that keeps the flat prompt wide must still leave the sharp prompt almost nothing but its one right answer.'}
           </>
-        )}
+        )
+      }
+      reveal={
+        stats.best
+          ? {
+              label: 'the best grid setting',
+              content: (
+                <>
+                  Exhaustive grid optimum for maximum open-ended diversity under these constraints: <strong>{f2(stats.best.metrics.flatEff)}</strong> flat choices at T = {stats.best.T.toFixed(1)}, top-k = {stats.best.k}, top-p = {stats.best.p.toFixed(2)}.
+                </>
+              ),
+            }
+          : undefined
+      }
+      actions={
+        <button type="button" className="btn" onClick={() => setSeed((x) => x + 1)}>
+          Draw again
+        </button>
+      }
+      log={{ lines: log.lines, onClear: log.clear, empty: 'Each setting you settle on is logged here with how the three numbers moved.' }}
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 12 }}>
+        <div style={{ opacity: level.lockTemp !== undefined ? 0.5 : 1, pointerEvents: level.lockTemp !== undefined ? 'none' : 'auto' }}>
+          <Slider label={level.lockTemp !== undefined ? 'temperature T (locked)' : 'temperature T'} value={effT} min={0.1} max={2.0} step={0.1} onChange={setT} format={(v) => v.toFixed(1)} color="accent" />
+        </div>
+        <div style={{ opacity: level.lockK !== undefined ? 0.5 : 1, pointerEvents: level.lockK !== undefined ? 'none' : 'auto' }}>
+          <Slider label={level.lockK !== undefined ? 'top-k (locked)' : 'top-k'} value={effK} min={1} max={16} step={1} onChange={setTopK} format={(v) => `${v}`} color="c-a" />
+        </div>
+        <div style={{ opacity: level.lockP !== undefined ? 0.5 : 1, pointerEvents: level.lockP !== undefined ? 'none' : 'auto' }}>
+          <Slider label={level.lockP !== undefined ? 'top-p (locked)' : 'top-p'} value={effP} min={0.1} max={1.0} step={0.05} onChange={setTopP} format={(v) => v.toFixed(2)} color="c-c" />
+        </div>
       </div>
-    </Widget>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, marginBottom: 12 }}>
+        {[
+          { label: 'sharp accuracy', val: pct(m.sharpAcc), target: level.id === 'factual' ? '≥ 99%' : '≥ 98%', ok: level.id === 'factual' ? m.sharpAcc >= 0.99 : m.sharpAcc >= 0.98 },
+          { label: 'flat eff. choices', val: f2(m.flatEff), target: level.id === 'factual' ? 'bonus: maximise' : level.id === 'topk-trap' ? '≥ 9.0' : '≥ 9.5', ok: level.id === 'factual' ? true : level.id === 'topk-trap' ? m.flatEff >= 9.0 : m.flatEff >= 9.5 },
+          { label: 'max tail junk', val: pct(m.maxTailJunk), target: level.id === 'topk-trap' ? 'unconstrained' : '0.0%', ok: level.id === 'topk-trap' ? true : m.maxTailJunk === 0 },
+        ].map((card) => (
+          <div key={card.label} style={{ background: 'var(--bg-sunken)', border: `1px solid ${card.ok ? 'var(--c-good)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', padding: '8px 10px' }}>
+            <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{card.label}</div>
+            <div className="mono" style={{ fontSize: 18, fontWeight: 700, color: card.ok ? 'var(--c-good)' : 'var(--c-bad)' }}>{card.val}</div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-faint)' }}>
+              {card.ok ? '✓ ' : '○ '}target: {card.target}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <SamplerDraws T={effT} k={effK} p={effP} seed={seed} />
+
+      {level.impossible && !declaredImpossible && (
+        <div className="btn-row" style={{ marginBottom: 10 }}>
+          <button className="btn primary" onClick={() => setDeclaredImpossible(true)}>
+            Declare this impossible
+          </button>
+        </div>
+      )}
+
+      <LiveCode
+        code={hfGenerateLine(effT, effK, effP)}
+        note={effK < 16 && effP < 1 ? 'Hugging Face applies top-p after re-normalising the top-k survivors, so with both on it can cut slightly more than the lab' : 'Hugging Face transformers; top_k=0 and top_p=1.0 mean off'}
+      />
+    </LabShell>
   );
 }

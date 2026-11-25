@@ -330,3 +330,23 @@ export function runBeamSearch(beamWidth: number, steps = 3): BeamPath[] {
   }
   return beam.map(({ words, prob }) => ({ words, prob, logProb: Math.log(prob) }));
 }
+
+/**
+ * Inverse-CDF sampling with given uniforms: token index for each u in [0, 1).
+ * Re-using the same uniforms as the settings change keeps the draws stable,
+ * so the learner sees exactly which draws a change flips. Tokens with zero
+ * probability (cut by top-k or top-p) can never be drawn.
+ */
+export function drawTokens(probs: readonly number[], us: readonly number[]): number[] {
+  return us.map((u) => {
+    let cum = 0;
+    let last = 0;
+    for (let i = 0; i < probs.length; i++) {
+      if (probs[i] <= 0) continue;
+      last = i;
+      cum += probs[i];
+      if (u < cum) return i;
+    }
+    return last;
+  });
+}

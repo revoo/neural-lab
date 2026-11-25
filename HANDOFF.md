@@ -134,7 +134,7 @@ The owner asked for the plan in `docs/LAB_IMPROVEMENTS.md` to be implemented in 
 - [x] 3. History cards: `src/history.ts` + test, collapsed card after each lab.
 - [x] 4. Solution maps: Attention puzzles (11×11 query map), Build a previous-word head (180-speed strip).
 - [x] 5. Shared pieces: `LabShell`, `MachineLog`, reduced-motion hook; Dice Workshop and Tune the Q-Learner moved onto them.
-- [ ] 6. **IN PROGRESS** Machinery for the four "needs work" labs: Q-Learner maze replay, live sampler text, compute-budget map, alignment reply bars. Committed as parts 6a–6d; check `git log` for which parts are done. 6a (Q-Learner: predict-then-train, 10 learning curves, seed-1 maze replay) is done.
+- [ ] 6. **IN PROGRESS** Machinery for the four "needs work" labs: Q-Learner maze replay, live sampler text, compute-budget map, alignment reply bars. Committed as parts 6a–6d; check `git log` for which parts are done. 6a (Q-Learner: predict-then-train, 10 learning curves, seed-1 maze replay) and 6b (sampler: 10 live draws per prompt, eased bars, LabShell + log) are done.
 - [ ] 7. Timeline page built from `src/history.ts`.
 - [ ] 8. Decision lines in the Logic workbench.
 - [ ] 9. Replay helper; reward hacking, Wire the Policy, golf labs, VRAM Tetris falling blocks.
