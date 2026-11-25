@@ -686,6 +686,25 @@ export const HISTORY: HistoryEntry[] = [
       after: { text: 'Contrastive encoders like CLIP became the shared vision–language backbone behind modern multimodal LLMs, diffusion models, and zero-shot semantic search.', source: 'https://arxiv.org/abs/2103.00020' },
     },
   },
+  {
+    id: 'rnns',
+    lessonId: 'rnns',
+    lab: 'Tame BPTT',
+    idea: 'Simple RNNs, Backpropagation Through Time, Vanishing Gradients & Gradient Clipping',
+    years: [1987, 1990, 1991, 1994, 2013],
+    when: '1987 · 1990 · 1991 · 1994 · 2013',
+    who: [
+      { text: 'Tony Robinson and Frank Fallside (Cambridge, 1987) and Paul Werbos (1988) independently derive backpropagation through time by unfolding recurrent cells across steps.', source: WP('Backpropagation_through_time') },
+      { text: 'Jeffrey Elman at UC San Diego introduces the Simple Recurrent Network in Finding Structure in Time (1990), showing a shared hidden state can learn sequential phrase structure.', source: WP('Jeffrey_Elman') },
+      { text: 'Sepp Hochreiter (1991 diploma thesis, TU Munich) and Yoshua Bengio, Patrice Simard, and Paolo Frasconi (1994) prove that error gradients vanish or explode exponentially across long lags.', source: WP('Vanishing_gradient_problem') },
+      { text: 'Razvan Pascanu, Tomas Mikolov, and Yoshua Bengio (arXiv 2012 / ICML 2013) analyse exploding gradient cliffs geometrically and popularise gradient-norm clipping.', source: 'https://arxiv.org/abs/1211.5063' },
+    ],
+    story: {
+      before: { text: 'Feed-forward networks had to bake a fixed window size into their input layer, leaving no shared machinery for variable-length sequences like speech or text.', source: WP('Recurrent_neural_network') },
+      this: { text: 'Unfolding one recurrent cell through time let standard backpropagation train sequence memory, while spectral analysis and gradient clipping exposed and contained its exponential cliff dynamics.', source: 'https://arxiv.org/abs/1211.5063' },
+      after: { text: 'Those exact mathematical limits of vanilla BPTT motivated gated cells (LSTMs and GRUs), sequence-to-sequence attention, and eventually modern state-space models.', source: WP('Vanishing_gradient_problem') },
+    },
+  },
 ];
 
 /** Era bands for the timeline: the mood of each period, sourced. */

@@ -4,6 +4,8 @@ import { Predict } from '../../components/Predict';
 import { Callout, Deeper } from '../../components/Callout';
 import { Term } from '../../components/Term';
 import { Quiz } from '../../components/Quiz';
+import { LabJob, ForReal } from '../../components/LabJob';
+import { HistoryCard } from '../../components/HistoryCard';
 import { UnrolledRnnWidget, SpectralFlowWidget, CliffAndLagWidget, RnnLab } from './Widgets';
 import { questions } from './quiz';
 
@@ -98,7 +100,9 @@ Vanishing and exploding gradients are not symmetric twins — one has an easy em
 
 ## 4. Lab: Tame BPTT
 
-Solve three on-call RNN engineering briefs — keeping a 20-step gradient alive, surviving Pascanu’s exploding cliff, and sizing Truncated BPTT inside a 20-slot activation-RAM budget.
+<LabJob>
+  You are on call for a low-latency streaming sensor model trained with PyTorch `nn.RNN`. Three bugs hit staging at once: step-1 gradients die across 20 time steps, training spikes off a gradient cliff into NaN, and activation RAM blows past the embedded device's budget during unrolled backpropagation. Tune orthogonal initialisation, `clip_grad_norm_`, and Truncated BPTT chunking to ship all three fixes.
+</LabJob>
 
 <RnnLab />
 
@@ -107,6 +111,12 @@ Solve three on-call RNN engineering briefs — keeping a 20-step gradient alive,
   - **Brief 2 (Pascanu exploding cliff):** **0 of 3 unclipped configs pass** (`lr = 0.015 / 0.025` jump off the cliff into the vanishing desert at loss `0.21`; `lr = 0.05` overflows). Adding gradient clipping passes `7/12` configs, reaching exact root `w* = 1.1865` at loss `1.5×10⁻³¹`.
   - **Brief 3 (Truncated BPTT RAM budget):** Sequence length is `T = 7` (`t = 0…6`), so every `K < 7` cuts the backward graph before `t = 0` and fails `loss ≤ 0.10`. Only `2/10` configs pass both accuracy/loss and `K × H ≤ 20`: **`K = 7, H = 2`** (`14` slots, `100%`, `loss = 0.055`) is the unique minimum-RAM winner!
 </Deeper>
+
+<ForReal>
+  Every knob in this lab sits verbatim in production PyTorch sequence loops. Orthogonal initialisation (`torch.nn.init.orthogonal_`) keeps recurrent singular values near unity at step zero, `torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)` is standard boilerplate across RNNs and Transformers alike to survive loss cliffs without shrinking normal steps, and calling `h = h.detach()` between fixed-length chunks implements Truncated BPTT on streaming audio, telemetry, and reinforcement-learning rollouts where full-sequence graphs would exhaust GPU memory.
+</ForReal>
+
+<HistoryCard id="rnns" />
 
 ---
 

@@ -208,7 +208,7 @@ The owner asked for this next, in a fresh session. `docs/LAB_IMPROVEMENTS.md` re
 - [x] word-embeddings · Train & Debug Word2Vec
 - [x] similarity-search · Tune the Vector Index
 - [x] contrastive-learning · Tune Contrastive Training
-- [ ] rnns · Tame BPTT
+- [x] rnns · Tame BPTT
 - [ ] lstms-grus · Wire the Gated Cell
 - [ ] seq2seq-attention · Break the Bottleneck
 - [ ] autoencoders · The Face Printer

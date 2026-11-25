@@ -693,3 +693,51 @@ export function rnnLabExhaustive(brief: RnnBriefId) {
       : 'none',
   };
 }
+
+export function rnnLabHint(
+  brief: RnnBriefId,
+  state: {
+    b1Act: 'tanh' | 'linear';
+    b1Rho: number;
+    b2Lr: number;
+    b2Clip: number | null;
+    b3K: number;
+    b3H: number;
+  },
+): string {
+  if (brief === 'flow') {
+    const r = evalRnnBrief1(state.b1Rho, state.b1Act);
+    if (r.pass) {
+      return `Step-1 Jacobian ratio is ${r.ratio.toExponential(2)} — comfortably inside [0.10, 10.0] across all 20 steps.`;
+    }
+    if (r.ratio < 0.1) {
+      return `The gradient shrinks to ${r.ratio.toExponential(2)} after 19 multiplications because each backward step contracts by less than 1. Watch how the log curve bends when the recurrent scaling is closer to unity.`;
+    }
+    return `The gradient amplifies to ${r.ratio.toExponential(2)} because repeated multiplications above 1 compound exponentially without saturation damping them.`;
+  }
+  if (brief === 'clip') {
+    const r = evalRnnBrief2(state.b2Lr, state.b2Clip);
+    if (r.pass) {
+      return `Loss converged to ${r.finalLoss.toExponential(1)} at w = ${r.finalW.toFixed(4)} without jumping off the cliff.`;
+    }
+    if (r.exploded) {
+      return `Raw cliff slope hits ${r.maxRawGrad.toFixed(1)}, so the first step overshoots to overflow. Notice how capping the gradient vector norm limits the jump length without changing its direction.`;
+    }
+    if (state.b2Clip === null) {
+      return `Raw cliff slope (${r.maxRawGrad.toFixed(1)}) catapults the weight across zero into the flat desert (w = ${r.finalW.toFixed(3)}, loss ${r.finalLoss.toFixed(3)}), where the slope nearly vanishes. Look at what happens when the step norm is bounded.`;
+    }
+    return `Current settings stall at loss ${r.finalLoss.toExponential(2)} (w = ${r.finalW.toFixed(4)}) after 45 steps — either the effective step is too small to reach the valley in time, or it still overshoots the cliff wall.`;
+  }
+  const r = evalRnnBrief3(state.b3K, state.b3H);
+  if (r.pass) {
+    return `All 7 steps reach t = 0 (${(100 * r.testAcc).toFixed(0)}% acc, loss ${r.finalLoss.toFixed(3)}) within ${r.memSlots} / 20 activation-RAM slots.`;
+  }
+  if (!r.reachesOrigin) {
+    return `Check the tape: the cue arrives at t = 0 and the readout is at t = 6 (7 steps total), so truncating earlier cuts the backward wire before it can ever deliver credit to t = 0 (loss ${r.finalLoss.toFixed(3)}).`;
+  }
+  if (r.memSlots > 20) {
+    return `The backward pass reaches t = 0 (${(100 * r.testAcc).toFixed(0)}% acc), but storing every state uses ${r.memSlots} slots — over the 20-slot RAM cap. Remember activation memory scales as horizon × width.`;
+  }
+  return `Test accuracy is ${(100 * r.testAcc).toFixed(0)}% and loss is ${r.finalLoss.toFixed(3)}; check both whether the gradient reaches t = 0 and whether activation memory fits within 20 slots.`;
+}
+
