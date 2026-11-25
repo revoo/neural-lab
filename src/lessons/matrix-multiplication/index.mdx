@@ -155,7 +155,7 @@ Every tile expects a particular number of inputs. The output width of each tile 
 
 <Deeper title="Debrief: the cost of a working chain" tag="Spoiler">
 
-The search tried all 1,110 chains of up to three tiles. Eight reached the score shape. With at least one wide hidden layer, the smallest chain uses 9,120 weights. With two wide hidden layers, the cheapest batch takes 1,908,736 multiply-adds.
+The search tried all 1,110 chains of up to three tiles. Eight reached the score shape. With every hidden layer at least 64 wide, the smallest chain uses 50,816 weights: 784 → 64 → 10. A 10-wide layer in the middle still counts as a hidden layer, so a chain like 784 → 10 → 64 → 10 doesn't qualify, however cheap: it squeezes every image through 10 numbers. With two hidden layers, both at least 64 wide, the cheapest batch takes 1,908,736 multiply-adds (784 → 64 → 128 → 10).
 
 For the grid, the shortest recipe takes three tiles and there are three such recipes. Doubling commutes with both the shear and the turn, so you can move it through the chain. Swapping the shear and the turn changes where the marked diagonal lands.
 

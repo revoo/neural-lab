@@ -13,28 +13,35 @@ export const parts = [
 ] as const;
 export const batch = 32;
 export const maxLayers = 3;
+/** A hidden layer counts as wide at this width. */
+export const wide = 64;
 
 export function inspect(chain: number[]) {
   let width = 784,
-    parameters = 0,
-    hidden = 0;
+    parameters = 0;
   const widths: number[] = [];
   for (const id of chain) {
     const [input, output] = parts[id];
     if (input !== width) break;
     parameters += input * output;
-    hidden += Number(output >= 64);
     width = output;
     widths.push(width);
   }
+  // Every layer between the input and the last one is hidden, however narrow.
+  const hiddenWidths = widths.slice(0, -1);
   return {
     widths,
     parameters,
     multiplyAdds: batch * parameters,
-    hidden,
+    hidden: hiddenWidths.length,
+    narrowest: hiddenWidths.length ? Math.min(...hiddenWidths) : Infinity,
     complete: widths.length === chain.length && width === 10,
   };
 }
+
+/** Brief rule: a complete chain with at least `layers` hidden layers, every one of them at least `wide` wide. */
+export const meets = (row: ReturnType<typeof inspect>, layers: number) =>
+  row.complete && row.hidden >= layers && (layers === 0 || row.narrowest >= wide);
 
 type Matrix = readonly [number, number, number, number];
 export const transforms = [
@@ -74,8 +81,8 @@ export function solvePipeline() {
   return {
     trials: chains.length,
     valid,
-    parameters: Math.min(...valid.filter((row) => row.hidden >= 1).map((row) => row.parameters)),
-    multiplyAdds: Math.min(...valid.filter((row) => row.hidden >= 2).map((row) => row.multiplyAdds)),
+    parameters: Math.min(...valid.filter((row) => meets(row, 1)).map((row) => row.parameters)),
+    multiplyAdds: Math.min(...valid.filter((row) => meets(row, 2)).map((row) => row.multiplyAdds)),
     geometryTrials: geometry.length,
     shortest: Math.min(...exact.map((chain) => chain.length)),
     exact,

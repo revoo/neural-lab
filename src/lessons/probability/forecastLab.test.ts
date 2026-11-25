@@ -12,6 +12,7 @@ import {
   roundLogits,
   scores,
   tolerance,
+  shownPercent,
 } from './forecastLab';
 
 it('recovers the target, including after locking the first logit at zero', () => {
@@ -65,4 +66,17 @@ it('shows multiple solutions for all briefs, with poor odds on coarse random log
           }
     expect(passed / tried).toBeLessThan(0.5);
   }
+});
+
+it('never shows a tiny positive forecast as zero', () => {
+  expect(shownPercent(0)).toBe('0%');
+  expect(shownPercent(0.5)).toBe('50.00%');
+  expect(shownPercent(0.0001)).toBe('0.01%');
+  expect(shownPercent(0.00003)).toBe('0.0030%');
+  expect(shownPercent(1e-9)).toBe('< 0.0001%');
+  // the dry-days brief: a near-match forecast gives snow a small but positive share
+  const snow = scores([0, -0.6, -1.3, -12], 1)[3];
+  expect(snow).toBeGreaterThan(0);
+  expect(shownPercent(snow)).not.toBe('0%');
+  expect(shownPercent(snow)).not.toBe('0.00%');
 });

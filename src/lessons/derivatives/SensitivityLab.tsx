@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { LabShell, useLabProgress } from '../../components/LabShell';
 import { useMachineLog } from '../../components/MachineLog';
-import { Plot, Seg } from '../../components/plot';
+import { Label, Plot, Seg } from '../../components/plot';
 import { accepts, experiments, secant, survey, type Probe } from './sensitivityLab';
 
 const key = 'neural-lab:sensitivity-settings';
@@ -29,26 +29,61 @@ const inputStyle = {
 };
 type Settings = { x: string; probes: Probe[]; pairs: [string, string][] };
 
+/** Probe pairs in the order survey() returns them. */
+const METHOD_NAMES = ['forward: x and x + h', 'centred: x − h and x + h', 'backward: x − h and x'];
+
 function ErrorPlot({ index }: { index: number }) {
   const rows = survey(index);
   const floor = (error: number) => Math.log10(Math.max(error, 1e-12));
   const methods = index === 2 ? [0, 2, 1] : [0, 1];
   const colours = ['var(--c-a)', 'var(--c-b)', 'var(--c-c)'];
+  // Different widths, widest drawn first, so lines that coincide stay visible.
+  const widths = [4.5, 1.5, 2.5];
+  const evens = (lo: number, hi: number) => Array.from({ length: Math.floor((hi - lo) / 2) + 1 }, (_, i) => lo + 2 * i);
   const top = Math.ceil(Math.max(1, ...rows.flatMap((row) => row.methods.map((method) => floor(method.error)))));
   return (
     <>
-      <p>
-        First colour: forward. Second: centred. {index === 2 && 'Third: backward.'} Exact or tiny errors sit at the bottom of
-        the chart.
+      <p style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', alignItems: 'center' }} aria-label="Legend">
+        {[0, 1, 2]
+          .filter((method) => methods.includes(method))
+          .map((method) => (
+            <span key={method} style={{ whiteSpace: 'nowrap' }}>
+              <span aria-hidden="true" style={{ display: 'inline-block', width: 22, height: widths[method], background: colours[method], verticalAlign: 'middle', marginRight: 6 }} />
+              {METHOD_NAMES[method]}
+            </span>
+          ))}
+        <span style={{ whiteSpace: 'nowrap' }}>
+          <span aria-hidden="true" style={{ display: 'inline-block', width: 22, borderTop: '2px dashed var(--text-faint)', verticalAlign: 'middle', marginRight: 6 }} />
+          allowed error
+        </span>
       </p>
+      <p>Each line shows how far one kind of probe pair lands from the true slope, as the spacing shrinks. Exact or tiny errors sit at the bottom of the chart.</p>
       <Plot
         x={[-10, -1]}
-        y={[-12, top]}
-        xLabel="log₁₀ step"
-        yLabel="log₁₀ error"
+        y={[-13, top]}
+        axes={false}
+        pad={44}
         ariaLabel="Error versus step on logarithmic axes"
         style={{ display: 'block', maxWidth: '100%', height: 'auto' }}
       >
+        <Seg from={[-10, -13]} to={[-1, -13]} color="var(--c-axis)" />
+        <Seg from={[-10, -13]} to={[-10, top]} color="var(--c-axis)" />
+        {evens(-10, -2).map((t) => (
+          <Label key={'x' + t} at={[t, -13]} dy={15} anchor="middle" size={11} weight={400} color="var(--text-muted)">
+            {String(t).replace('-', '−')}
+          </Label>
+        ))}
+        {evens(-12, top).map((t) => (
+          <Label key={'y' + t} at={[-10, t]} dx={-6} dy={4} anchor="end" size={11} weight={400} color="var(--text-muted)">
+            {t === -12 ? '≤ −12' : String(t).replace('-', '−')}
+          </Label>
+        ))}
+        <Label at={[-5.5, -13]} dy={32} anchor="middle" size={12} weight={500} color="var(--text-muted)">
+          log₁₀ step (smaller to the left)
+        </Label>
+        <Label at={[-10, top]} dx={6} dy={4} size={12} weight={500} color="var(--text-muted)">
+          log₁₀ error
+        </Label>
         <Seg from={[-10, floor(experiments[index].tolerance)]} to={[-1, floor(experiments[index].tolerance)]} dash="4 4" />
         {methods.flatMap((method) =>
           rows
@@ -59,11 +94,12 @@ function ErrorPlot({ index }: { index: number }) {
                 from={[-i - 1, floor(rows[i].methods[method].error)]}
                 to={[-i - 2, floor(row.methods[method].error)]}
                 color={colours[method]}
+                width={widths[method]}
               />
             )),
         )}
       </Plot>
-      <p>The dashed line marks the allowed error. A centred probe at a corner mixes the two sides.</p>
+      {index === 2 && <p>A centred probe at a corner mixes the two sides.</p>}
     </>
   );
 }

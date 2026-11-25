@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { LabShell, useLabProgress } from '../../components/LabShell';
 import { useMachineLog } from '../../components/MachineLog';
 import { Slider } from '../../components/controls';
-import { correctTemperature, days, dryDays, fixedLogits, gap, normalise, ratio, scores, tolerance } from './forecastLab';
+import { correctTemperature, days, dryDays, fixedLogits, gap, normalise, ratio, scores, tolerance, shownPercent } from './forecastLab';
 
 const labels = ['Sun', 'Cloud', 'Rain', 'Snow'];
 const briefs = [
@@ -148,10 +148,10 @@ export function ForecastLab() {
                   }}
                 >
                   <span>
-                    {j ? 'Observed' : 'Forecast'} {percent(value)}
+                    {j ? 'Observed' : 'Forecast'} {shownPercent(value)}
                   </span>
                   <div style={{ height: 7, background: 'var(--bg-sunken)' }}>
-                    <div style={{ height: '100%', width: percent(value), background: j ? 'var(--c-b)' : 'var(--c-a)' }} />
+                    <div style={{ height: '100%', width: percent(value), minWidth: value > 0 ? 2 : 0, background: j ? 'var(--c-b)' : 'var(--c-a)' }} />
                   </div>
                 </div>
               ))}

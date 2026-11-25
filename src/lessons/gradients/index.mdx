@@ -187,7 +187,7 @@ f = lambda v: v[0]**2 * v[1] + 5 * v[1]
 numerical_gradient(f, np.array([3.0, 2.0]))   # array([12., 14.])  → [2xy, x²+5]
 ```
 
-Look at the cost: two function evaluations *per input*. For a model with a billion parameters, that's two billion forward passes to get one gradient. That's completely impractical, and it's the problem that backpropagation solves. As you'll see, backpropagation gets the *entire* gradient for roughly the cost of a couple of forward passes, by reusing work cleverly with the chain rule.
+Look at the cost: two function evaluations *per input*. For a model with a billion parameters, that's two billion forward passes to get one gradient. That's completely impractical, and it's the problem that backpropagation solves: it gets the *entire* gradient for about the cost of three forward passes, by reusing work cleverly with the chain rule.
 
 <Misconception>
 
@@ -214,7 +214,7 @@ When you call `loss.backward()` in PyTorch, what you get back — stored in each
 
 <Bridge to="gradient-descent">
 
-One training step is $\cp{\mathbf{w}} \leftarrow \cp{\mathbf{w}} - \cb{\eta}\, \cg{\nabla L}$: the gradient from this lesson, scaled by the learning rate $\cb{\eta}$. Without the gradient you'd be turning millions of knobs one at a time, with no idea which way.
+One training step is $\cp{\mathbf{w}} \leftarrow \cp{\mathbf{w}} - \cb{\eta}\, \cg{\nabla L}$: the gradient from this lesson, scaled by the learning rate $\cb{\eta}$. Without the gradient, a model with millions of knobs would be turning them one at a time, or trying random directions, and you've seen how that goes with only 100.
 
 </Bridge>
 

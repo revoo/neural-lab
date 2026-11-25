@@ -190,7 +190,7 @@ Two details here are worth noticing, because they're the core ideas of backpropa
 
 **First, the backward pass needs the forward pass's values.** The local derivative of $\tanh$ uses $a$; the local derivative with respect to $w$ uses $x$. That's why training frameworks keep intermediate activations in memory — and why training uses far more memory than simply running a model.
 
-**Second, work gets reused.** Once we have `dL_dz`, both `dL_dw` and `dL_db` are one multiplication away. In a big network, the gradient flowing back into a layer is computed once and then shared by every weight in that layer. Walking backwards from the loss lets each piece of the chain be computed exactly once. That's the trick that makes it possible to get billions of derivatives for roughly the cost of a forward pass.
+**Second, work gets reused.** Once we have `dL_dz`, both `dL_dw` and `dL_db` are one multiplication away. In a big network, the gradient flowing back into a layer is computed once and then shared by every weight in that layer. Walking backwards from the loss lets each piece of the chain be computed exactly once. That's the trick that makes it possible to get billions of derivatives for about the cost of three forward passes.
 
 <Misconception>
 

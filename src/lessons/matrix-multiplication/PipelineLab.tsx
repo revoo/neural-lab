@@ -14,6 +14,8 @@ import {
   swapLast,
   target,
   transforms,
+  meets,
+  wide,
 } from './pipelineLab';
 
 const title = 'Lab: Build the Pipeline';
@@ -23,7 +25,7 @@ const briefs = [
   {
     id: 'hidden',
     tab: 'Hidden width',
-    text: 'Reach the same output using a hidden width of at least 64. Then try to minimise the parameter count.',
+    text: 'Reach the same output through at least one hidden layer, with every hidden layer at least 64 wide. Then try to minimise the parameter count.',
   },
   {
     id: 'deeper',
@@ -81,7 +83,7 @@ export function PipelineLab() {
   const geometry = active === 3,
     limit = geometry ? 4 : maxLayers;
   const result = inspect(geometry ? [] : chain);
-  const passing = geometry ? matches(chain) : result.complete && result.hidden >= active;
+  const passing = geometry ? matches(chain) : meets(result, active);
   const optimal =
     passing &&
     (active === 1
@@ -124,7 +126,9 @@ export function PipelineLab() {
       ? 'The inner sizes must match.'
       : passing
         ? 'This chain meets the brief.'
-        : 'The chain still needs to meet the output and hidden-width requirements.';
+        : result.complete && active > 0 && result.hidden >= active && result.narrowest < wide
+          ? 'A hidden layer only ' + result.narrowest + ' wide squeezes every image through ' + result.narrowest + ' numbers. Each hidden layer must be at least ' + wide + ' wide.'
+          : 'The chain still needs to meet the output and hidden-layer requirements.';
   return (
     <LabShell
       title={title}
@@ -146,8 +150,8 @@ export function PipelineLab() {
         content: (
           <p>
             Of {solution.trials.toLocaleString()} tile chains, {solution.valid.length} reach the score shape. The smallest
-            chain with a wide hidden layer has {solution.parameters.toLocaleString()} parameters. With two wide hidden layers
-            the fewest multiply-adds is {solution.multiplyAdds.toLocaleString()}. The target grid has {solution.exact.length}{' '}
+            chain whose hidden layers are all at least {wide} wide has {solution.parameters.toLocaleString()} parameters (a narrow
+            layer counts as hidden too). With two hidden layers, both at least {wide} wide, the fewest multiply-adds is {solution.multiplyAdds.toLocaleString()}. The target grid has {solution.exact.length}{' '}
             recipes of length {solution.shortest}, the shortest length in the search.
           </p>
         ),

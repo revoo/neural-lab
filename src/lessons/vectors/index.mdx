@@ -209,21 +209,9 @@ The `+` here is not list concatenation (as it would be for plain Python lists, w
 
 ## A trap hiding in plain sight
 
-Distance is a wonderful idea, but it has a catch, and it's worth feeling it now.
+You met this trap in the lab's third brief: in raw units, whichever measurement has the biggest numbers decides every distance. It isn't special to emails. Describe houses as `[floor area in m², bedrooms]`, and by straight-line distance `[120, 2]` is closer to `[125, 5]` (about 5.8 away) than to `[100, 2]` (20 away), although the first pair differ by three bedrooms. Geometry has no idea what the numbers mean. It just sees big numbers and small ones.
 
-<Predict
-  question="Houses are described as [floor area in m², number of bedrooms]. House A is [120, 2], B is [125, 5], and C is [100, 2]. Which one is *closest* to A, measured as the straight-line distance between their vectors?"
-  options={['B: [125, 5]', 'C: [100, 2]', 'They’re equally close']}
-  answer={0}
->
-
-Compute it. A→B is $\sqrt{5^2 + 3^2} \approx 5.8$. A→C is $\sqrt{20^2 + 0^2} = 20$. So according to the maths, B is far more similar to A — even though it has *two and a half times as many bedrooms*.
-
-The problem is units. Floor area is measured in numbers around 100; bedrooms in numbers around 3. A 20 m² difference is fairly minor for a house, but numerically it dwarfs a jump from 2 to 5 bedrooms. Geometry has no idea what the numbers mean. It just sees big numbers and small numbers.
-
-This is why real ML pipelines almost always **rescale features** to comparable ranges before doing anything geometric with them. Later, you'll see that neural networks have the same sensitivity, and that a whole family of techniques (normalisation layers) exists partly to deal with it.
-
-</Predict>
+That's why real pipelines almost always **rescale features** to comparable ranges before doing anything geometric with them. Neural networks have the same sensitivity, and a whole family of techniques, normalisation layers, exists partly to deal with it.
 
 <Misconception>
 
