@@ -163,3 +163,48 @@ Notes for whoever continues:
 - Step 7: `#/timeline` (`src/pages/TimelinePage.tsx`, sidebar link "Timeline of AI") draws `HISTORY`, `ERAS` and `MILESTONES` from `src/history.ts`: era bands (click for the sourced mood), a dot per lab idea (filled when its lesson is completed), a "you are here" marker at the latest idea reached, and every card below (shared `HistoryBody`). `timelineX`/`assignLanes` are tested. Each lesson's history card links to `#/timeline/<id>`, which highlights it.
 - New gotcha: the dev server stops between long sessions; `drive-widget.cjs` then fails with `Node.js v…` and no screenshot. Restart `npm run dev` (see Environment tips).
 - `scripts/drive-widget.cjs` takes `--title=<text>` to pick a widget by title instead of index.
+
+## Next task: the lab-improvement treatment for the labs added after the review (NOT STARTED)
+
+The owner asked for this next, in a fresh session. `docs/LAB_IMPROVEMENTS.md` reviewed only the 25 labs that existed then. The 21 labs added since have none of what those 25 now have. Bring them up to the same standard, one lab per commit, ticking the list below as you go. If you are interrupted, mark the lab you are in the middle of **IN PROGRESS** with a note.
+
+**Read first:** `docs/LAB_IMPROVEMENTS.md` ("Cross-cutting ideas", "What good looks like", "The card") and the step notes in the section above. Then look at one finished example of each piece:
+- Real job + "where this happens for real" + history card in the MDX: `src/lessons/logic-lab/index.mdx` (search for `<LabJob>`, `<ForReal>`, `<HistoryCard`).
+- Answer gating: `src/components/AnswerReveal.tsx`, used in `src/lessons/lora/Widgets.tsx` (LoraBudgetLab).
+- Evidence-only hints with a test that they never name a locked control: `rescueHint` in `src/lessons/vanishing-gradients/vanish.ts` and `hints.test.ts` beside it.
+- Shared frame: `LabShell` + `useLabProgress` (with `seed` to keep old saves), as in `DiceWorkshop` in `src/lessons/statistics/Widgets.tsx`.
+- Machine log: `MachineLog`/`useMachineLog`, e.g. `src/lessons/kv-cache/Widgets.tsx` (VramTetrisLab).
+- History data: `src/history.ts` (every sentence a `Claim` with its own source URL). `src/history.test.ts` currently expects exactly 25 entries: update that count as you add entries.
+
+**For each lab, in priority order:**
+1. **Audit for early answers (required; it's a project rule).** Any optimum, best setting, exhaustive summary or "show the answer" visible before a solve must be gated: after a solve, or behind a confirmed, remembered "I'm stuck" (`AnswerReveal`, or `StuckButton` + `useStuck`). A *target number* stated as the optional goal after a pass is fine; the *setting* that achieves it is not. Every one of these 21 labs mentions an optimum or exhaustive search, so check each.
+2. **Hints point at evidence, never at a setting**, and never name a locked control. If a hint depends on the brief, move it to the lesson's `.ts` and add a `hints.test.ts`.
+3. **A real job:** `<LabJob>…</LabJob>` just above the widget, and `<ForReal>` (a paragraph or two) after the lab's debrief, before the next `##` heading. Check every real-world claim (library names, APIs, numbers) against a source. Network access works: you can fetch raw files from GitHub and Wikipedia's `?action=raw` with curl, and arXiv PDFs with `pdftotext`.
+4. **A history card:** add an entry to `src/history.ts` and `<HistoryCard id="…" />` after `<ForReal>`. Every date, place and quote needs its own source URL, checked on the page itself. Leave out the mood line rather than invent one. Name disputes plainly. `src/history.test.ts` checks that each entry's card is in its lesson. Add new milestones to the timeline only if they're sourced.
+5. **A machine log** where the lab has discrete actions (one plain line per event, with real numbers).
+6. **Optional:** a live code line (`LiveCode` + a tested `realCode.ts`) where the settings map onto a real library call (e.g. scikit-learn for Module 8, FAISS for similarity search, the PyTorch `nn.LSTM` signature). Moving the lab onto `LabShell` (keep old saves via `useLabProgress(key, seed)`).
+
+**Labs to do** (lesson id · lab):
+- [ ] linear-regression · Feature Engineering + Logistic Regression
+- [ ] knn · Rescue the kNN Classifier
+- [ ] decision-trees · Build the Tabular Ensemble
+- [ ] clustering-pca · Compress & Segment
+- [ ] images-as-tensors · Build the Vision Preprocessor
+- [ ] convolution · Design the Kernel
+- [ ] cnns · Architect the CNN
+- [ ] object-detection · Tune the Object Detector
+- [ ] one-hot-vs-dense · Choose & Size the Representation
+- [ ] word-embeddings · Train & Debug Word2Vec
+- [ ] similarity-search · Tune the Vector Index
+- [ ] contrastive-learning · Tune Contrastive Training
+- [ ] rnns · Tame BPTT
+- [ ] lstms-grus · Wire the Gated Cell
+- [ ] seq2seq-attention · Break the Bottleneck
+- [ ] autoencoders · The Face Printer
+- [ ] diffusion · Spend the Step Budget
+- [ ] guidance · Tune the Guidance
+- [ ] rag · Tune the Retriever
+- [ ] tool-calling · Harden the Agent Pipeline
+- [ ] evaluation · Size Your Eval Suite
+
+**After each lab:** `npx tsc --noEmit -p .`, the lesson's tests, then screenshots with `node scripts/drive-widget.cjs <lessonId> 0 '[{"shot":"x"}]' --title="<widget title text>"` in light, dark and matrix, and at `--width=390`. Commit with the `Authored-by` trailer and push. **At the end:** run `npm test`, `npm run build` (then check the watermark is absent from `dist/`), `node scripts/check-pages.cjs` and `--theme=matrix`. Update `docs/ROADMAP.md` "Current state" and tick this list.
