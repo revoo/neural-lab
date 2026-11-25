@@ -1,6 +1,91 @@
+// (decision-plane panel and machine log added by Claude Opus 5.5)
 import { useEffect, useState } from 'react';
 import { Widget } from '../../components/Widget';
-import { cost, run, score, ROWS, type Circuit, type Neuron } from './workbench';
+import { Handle, Plot } from '../../components/plot';
+import { MachineLog, useMachineLog } from '../../components/MachineLog';
+import { cost, run, score, snapLine, tallyLine, ROWS, type Circuit, type Neuron } from './workbench';
+
+const LINE_COLORS = ['var(--accent)', 'var(--c-b)', 'var(--c-a)'];
+const BOX: [number, number] = [-0.6, 1.6];
+
+/** Clip the line w·p + b = 0 to the plotting box: its two end points, or null if it misses. */
+function clipLine(n: Neuron): [[number, number], [number, number]] | null {
+  const [w1, w2] = n.w;
+  if (w1 === 0 && w2 === 0) return null;
+  const pts: [number, number][] = [];
+  const [lo, hi] = BOX;
+  for (const x of [lo, hi]) if (w2 !== 0) { const y = -(w1 * x + n.b) / w2; if (y >= lo - 1e-9 && y <= hi + 1e-9) pts.push([x, y]); }
+  for (const y of [lo, hi]) if (w1 !== 0) { const x = -(w2 * y + n.b) / w1; if (x >= lo - 1e-9 && x <= hi + 1e-9) pts.push([x, y]); }
+  const uniq = pts.filter((p, i) => pts.findIndex((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 1e-6) === i);
+  return uniq.length >= 2 ? [uniq[0], uniq[1]] : null;
+}
+
+/**
+ * The four input corners with each input neuron's decision line (it fires on
+ * the side the little arrow points to). Corners are filled where the puzzle
+ * wants a 1, and ringed red where the circuit gets them wrong. Drag the round
+ * handle to move a line, the square one to turn it; it snaps to the nearest
+ * weights the buttons can make.
+ */
+function DecisionPlane({ c, P, results, onChange }: { c: Circuit; P: Puzzle; results: boolean[]; onChange: (c: Circuit) => void }) {
+  const neurons = c.hidden.length ? c.hidden : [c.out];
+  const names = c.hidden.length ? c.hidden.map((_, i) => `h${i + 1}`) : ['output'];
+  const setN = (j: number, n: Neuron) => onChange(c.hidden.length ? { ...c, hidden: c.hidden.map((x, i) => (i === j ? n : x)) } : { ...c, out: n });
+  return (
+    <div>
+      <Plot x={BOX} y={BOX} width={260} height={260} grid={false} tickLabels={false} xLabel="A" yLabel="B" pad={22} ariaLabel="The four input corners and each neuron's decision line" style={{ width: '100%', maxWidth: 280, height: 'auto', display: 'block' }}>
+        {({ x, y }) => (
+          <g>
+            {neurons.map((n, j) => {
+              const seg = clipLine(n);
+              if (!seg) return null;
+              const [[x1, y1], [x2, y2]] = seg;
+              const mx = (x1 + x2) / 2;
+              const my = (y1 + y2) / 2;
+              const len = Math.hypot(n.w[0], n.w[1]);
+              const ax = mx + (0.22 * n.w[0]) / len;
+              const ay = my + (0.22 * n.w[1]) / len;
+              return (
+                <g key={j}>
+                  <line x1={x(x1)} y1={y(y1)} x2={x(x2)} y2={y(y2)} stroke={LINE_COLORS[j % 3]} strokeWidth={2.5} />
+                  <line x1={x(mx)} y1={y(my)} x2={x(ax)} y2={y(ay)} stroke={LINE_COLORS[j % 3]} strokeWidth={2} markerEnd="" />
+                  <circle cx={x(ax)} cy={y(ay)} r={2.5} fill={LINE_COLORS[j % 3]} />
+                  <text x={x(ax) + 4} y={y(ay) - 4} fontSize={10.5} fill={LINE_COLORS[j % 3]}>{names[j]} fires</text>
+                </g>
+              );
+            })}
+            {ROWS.map(([a, b], i) => (
+              <g key={i}>
+                <circle cx={x(a)} cy={y(b)} r={9} fill={P.target(a, b) ? 'var(--c-c)' : 'var(--bg)'} stroke={results[i] ? 'var(--text-muted)' : 'var(--c-bad)'} strokeWidth={results[i] ? 1.5 : 3} />
+                <text x={x(a)} y={y(b) + 4} textAnchor="middle" fontSize={10} fontWeight={700} fill={P.target(a, b) ? '#fff' : 'var(--text)'}>{P.target(a, b)}</text>
+              </g>
+            ))}
+          </g>
+        )}
+        {neurons.map((n, j) => {
+          const seg = clipLine(n);
+          if (!seg) return null;
+          const len = Math.hypot(n.w[0], n.w[1]);
+          // the point of the line nearest the centre of the square, and one 0.6 further along it
+          const d = (n.w[0] * 0.5 + n.w[1] * 0.5 + n.b) / len;
+          const m: [number, number] = [0.5 - (d * n.w[0]) / len, 0.5 - (d * n.w[1]) / len];
+          const dir: [number, number] = [-n.w[1] / len, n.w[0] / len];
+          const t: [number, number] = [m[0] + 0.6 * dir[0], m[1] + 0.6 * dir[1]];
+          return [
+            <Handle key={`m${j}`} x={m[0]} y={m[1]} r={6} color={LINE_COLORS[j % 3]} onDrag={(a, b) => setN(j, snapLine([a, b], [a + dir[0], b + dir[1]], n))} />,
+            <Handle key={`t${j}`} x={t[0]} y={t[1]} r={4.5} color={LINE_COLORS[j % 3]} onDrag={(a, b) => setN(j, snapLine(m, [a, b], n))} />,
+          ];
+        })}
+      </Plot>
+      <div className="muted" style={{ fontSize: 12, maxWidth: 300 }}>
+        {neurons.every((n) => n.w[0] === 0 && n.w[1] === 0)
+          ? 'Give a neuron some weight and its decision line appears here.'
+          : 'Filled corners should fire. Each line splits the square into “fires” and “silent”; drag the big dot to move it, the small one to turn it.'}
+        {P.hidden && c.hidden.length === 0 && ' Can any single line put both filled corners on one side and both empty ones on the other?'}
+      </div>
+    </div>
+  );
+}
 
 type Puzzle = {
   id: string;
@@ -121,6 +206,16 @@ export function LogicWorkbench() {
   const [c, setC] = useState<Circuit>(() => saved[P.id]?.circuit ?? blank(P.hidden ? 2 : 0));
   const [row, setRow] = useState<[number, number]>([1, 1]);
   const [showHint, setShowHint] = useState(false);
+  const log = useMachineLog();
+  const pickRow = (r: [number, number]) => {
+    setRow(r);
+    const res = run(c, r[0], r[1]);
+    c.hidden.forEach((h, j) => log.push(tallyLine(`h${j + 1}`, h, r, ['A', 'B'])));
+    const outIn = c.hidden.length ? res.hidden : r;
+    const outLabels = c.hidden.length ? c.hidden.map((_, j) => `h${j + 1}`) : ['A', 'B'];
+    const ok = res.out === P.target(r[0], r[1]);
+    log.push(tallyLine('output', c.out, outIn, outLabels) + ` · wanted ${P.target(r[0], r[1])} ${ok ? '✓' : '✕'}`, ok ? 'good' : 'bad');
+  };
 
   useEffect(() => {
     setC(saved[P.id]?.circuit ?? blank(P.hidden ? 2 : 0));
@@ -157,7 +252,7 @@ export function LogicWorkbench() {
       caption={
         <>
           Every neuron here uses the simplest response there is: it <strong>fires (outputs 1) if its tally is above zero</strong>, and stays silent otherwise. Set the
-          weights and biases with the − / + buttons. The truth table checks all four input combinations at once; click a row to watch that case flow through the circuit.
+          weights and biases with the − / + buttons, or drag a neuron's decision line on the square of input corners. The truth table checks all four input combinations at once; click a row to watch that case flow through the circuit.
           Your work is saved in this browser.
         </>
       }
@@ -177,7 +272,10 @@ export function LogicWorkbench() {
       </div>
       <div className="widget-row">
         <div className="widget-col" style={{ flex: '1 1 400px' }}>
-          <Diagram c={c} row={row} />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' }}>
+            <Diagram c={c} row={row} />
+            <DecisionPlane c={c} P={P} results={results} onChange={setC} />
+          </div>
           <table className="num-table" style={{ width: '100%', marginTop: 8 }}>
             <thead>
               <tr>
@@ -196,7 +294,7 @@ export function LogicWorkbench() {
                 const r = run(c, a, b);
                 const sel = row[0] === a && row[1] === b;
                 return (
-                  <tr key={i} onClick={() => setRow([a, b])} style={{ cursor: 'pointer', background: sel ? 'var(--accent-soft)' : undefined }}>
+                  <tr key={i} onClick={() => pickRow([a, b])} style={{ cursor: 'pointer', background: sel ? 'var(--accent-soft)' : undefined }}>
                     <td>{a}</td>
                     <td>{b}</td>
                     {r.hidden.map((h, j) => (
@@ -264,6 +362,7 @@ export function LogicWorkbench() {
           {showHint && !solved && <div className="feedback">{P.hint}</div>}
         </div>
       </div>
+      <MachineLog lines={log.lines} onClear={log.clear} empty="Click a truth-table row: each neuron's tally for that case is logged here." />
     </Widget>
   );
 }

@@ -136,7 +136,7 @@ The owner asked for the plan in `docs/LAB_IMPROVEMENTS.md` to be implemented in 
 - [x] 5. Shared pieces: `LabShell`, `MachineLog`, reduced-motion hook; Dice Workshop and Tune the Q-Learner moved onto them.
 - [x] 6. Machinery for the four "needs work" labs: Q-Learner maze replay + curves + predict-then-train (6a), sampler live draws (6b), compute-budget map (6c), alignment reply bars + Goodhart dot + prediction + training log (6d). All four are on LabShell.
 - [x] 7. Timeline page built from `src/history.ts`.
-- [ ] 8. Decision lines in the Logic workbench.
+- [x] 8. Decision lines in the Logic workbench.
 - [ ] 9. Replay helper; reward hacking, Wire the Policy, golf labs, VRAM Tetris falling blocks.
 - [ ] 10. Remaining rows of the three tables.
 
