@@ -187,3 +187,33 @@ export function utf8Stats(text: string) {
   const bytes = [...utf8Encoder.encode(text)];
   return { chars, byteCount: bytes.length, bytes, bytesPerChar: chars > 0 ? bytes.length / chars : 0 };
 }
+
+/**
+ * Beam search over hand-picked merge sequences (any adjacent pair seen at
+ * least twice, not just the most frequent): the lowest MDL total found. Used
+ * to check whether hand merges can beat greedy BPE's best checkpoint.
+ */
+export function beamSearchMdl(width: number, maxMerges: number, pairsPerState = 12, text = CORPUS) {
+  const words0 = wordsOf(text);
+  const v0 = initialSymbols(words0).length;
+  type S = { words: Word[]; merges: number; bits: number; seq: string[] };
+  let beam: S[] = [{ words: words0, merges: 0, bits: mdlStep(words0, 0, v0).totalBits, seq: [] }];
+  let best = beam[0];
+  let expanded = 0;
+  for (let m = 1; m <= maxMerges; m++) {
+    const next = new Map<string, S>();
+    for (const st of beam) {
+      for (const p of topPairs(st.words, pairsPerState).filter((q) => q.count >= 2)) {
+        const words = applyMergeToWords(st.words, p.pair[0], p.pair[1]);
+        expanded++;
+        const bits = mdlStep(words, m, v0).totalBits;
+        const key = words.map((w) => w.symbols.join('|')).join(' ');
+        if (!next.has(key) || next.get(key)!.bits > bits) next.set(key, { words, merges: m, bits, seq: [...st.seq, `${p.pair[0]}+${p.pair[1]}`] });
+      }
+    }
+    if (next.size === 0) break;
+    beam = [...next.values()].sort((a, b) => a.bits - b.bits).slice(0, width);
+    if (beam[0].bits < best.bits) best = beam[0];
+  }
+  return { bits: best.bits, merges: best.merges, seq: best.seq, expanded };
+}

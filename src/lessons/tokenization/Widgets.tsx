@@ -1,11 +1,13 @@
 // authored-by: Neon High
 import { useEffect, useMemo, useState } from 'react';
 import { Widget } from '../../components/Widget';
+import { MachineLog, useMachineLog } from '../../components/MachineLog';
 import { Segmented, Slider, Toggle } from '../../components/controls';
 import { Plot } from '../../components/plot';
 import {
   CORPUS,
   LANGUAGE_SAMPLES,
+  applyMerge,
   applyMergeToWords,
   bestMdl,
   encodeWord,
@@ -700,6 +702,49 @@ function MdlPlot({
   );
 }
 
+
+const SAMPLE_SENTENCE = 'the cat sat on the mat and the cat saw the rat';
+
+/** One sentence of the corpus, re-tokenised live by your merge table; tokens made by the latest merge are highlighted. */
+function LiveSentence({ merges }: { merges: { a: string; b: string }[] }) {
+  const last = merges[merges.length - 1];
+  const words = SAMPLE_SENTENCE.split(' ').map((w) => {
+    let sym = [...w, '_'];
+    for (const m of merges) sym = applyMerge(sym, m.a, m.b);
+    return sym;
+  });
+  const n = words.reduce((t, w) => t + w.length, 0);
+  return (
+    <div style={{ margin: '8px 0 10px' }}>
+      <div className="field-label">a sentence from the corpus, as your tokenizer sees it ({n} tokens)</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 10px' }}>
+        {words.map((w, i) => (
+          <span key={i} style={{ display: 'inline-flex', gap: 2 }}>
+            {w.map((t, j) => {
+              const fresh = !!last && t === last.a + last.b;
+              return (
+                <span
+                  key={`${t}-${j}-${merges.length}`}
+                  className={`mono${fresh ? ' token-fresh' : ''}`}
+                  style={{
+                    fontSize: 12.5,
+                    padding: '1px 4px',
+                    borderRadius: 4,
+                    border: `1px solid ${fresh ? 'var(--accent)' : 'var(--border)'}`,
+                    background: fresh ? 'var(--accent-soft)' : 'var(--bg-sunken)',
+                  }}
+                >
+                  {t}
+                </span>
+              );
+            })}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function CompressionLab() {
   const [mode, setMode] = useState<'hand' | 'sweep'>('hand');
   const [handMerges, setHandMerges] = useState<HandMerge[]>(loadLabMerges);
@@ -727,7 +772,16 @@ export function CompressionLab() {
 
   const pairs = useMemo(() => topPairs(handState.words, 12).filter((p) => p.count >= 2), [handState.words]);
 
+  const log = useMachineLog();
   const applyPair = (a: string, b: string, count: number) => {
+    const words = applyMergeToWords(handState.words, a, b);
+    const k = handMerges.length + 1;
+    const after = mdlStep(words, k, TRAINED.initialVocabSize);
+    const before = handState.current;
+    log.push(
+      `merge ${k}: ${a}+${b} → ${a + b} (×${count}) · ${before.tokens} → ${after.tokens} tokens · table +${f1(after.tableBits - before.tableBits)} bits · total ${f1(before.totalBits)} → ${f1(after.totalBits)} bits`,
+      after.totalBits < before.totalBits ? 'good' : 'bad',
+    );
     setHandMerges((prev) => [...prev, { a, b, count }]);
   };
 
@@ -778,7 +832,7 @@ export function CompressionLab() {
               {goal1 ? '✓' : '○'} Goal: total &lt; 1,900 bits
             </span>
             <span style={{ color: goal2 ? 'var(--c-good)' : 'var(--text-faint)', fontWeight: goal2 ? 700 : 500 }}>
-              {goal2 ? '✓' : '○'} Optional: match BPE optimum ({fmt(OPT.totalBits)} bits)
+              {goal2 ? '✓' : '○'} Optional: reach the best total found ({fmt(OPT.totalBits)} bits)
             </span>
           </div>
 
@@ -801,6 +855,8 @@ export function CompressionLab() {
                   ))
                 )}
               </div>
+
+              <LiveSentence merges={handMerges} />
 
               <div className="btn-row" style={{ marginBottom: 10 }}>
                 <button
@@ -887,7 +943,7 @@ export function CompressionLab() {
           <div className="live-note" style={{ marginTop: 10 }}>
             {goal2 ? (
               <>
-                <strong>Optimum matched ({f1(handState.current.totalBits)} bits in {handState.current.merges} merges)!</strong> Across all 67 greedy BPE checkpoints (0–66 merges), the exhaustive minimum is <strong>{OPT.merges} merges ({fmt(OPT.totalBits)} bits)</strong>. Notice why: merge 28 appears 4 times and saves more bits in the corpus than it adds to the table; every pair of count 3 or 2 costs more to record than it saves.
+                <strong>Optimum matched ({f1(handState.current.totalBits)} bits in {handState.current.merges} merges)!</strong> Across all 67 greedy BPE checkpoints (0–66 merges), the exhaustive minimum is <strong>{OPT.merges} merges ({fmt(OPT.totalBits)} bits)</strong>, and a beam search over hand-picked (non-greedy) merge orders, up to 128 candidates wide, finds nothing lower. Notice why: merge 28 appears 4 times and saves more bits in the corpus than it adds to the table; every pair of count 3 or 2 costs more to record than it saves.
               </>
             ) : goal1 ? (
               <>
@@ -996,6 +1052,7 @@ export function CompressionLab() {
           </div>
         </>
       )}
+      {mode === 'hand' && <MachineLog lines={log.lines} onClear={log.clear} empty="Merge a pair: the token count, table cost and total are logged here." />}
     </Widget>
   );
 }

@@ -108,3 +108,14 @@ describe('BPE engine on the lesson corpus', () => {
     expect(byLang.Emoji.bytesPerChar).toBe(4);
   });
 });
+
+describe('can hand-picked merges beat greedy BPE?', () => {
+  it('a beam search over non-greedy merge orders finds the same 1,806-bit floor', async () => {
+    const { beamSearchMdl } = await import('./bpe');
+    const r = beamSearchMdl(32, 45, 12);
+    expect(Math.round(r.bits)).toBe(1806);
+    expect(r.merges).toBe(28);
+    // the width quoted in the lab (128 partial tables, 30 candidate pairs each)
+    expect(Math.round(beamSearchMdl(128, 45, 30).bits)).toBe(1806);
+  });
+});

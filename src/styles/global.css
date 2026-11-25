@@ -769,3 +769,5 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 0; }
 @keyframes value-flash { from { opacity: 1; } to { opacity: 0; } }
 .tetris-drop { animation: tetris-drop 320ms cubic-bezier(0.3, 1.4, 0.6, 1) both; }
 @keyframes tetris-drop { from { transform: translateY(-110%); } to { transform: translateY(0); } }
+.token-fresh { animation: token-fresh 600ms ease-out; }
+@keyframes token-fresh { from { transform: scale(1.25); } to { transform: scale(1); } }

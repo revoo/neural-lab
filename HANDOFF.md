@@ -145,7 +145,7 @@ The owner asked for the plan in `docs/LAB_IMPROVEMENTS.md` to be implemented in 
   - [x] LoRA: per-layer captured vs missed heatmaps, log
   - [x] Mixed-precision quantisation: selected block on a number line with the format's levels; evidence hint; per-block log
   - [x] Shannon's betting game: per-word bits-lost strip (you, neural LM, unigram) + log
-  - [ ] Compress the corpus: live re-segmenting sample sentence + merge log; settle the "optimum" label question
+  - [x] Compress the corpus: live re-segmenting sentence + merge log; "optimum" settled: beam search (width up to 128, pinned in bpe.test.ts) finds no total below 1,806 bits, goal relabelled "best total found"
   - [ ] Build a previous-word head: clock hands under the bars
   - [ ] Superposition: rotatable cube for Brief 1, clash log
   - [ ] Write the backward pass: collection of the correct versions, wrong-but-trains call-out, gradient-check log
