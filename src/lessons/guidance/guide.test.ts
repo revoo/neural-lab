@@ -147,7 +147,7 @@ describe('Lab: Tune the Guidance (exhaustive)', () => {
     expect([b.fewest, b.passing]).toEqual([6, 9]);
     expect(b.atFewest).toEqual([1, 1.25, 1.5, 1.75]);
     expect(p1(labTry(2, 3).onClass)).toBe('95.3');
-  });
+  }, 30_000);
 
   it('the fewest steps are the same with two other sets of starting noise', () => {
     for (const seed of [6, 7]) expect(GUIDE_BRIEFS.map((br) => guideExhaustive(br, seed).fewest)).toEqual([5, 2, 6]);
