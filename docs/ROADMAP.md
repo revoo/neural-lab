@@ -4,6 +4,8 @@ _Last updated: lab-improvement plan (`docs/LAB_IMPROVEMENTS.md`) implemented, st
 
 ## Current state (read this first if you're picking up mid-session)
 
+**Curriculum audit, written [Claude Opus 5.5]** (owner's request: audit the order, jargon, history and "the struggle"). Report and proposals in `docs/CURRICULUM_AUDIT.md`. Nothing has been moved yet. Its Phase 1 quick wins (RL before fine-tuning, KL in `information`, tokenization before embeddings, similarity-search into Module 18, plain-language summaries, historical hooks in openings) are waiting for the owner's go-ahead.
+
 **Lab-improvement plan, done [Claude Opus 5.5]** (owner's request: implement `docs/LAB_IMPROVEMENTS.md` in its suggested order; progress checklist in `HANDOFF.md`). Summary of what now exists:
 
 - **Done [Claude Opus 5.5]:** Shared lab pieces in `src/components/`: `AnswerReveal` (answers only after a solve or a remembered "I'm stuck"), `LabJob`/`ForReal`/`LiveCode` (real job above each lab, "where this happens for real" after it, live library call), `HistoryCard` + `src/history.ts` (sourced history for all 25 reviewed labs), `LabShell` + `useLabProgress`, `MachineLog`, `motion.ts` (`usePrefersReducedMotion`, tweens, `useFramePlayer`, `useReplay`), `ReplayControls`, `GhostPath` (plot.tsx). Reduced motion zeroes widget transitions in global.css.
