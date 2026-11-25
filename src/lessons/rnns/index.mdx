@@ -1,0 +1,160 @@
+{/* authored-by: Gemini Antigravity */}
+import { Eq } from '../../components/Eq';
+import { Predict } from '../../components/Predict';
+import { Callout, Deeper } from '../../components/Callout';
+import { Term } from '../../components/Term';
+import { Quiz } from '../../components/Quiz';
+import { UnrolledRnnWidget, SpectralFlowWidget, CliffAndLagWidget, RnnLab } from './Widgets';
+import { questions } from './quiz';
+
+# Recurrent Neural Networks & BPTT
+
+Feed-forward networks and CNNs have a blind spot: they assume a fixed-size input. A sentence might be 4 words or 400; a stock ticker streams forever. Worse, word order changes everything — `"the dog bit the man"` is not `"the man bit the dog"`.
+
+A **<Term id="rnn">Recurrent Neural Network (RNN)</Term>** solves variable-length order with a disarmingly simple idea: read one token $\ca{x_t}$ at a time, and maintain a rolling **<Term id="hidden-state">hidden state</Term>** $\cb{h_t}$ that summarises everything seen so far. At every single time step $t$, the network applies the **exact same cell** with the **exact same shared weights**:
+
+<Eq
+  words="new hidden state  =  tanh( input weight · new token  +  recurrent weight · previous state  +  bias )"
+  tex="\cb{h_t} = \tanh\!\big(\cc{W_x}\,\ca{x_t} + \cp{W_h}\,\cb{h_{t-1}} + b_h\big)"
+>
+  - $\ca{x_t}$ — the current input at time step $t$
+  - $\cb{h_{t-1}}, \cb{h_t}$ — the previous and updated **hidden state** (memory vector of width $H$)
+  - $\cc{W_x}, \cp{W_h}$ — **shared** input and recurrent weight matrices reused at every step $t = 1 \dots T$
+</Eq>
+
+---
+
+## 1. Unrolling in time & Backpropagation Through Time (BPTT)
+
+How do you train a loop? **Unroll it.** An RNN run for $T = 6$ steps is literally a 6-layer feed-forward network whose weights $(\cc{W_x}, \cp{W_h}, b_h)$ are tied to be identical across all 6 layers.
+
+**Backpropagation Through Time (<Term id="bptt">BPTT</Term>)** is ordinary backpropagation walked right-to-left from the final loss at $t = T$ down to $t = 1$, **summing** the parameter gradients contributed by every time step:
+
+<Eq
+  words="total gradient on W_h  =  sum over every step t of ( sensitivity at step t  ×  previous hidden state )"
+  tex="\frac{\partial \mathcal{L}}{\partial \cp{W_h}} = \sum_{t=1}^{T} \Big(\frac{\partial \mathcal{L}}{\partial \cb{h_t}} \odot (1 - \cb{h_t}^2)\Big)\,\cb{h_{t-1}}^\top"
+>
+  - $\frac{\partial \mathcal{L}}{\partial \cb{h_t}}$ — how much nudging the hidden state at step $t$ changes the final loss (flows right-to-left)
+  - $1 - \cb{h_t}^2$ — local derivative of $\tanh$ (always in $[0, 1]$, and near $0$ whenever $|h_t| \approx 1$)
+</Eq>
+
+Click any input token $x_t$ below and toggle between a **Leaky** cell (`W_h = 0.55`) and a **Long Memory** cell (`W_h = 0.95`) on the 6-step sequence `[+1, 0, 0, −1, 0, 0]`. Watch both the forward state $h_t$ and the backward BPTT gradient $\partial \mathcal{L} / \partial h_t$ update live:
+
+<UnrolledRnnWidget />
+
+Look at those exact numbers on the default sequence: with `W_h = 0.55`, the backward gradient at step 6 is **`−1.539`**, yet by step 1 it has shrunk **50×** to **`−0.031`**. With `W_h = 0.95`, step 1 still receives **`−0.974`** — more than half the full signal!
+
+---
+
+## 2. Why RNNs vanish and explode: the $\rho^k$ law
+
+In a deep MLP, each layer has its own weight matrix. In an RNN, stepping $k$ steps backwards multiplies by the **exact same matrix** $\cp{W_h}^\top$ over and over:
+
+<Eq
+  words="sensitivity k steps earlier  =  product of k copies of ( tanh slope × recurrent weight )"
+  tex="\frac{\partial \cb{h_T}}{\partial \cb{h_{T-k}}} = \prod_{t=T-k+1}^{T} \operatorname{diag}(1 - \cb{h_t}^2)\,\cp{W_h}^\top"
+>
+  - $\cp{W_h}^\top$ — the same recurrent matrix multiplied $k$ times; its largest singular value (spectral radius $\rho$) governs exponential growth or decay
+  - $\operatorname{diag}(1 - \cb{h_t}^2)$ — diagonal $\tanh$ derivative matrix; strictly $\le 1$, pulling gradients downward even when $\rho = 1$
+</Eq>
+
+<Predict
+  question="Suppose an orthogonal 2×2 recurrent matrix has exact spectral radius ρ = 1.0 (so a linear chain preserves gradient norm = 1.000 over 20 steps). What happens to the step-1 gradient over 20 steps when we add tanh?"
+  options={[
+    'It still stays at 1.000 because ρ = 1.0.',
+    'It shrinks below 1.0 (here to 0.550) because 1 − tanh²(a_t) is strictly less than 1 whenever activations are non-zero.',
+    'It explodes past 100 because tanh amplifies signals.',
+  ]}
+  answer={1}
+>
+  Even with a perfectly norm-preserving orthogonal matrix (`ρ = 1.0`), `tanh` multiplies every backward step by `1 − h_t² ≤ 1`. Over 20 steps with modest inputs, the step-1 Jacobian drops from `1.000` to **`0.550`** — and with `ρ = 0.5`, both linear (`1.91×10⁻⁶`) and `tanh` (`1.67×10⁻⁶`) vanish by a factor of **half a million**!
+</Predict>
+
+Drag the **spectral radius $\rho$** below and watch the exact Jacobian norm across 10–30 steps on a log chart:
+
+<SpectralFlowWidget />
+
+---
+
+## 3. Exploding cliffs, gradient clipping, and the long-lag wall
+
+Vanishing and exploding gradients are not symmetric twins — one has an easy emergency brake, and the other does not:
+
+- **Exploding gradients** create terrifying **cliffs** (Pascanu, Mikolov & Bengio, 2013): when $|w| > 1$, the loss surface shoots almost vertically upward because $h_T \propto w^{T-1}$ and $\partial \mathcal{L} / \partial w \propto w^{T-2}$. On our 16-step chain starting at `w = 1.32`, the raw slope hits **`93.9`**! One unclipped SGD step at `η = 0.015` catapults `w` straight off the cliff to **`−0.0886`**, trapping it forever in the flat vanishing-gradient desert (`loss = 0.211`), while `η = 0.05` explodes to **`−∞`**.
+- **<Term id="gradient-clipping">Gradient-norm clipping</Term>** (`g ← g · c / ‖g‖₂` whenever `‖g‖₂ > c`) preserves the exact downhill **direction** while capping the step size. With `maxNorm = 1.0`, SGD glides smoothly down the cliff to the exact root `w* = 1.1865` (**loss `1.5×10⁻³¹`**)!
+- **Vanishing gradients**, however, cannot be fixed by clipping! Even with clipping enabled, switch the widget below to **Long-lag memory decay** and watch a plain `tanh` RNN (`H = 4`, SGD, averaged across 3 fixed seeds) try to remember a single starting bit `x_0 ∈ {−1, +1}` across `L` noisy distractor steps (`±1.0`):
+  - **Lag 1 & 3:** `100.0%` test accuracy
+  - **Lag 6:** `90.0%`
+  - **Lag 10:** `53.3%` (collapses to coin-flip chance!)
+  - **Lag 15:** `48.3%`
+
+<CliffAndLagWidget />
+
+<Callout kind="info" title="Why we need Truncated BPTT — and why we need LSTMs next">
+  Two practical lessons carry straight into modern deep learning. First, storing every intermediate hidden state $h_1 \dots h_T$ for BPTT costs $O(T \cdot H)$ activation memory; **Truncated BPTT** caps the backward graph at the last $K$ steps to save RAM, at the hard price that dependencies longer than $K$ steps receive **zero** direct gradient. Second, gradient clipping tames explosions, but plain `tanh` recurrence still forgets across long lags — which is why Lesson 2 introduces **LSTMs and GRUs**, whose additive cell highway lets gradients travel intact across dozens of steps!
+</Callout>
+
+---
+
+## 4. Lab: Tame BPTT
+
+Solve three on-call RNN engineering briefs — keeping a 20-step gradient alive, surviving Pascanu’s exploding cliff, and sizing Truncated BPTT inside a 20-slot activation-RAM budget.
+
+<RnnLab />
+
+<Deeper title="Exhaustive lab takeaways">
+  - **Brief 1 (20-step Jacobian flow):** `4/10` configs keep the step-1 ratio inside `[0.10, 10.0]` (`linear ρ=1.0` hits exact `1.000`; `tanh` passes at `ρ = 1.0, 1.25, 1.6` because saturation damps growth). Below `ρ = 0.8`, both vanish to `≤ 0.014`.
+  - **Brief 2 (Pascanu exploding cliff):** **0 of 3 unclipped configs pass** (`lr = 0.015 / 0.025` jump off the cliff into the vanishing desert at loss `0.21`; `lr = 0.05` overflows). Adding gradient clipping passes `7/12` configs, reaching exact root `w* = 1.1865` at loss `1.5×10⁻³¹`.
+  - **Brief 3 (Truncated BPTT RAM budget):** Sequence length is `T = 7` (`t = 0…6`), so every `K < 7` cuts the backward graph before `t = 0` and fails `loss ≤ 0.10`. Only `2/10` configs pass both accuracy/loss and `K × H ≤ 20`: **`K = 7, H = 2`** (`14` slots, `100%`, `loss = 0.055`) is the unique minimum-RAM winner!
+</Deeper>
+
+---
+
+## 5. Exact BPTT + finite-difference check in 25 lines of NumPy
+
+```python
+import numpy as np
+
+xs = np.array([1.0, 0.0, -0.5, 0.5])
+wx, wh, bh, wy, by = 0.9, 0.85, 0.0, 2.5, 0.0
+y_true = 1.0
+
+# Forward pass (store every h_t for BPTT)
+h = np.zeros(len(xs) + 1)
+for t, x in enumerate(xs):
+    h[t + 1] = np.tanh(wx * x + wh * h[t] + bh)
+
+p = 1.0 / (1.0 + np.exp(-(wy * h[-1] + by)))
+loss = -np.log(p)
+
+# Backward pass through time (t = T-1 down to 0)
+dz = p - y_true
+dh = dz * wy
+dwx = dwh = dbh = 0.0
+for t in reversed(range(len(xs))):
+    da = dh * (1.0 - h[t + 1] ** 2)
+    dwx += da * xs[t]
+    dwh += da * h[t]
+    dbh += da
+    dh = wh * da
+
+# Central finite-difference check on wh
+eps = 1e-6
+def loss_of(wh_val):
+    ht = 0.0
+    for x in xs:
+        ht = np.tanh(wx * x + wh_val * ht + bh)
+    return -np.log(1.0 / (1.0 + np.exp(-(wy * ht + by))))
+
+fd_wh = (loss_of(wh + eps) - loss_of(wh - eps)) / (2 * eps)
+print(f"h_T={h[-1]:.4f}  p={p:.4f}  loss={loss:.4f}")
+print(f"BPTT dL/dWh = {dwh:.8f}  |  FD = {fd_wh:.8f}  |  err = {abs(dwh - fd_wh):.2e}")
+# h_T=0.4301  p=0.7456  loss=0.2936
+# BPTT dL/dWh = -0.43450273  |  FD = -0.43450273  |  err = 2.79e-11
+```
+
+---
+
+## Check your understanding
+
+<Quiz questions={questions} />

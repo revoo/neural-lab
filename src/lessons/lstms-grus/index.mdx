@@ -1,0 +1,146 @@
+{/* authored-by: Gemini Antigravity */}
+import { Eq } from '../../components/Eq';
+import { Predict } from '../../components/Predict';
+import { Callout, Deeper } from '../../components/Callout';
+import { Term } from '../../components/Term';
+import { Quiz } from '../../components/Quiz';
+import { LstmGatePlayground, CarouselWidget, RaceAndParamsWidget, LstmLab } from './Widgets';
+import { questions } from './quiz';
+
+# LSTMs and GRUs
+
+In Lesson 1 we watched a plain `tanh` RNN hit a wall: gradient clipping rescued exploding cliffs, yet by lag 10–15 its memory still collapsed to coin-flip chance. The root cause wasn’t the optimiser — it was the wiring. Because a vanilla RNN **overwrites** its entire hidden state at every step through `W_h` and `tanh`, every step backwards multiplies gradients by `diag(1 − h_t²) · W_hᵀ`.
+
+In 1997, Hochreiter & Schmidhuber solved this with a breakthrough idea that foreshadowed ResNets by nearly twenty years: **stop overwriting memory — build an additive conveyor belt and guard it with learned gates.**
+
+---
+
+## 1. The LSTM: one cell highway guarded by three valves
+
+A **<Term id="lstm">Long Short-Term Memory (LSTM)</Term>** splits memory into two tracks:
+
+- **Cell state $\ca{c_t}$** — the protected **conveyor belt** (highway) running straight across time with *no* matrix multiplication and *no* `tanh` blocking it!
+- **Hidden state $\cb{h_t}$** — the working output exposed to downstream layers.
+
+Three sigmoid gates (each outputting numbers in $(0, 1)$) control traffic onto and off the highway:
+
+1. **<Term id="forget-gate">Forget gate</Term> $\cc{f_t} = \sigma(W_f[x_t, h_{t-1}] + b_f)$:** how much of old memory $\ca{c_{t-1}}$ to keep (`1` = preserve intact, `0` = wipe clean).
+2. **Input gate $\cg{i_t} = \sigma(W_i[x_t, h_{t-1}] + b_i)$:** how much of the new candidate $\tilde{c}_t = \tanh(W_c[x_t, h_{t-1}] + b_c)$ to write onto the belt (`0` = ignore noisy distractors!).
+3. **Output gate $\cp{o_t} = \sigma(W_o[x_t, h_{t-1}] + b_o)$:** how much of $\tanh(\ca{c_t})$ to expose right now as $\cb{h_t}$.
+
+<Eq
+  words="new cell memory  =  forget gate × old memory  +  input gate × new candidate;   hidden output  =  output gate × tanh(cell)"
+  tex="\ca{c_t} = \cc{f_t} \odot \ca{c_{t-1}} + \cg{i_t} \odot \tilde{c}_t, \qquad \cb{h_t} = \cp{o_t} \odot \tanh(\ca{c_t})"
+>
+  - $\ca{c_{t-1}}, \ca{c_t}$ — the **additive cell-state highway** (Constant Error Carousel)
+  - $\cc{f_t}, \cg{i_t}, \cp{o_t} \in (0, 1)^H$ — learned **forget, input, and output gates**
+  - $\odot$ — element-wise multiplication (no mixing matrix $W_h$ on the highway!)
+</Eq>
+
+Test all three valves live below. At `t = 0` the cell stores `x₀ = +1.0`; steps `1…4` fire four hostile negative distractors (`−0.8, −0.7, −0.6, −0.7`) trying to flip the cue negative!
+
+<LstmGatePlayground />
+
+Watch what happens when you open the **Input gate** (`i = 0.50` or `0.85`): even with `f = 0.95`, the hostile distractors pour onto the belt and flip the cell memory completely negative (`−73.9%` retention!). Only shutting `i = 0.05` while holding `f = 0.95` carries **`62.3%`** of the cue intact to the read step, while shutting `o = 0.05` keeps corridor leak `max |hₜ| = 0.034`!
+
+---
+
+## 2. The Constant Error Carousel — and the famous `b_f = +2` bias trick
+
+Differentiate the additive highway $\ca{c_t} = \cc{f_t} \odot \ca{c_{t-1}} + \cg{i_t} \odot \tilde{c}_t$ with respect to $\ca{c_{t-1}}$:
+
+<Eq
+  words="gradient flowing back along the cell belt  =  product of forget-gate values"
+  tex="\frac{\partial \ca{c_T}}{\partial \ca{c_{T-k}}} \approx \prod_{t=T-k+1}^{T} \cc{f_t}"
+>
+  - No $W_h^\top$ multiplication and no $1 - h_t^2$ squashing on the direct highway!
+  - Whenever $\cc{f_t} \approx 1$, the gradient rides the belt backwards almost unchanged — Hochreiter & Schmidhuber’s **Constant Error Carousel**.
+</Eq>
+
+<Predict
+  question="Suppose you initialise all LSTM weights and biases to standard zero-centred values (so forget-gate bias b_f = 0, giving f_t = σ(0) = 0.50). What happens to the cell-highway gradient over 25 steps at epoch 0?"
+  options={[
+    'It stays at 1.00 because LSTMs are immune to vanishing gradients.',
+    'It STILL vanishes to 0.5²⁴ ≈ 6.0 × 10⁻⁸! Initialising b_f = +2 or +3 is needed so f_t starts near 0.9–0.95.',
+    'It explodes to 2²⁴ ≈ 1.6 × 10⁷.',
+  ]}
+  answer={1}
+>
+  An LSTM is *not* automatically immune to vanishing gradients at initialisation! With `b_f = 0`, `f_t = 0.50` throws away half the signal every step (`0.5²⁴ = 5.96 × 10⁻⁸`). Setting **`b_f = +2`** (`f_t = 0.881`) lifts 25-step survival to **`0.048`**, and **`b_f = +3`** (`f_t = 0.953`) lifts it to **`0.312`** — over **5 million times stronger** (Jozefowicz et al., 2015)!
+</Predict>
+
+Slide **b_f** below and watch the 25-step highway come alive:
+
+<CarouselWidget />
+
+---
+
+## 3. GRUs: merging the tracks to save 25% of the parameters
+
+In 2014, Cho et al. asked: *do we really need four separate gates and two separate state vectors?* A **<Term id="gru">Gated Recurrent Unit (GRU)</Term>** merges $c_t$ and $h_t$ into a single vector and ties the forget and input valves into one **update gate** $\cc{z_t} \in (0, 1)^H$ plus a **reset gate** $r_t$:
+
+<Eq
+  words="new hidden state  =  (1 − update) × old state  +  update × fresh candidate"
+  tex="\cb{h_t} = (1 - \cc{z_t}) \odot \cb{h_{t-1}} + \cc{z_t} \odot \tilde{h}_t"
+>
+  - $\cc{z_t} = \sigma(W_z[x_t, h_{t-1}] + b_z)$ — **update gate** (`z_t ≈ 0` preserves $\cb{h_{t-1}}$ intact, playing the exact role of $f_t \approx 1, i_t \approx 0$ simultaneously!)
+  - $r_t = \sigma(W_r[x_t, h_{t-1}] + b_r)$ — **reset gate** deciding how much past context feeds into $\tilde{h}_t = \tanh(W_{hx}x_t + W_{hh}(r_t \odot h_{t-1}) + b_h)$
+</Eq>
+
+Because a GRU has **3 gate matrices** instead of an LSTM’s **4**, it uses **`25%` fewer parameters** at the same hidden width (`3 H (D + H + 1)` vs `4 H (D + H + 1)`). How do all three cells perform head-to-head on real BPTT delayed recall (averaged across 3 fixed seeds, with Vanilla RNN even given wider `H = 4` vs `H = 3` for GRU & LSTM)?
+
+<RaceAndParamsWidget />
+
+Look at that clean result:
+- **Lag 3:** Vanilla RNN `100.0%`, GRU `100.0%`, LSTM `100.0%`.
+- **Lag 8:** Vanilla RNN slips to **`79.6%`**; GRU and LSTM hold **`100.0%`**.
+- **Lag 14:** Vanilla RNN collapses to **`50.9%`** (pure coin flip); **both GRU and LSTM still score `100.0%`**!
+
+<Callout kind="info" title="So why did Transformers still replace LSTMs & GRUs?">
+  Gated cells conquered vanishing gradients over dozens of steps, yet two deep bottlenecks remained: (1) squeezing an entire 50-word sentence into a single fixed-width final vector `h_T` still loses fine details, and (2) every token `t` must wait for `h_{t-1}` before running — zero parallelism across sequence length on GPUs! Lesson 3 (*Encoder–Decoder & Early Attention*) shows how cross-attention broke the fixed-vector bottleneck and paved the direct road to Transformers.
+</Callout>
+
+---
+
+## 4. Lab: Wire the Gated Cell
+
+Configure gates to protect a cue through hostile distractors, rescue a 25-step gradient highway with forget-gate bias, and pack maximum gated capacity into a 1,800-parameter microcontroller budget.
+
+<LstmLab />
+
+<Deeper title="Exhaustive lab takeaways">
+  - **Brief 1 (Shield memory):** Only **1 of 27** combinations passes (`f = 0.95, i = 0.05, o = 0.05`, keeping `62.3%` with corridor leak `0.034`). Every gate does a distinct job!
+  - **Brief 2 (25-step highway):** `2/10` pass — **LSTM with `b_f = +2`** (`0.048`) and **`b_f = +3`** (`0.312`). Plain RNN (`6.4×10⁻⁴`) and naive `b_f = 0` LSTM (`6.0×10⁻⁸`) both fail.
+  - **Brief 3 (Edge parameter budget `D = 16, ≤ 1,800` params):** Vanilla RNN lacks a gated highway; `LSTM H = 16` needs `2,112` params (over budget!). `3/12` pass (`GRU H=12`, `LSTM H=12`, `GRU H=16`), with **`GRU H = 16` (`1,584` params)** packing the highest capacity inside the cap!
+</Deeper>
+
+---
+
+## 5. Forget-gate bias & parameter counts in 12 lines of NumPy
+
+```python
+import numpy as np
+
+def sigmoid(z): return 1.0 / (1.0 + np.exp(-z))
+
+for bf in [0.0, 1.0, 2.0, 3.0]:
+    f = sigmoid(bf)
+    print(f"b_f={bf:+.0f}  f={f:.3f}  d(c_25)/d(c_1) = {f ** 24:.3e}")
+# b_f=+0  f=0.500  d(c_25)/d(c_1) = 5.960e-08
+# b_f=+1  f=0.731  d(c_25)/d(c_1) = 5.431e-04
+# b_f=+2  f=0.881  d(c_25)/d(c_1) = 4.754e-02
+# b_f=+3  f=0.953  d(c_25)/d(c_1) = 3.116e-01
+
+D, H = 16, 16
+for name, mult in [("Vanilla RNN", 1), ("GRU", 3), ("LSTM", 4)]:
+    print(f"{name:12s} (D={D}, H={H}): {mult * H * (D + H + 1):,} params")
+# Vanilla RNN  (D=16, H=16): 528 params
+# GRU          (D=16, H=16): 1,584 params
+# LSTM         (D=16, H=16): 2,112 params
+```
+
+---
+
+## Check your understanding
+
+<Quiz questions={questions} />

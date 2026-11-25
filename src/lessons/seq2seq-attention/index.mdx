@@ -1,0 +1,131 @@
+{/* authored-by: Gemini Antigravity */}
+import { Eq } from '../../components/Eq';
+import { Predict } from '../../components/Predict';
+import { Callout, Deeper } from '../../components/Callout';
+import { Term } from '../../components/Term';
+import { Quiz } from '../../components/Quiz';
+import { BottleneckWidget, AlignmentHeatmapWidget, ParallelismWidget, Seq2SeqLab } from './Widgets';
+import { questions } from './quiz';
+
+# Encoder–Decoder and Early Attention
+
+In Lesson 2, LSTMs and GRUs solved vanishing gradients. Suddenly neural networks could read a whole sentence without forgetting the opening subject. The next grand challenge was **<Term id="seq2seq">Sequence-to-Sequence (Seq2Seq)</Term>** transduction — machine translation, summarisation, speech-to-text — where the input and output don’t even have the same length or word order (`"the black cat"` → `"le chat noir"`).
+
+In 2014, Sutskever et al. and Cho et al. proposed an elegant two-part design called an **<Term id="encoder-decoder">Encoder–Decoder</Term>**:
+
+1. **Encoder RNN/LSTM:** reads the entire source sentence $x_1 \dots x_S$ and outputs its final hidden state $\cb{c} = h_S \in \mathbb{R}^d$ — one fixed-length “thought vector”.
+2. **Decoder RNN/LSTM:** starts from $\cb{c}$ and generates the target sentence $y_1 \dots y_T$ one token at a time.
+
+---
+
+## 1. The fixed-vector information bottleneck
+
+There is a devastating flaw hiding in that diagram: **whether the input is 3 words or 300 words, the entire sentence must pass through one fixed-width vector $\cb{c} \in \mathbb{R}^d$.**
+
+As we saw in Module 1 (*High-Dimensional Geometry*), cramming $L$ distinct items into a single $d$-dimensional vector creates superposition interference as soon as $L$ approaches or exceeds $d$. Watch exact token-copying accuracy below as sentence length grows from `L = 2 → 24` tokens:
+
+<BottleneckWidget />
+
+Even with a `d = 16` summary vector, fixed-bottleneck accuracy plunges from **`100.0%`** (`L = 2`) → **`78.8%`** (`L = 4`) → **`54.7%`** (`L = 8`) → **`38.4%`** (`L = 16`) → **`31.3%`** (`L = 24`). Doubling to `d = 32` still only reaches **`51.4%`** at `L = 20`!
+
+---
+
+## 2. Bahdanau & Luong Cross-Attention: stop throwing away the encoder states!
+
+In 2015, Bahdanau, Cho & Bengio had the insight that changed AI forever: **why throw away $h_1, h_2, \dots, h_{S-1}$?!**
+
+Keep **all $S$ encoder hidden states** $\ca{h_1 \dots h_S}$ on the table. At every single decoder step $t$, let the decoder’s current state $\cb{s_t}$ ask a soft question over every source word, turn those compatibility scores into softmax weights $\cc{\alpha_{t,s}}$, and blend a fresh **context vector** $\cg{c_t}$ tailored to the exact word being translated right now (**<Term id="cross-attention">cross-attention</Term>**):
+
+<Eq
+  words="alignment shares  =  softmax( compatibility(decoder state, each encoder state) );   context  =  weighted sum of encoder states"
+  tex="\cc{\alpha_{t,s}} = \frac{\exp(e_{t,s} / \tau)}{\sum_{k=1}^{S} \exp(e_{t,k} / \tau)}, \qquad \cg{c_t} = \sum_{s=1}^{S} \cc{\alpha_{t,s}}\,\ca{h_s}"
+>
+  - $\ca{h_1 \dots h_S}$ — all $S$ encoder hidden states (memory grows linearly as $O(S \cdot d)$!)
+  - $e_{t,s}$ — compatibility score between decoder query $\cb{s_t}$ and encoder state $\ca{h_s}$:
+    - **Bahdanau (2015, additive):** $e_{t,s} = v^\top \tanh(W_s \cb{s_t} + W_h \ca{h_s} + b)$
+    - **Luong (2015, multiplicative / dot-product):** $e_{t,s} = \cb{s_t}^\top \ca{h_s}$
+  - $\cg{c_t}$ — the custom context vector handed to the decoder at step $t$
+</Eq>
+
+<Predict
+  question="When translating English “the black cat saw the red bird” into French “le chat noir vit l’oiseau rouge”, what should the cross-attention heatmap look like?"
+  options={[
+    'A strict straight diagonal from top-left to bottom-right.',
+    'Mostly diagonal, with two crisp off-diagonal swaps where “chat” attends forward to “cat” while “noir” jumps backward to “black” (and the same for “l’oiseau rouge”).',
+    'Uniformly 14% weight on every English word at every French step.',
+  ]}
+  answer={1}
+>
+  Because French places colour adjectives *after* the noun, cross-attention automatically learns off-diagonal alignments: when generating **“noir”**, Luong attention (`τ = 0.15`) puts **`98.8%`** of its weight straight onto **“black”**, achieving **`100%`** argmax accuracy and **`96.0%`** mean gold weight across the whole sentence!
+</Predict>
+
+Click any French target word in the alignment matrix below and switch between **Luong dot-product** and **Bahdanau additive** scoring:
+
+<AlignmentHeatmapWidget />
+
+---
+
+## 3. Why attention eventually killed recurrence
+
+Cross-attention solved the fixed-vector bottleneck (`max path length` dropped from `L → 1`), and BLEU scores on machine translation leaped overnight. Yet one stubborn hardware bottleneck remained:
+
+- Both the encoder LSTM and decoder LSTM still run **one token at a time** ($h_t$ cannot start until $h_{t-1}$ finishes), forcing **$2L$ sequential steps** during training — starving modern GPUs of parallelism!
+- In 2017, Vaswani et al. asked the logical next question in ***Attention Is All You Need***: *if attention already gives every token an $O(1)$ direct link to every other token, why keep the slow sequential RNN at all?!*
+
+Compare all three architectures across sequence lengths `L = 64 → 2,048` below:
+
+<ParallelismWidget />
+
+At `L = 512` tokens, **LSTM + Cross-Attention** still executes **`1,024` sequential steps (`85.07 ms`)**, while removing recurrence for a parallel **Transformer** drops sequential depth to **`1`** and forward-step latency to **`7.75 ms`** (**11× faster**!) — trading $O(L)$ serial waiting for $O(L^2)$ parallel matrix multiplications.
+
+<Callout kind="info" title="Module 11 complete — direct bridge to Module 12">
+  You now know the exact historical chain that produced modern LLMs: **vanilla RNNs** introduced weight sharing across time but hit the $\rho^k$ vanishing wall (`rnns`); **LSTMs and GRUs** added a gated cell highway that conquered vanishing gradients (`lstms-grus`); **Encoder–Decoder + Cross-Attention** broke the fixed-vector bottleneck (`seq2seq-attention`) — leaving only $O(L)$ sequentiality standing in the way of **Module 12 · Transformers & Attention**, where attention replaces recurrence completely!
+</Callout>
+
+---
+
+## 4. Lab: Break the Bottleneck
+
+Solve three real sequence-architecture briefs — escaping the 20-token bottleneck, sharpening cross-attention safely, and hitting a 20 ms GPU training SLA at `L = 512`.
+
+<Seq2SeqLab />
+
+<Deeper title="Exhaustive lab takeaways">
+  - **Brief 1 (20-token copy):** Every Fixed Bottleneck config fails (`d = 8, 16, 32` maxes out at `51.4%`). All 3 Cross-Attention configs hit `100.0%` (`3/6` pass), with **`cross-attn d = 8`** winning minimal width!
+  - **Brief 2 (Sharp alignment without overflow):** `τ = 0.05` overflows `max |logit| > 15`; `τ ≥ 0.40` smears weight below `85%`. **`Luong dot at τ = 0.15`** is the unique winner (`1/8` pass: `96.0%` mean gold weight, `max |e| = 6.67`).
+  - **Brief 3 (512-token 20 ms GPU SLA):** Fixed LSTM fails both path (`512`) and latency (`81.92 ms`); LSTM + Cross-Attention fixes path (`1`) but still serialises at `85.07 ms`. **Transformer** is the unique winner (`1/3` pass: `7.75 ms`, serial depth `1`, max path `1`).
+</Deeper>
+
+---
+
+## 5. Luong cross-attention in 14 lines of NumPy
+
+```python
+import numpy as np
+
+def softmax(x):
+    e = np.exp(x - np.max(x))
+    return e / e.sum()
+
+src = ["the", "black", "cat", "saw", "the", "red", "bird"]
+H = np.array([
+    [1.0, 0.1, 0.0, 0.0, 0.0, 0.0],  # the
+    [0.0, 0.2, 1.0, 0.0, 0.0, 0.1],  # black
+    [0.1, 1.0, 0.2, 0.1, 0.1, 0.0],  # cat
+    [0.0, 0.1, 0.0, 1.0, 0.1, 0.0],  # saw
+    [0.8, 0.0, 0.0, 0.0, 0.2, 0.0],  # the
+    [0.0, 0.0, 0.1, 0.0, 0.2, 1.0],  # red
+    [0.0, 0.1, 0.0, 0.1, 1.0, 0.2],  # bird
+])
+q_noir = np.array([0.0, 0.0, 1.0, 0.0, 0.0, 0.0])  # French "noir" queries colour 1
+alpha = softmax((H @ q_noir) / 0.15)
+context = alpha @ H
+print(f"French \"noir\" -> top source word: {src[int(np.argmax(alpha))]!r} ({100*alpha.max():.1f}% weight)")
+# French "noir" -> top source word: 'black' (98.8% weight)
+```
+
+---
+
+## Check your understanding
+
+<Quiz questions={questions} />
