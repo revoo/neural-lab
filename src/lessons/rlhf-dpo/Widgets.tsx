@@ -3,10 +3,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { LiveCode } from '../../components/LabJob';
 import { trlConfigLine } from './realCode';
 import { Widget } from '../../components/Widget';
-import { AnswerReveal } from '../../components/AnswerReveal';
+import { LabShell, useLabProgress } from '../../components/LabShell';
+import { useMachineLog } from '../../components/MachineLog';
+import { useTweenedArray } from '../../components/motion';
 import { Segmented, Slider } from '../../components/controls';
 import {
   ALIGNMENT_BRIEFS,
+  CLEAN_PREF_PAIRS,
   alignmentHint,
   CANDIDATE_REPLIES,
   LAB_BETAS,
@@ -423,6 +426,7 @@ export function LiveDpoTrainer() {
 // ------------------------------------------------------------------ 4. Lab: Tune the Alignment Pipeline
 
 const LAB_KEY = 'nl-dpo-lab-v1';
+const ALIGN_PROGRESS_KEY = 'nl-dpo-lab-progress-v1';
 
 interface SavedAlignLab {
   configs: Record<string, AlignmentLabConfig>;
@@ -444,20 +448,84 @@ function loadAlignLab(): SavedAlignLab {
   }
 }
 
+const KIND_COLOR: Record<string, string> = { great: 'var(--c-good)', good: 'var(--c-c)', bland: 'var(--text-faint)', bad: 'var(--c-warn)', hack: 'var(--c-bad)' };
+const PREDICT_KEY = 'nl-dpo-lab-goodhart-prediction-v1';
+const GOODHART_CHOICES = [
+  { id: 'rises', label: 'Keeps rising: the less we hold it back, the better it gets' },
+  { id: 'peak', label: 'Rises, peaks, then falls' },
+  { id: 'falls', label: 'Falls from the start' },
+] as const;
+
+/** The policy over the engine's 8 named replies, against the reference policy, easing as settings change. */
+function ReplyBars({ probs }: { probs: number[] }) {
+  const shown = useTweenedArray(probs, 320);
+  const max = Math.max(...shown, ...CANDIDATE_REPLIES.map((r) => r.refProb), 0.05);
+  return (
+    <div style={{ display: 'grid', gap: 4 }}>
+      {CANDIDATE_REPLIES.map((r, i) => (
+        <div key={r.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.3fr) minmax(0, 1fr) 46px', gap: 8, alignItems: 'center', fontSize: 12 }}>
+          <span style={{ color: KIND_COLOR[r.kind], overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={`${r.label}: true helpfulness ${r.trueReward}, reward model says ${r.proxyReward}`}>
+            {r.label}
+          </span>
+          <div style={{ position: 'relative', height: 10, background: 'var(--bg)', borderRadius: 3 }}>
+            <div style={{ position: 'absolute', inset: 0, width: `${(100 * Math.max(0, shown[i])) / max}%`, background: KIND_COLOR[r.kind], borderRadius: 3, opacity: 0.85 }} />
+            <div style={{ position: 'absolute', top: -2, bottom: -2, left: `${(100 * r.refProb) / max}%`, width: 2, background: 'var(--text)' }} title="reference policy" />
+          </div>
+          <span className="mono" style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{(100 * probs[i]).toFixed(1)}%</span>
+        </div>
+      ))}
+      <div className="muted" style={{ fontSize: 11.5 }}>Bars: the tuned policy. Black ticks: the reference (SFT) policy it started from. Hover a reply for its true and proxy scores.</div>
+    </div>
+  );
+}
+
+/** The lesson's Goodhart curve (exact RLHF optimum over β) with the current setting as a dot. */
+function GoodhartDot({ kl, trueR, proxyR }: { kl: number; trueR: number; proxyR: number }) {
+  const curve = useMemo(() => traceGoodhartCurve(), []);
+  const W = 300;
+  const H = 150;
+  const maxKl = Math.max(...curve.pts.map((p) => p.klNats), kl) * 1.05;
+  const ys = curve.pts.flatMap((p) => [p.expectedTrue, p.expectedProxy]).concat([trueR, proxyR]);
+  const lo = Math.min(...ys) - 0.2;
+  const hi = Math.max(...ys) + 0.2;
+  const sx = (v: number) => 30 + ((W - 40) * v) / maxKl;
+  const sy = (v: number) => 10 + ((H - 32) * (hi - v)) / (hi - lo);
+  const pts = (key: 'expectedTrue' | 'expectedProxy') => curve.pts.map((p) => `${sx(p.klNats).toFixed(1)},${sy(p[key]).toFixed(1)}`).join(' ');
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: 360, height: 'auto', display: 'block' }} role="img" aria-label="Goodhart curve with the current setting">
+      <line x1={30} x2={W - 10} y1={H - 20} y2={H - 20} stroke="var(--border)" />
+      <polyline points={pts('expectedProxy')} fill="none" stroke="var(--c-b)" strokeWidth={1.8} strokeDasharray="5 3" />
+      <polyline points={pts('expectedTrue')} fill="none" stroke="var(--c-good)" strokeWidth={2.2} />
+      <circle cx={sx(kl)} cy={sy(proxyR)} r={4} fill="var(--c-b)" />
+      <circle cx={sx(kl)} cy={sy(trueR)} r={5.5} fill="var(--c-good)" stroke="var(--text)" strokeWidth={1.5} />
+      <text x={30} y={H - 6} fontSize={9.5} className="plot-tick">KL from reference: 0</text>
+      <text x={W - 10} y={H - 6} fontSize={9.5} textAnchor="end" className="plot-tick">{maxKl.toFixed(1)} nats</text>
+    </svg>
+  );
+}
+
+const cfgText = (m: LabMethod, c: AlignmentLabConfig) => (m === 'sft' ? `SFT, ${c.steps} steps` : m === 'dpo' ? `DPO, β ${c.beta}, ${c.steps} steps` : `RLHF, β ${c.beta}`);
+
 export function AlignmentLab() {
   const [briefIdx, setBriefIdx] = useState(0);
   const [state, setState] = useState<SavedAlignLab>(() => loadAlignLab());
+  const progress = useLabProgress(ALIGN_PROGRESS_KEY, () => ({ solved: state.solved }));
+  const log = useMachineLog();
+  const [prediction, setPrediction] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(PREDICT_KEY);
+    } catch {
+      return null;
+    }
+  });
 
   const brief = ALIGNMENT_BRIEFS[briefIdx];
   const cfg = state.configs[brief.id] ?? brief.defaultConfig;
   const ev = useMemo(() => evaluateAlignmentBrief(brief, cfg), [brief, cfg]);
   const sol = useMemo(() => solveAlignmentBrief(brief), [brief]);
-
-  useEffect(() => {
-    if (ev.passes && !state.solved[brief.id]) {
-      setState((prev) => ({ ...prev, solved: { ...prev.solved, [brief.id]: true } }));
-    }
-  }, [ev.passes, brief.id, state.solved]);
+  const effectiveMethod: LabMethod = brief.allowDpo ? cfg.method : 'rlhf-proxy';
+  const hitBest = ev.passes && ev.metrics.expectedTrue >= sol.bestEval.metrics.expectedTrue - 0.005;
+  const needsPrediction = brief.id === 'tame-rlhf' && !prediction;
 
   useEffect(() => {
     try {
@@ -468,136 +536,56 @@ export function AlignmentLab() {
   }, [state]);
 
   const update = (patch: Partial<AlignmentLabConfig>) => {
-    setState((prev) => ({
-      ...prev,
-      configs: { ...prev.configs, [brief.id]: { ...cfg, ...patch } },
-    }));
+    const next = { ...cfg, ...patch };
+    setState((prev) => ({ ...prev, configs: { ...prev.configs, [brief.id]: next } }));
+    const method: LabMethod = brief.allowDpo ? next.method : 'rlhf-proxy';
+    const e = evaluateAlignmentBrief(brief, next);
+    const tag = brief.title.split(' · ')[0];
+    if (method === 'rlhf-proxy') {
+      log.push(`${tag} · ${cfgText(method, next)} · closed-form optimum π ∝ π_ref·exp(r̂/β) · true ${e.metrics.expectedTrue.toFixed(2)} · proxy ${e.metrics.expectedProxy.toFixed(2)} · KL ${e.metrics.klNats.toFixed(2)} nats · hacks ${(100 * e.metrics.hackProb).toFixed(1)}%${e.passes ? ' · passes' : ''}`, e.passes ? 'good' : 'info');
+    } else {
+      const run = runLiveAlignment({ mode: method, beta: next.beta, steps: next.steps, pairs: brief.noisyPairs ?? CLEAN_PREF_PAIRS });
+      log.push(`${tag} · training ${cfgText(method, next)}`);
+      const h = run.history;
+      const pick = [0, Math.floor(h.length / 3), Math.floor((2 * h.length) / 3), h.length - 1].filter((v, i, arr) => arr.indexOf(v) === i);
+      for (const k of pick) {
+        const r = h[k];
+        log.push(`   step ${String(r.step).padStart(3)}: loss ${r.loss.toFixed(3)} · true ${r.expectedTrue.toFixed(2)} · KL ${r.klNats.toFixed(2)} nats · hacks ${(100 * r.hackProb).toFixed(1)}%`);
+      }
+      log.push(`   ${e.passes ? 'passes the brief' : 'does not pass yet'}`, e.passes ? 'good' : 'info');
+    }
   };
 
-  const effectiveMethod: LabMethod = brief.allowDpo ? cfg.method : 'rlhf-proxy';
-  const solvedCount = ALIGNMENT_BRIEFS.filter((b) => state.solved[b.id]).length;
-  const hitBest = ev.passes && ev.metrics.expectedTrue >= sol.bestEval.metrics.expectedTrue - 0.005;
+  const predict = (id: string) => {
+    setPrediction(id);
+    try {
+      localStorage.setItem(PREDICT_KEY, id);
+    } catch {
+      /* ignore */
+    }
+    log.push(`prediction recorded: as β falls, true helpfulness ${id === 'rises' ? 'keeps rising' : id === 'peak' ? 'rises, peaks, then falls' : 'falls from the start'}`);
+  };
 
   return (
-    <Widget
-      title="Lab: Tune the alignment pipeline without triggering reward hacking"
-      wide
+    <LabShell
+      title="Lab: Tune the alignment pipeline"
       caption={
         <>
-          Three alignment briefs: tame a hackable proxy RM, beat SFT with clean DPO preference pairs, and survive noisy human raters who sometimes fall for sycophancy. Every legal grid setting is checked exhaustively.
+          Three alignment briefs: tame a hackable proxy RM, beat SFT with clean DPO preference pairs, and survive noisy human raters who sometimes fall for sycophancy. The bars show how the tuned policy spreads its probability over the engine’s eight named replies; the curve is the lesson’s Goodhart curve with your setting as a dot. Every legal grid setting is checked exhaustively.
         </>
       }
-    >
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div className="btn-row">
-          {ALIGNMENT_BRIEFS.map((b, i) => (
-            <button
-              key={b.id}
-              className={briefIdx === i ? 'btn primary' : 'btn'}
-              onClick={() => {
-                setBriefIdx(i);
-              }}
-            >
-              {state.solved[b.id] ? '✓ ' : ''}
-              {i === 0 ? 'Brief 1 · Proxy RM' : i === 1 ? 'Brief 2 · Clean DPO' : 'Brief 3 · Noisy'}
-            </button>
-          ))}
-        </div>
-        <span className="mono" style={{ fontSize: 12, color: 'var(--text-faint)' }}>
-          {solvedCount} / {ALIGNMENT_BRIEFS.length} briefs solved
-        </span>
-      </div>
-
-      <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-sunken)', border: '1px solid var(--border)', marginBottom: 12, fontSize: 13 }}>
-        <div style={{ fontWeight: 700, marginBottom: 4 }}>{brief.title}</div>
-        <div style={{ color: 'var(--text-muted)' }}>{brief.scenario}</div>
-      </div>
-
-      {/* Controls */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        {brief.allowDpo ? (
-          <Segmented
-            label="alignment method"
-            options={[
-              { value: 'rlhf-proxy', label: 'RLHF Proxy' },
-              { value: 'sft', label: 'SFT (chosen)' },
-              { value: 'dpo', label: 'DPO' },
-            ]}
-            value={effectiveMethod}
-            onChange={(v) => update({ method: v as LabMethod })}
-          />
-        ) : (
-          <div>
-            <div className="field-label">METHOD (LOCKED)</div>
-            <div className="mono" style={{ padding: '6px 10px', borderRadius: 6, background: 'var(--bg-sunken)', border: '1px solid var(--border)', fontSize: 12 }}>
-              🔒 RLHF Proxy RM only
-            </div>
-          </div>
-        )}
-
-        {effectiveMethod !== 'sft' && (
-          <Segmented
-            label="KL penalty β"
-            options={LAB_BETAS.map((b) => ({ value: b, label: `${b}` }))}
-            value={cfg.beta}
-            onChange={(b) => update({ beta: b })}
-          />
-        )}
-
-        {effectiveMethod !== 'rlhf-proxy' && (
-          <Segmented
-            label="training steps"
-            options={LAB_STEPS.map((s) => ({ value: s, label: `${s}` }))}
-            value={cfg.steps}
-            onChange={(s) => update({ steps: s })}
-          />
-        )}
-      </div>
-
-      {/* Checklist */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(185px, 1fr))', gap: 8, marginBottom: 12 }}>
-        {[
-          { ok: ev.checks.meetsTrue, label: `True R* ≥ ${brief.minTrueReward.toFixed(2)}`, val: ev.metrics.expectedTrue.toFixed(3) },
-          { ok: ev.checks.meetsKl, label: `KL ≤ ${brief.maxKlNats.toFixed(2)} nats`, val: `${ev.metrics.klNats.toFixed(2)} nats` },
-          { ok: ev.checks.meetsHack, label: `Hack ≤ ${(brief.maxHackProb * 100).toFixed(1)}%`, val: `${(ev.metrics.hackProb * 100).toFixed(2)}%` },
-        ].map((c) => (
-          <div
-            key={c.label}
-            className="mono"
-            style={{
-              padding: '8px 10px',
-              borderRadius: 6,
-              fontSize: 12,
-              border: `1px solid color-mix(in srgb, ${c.ok ? 'var(--c-good)' : 'var(--c-bad)'} 45%, transparent)`,
-              background: `color-mix(in srgb, ${c.ok ? 'var(--c-good)' : 'var(--c-bad)'} 10%, transparent)`,
-              display: 'flex',
-              justifyContent: 'space-between',
-              gap: 6,
-            }}
-          >
-            <span style={{ color: c.ok ? 'var(--c-good)' : 'var(--c-bad)', fontWeight: 700 }}>
-              {c.ok ? '✓' : '✗'} {c.label}
-            </span>
-            <span>{c.val}</span>
-          </div>
-        ))}
-      </div>
-
-      <LiveCode code={trlConfigLine(cfg, brief.allowDpo)} note="Hugging Face TRL; in TRL, larger beta = tighter leash" />
-
-      <div
-        className="live-note"
-        style={{
-          borderColor: ev.passes ? 'var(--c-good)' : undefined,
-          background: ev.passes ? 'color-mix(in srgb, var(--c-good) 10%, var(--bg-sunken))' : undefined,
-        }}
-      >
-        {ev.passes ? (
+      briefs={ALIGNMENT_BRIEFS.map((b, i) => ({ id: b.id, tab: i === 0 ? 'Brief 1 · Proxy RM' : i === 1 ? 'Brief 2 · Clean DPO' : 'Brief 3 · Noisy', title: b.title, text: b.scenario }))}
+      active={briefIdx}
+      onSelect={setBriefIdx}
+      progress={progress}
+      passing={ev.passes && !needsPrediction}
+      optimal={hitBest && !needsPrediction}
+      status={
+        needsPrediction ? (
+          'Before you touch β: make a prediction above. The controls unlock once you have.'
+        ) : ev.passes ? (
           <>
-            <strong style={{ color: 'var(--c-good)' }}>
-              {hitBest ? 'Brief solved — and you hit the exhaustive optimum!' : 'Brief solved!'}
-            </strong>{' '}
-            ({sol.passingCount} of {sol.totalConfigs} grid configs pass.)
+            <strong style={{ color: 'var(--c-good)' }}>{hitBest ? 'Brief solved — and you hit the exhaustive optimum!' : 'Brief solved!'}</strong> ({sol.passingCount} of {sol.totalConfigs} grid configs pass.)
             {!hitBest && (
               <>
                 {' '}Optional goal: push True R* up to <strong>+{sol.bestEval.metrics.expectedTrue.toFixed(3)}</strong>.
@@ -606,27 +594,122 @@ export function AlignmentLab() {
           </>
         ) : (
           <>
-            <strong>Not yet aligned.</strong>{' '}
-            {alignmentHint(brief, cfg, ev)}
+            <strong>Not yet aligned.</strong> {alignmentHint(brief, cfg, ev)}
           </>
-        )}
-      </div>
-
-      <div className="btn-row" style={{ marginTop: 10 }}>
-        <button className="btn" onClick={() => update(brief.defaultConfig)}>Reset brief</button>
-      </div>
-
-      <AnswerReveal solved={!!state.solved[brief.id] || ev.passes} stuckKey={`alignment-lab:${brief.id}`} label="the exhaustive optimum">
-        <div className="mono" style={{ marginTop: 8, padding: '8px 10px', borderRadius: 6, background: 'var(--bg-sunken)', border: '1px solid var(--border)', fontSize: 12 }}>
-          Exhaustive search over all {sol.totalConfigs} grid configs ({sol.passingCount} pass): best is{' '}
-          <strong>
-            {sol.bestConfig.method.toUpperCase()}
-            {sol.bestConfig.method !== 'sft' ? ` (β = ${sol.bestConfig.beta})` : ''}
-            {sol.bestConfig.method !== 'rlhf-proxy' ? `, ${sol.bestConfig.steps} steps` : ''}
-          </strong>{' '}
-          → True R* = <strong>+{sol.bestEval.metrics.expectedTrue.toFixed(3)}</strong>, KL = {sol.bestEval.metrics.klNats.toFixed(2)} nats, Hack = {(sol.bestEval.metrics.hackProb * 100).toFixed(2)}%.
+        )
+      }
+      actions={
+        <button className="btn" onClick={() => update(brief.defaultConfig)}>
+          Reset brief
+        </button>
+      }
+      reveal={{
+        label: 'the exhaustive optimum',
+        content: (
+          <span className="mono">
+            Exhaustive search over all {sol.totalConfigs} grid configs ({sol.passingCount} pass): best is{' '}
+            <strong>
+              {sol.bestConfig.method.toUpperCase()}
+              {sol.bestConfig.method !== 'sft' ? ` (β = ${sol.bestConfig.beta})` : ''}
+              {sol.bestConfig.method !== 'rlhf-proxy' ? `, ${sol.bestConfig.steps} steps` : ''}
+            </strong>{' '}
+            → True R* = <strong>+{sol.bestEval.metrics.expectedTrue.toFixed(3)}</strong>, KL = {sol.bestEval.metrics.klNats.toFixed(2)} nats, Hack = {(sol.bestEval.metrics.hackProb * 100).toFixed(2)}%.
+          </span>
+        ),
+      }}
+      log={{ lines: log.lines, onClear: log.clear, empty: 'Each setting is logged here: the closed-form RLHF optimum, or a DPO/SFT training run step by step.' }}
+    >
+      {brief.id === 'tame-rlhf' && (
+        <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 8, border: '1px dashed var(--accent)' }}>
+          <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>Predict first: as you loosen the leash (β from 4.0 down to 0.05), what happens to true helpfulness?</div>
+          <div className="btn-row">
+            {GOODHART_CHOICES.map((c) => (
+              <button key={c.id} type="button" className={`btn small${prediction === c.id ? ' primary' : ''}`} disabled={!!prediction} onClick={() => predict(c.id)}>
+                {c.label}
+              </button>
+            ))}
+          </div>
+          {prediction && (
+            <div style={{ fontSize: 13, marginTop: 6, color: 'var(--text-muted)' }}>
+              {prediction === 'peak'
+                ? 'Right: it rises while the policy moves towards genuinely better replies, then falls once the loopholes start to pay. Find the top of the hill.'
+                : 'Watch the curve below as you sweep β: it rises while the policy moves towards better replies, then falls once the reward model’s loopholes start to pay. That is Goodhart’s law.'}
+            </div>
+          )}
         </div>
-      </AnswerReveal>
-    </Widget>
+      )}
+
+      <div style={{ opacity: needsPrediction ? 0.45 : 1, pointerEvents: needsPrediction ? 'none' : 'auto' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          {brief.allowDpo ? (
+            <Segmented
+              label="alignment method"
+              options={[
+                { value: 'rlhf-proxy', label: 'RLHF Proxy' },
+                { value: 'sft', label: 'SFT (chosen)' },
+                { value: 'dpo', label: 'DPO' },
+              ]}
+              value={effectiveMethod}
+              onChange={(v) => update({ method: v as LabMethod })}
+            />
+          ) : (
+            <div>
+              <div className="field-label">METHOD (LOCKED)</div>
+              <div className="mono" style={{ padding: '6px 10px', borderRadius: 6, background: 'var(--bg-sunken)', border: '1px solid var(--border)', fontSize: 12 }}>
+                🔒 RLHF Proxy RM only
+              </div>
+            </div>
+          )}
+          {effectiveMethod !== 'sft' && (
+            <Segmented label="KL penalty (beta)" options={LAB_BETAS.map((b) => ({ value: b, label: `${b}` }))} value={cfg.beta} onChange={(b) => update({ beta: b })} />
+          )}
+          {effectiveMethod !== 'rlhf-proxy' && (
+            <Segmented label="training steps" options={LAB_STEPS.map((st) => ({ value: st, label: `${st}` }))} value={cfg.steps} onChange={(st) => update({ steps: st })} />
+          )}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(185px, 1fr))', gap: 8, marginBottom: 12 }}>
+          {[
+            { ok: ev.checks.meetsTrue, label: `True R* ≥ ${brief.minTrueReward.toFixed(2)}`, val: ev.metrics.expectedTrue.toFixed(3) },
+            { ok: ev.checks.meetsKl, label: `KL ≤ ${brief.maxKlNats.toFixed(2)} nats`, val: `${ev.metrics.klNats.toFixed(2)} nats` },
+            { ok: ev.checks.meetsHack, label: `Hack ≤ ${(brief.maxHackProb * 100).toFixed(1)}%`, val: `${(ev.metrics.hackProb * 100).toFixed(2)}%` },
+          ].map((c) => (
+            <div key={c.label} className="mono" style={{ padding: '8px 10px', borderRadius: 6, border: `1px solid ${c.ok ? 'var(--c-good)' : 'var(--c-bad)'}`, background: c.ok ? 'color-mix(in srgb, var(--c-good) 10%, var(--bg))' : 'color-mix(in srgb, var(--c-bad) 8%, var(--bg))', fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 6 }}>
+              <span style={{ color: c.ok ? 'var(--c-good)' : 'var(--c-bad)', fontWeight: 700 }}>
+                {c.ok ? '✓' : '✗'} {c.label}
+              </span>
+              <span>{c.val}</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 14, alignItems: 'start' }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Where the policy puts its probability</div>
+            <ReplyBars probs={ev.metrics.probs} />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Your setting on the Goodhart curve</div>
+            {needsPrediction ? (
+              <div className="muted" style={{ fontSize: 13 }}>Hidden until you predict: the curve is the answer.</div>
+            ) : (
+              <>
+                <GoodhartDot kl={ev.metrics.klNats} trueR={ev.metrics.expectedTrue} proxyR={ev.metrics.expectedProxy} />
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 11.5 }}>
+                  <span style={{ color: 'var(--c-good)' }}>━ true helpfulness</span>
+                  <span style={{ color: 'var(--c-b)' }}>╍ reward model's score</span>
+                  <span className="muted">dots: your setting</span>
+                </div>
+              </>
+            )}
+            {effectiveMethod !== 'rlhf-proxy' && !needsPrediction && (
+              <div className="muted" style={{ fontSize: 11.5 }}>The curves are the exact RLHF optimum at every β; your {effectiveMethod.toUpperCase()} run is the dot, so you can see whether it beats RLHF at the same distance from the reference.</div>
+            )}
+          </div>
+        </div>
+
+        <LiveCode code={trlConfigLine(cfg, brief.allowDpo)} note="Hugging Face TRL; in TRL, larger beta = tighter leash" />
+      </div>
+    </LabShell>
   );
 }
