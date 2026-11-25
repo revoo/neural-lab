@@ -1,0 +1,216 @@
+{/* authored-by: Gemini Antigravity */}
+import { Eq } from '../../components/Eq';
+import { Predict } from '../../components/Predict';
+import { Callout, Deeper } from '../../components/Callout';
+import { Term } from '../../components/Term';
+import { Quiz } from '../../components/Quiz';
+import { KMeansStepWidget, ElbowRingsWidget, PcaRotateWidget, UnsupervisedLab } from './Widgets';
+import { questions } from './quiz';
+
+# k-Means and PCA
+
+Every model we have built so far in this module — linear regression, logistic regression, kNN, decision trees, random forests, gradient boosting — had a teacher standing over its shoulder holding an answer key $y$. You gave it rows of features $x$ and true labels $y$, and it measured how wrong it was.
+
+Now take the answer key away.
+
+Suppose you are handed 150,000 customer logs, or 60 noisy industrial sensors, with **no labels at all**. No “churned / retained”, no “fault / healthy”. Just a cloud of points floating in $\mathbb{R}^d$. What can an algorithm possibly learn when nobody tells it the right answer?
+
+Two remarkably useful things:
+
+1. **Grouping (<Term id="kmeans">k-Means</Term>):** “Are these points naturally clumped into distinct neighbourhoods?”
+2. **Compression (<Term id="pca">PCA</Term>):** “Do these $d$ columns really have $d$ independent knobs, or do they mostly live along a flatter lower-dimensional sheet?”
+
+Neither needs a single label. Both are pure geometry — and both hide the exact same scaling trap that caught kNN off guard, plus a few subtle geometric traps of their own.
+
+---
+
+## 1. k-Means: two tiny steps that always go downhill
+
+Imagine dropping $k$ pins (called **centroids**) onto a scatter plot of unlabelled points. How do we judge whether a placement of pins is a good summary of the cloud? Measure the squared distance from every point to its nearest pin, and add them all up. That total is called **inertia** (within-cluster sum of squared errors):
+
+<Eq
+  words="inertia  =  sum over every point of squared distance to its nearest centroid"
+  tex="\ca{J} = \sum_{i=1}^{n} \left\| \cb{x_i} - \cc{\mu_{c(i)}} \right\|^2"
+>
+  - $\ca{J}$ — **inertia** (total within-cluster squared error; lower means tighter clusters)
+  - $\cb{x_i}$ — the $i$-th data point in $\mathbb{R}^d$
+  - $\cc{\mu_{c(i)}}$ — the **centroid** (mean location) of whichever cluster $c(i)$ point $i$ belongs to
+</Eq>
+
+Finding the globally optimal placement of $k$ centroids over all possible partitions is NP-hard in general. Instead, **Lloyd’s algorithm** solves it greedily by alternating two absurdly simple steps until nothing moves:
+
+1. **Assign:** colour every point by whichever centroid is currently closest to it.
+2. **Update:** move each centroid to the arithmetic mean of all points carrying its colour.
+
+Both steps are guaranteed to reduce (or keep equal) the inertia $\ca{J}$: assigning each point to its nearest centroid shrinks each individual term in the sum, and the mean of a group of points is the unique spot that minimises the sum of squared distances to them (the spring tug-of-war from Module 4!). Because there are finitely many ways to colour $n$ points and $\ca{J}$ never goes up, Lloyd’s algorithm **always halts**.
+
+<Predict
+  question="If Lloyd’s algorithm always goes downhill and always halts, does it always find the best clustering of four clean, well-separated blobs?"
+  options={[
+    'Yes — strict downhill progress on four clean blobs always lands on the global optimum.',
+    'No — going downhill only guarantees a local minimum; unlucky starting pins can lock up permanently.',
+    'Only when k is even.',
+  ]}
+  answer={1}
+>
+  No! Going strictly downhill only guarantees a **local minimum**, not the global one. If two starting pins happen to land inside the same blob while one pin lands halfway between two other blobs, every single point is already closest to its assigned pin — so the algorithm locks up permanently in a terrible split.
+</Predict>
+
+Try it yourself below. Step through the unlucky start first, then switch to **<Term id="kmeans-pp">k-Means++</Term>**.
+
+<KMeansStepWidget />
+
+Look at what just happened on four clean, textbook blobs:
+
+- With the unlucky start, two centroids split the top-left blob in half while a single centroid straddles both bottom blobs. After just **3 steps**, no point wants to switch sides, so Lloyd’s algorithm freezes at inertia **415.6** — **5.7× worse** than the true minimum of **73.2**.
+- Across a fair **40-seed race** on the exact same blobs, plain uniform random initialisation finds the global minimum on only **29 of 40** seeds (mean inertia **158.0**).
+- **k-Means++** fixes seeding with one clever trick: pick the first centroid uniformly at random, then draw each next centroid with probability proportional to $D(x)^2$ — its squared distance from the *closest already-chosen* centroid. Points sitting in an uncovered blob are far away, so they have huge $D(x)^2$ and almost always get picked next. On our 40 seeds, k-Means++ jumps to **38 of 40** global optima (mean inertia **87.9**). In production, you still run k-Means++ several times (e.g., `n_init=10`) and keep the run with the lowest inertia.
+
+---
+
+## 2. Choosing $k$ — and the shapes k-Means cannot see
+
+In real data nobody hands you the number of clusters $k$. Why can’t we just pick whichever $k$ gives the lowest inertia? Because inertia **always** falls as you add more centroids — at $k = n$, every point gets its own pin and inertia hits exactly $0$!
+
+Two diagnostics help you pick $k$ honestly:
+
+1. **The Elbow curve:** plot inertia against $k$. While $k$ is smaller than the true number of blobs, each extra centroid collapses a big stretched cluster and inertia plunges (on our four blobs: **636 → 352 → 73**). Past $k = 4$, extra centroids merely chop intact blobs in half, so inertia flattens out (**66 → 59 → 53**).
+2. **The <Term id="silhouette-score">Silhouette score</Term>:** for each point $i$, compare its average distance $\ca{a_i}$ to the rest of its *own* cluster against its average distance $\cb{b_i}$ to the *nearest neighbouring* cluster:
+
+<Eq
+  words="silhouette  =  (distance to next-nearest cluster − distance within own cluster) / larger of the two"
+  tex="\cg{s_i} = \frac{\cb{b_i} - \ca{a_i}}{\max(\ca{a_i}, \cb{b_i})}"
+>
+  - $\cg{s_i}$ — Silhouette score of point $i$, living in $[-1, +1]$ ($+1$ = snug inside its own cluster and far from all others; $0$ = sitting on a border; negative = probably in the wrong cluster)
+  - $\ca{a_i}$ — mean Euclidean distance from point $i$ to every other point in its assigned cluster
+  - $\cb{b_i}$ — mean Euclidean distance from point $i$ to the points in the closest *other* cluster
+</Eq>
+
+Unlike inertia, Silhouette penalises over-splitting: slicing a tight blob into two halves pushes $\cb{b_i}$ right down next to $\ca{a_i}$, dragging the score down. On our four blobs, Silhouette spikes cleanly to **0.763** right at $k = 4$.
+
+Now flip the dataset toggle below to **Concentric rings** and watch what happens when data does *not* come in round blobs.
+
+<ElbowRingsWidget />
+
+Even with $k = 2$ and 8 restarts of k-Means++, k-Means slices both rings straight across the middle like two halves of a pizza (Silhouette **0.326**), and sweeping $k$ from 2 to 7 keeps Silhouette stuck in **0.31–0.41** without ever separating the inner ring from the outer ring.
+
+Why? Because “assign every point to its nearest centroid” draws **straight perpendicular bisectors** between centroids (a Voronoi diagram). Every k-Means cluster is forced to be **convex** and roughly spherical. Two concentric rings share the exact same centre $(0, 0)$, so no placement of two pins can ever separate them. When clusters wrap around each other or stretch into crescents, you need density-based clustering (DBSCAN / HDBSCAN), spectral clustering, or Gaussian mixtures instead of k-Means.
+
+---
+
+## 3. PCA: Pythagoras in disguise
+
+Now switch from grouping rows to **compressing columns**.
+
+Suppose you measure 6 sensors on an engine, or 768 embedding coordinates of a sentence, and you want to squash each point down to a smaller number of coordinates $m \lt d$ while losing as little information as possible.
+
+Start in 2D: imagine centring a tilted elliptical cloud of points at the origin and projecting every point onto a single line passing through the origin in unit direction $\cc{u}$ ($\|\cc{u}\| = 1$). Every point $\cb{x_i}$ splits into two perpendicular legs of a right-angled triangle:
+
+- Its **shadow along the line**: scalar coordinate $\ca{z_i} = \cb{x_i} \cdot \cc{u}$, sitting at $\ca{z_i}\cc{u}$.
+- Its **drop-line error** (the part thrown away): $\cb{x_i} - \ca{z_i}\cc{u}$, hitting the line at a crisp $90^\circ$ angle.
+
+Because those two legs meet at $90^\circ$, Pythagoras holds for *every single point*:
+
+<Eq
+  words="total spread  =  spread kept along the line  +  mean squared error thrown away"
+  tex="\frac{1}{n}\sum_{i=1}^{n} \|\cb{x_i}\|^2 = \underbrace{\frac{1}{n}\sum_{i=1}^{n} (\cb{x_i}\cdot\cc{u})^2}_{\ca{\text{projected variance}}} + \underbrace{\frac{1}{n}\sum_{i=1}^{n} \|\cb{x_i} - (\cb{x_i}\cdot\cc{u})\cc{u}\|^2}_{\cb{\text{reconstruction MSE}}}"
+>
+  - $\cb{x_i}$ — centred data point (mean subtracted so the cloud sits at the origin)
+  - $\cc{u}$ — unit direction vector ($\|\cc{u}\| = 1$) defining the 1D line we project onto
+  - $\ca{\text{projected variance}}$ — spread of the shadows along $\cc{u}$; equals $\cc{u}^\top \Sigma \cc{u}$, where $\Sigma = \frac{1}{n} X^\top X$ is the covariance matrix
+  - $\cb{\text{reconstruction MSE}}$ — average squared length of the orange perpendicular drop-lines
+</Eq>
+
+Pause and appreciate that identity. The left-hand side — total variance of the cloud — is a **fixed constant** that does not depend on the angle of $\cc{u}$ at all! Therefore, **maximising projected variance** and **minimising squared reconstruction error** are literally the *exact same optimisation problem*. Every drop of variance you gain along the line is shaved straight off the reconstruction error.
+
+Rotate the axis below and watch the two numbers trade off while their sum stays frozen at **3.803** to every decimal place.
+
+<PcaRotateWidget />
+
+When you snap to **PC1** ($30.8^\circ$), projected variance hits its ceiling at **3.532** (**92.9%** of total variance) while reconstruction MSE hits its floor at **0.271**. Snap to the perpendicular direction **PC2** ($120.8^\circ$) and the numbers swap cleanly: variance **0.271** (**7.1%**), error **3.532**.
+
+How does PCA find those magical orthogonal directions in any dimension $d$ without rotating sliders by hand? Because maximising $\cc{u}^\top \Sigma \cc{u}$ subject to $\|\cc{u}\|^2 = 1$ yields the classic eigenvector equation:
+
+<Eq
+  words="covariance matrix  ×  principal axis  =  variance along that axis  ×  principal axis"
+  tex="\cc{\Sigma} \ca{u_k} = \cg{\lambda_k} \ca{u_k}"
+>
+  - $\cc{\Sigma} = \frac{1}{n} X^\top X$ — the $d \times d$ symmetric covariance matrix of the centred data
+  - $\ca{u_k}$ — the $k$-th **principal component** (unit eigenvector; all $\ca{u_k}$ are mutually perpendicular)
+  - $\cg{\lambda_k}$ — the **eigenvalue**, which is literally the exact projected variance along $\ca{u_k}$ (sorted $\cg{\lambda_1} \ge \cg{\lambda_2} \ge \dots \ge \cg{\lambda_d} \ge 0$)
+</Eq>
+
+Keeping the top $m$ eigenvectors gives the provably best linear $m$-dimensional compression in squared error, and their share of variance is simply $(\lambda_1 + \dots + \lambda_m) / (\lambda_1 + \dots + \lambda_d)$.
+
+<Deeper title="Why libraries compute PCA with SVD instead of forming XᵀX">
+  Forming $\Sigma = \frac{1}{n} X^\top X$ explicitly squares the condition number of $X$ (losing floating-point precision when some directions are much smaller than others) and costs $O(nd^2)$ memory if $d$ is huge. In practice, libraries run the **Singular Value Decomposition** $X = U S V^\top$ directly on the centred data matrix $X$. The rows of $V^\top$ are the exact same principal directions $\ca{u_k}$, and the eigenvalues are simply $\cg{\lambda_k} = S_k^2 / n$.
+</Deeper>
+
+---
+
+## 4. The scaling trap (for both PCA and k-Means)
+
+Remember how kNN collapsed when Income (€) was $2,000\times$ larger numerically than Age (years)? Both **k-Means** and **PCA** fall into the exact same trap — and PCA falls into it *twice as hard*, because variance scales as the **square** of the units.
+
+Multiply one sensor column by $100$ (say, logging millimetres instead of metres), and its variance inflates by $100^2 = \mathbf{10,000\times}$. PCA sees that single gigantic variance and immediately points PC1 straight along that one sensor, proudly reporting **99.97% explained variance** while throwing away the other five sensors completely!
+
+<Callout kind="warn" title="High apparent explained variance does not mean you kept the signal">
+  If one feature is measured in millimetres and five others are measured in metres, unscaled PCA will claim 1 component explains 99.97% of the variance — even though it discarded 5 of the 6 sensors. Unless all columns already share identical physical units (like pixels in an image or word-embedding coordinates), **standardise every column to mean 0, SD 1** before running PCA or k-Means.
+</Callout>
+
+And here is why these two algorithms pair so well together in real pipelines: **PCA before k-Means**. In high dimensions with lots of noisy columns, the curse of dimensionality blurs pairwise Euclidean distances, making k-Means clusters mushy and dragging down Silhouette. Projecting onto the top $m$ principal components strips away low-variance noise directions first so k-Means sees the clean low-dimensional clusters underneath.
+
+---
+
+## 5. Lab: Compress & Segment
+
+Put both algorithms to work on three realistic datasets. Every brief is checked exhaustively across all menu settings so you can verify your intuition against the exact optimum.
+
+<UnsupervisedLab />
+
+<Deeper title="What the three lab briefs prove">
+  - **Brief 1 (Unscaled sensors):** Raw `m = 1` boasts **99.97%** apparent variance yet preserves only **17.3%** of true standardised variance; even raw `m = 2` reaches just **66.4%**. Standardising lets **m = 2** capture **98.3%** of the true physical signal (`9/12` configs pass, fewest `m = 2`).
+  - **Brief 2 (Unscaled customers, 40 seeds):** Raw `k = 4` k-Means++ gets Silhouette **0.123** because euro spend dwarfs visit count. Standardised `k = 4` with *random* init clears Silhouette (**0.721**) but still gets trapped in local minima on 11 of 40 seeds (**29/40**). Out of all 20 configurations, **standardised `k = 4` with k-Means++** is the **unique** passing pipeline (Silhouette **0.777**, **36/40** = 90% optimal).
+  - **Brief 3 (Denoising 8D logs):** Running k-Means++ straight on all 8 columns leaves the 6 random noise columns inflating every pairwise distance, failing Silhouette. Compressing to `m = 1` squashes two of the four square clusters together, failing purity. **PCA (`m = 2`) → k-Means++ (`k = 4`)** strips out all 6 noise dimensions and hits Silhouette **0.805** with **100.0%** purity (`3/24` configs pass, fewest `m = 2`).
+</Deeper>
+
+---
+
+## 6. Seeing it in 15 lines of NumPy
+
+In practice, PCA via SVD takes three lines of NumPy — and watching the top-2 variance ratios flip when you standardise reproduces Brief 1 right in your terminal:
+
+```python
+import numpy as np
+
+rng = np.random.default_rng(7)
+f1, f2 = rng.normal(size=150), rng.normal(size=150)
+X = np.column_stack([
+    100 * (0.9 * f1 + 0.15 * rng.normal(size=150)),   # Sensor 0 in mm (100x scale)
+    0.85 * f1 + 0.20 * f2 + 0.15 * rng.normal(size=150),
+    -0.80 * f1 + 0.25 * f2 + 0.15 * rng.normal(size=150),
+    0.15 * f1 + 0.90 * f2 + 0.15 * rng.normal(size=150),
+    -0.10 * f1 + 0.85 * f2 + 0.15 * rng.normal(size=150),
+    0.20 * f1 - 0.80 * f2 + 0.15 * rng.normal(size=150),
+])
+
+def pca_svd(A, m=2):
+    Xc = A - A.mean(axis=0)
+    _, S, Vt = np.linalg.svd(Xc, full_matrices=False)
+    var = (S ** 2) / len(A)
+    return var / var.sum(), Xc @ Vt[:m].T
+
+raw_ratio, _ = pca_svd(X)
+X_std = (X - X.mean(axis=0)) / X.std(axis=0)
+std_ratio, Z = pca_svd(X_std, m=2)
+print(f"Raw PCA top-2 ratios: {raw_ratio[0]:.4f}, {raw_ratio[1]:.4f}")
+print(f"Std PCA top-2 ratios: {std_ratio[0]:.4f}, {std_ratio[1]:.4f} (sum {std_ratio[:2].sum():.3f})")
+# Raw PCA top-2 ratios: 0.9997, 0.0003
+# Std PCA top-2 ratios: 0.5100, 0.4689 (sum 0.979)
+```
+
+---
+
+## Check your understanding
+
+<Quiz questions={questions} />

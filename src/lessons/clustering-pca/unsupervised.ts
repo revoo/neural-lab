@@ -216,7 +216,7 @@ export type PcaResult = {
 export function jacobiEigen(mat: number[][]): { values: number[]; vectors: Vec[] } {
   const d = mat.length;
   const A = mat.map((r) => [...r]);
-  const V = Array.from({ length: d }, (_, i) => Array.from({ length: d }, (_, j) => (i === j ? 1 : 0)));
+  const V: number[][] = Array.from({ length: d }, (_, i) => Array.from({ length: d }, (_, j) => (i === j ? 1 : 0)));
 
   for (let sweep = 0; sweep < 50; sweep++) {
     let maxOff = 0;
