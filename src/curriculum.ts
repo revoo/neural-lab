@@ -128,8 +128,9 @@ export const MODULES: ModuleMeta[] = [
     blurb: 'From pixels to convolutions to object detectors.',
     lessons: [
       { id: 'images-as-tensors', title: 'Images as Tensors', summary: 'Pixels as (N, C, H, W) tensors, RGB vs Rec. 709 luminance and shadow-proof HSV hue, spatial aliasing under strided slicing — and Lab: Build the Vision Preprocessor.', minutes: 30, load: () => import('./lessons/images-as-tensors/index.mdx') },
+      { id: 'convolution', title: 'Convolution and Kernels', summary: 'Sliding 3×3 dot products, Sobel/Laplacian/blur filters, output-shape padding & stride arithmetic, translation equivariance — and Lab: Design the Kernel (all 19,683 ternary 3×3s checked).', minutes: 35, load: () => import('./lessons/convolution/index.mdx') },
     ],
-    planned: ['Convolution and kernels', 'CNNs and feature maps', 'Object detection'],
+    planned: ['CNNs and feature maps', 'Object detection'],
   },
   { id: 'embeddings', number: 10, title: 'Embeddings & Representations', blurb: 'Meaning as geometry: learned spaces where similar things sit close together.', lessons: [], planned: ['One-hot vs dense vectors', 'Word embeddings', 'Similarity search', 'Autoencoders'] },
   { id: 'sequences', number: 11, title: 'Sequence Models', blurb: 'RNNs, LSTMs, and the bottleneck that motivated attention.', lessons: [], planned: ['Recurrent networks', 'LSTMs and GRUs', 'Encoder–decoder and early attention'] },

@@ -1,0 +1,151 @@
+{/* authored-by: Gemini Antigravity */}
+import { Eq } from '../../components/Eq';
+import { Predict } from '../../components/Predict';
+import { Callout, Deeper } from '../../components/Callout';
+import { Term } from '../../components/Term';
+import { Quiz } from '../../components/Quiz';
+import { SlidingKernelWidget, PadStrideWidget, EquivarianceWidget, KernelDesignLab } from './Widgets';
+import { questions } from './quiz';
+
+# Convolution and Kernels
+
+Take a single standard ImageNet photograph (`224 × 224 × 3` = `150,528` numbers) and feed it into a plain dense layer (from Module 3) that outputs a `224 × 224 × 32` representation. How many weights does that *one* layer need?
+
+`150,528 × 1,605,632 + 1,605,632` = **241,694,179,328 parameters** — nearly a quarter of a *trillion* weights for a single layer!
+
+Why is a dense layer so absurdly wasteful on images? Because it treats pixel `(0, 0)` and pixel `(223, 223)` as if they need a dedicated private wire, AND if it learns to spot a cat’s ear in the top-left corner, it has to re-learn the exact same ear detector from scratch at every other pixel on the screen.
+
+Images obey two deep symmetries:
+
+1. **Locality:** an edge, corner, or texture lives inside a tiny neighbouring patch (say `3 × 3` pixels), not across opposite corners of the photo.
+2. **<Term id="translation-equivariance">Translation equivariance</Term>:** a vertical edge detector that works in the top-left corner works identically in the bottom-right corner.
+
+**2D <Term id="convolution">convolution</Term>** bakes both symmetries straight into the maths: take one tiny `3 × 3` table of weights (a **<Term id="kernel">kernel</Term>** or filter), slide it across every neighbourhood of the image, and compute a dot product at each stop. That single `3 × 3` layer from `3` channels to `32` channels uses **896 parameters** instead of **241.7 billion** — a **270-million-times** discount!
+
+---
+
+## 1. The sliding dot product
+
+At every output coordinate $(r, c)$, centre your $K \times K$ kernel $\cb{W}$ over the matching patch of the input image $\ca{I}$, multiply the overlapping numbers element by element, and add them up:
+
+<Eq
+  words="feature map pixel  =  sum over the K×K window of (input patch × kernel weight)"
+  tex="\cg{Y}[r, c] = \sum_{u=0}^{K-1} \sum_{v=0}^{K-1} \ca{I}[r \cdot S + u - P,\; c \cdot S + v - P] \cdot \cb{W}[u, v]"
+>
+  - $\cg{Y}[r, c]$ — output **feature map** value at row $r$, column $c$
+  - $\ca{I}$ — input image (treated as `0` outside its borders when zero-padding $P \gt 0$)
+  - $\cb{W}$ — the $K \times K$ **kernel** (filter) weights — shared across every $(r, c)$!
+  - $S, P$ — **stride** (step size between stops) and **padding** (zero-border thickness)
+</Eq>
+
+<Deeper title="Cross-correlation vs mathematical convolution">
+  Strictly speaking, signal-processing *convolution* flips the kernel horizontally and vertically before sliding, whereas the formula above without flipping is **cross-correlation**. Deep-learning libraries (`torch.nn.Conv2d`) all compute cross-correlation and call it convolution — because when $\cb{W}$ is learned by gradient descent, flipping a learned weight table changes nothing at all.
+</Deeper>
+
+Click around the feature map below to inspect every single `3×3` patch and dot product, try the classic kernels, and click the 9 kernel cells to edit the filter live.
+
+<SlidingKernelWidget />
+
+Notice a universal pattern in those classic kernels:
+
+- **Smoothing / sharpening kernels** (`Box Blur`, `Sharpen`, `Identity`) have weights that **sum to `1`**, preserving the overall brightness of flat regions.
+- **Edge / derivative kernels** (`Sobel Gx`, `Sobel Gy`, `Laplacian`) have weights that **sum to `0`**, so any constant flat patch outputs `0` and *only* spatial changes light up! On our `6×6` vertical step edge (`0,0,0,1,1,1`), Sobel `Gx` produces `[0, 4, 4, 0]` — dead silent on the flat halves, blazing `+4` right along the seam.
+
+---
+
+## 2. Padding, stride, and the exact output shape
+
+Without padding ($P = 0$, called **valid** convolution), a `3×3` kernel cannot centre itself on the outermost 1-pixel rim of the image, so every layer shaves `2` pixels off both height and width. Stack just **5** valid `3×3` layers on a `12×12` image and it collapses to **`2×2`** — throwing away **97.2%** of its spatial pixels!
+
+Wrapping the image in $P$ layers of zeros (**<Term id="padding-stride">padding</Term>**) lets the kernel visit border pixels cleanly (`P = (K − 1)/2` keeps size unchanged when `S = 1`, called **same** padding). Jumping the window by $S$ pixels at a time (**stride**) shrinks the feature map deliberately:
+
+<Eq
+  words="output size  =  floor( (input + 2×padding − kernel) / stride )  +  1"
+  tex="\cg{O} = \left\lfloor \frac{\ca{H} + 2\cc{P} - \cb{K}}{\cp{S}} \right\rfloor + 1"
+>
+  - $\cg{O}$ — output height (or width)
+  - $\ca{H}$ — input height (or width)
+  - $\cc{P}$ — zero-padding added on *each* side
+  - $\cb{K}$ — kernel size (typically odd: `1`, `3`, or `5`)
+  - $\cp{S}$ — stride (pixels skipped between consecutive window stops)
+</Eq>
+
+<Predict
+  question="You run a 3×3 convolution with padding P = 1 and stride S = 2 over an 8×8 image (so the padded width is 10). Does the sliding window land cleanly on the very last padded pixel, or does it drop a border pixel?"
+  options={[
+    'Lands cleanly with 0 dropped pixels because 8 is even.',
+    'Drops 1 pixel on the right and bottom edge because (8 + 2 − 3) = 7 is odd, leaving remainder 1 when divided by stride 2.',
+    'Produces a 5×5 output.',
+  ]}
+  answer={1}
+>
+  `(8 + 2×1 − 3) = 7`. Dividing by stride `2` gives `floor(7/2) + 1 = 4` stops — with **remainder 1**, meaning the rightmost and bottommost padded border pixel is silently ignored! An odd input (`9×9` or `17×17`) divides cleanly with zero dropped pixels.
+</Predict>
+
+Test different combinations of `H`, `K`, `P`, and `S` below.
+
+<PadStrideWidget />
+
+---
+
+## 3. Translation equivariance in action
+
+Because the exact same `3×3` kernel visits every coordinate, convolution is **translation equivariant**: if you shift an object in the input image by $(\Delta r, \Delta c)$, its activation peak in the feature map shifts by the exact same $(\Delta r, \Delta c)$ with the exact same height (`+5`). Move the cross around below and watch the feature-map peak track it pixel for pixel.
+
+<EquivarianceWidget />
+
+<Callout kind="info" title="Equivariance vs invariance">
+  Convolution is **equivariant** (shift the input → the output shifts with it), *not* invariant (shift the input → the output stays unchanged). To turn shifted feature maps into a shift-**invariant** class prediction (“there is a cat *somewhere* in this photo”), CNNs add pooling layers — the subject of our very next lesson!
+</Callout>
+
+---
+
+## 4. Lab: Design the Kernel
+
+Before a CNN learns its kernels by backpropagation, design two real `3×3` ternary kernels yourself (every test is checked exhaustively against all **$3^9 = 19,683$** ternary `3×3` kernels!) and engineer a zero-drop two-layer convolutional stack.
+
+<KernelDesignLab />
+
+<Deeper title="Exhaustive lab takeaways">
+  - **Brief 1 (Pure vertical-edge detector):** Out of all **19,683** ternary `3×3` kernels, **66** pass all three checks. The sparsest possible solutions use **4 non-zero weights** (`21` optimal kernels — for example `[-1, 0, +1; -1, 0, +1; 0, 0, 0]`, two rows of `[-1, 0, +1]`!). A single row `[-1, 0, +1]` only hits peak `+1`.
+  - **Brief 2 (45° diagonal-edge detector):** **67** of **19,683** pass; the maximum achievable diagonal response while keeping vertical and horizontal leak `≤ 1` is **+3**, achieved by only **4** optimal kernels (such as `[-1, +1, +1; 0, -1, +1; 0, 0, -1]`).
+  - **Brief 3 (`17×17 → 5×5` zero-drop stack):** Only **2 of 12** `(K, P, S)` settings hit `17 → 9 → 5` with zero dropped border pixels: `K=3, P=1, S=2` (**18 weights/filter**) and `K=5, P=2, S=2` (**50 weights/filter**). Notice that two `3×3` layers beat `5×5` on parameter efficiency — the exact insight behind VGGNet!
+</Deeper>
+
+---
+
+## 5. Seeing it in 12 lines of NumPy
+
+Here is exact 2D cross-correlation and our Dense-vs-Conv parameter check in plain NumPy:
+
+```python
+import numpy as np
+
+# 6x6 dark-left / bright-right step image
+img = np.zeros((6, 6))
+img[:, 3:] = 1.0
+
+# 3x3 Sobel vertical-edge kernel (Gx)
+sobel_x = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], dtype=float)
+
+# Exact 2D valid cross-correlation (4x4 output)
+out = np.zeros((4, 4))
+for r in range(4):
+    for c in range(4):
+        out[r, c] = np.sum(img[r:r+3, c:c+3] * sobel_x)
+
+print("Output shape:", out.shape)
+print("Row 0 of Sobel Gx:", out[0].tolist())
+print("Dense 224x224x3->32 params:", (224*224*3)*(224*224*32) + 224*224*32)
+print("Conv  3x3x3->32     params:", 3*3*3*32 + 32)
+# Output shape: (4, 4)
+# Row 0 of Sobel Gx: [0.0, 4.0, 4.0, 0.0]
+# Dense 224x224x3->32 params: 241694179328
+# Conv  3x3x3->32     params: 896
+```
+
+---
+
+## Check your understanding
+
+<Quiz questions={questions} />
