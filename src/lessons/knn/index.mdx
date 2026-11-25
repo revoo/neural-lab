@@ -77,7 +77,7 @@ The fix is **<Term id="feature-scaling">feature scaling</Term>** (z-score standa
 
 ## Trap 2: The curse of dimensionality
 
-Even after you scale every column to SD 1, kNN has a second Achilles' heel that connects straight back to Module 1's *High-Dimensional Geometry*.
+Even after you scale every column to SD 1, kNN has a second Achilles' heel that connects straight back to <LessonLink to="high-dimensions">the High-Dimensional Geometry lesson</LessonLink>.
 
 Unlike logistic regression (which can learn weight $w_j \approx 0$ for an irrelevant column) or decision trees (which simply never split on useless columns), plain kNN gives **every single column equal weight 1** inside $\sum_{j=1}^d (x_j - x'_j)^2$. Add irrelevant random noise columns, and their squared differences pile up until every training point sits at almost the same distance from your query.
 

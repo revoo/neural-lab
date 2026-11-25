@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Widget } from '../../components/Widget';
+import { ModuleRef } from '../../components/Term';
 import { Segmented, Slider, Toggle } from '../../components/controls';
 import { LogChart } from '../../components/LogChart';
 import { GPT2, TOKENS, depthStudy, gptParams, runBlock, type Vec } from './block';
@@ -118,7 +119,7 @@ export function BlockStepper() {
         {stage === 1 && 'Look at the numbers: each vector now averages 0 and has spread 1, whatever size it arrived at.'}
         {stage === 2 && causal && ' With the causal mask, "the" can only see itself, "cat" sees "the" and itself, "sat" sees all three — never a later word.'}
         {stage === 2 && !causal && ' Without the mask, every token sees every other, including later ones.'}
-        {stage === 5 && ' This is the same small MLP you met in Module 3, applied to each token separately: attention moves information between tokens, the feed-forward network processes it within each one.'}
+        {stage === 5 && <> This is the same small MLP you met in <ModuleRef id="architecture" short />, applied to each token separately: attention moves information between tokens, the feed-forward network processes it within each one.</>}
       </div>
     </Widget>
   );

@@ -42,7 +42,7 @@ Finding the globally optimal placement of $k$ centroids over all possible partit
 1. **Assign:** colour every point by whichever centroid is currently closest to it.
 2. **Update:** move each centroid to the arithmetic mean of all points carrying its colour.
 
-Both steps are guaranteed to reduce (or keep equal) the inertia $\ca{J}$: assigning each point to its nearest centroid shrinks each individual term in the sum, and the mean of a group of points is the unique spot that minimises the sum of squared distances to them (the spring tug-of-war from Module 4!). Because there are finitely many ways to colour $n$ points and $\ca{J}$ never goes up, Lloyd’s algorithm **always halts**.
+Both steps are guaranteed to reduce (or keep equal) the inertia $\ca{J}$: assigning each point to its nearest centroid shrinks each individual term in the sum, and the mean of a group of points is the unique spot that minimises the sum of squared distances to them (the spring tug-of-war from <ModuleRef id="optimization" short />!). Because there are finitely many ways to colour $n$ points and $\ca{J}$ never goes up, Lloyd’s algorithm **always halts**.
 
 <Predict
   question="If Lloyd’s algorithm always goes downhill and always halts, does it always find the best clustering of four clean, well-separated blobs?"

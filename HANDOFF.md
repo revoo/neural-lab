@@ -226,7 +226,7 @@ The owner asked for this next, in a fresh session. `docs/LAB_IMPROVEMENTS.md` re
 The owner asked for `docs/CURRICULUM_PLAN.md` to be implemented in order, WP0 → WP9, one numbered step per commit. Tick a step in the same commit that finishes it; mark a step you are in the middle of as **IN PROGRESS** with a note.
 
 - [x] WP0.1 `ModuleRef` and `Src` components
-- [ ] WP0.2 Replace hard-coded module numbers
+- [x] WP0.2 Replace hard-coded module numbers
 - [ ] WP0.3 Replace relative lesson references
 - [ ] WP0.4 `src/curriculum.test.ts` and `scripts/forward-links.cjs`
 - [ ] WP1.1 Move `statistics` and `high-dimensions` out of Module 1

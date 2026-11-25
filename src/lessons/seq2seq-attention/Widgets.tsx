@@ -1,6 +1,7 @@
 // authored-by: Gemini Antigravity
 import { useMemo, useState } from 'react';
 import { Widget } from '../../components/Widget';
+import { ModuleRef } from '../../components/Term';
 import { Segmented, Slider } from '../../components/controls';
 import { Plot } from '../../components/plot';
 import { LabShell, useLabProgress } from '../../components/LabShell';
@@ -254,7 +255,7 @@ export function ParallelismWidget() {
       wide
       caption={
         <>
-          Bahdanau’s <strong>LSTM + Cross-Attention</strong> broke the fixed-vector bottleneck (max path drops from <code>L → 1</code>), yet training still runs <strong>2L serial steps</strong>! At <code>L = 512</code> tokens, dropping recurrence for a parallel <strong>Transformer</strong> cuts training step latency <strong>11×</strong> (<code>85.07 ms → 7.75 ms</code>) — bridging directly into Module 12!
+          Bahdanau’s <strong>LSTM + Cross-Attention</strong> broke the fixed-vector bottleneck (max path drops from <code>L → 1</code>), yet training still runs <strong>2L serial steps</strong>! At <code>L = 512</code> tokens, dropping recurrence for a parallel <strong>Transformer</strong> cuts training step latency <strong>11×</strong> (<code>85.07 ms → 7.75 ms</code>) — bridging directly into <ModuleRef id="transformers" short />!
         </>
       }
     >

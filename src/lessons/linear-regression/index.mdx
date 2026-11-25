@@ -12,11 +12,11 @@ Three practical reasons:
 2. **Interpretability and calibration.** Each weight says directly how much one unit of a feature moves the prediction (or log-odds), and logistic regression outputs genuinely calibrated probabilities rather than uncalibrated scores.
 3. **Hard to beat on small tabular data.** Pair a 3-parameter logistic model with the right domain features and it often beats a 65-parameter MLP on 200 rows — with zero overfitting mystery.
 
-This lesson opens Module 8 (Classical Machine Learning) by showing what linear and logistic regression actually compute under the hood, where each breaks, and how to wield them properly.
+This lesson opens <ModuleRef id="classical" /> by showing what linear and logistic regression actually compute under the hood, where each breaks, and how to wield them properly.
 
 ## Linear regression in one shot: the normal equations
 
-In Module 4 you watched gradient descent walk downhill on squared error, $\frac{1}{N} \|X\mathbf{w} - \mathbf{y}\|^2$. For a linear model, that loss is a quadratic bowl whose slope is zero at the exact bottom. Setting the gradient $X^\top(X\mathbf{w} - \mathbf{y}) = \mathbf{0}$ and solving for $\mathbf{w}$ skips gradient descent altogether:
+In <ModuleRef id="optimization" short /> you watched gradient descent walk downhill on squared error, $\frac{1}{N} \|X\mathbf{w} - \mathbf{y}\|^2$. For a linear model, that loss is a quadratic bowl whose slope is zero at the exact bottom. Setting the gradient $X^\top(X\mathbf{w} - \mathbf{y}) = \mathbf{0}$ and solving for $\mathbf{w}$ skips gradient descent altogether:
 
 <Eq
   words="\cc{\text{best weights}} = \big(\ca{\text{feature overlap matrix}} + \cp{\lambda}\,I\big)^{-1} \cb{\text{feature–target alignment}}"

@@ -22,7 +22,7 @@ Crucially, nobody ever rewrites a document from scratch. Each round, people **ad
 In the block, each token is a document, held as one vector:
 
 - the meeting is **attention**: tokens read from each other;
-- the desk work is a **feed-forward network**: the small MLP from Module 3, applied to each token's vector separately, the same network for every token;
+- the desk work is a **feed-forward network**: the small MLP from <ModuleRef id="architecture" short />, applied to each token's vector separately, the same network for every token;
 - adding notes rather than rewriting is the **residual connection**: each sublayer's output is *added* to the vector it read from;
 - and before each of the two steps, a **layer norm** tidies the vector up so that the step sees numbers of a predictable size.
 

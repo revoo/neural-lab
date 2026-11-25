@@ -24,7 +24,7 @@ In 2014, Sutskever et al. and Cho et al. proposed an elegant two-part design cal
 
 There is a devastating flaw hiding in that diagram: **whether the input is 3 words or 300 words, the entire sentence must pass through one fixed-width vector $\cb{c} \in \mathbb{R}^d$.**
 
-As we saw in Module 1 (*High-Dimensional Geometry*), cramming $L$ distinct items into a single $d$-dimensional vector creates superposition interference as soon as $L$ approaches or exceeds $d$. Watch exact token-copying accuracy below as sentence length grows from `L = 2 → 24` tokens:
+As we saw in <LessonLink to="high-dimensions">the High-Dimensional Geometry lesson</LessonLink>, cramming $L$ distinct items into a single $d$-dimensional vector creates superposition interference as soon as $L$ approaches or exceeds $d$. Watch exact token-copying accuracy below as sentence length grows from `L = 2 → 24` tokens:
 
 <BottleneckWidget />
 
@@ -80,8 +80,8 @@ Compare all three architectures across sequence lengths `L = 64 → 2,048` below
 
 At `L = 512` tokens, **LSTM + Cross-Attention** still executes **`1,024` sequential steps (`85.07 ms`)**, while removing recurrence for a parallel **Transformer** drops sequential depth to **`1`** and forward-step latency to **`7.75 ms`** (**11× faster**!) — trading $O(L)$ serial waiting for $O(L^2)$ parallel matrix multiplications.
 
-<Callout kind="info" title="Module 11 complete — direct bridge to Module 12">
-  You now know the exact historical chain that produced modern LLMs: **vanilla RNNs** introduced weight sharing across time but hit the $\rho^k$ vanishing wall (`rnns`); **LSTMs and GRUs** added a gated cell highway that conquered vanishing gradients (`lstms-grus`); **Encoder–Decoder + Cross-Attention** broke the fixed-vector bottleneck (`seq2seq-attention`) — leaving only $O(L)$ sequentiality standing in the way of **Module 12 · Transformers & Attention**, where attention replaces recurrence completely!
+<Callout kind="info" title="Sequence models complete: the bridge to transformers">
+  You now know the exact historical chain that produced modern LLMs: **vanilla RNNs** introduced weight sharing across time but hit the $\rho^k$ vanishing wall (`rnns`); **LSTMs and GRUs** added a gated cell highway that conquered vanishing gradients (`lstms-grus`); **Encoder–Decoder + Cross-Attention** broke the fixed-vector bottleneck (`seq2seq-attention`) — leaving only $O(L)$ sequentiality standing in the way of **<ModuleRef id="transformers" />**, where attention replaces recurrence completely!
 </Callout>
 
 ---

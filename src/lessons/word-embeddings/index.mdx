@@ -70,7 +70,7 @@ Test all four analogies directly on our freshly trained 6D SGNS vectors below.
 <AnalogyWidget />
 
 <Callout kind="warn" title="Two honest caveats about Word2Vec analogies">
-  First, standard analogy evaluation (including Mikolov et al. 2013) **explicitly excludes the three query words `a, b, c`** when searching for the nearest neighbour — otherwise `king − man + woman` often lands closer to `king` itself when the gender shift is smaller than the royalty distance! Second, static word embeddings assign **one fixed vector per word**, so `"river bank"` and `"savings bank"` get mashed into a single averaged vector. That polysemy bottleneck is exactly why Transformers (Module 12) run self-attention on top of an embedding table to build *contextual* embeddings.
+  First, standard analogy evaluation (including Mikolov et al. 2013) **explicitly excludes the three query words `a, b, c`** when searching for the nearest neighbour — otherwise `king − man + woman` often lands closer to `king` itself when the gender shift is smaller than the royalty distance! Second, static word embeddings assign **one fixed vector per word**, so `"river bank"` and `"savings bank"` get mashed into a single averaged vector. That polysemy bottleneck is exactly why Transformers (<ModuleRef id="transformers" short />) run self-attention on top of an embedding table to build *contextual* embeddings.
 </Callout>
 
 ---

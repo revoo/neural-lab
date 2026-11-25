@@ -12,7 +12,7 @@ Now a real customer writes in:
 
 No document in the help centre contains the answer. To help this customer, the assistant has to check whether order K-1088 actually exists, whether the box was opened, how many days ago it arrived, and — if everything checks out — actually trigger a refund of €574 in the billing database.
 
-A language model has no database connection, no HTTP client, and no hands. From the inside it is still the exact same machine from Module 13: tokens go in, a probability distribution over the next token comes out. So how does a text predictor act on the real world?
+A language model has no database connection, no HTTP client, and no hands. From the inside it is still the exact same machine from <ModuleRef id="llms" short />: tokens go in, a probability distribution over the next token comes out. So how does a text predictor act on the real world?
 
 ## Tool calling is a contract, not magic
 
@@ -33,7 +33,7 @@ That cycle — *prompt → emit tool call → validate and execute → append ob
 
 Try all four tickets, and toggle **Show exact prompt** on Turn 2 or Turn 3. Notice two things:
 
-- **Every turn sends the whole growing transcript back to the model.** Tool outputs aren't stored in some hidden neural memory; they are literally appended to the prompt text (which is why KV caching from Module 15 matters so much for long agent runs).
+- **Every turn sends the whole growing transcript back to the model.** Tool outputs aren't stored in some hidden neural memory; they are literally appended to the prompt text (which is why KV caching from <ModuleRef id="inference" short /> matters so much for long agent runs).
 - **Try "Unknown order (K-9999)".** The tool doesn't throw an unhandled exception — it returns `{"error": "ORDER_NOT_FOUND"}` as a normal observation. Good tools return structured, informative errors so the loop can recover gracefully instead of crashing.
 
 ## Structured outputs — and what they cannot save you from

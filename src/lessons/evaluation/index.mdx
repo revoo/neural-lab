@@ -83,7 +83,7 @@ Notice two things:
 - On $n = 50$ at true accuracy 80%, even trying just **5** prompts creates a **+6.4 pp** average mirage (65.2% chance of ≥ +5 pp). Trying **20** creates **+9.9 pp** (98.5% chance of ≥ +5 pp).
 - Raising $n$ to **500** shrinks the $K = 20$ mirage from +9.9 pp down to **+3.3 pp**, which is still larger than many real prompt improvements!
 
-The cure is identical to Module 7's train/validation/test split: keep a **dev eval** you iterate on freely, and a **locked held-out test set** you touch only once before shipping a major change (and refresh periodically from fresh production logs).
+The cure is identical to <ModuleRef id="generalization" short />'s train/validation/test split: keep a **dev eval** you iterate on freely, and a **locked held-out test set** you touch only once before shipping a major change (and refresh periodically from fresh production logs).
 
 ## LLM-as-a-judge and position bias
 
@@ -221,4 +221,4 @@ Mature AI engineering teams treat evals as a tiered test pyramid, just like soft
 
 </InTheWild>
 
-That wraps up **Module 18 · AI Systems Engineering** — from retrieval (RAG), to tool-calling agents, to evaluating whether any of it actually works. You now have the full arc from a single vector to production AI systems.
+That wraps up **<ModuleRef id="systems" />** — from retrieval (RAG), to tool-calling agents, to evaluating whether any of it actually works. You now have the full arc from a single vector to production AI systems.

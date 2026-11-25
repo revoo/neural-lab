@@ -4,7 +4,7 @@ import { questions } from './quiz'
 
 ## The problem: how does a stack of blocks write?
 
-By the end of Module 12 you had the entire transformer sitting on the bench: a tokeniser that chops text into integer IDs, an embedding table that turns each ID into a vector, rotary positions, multi-head attention with a causal mask, residual connections, layer norm, and feed-forward layers.
+By the end of <ModuleRef id="transformers" short /> you had the entire transformer sitting on the bench: a tokeniser that chops text into integer IDs, an embedding table that turns each ID into a vector, rotary positions, multi-head attention with a causal mask, residual connections, layer norm, and feed-forward layers.
 
 Now feed in a prompt — say, `"The capital of France is"` — and watch what comes out the far end. Not a finished paragraph. Not an answer. Just one vector per input token, and at the final position, one linear layer turning that vector into a list of raw scores (logits), one for every token in the vocabulary. Pass those scores through softmax and you have a single probability distribution: **the model's guess for the very next token.**
 
@@ -153,11 +153,11 @@ def generate(prompt_ids, next_token_probs, steps, rng):
     return ids
 ```
 
-In a real transformer, `next_token_probs(ids)` runs the whole stack of blocks and takes softmax at the final position — and uses a **KV cache** (covered in Module 15) so it doesn't recompute keys and values for earlier tokens on every iteration of that `for` loop.
+In a real transformer, `next_token_probs(ids)` runs the whole stack of blocks and takes softmax at the final position — and uses a **KV cache** (covered in <ModuleRef id="inference" short />) so it doesn't recompute keys and values for earlier tokens on every iteration of that `for` loop.
 
 <Misconception>
 
-"Lower perplexity always means a smarter, more helpful assistant." Perplexity only measures how well a model predicts the distribution of *its evaluation text*. A model with great perplexity on Wikipedia can still refuse to follow instructions, hallucinate citations, or repeat itself in a loop when generating. Pretraining minimises perplexity; turning a base predictor into a useful assistant requires post-training (instruction tuning and preference alignment, Module 14) and careful **sampling** — the subject of the next lesson. Also beware comparing perplexity numbers across different tokenisers: splitting words into smaller tokens makes each individual token easier to predict, lowering per-token perplexity without making the model any better at predicting whole text!
+"Lower perplexity always means a smarter, more helpful assistant." Perplexity only measures how well a model predicts the distribution of *its evaluation text*. A model with great perplexity on Wikipedia can still refuse to follow instructions, hallucinate citations, or repeat itself in a loop when generating. Pretraining minimises perplexity; turning a base predictor into a useful assistant requires post-training (instruction tuning and preference alignment, <ModuleRef id="finetuning" short />) and careful **sampling** — the subject of the next lesson. Also beware comparing perplexity numbers across different tokenisers: splitting words into smaller tokens makes each individual token easier to predict, lowering per-token perplexity without making the model any better at predicting whole text!
 
 </Misconception>
 
