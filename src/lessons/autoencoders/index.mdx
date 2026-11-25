@@ -1,0 +1,249 @@
+{/* authored-by: Claude Opus 5.5 */}
+import { FaceSpace, LatentExplorer, BetaDial, FacePrinterLab } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: draw me a new one
+
+Almost everything in this course so far has been a machine that *answers*. Is this email spam? Which token comes next? Which way should the agent move? A **<Term id="generative-model">generative model</Term>** is asked for something harder: *make me a new one*. A new face, a new photo, a new melody that nobody has seen before but that looks as if it belongs with the examples.
+
+To keep things small enough to compute exactly, our examples are tiny cartoon faces, 12 × 12 pixels: 144 numbers each. Secretly, every face was drawn from just two knobs: how much it **smiles** (from a frown at −1 to a grin at +1) and how open its **eyes** are (from shut at 0 to wide at 1). The model is never told about the knobs. It only ever sees pixels.
+
+So how would you make a new face? Two obvious ideas, both worth trying before reading on. First: learn how bright each pixel usually is, and switch each one on with that probability. Second: take two real faces and average them.
+
+<FaceSpace />
+
+Both fail, and for the same reason. **Independent pixels** know how often each pixel is lit, but nothing about which pixels should be lit *together*: a mouth is a curve, and a curve is a relationship between pixels. **Averaging two faces** gives a double exposure, a grin and a frown at half strength each, about 0.097 away from the nearest real face (more than half again our "is it a face?" threshold of 0.06).
+
+But averaging the *knobs* works every time. That's the clue. Out of all the possible patterns of 144 brightnesses, real faces form a thin two-dimensional sheet: move along it and you get faces, step off it in almost any direction and you get noise or ghosts. A straight line between two faces in pixel space cuts across empty space. To generate, you need to work in the knobs, and real data never comes with its knobs labelled. A machine has to discover them.
+
+## Squeeze, then rebuild: the autoencoder
+
+Imagine describing a face to a sketch artist over a bad phone line, where you're only allowed to say two numbers. With practice, the two of you would settle on a convention: maybe the first number for the mood, the second for the eyes. Nobody would have to tell you which features matter. The bottleneck alone would force you to find the two that explain the most.
+
+An **<Term id="autoencoder">autoencoder</Term>** is exactly that pair, trained together. The **encoder** is a small network that reads 144 pixels and outputs a **code** of two numbers. The **decoder** is another network that reads the code and draws 144 pixels. Training adjusts both, by gradient descent, to make the face that comes out match the face that went in. That's the only goal. The space of all possible codes is called the **<Term id="latent-space">latent space</Term>** ("latent" meaning hidden: the codes are the network's own private description of the data).
+
+Train one and look at where it put the codes:
+
+<LatentExplorer />
+
+The autoencoder has rediscovered the knobs. Follow the dots and the smile changes smoothly in one direction while the eyes change in another. Nobody told it either knob existed.
+
+Now the catch. To make a *new* face, you'd pick a new code and decode it. Which code?
+
+<Predict
+  question="You feed the trained autoencoder's decoder random codes from the square −3 to 3 in each direction, the natural range for 'ordinary' random numbers. Roughly what share of them decode to real faces?"
+  options={['Nearly all of them: the decoder only knows how to draw faces', 'About a third', 'Almost none']}
+  answer={1}
+>
+
+About 31% (the "Window −3 … 3" view). The decoder isn't a face-drawing machine; it's a function that was only ever trained on 400 particular codes, and those codes sit in a lopsided patch stretching from about −2 to 15 in one direction and −0.3 to 10 in the other. Nothing in training said where codes should go, so they went wherever the first gradient steps happened to push them. Even inside the patch's own bounding box, only about 70% decodes to faces: the codes form a curved region with empty corners.
+
+</Predict>
+
+The autoencoder is an excellent compressor and a poor generator. It learned a good *description* of each face it saw. It made no promises about the codes in between, or about where the codes live.
+
+<Deeper title="Couldn't you just measure where the codes ended up?" tag="Honesty">
+
+Yes, and on our easy faces it works rather well. Fit a bell curve to the autoencoder's own training codes afterwards (matching their mean and spread) and sample from that, and about 92% of its samples decode to real faces. Researchers found the same on real images: a plain autoencoder plus a density fitted to its codes afterwards can rival a VAE (Ghosh et al., 2019). The VAE's contribution is to build that promise into training, so the codes go where you'll look for them and every point in between decodes to something sensible, rather than hoping for it and checking afterwards.
+
+</Deeper>
+
+## The variational autoencoder: blurry addresses in one neighbourhood
+
+A **<Term id="vae">variational autoencoder</Term>** (VAE; Kingma and Welling, 2013) makes two changes to that training, and both are easiest to see as rules for a map.
+
+**Rule one: no pins, only smudges.** The encoder no longer outputs one exact code. It outputs a *centre* and a *spread*: "this face lives somewhere around here". During training the decoder is handed a random point from inside that smudge, and it still has to rebuild the original face. So the decoder can't treat codes as exact addresses. Every point near a face's centre has to decode to (nearly) that face, which means the space between neighbouring faces gets filled in, and nearby codes must mean similar faces.
+
+**Rule two: everyone lives in the same neighbourhood.** Left alone, the encoder would beat rule one by spreading the centres far apart and shrinking the smudges to pinpoints. So every smudge is charged for differing from one fixed shape: the **standard bell**, a round bump centred on 0 with spread 1 in every direction. Centres far from 0 cost extra. Smudges much tighter (or much looser) than 1 cost extra.
+
+The two rules pull against each other, and the balance is the point: the smudges crowd together and overlap in the middle of the map, centred on 0 with spread about 1. Then the recipe for a new face is simple: draw a random code from the standard bell and decode it. Switch the explorer above to the **VAE** and train it: the codes fill a round patch centred on 0 and reaching out to about 2 in every direction, and the whole window from −3 to 3, gaps included, decodes to faces.
+
+<Predict
+  question="Rule two charges codes for straying from the standard bell, and a weight β sets how much relative to the reconstruction. What happens if you make β very large?"
+  options={[
+    'Better samples: the codes match the bell perfectly',
+    'Every face gets the same code, and the decoder can only draw one face',
+    'Nothing much: β only affects training speed',
+  ]}
+  answer={1}
+>
+
+The cheapest way to match the bell perfectly is for *every* face to be encoded as the bell itself, with centre 0 and spread 1. Then the code says nothing about which face it came from, and the best the decoder can do is draw the one face that is least wrong on average. Try β = 10 below.
+
+</Predict>
+
+<BetaDial />
+
+β is a dial between two failures. With a gentle pull (β = 0.1), reconstructions are as sharp as the plain autoencoder's, but the codes still spill past the bell and 11.5% of printed codes land where the decoder never learned to draw (one corner of the map turns to junk). Around β = 0.3 to 1, the map is smooth and full and every printed face is real. At β = 3 the pull starts to win: the VAE keeps only *one* of the two knobs (look at the map: one direction still changes the face, the other does nothing), so the printer reaches just 4 of the 16 kinds of face. At β = 10 the codes carry no information at all. This failure, a VAE whose codes have been squeezed into the bell until they say nothing, is called **<Term id="posterior-collapse">posterior collapse</Term>**.
+
+## Writing it down
+
+The smudge has a centre and a spread for each code number. To draw a point from it, draw a standard random number (from the bell with centre 0 and spread 1), stretch it by the spread and shift it to the centre:
+
+<Eq
+  words="\cp{\text{code}} = \ca{\text{centre}} + \cb{\text{spread}} \times \cv{\text{fresh random number}}"
+  tex="\cp{z} = \ca{\mu} + \cb{\sigma} \cdot \cv{\varepsilon}, \qquad \cv{\varepsilon} \sim \mathcal{N}(0, 1)"
+>
+
+- $\ca{\mu}$ — the **centre** of the smudge, computed by the encoder from the face (μ, "mu")
+- $\cb{\sigma}$ — the **spread** of the smudge, also computed by the encoder (in practice it outputs $\log \sigma^2$, which can be any number, and we take $\sigma = e^{\frac{1}{2}\log\sigma^2}$)
+- $\cv{\varepsilon}$ — a **fresh random number** from the standard bell, drawn anew every time (ε, "epsilon")
+- $\cp{z}$ — the **code** handed to the decoder
+
+</Eq>
+
+Writing the sample this way has a name, the **<Term id="reparameterization-trick">reparameterisation trick</Term>**, and it's what makes VAEs trainable. "Draw a random point from the smudge" isn't something you can differentiate: how does a random draw change if you nudge the centre? But in this form the randomness sits in $\varepsilon$, which doesn't depend on anything, and the code is an ordinary sum and product of the centre and spread. Backpropagation flows straight through: nudge $\mu$ by a little and $z$ moves by the same little.
+
+The loss adds up the two rules:
+
+<Eq
+  words="\text{loss} = \cc{\text{rebuild error}} + \cp{\beta} \times \cg{\text{distance of the smudge from the bell}}"
+  tex="\mathcal{L} = \cc{\text{reconstruction}(x, \hat{x})} + \cp{\beta}\, \cg{D_{\text{KL}}\big(\mathcal{N}(\mu, \sigma^2) \,\|\, \mathcal{N}(0, 1)\big)}"
+>
+
+- $x$ — the original face, and $\hat{x}$ — the face the decoder drew from the sampled code
+- $\cc{\text{reconstruction}}$ — how badly the face was rebuilt. Ours is the cross-entropy from the logarithms lesson, summed over the 144 pixels (each pixel's brightness treated as the probability of "on")
+- $\cg{D_{\text{KL}}}$ — the **<Term id="kl-divergence">KL divergence</Term>**, the same "distance between distributions" that kept the RLHF policy on a leash: here it measures how far the encoder's smudge is from the standard bell
+- $\cp{\beta}$ — the **exchange rate** between the two: how many units of blur you'll accept to make the codes one unit more bell-like. The original VAE uses $\beta = 1$; other values give a "β-VAE"
+
+</Eq>
+
+For a bell-shaped smudge, the KL divergence works out to a tidy formula, one term per code number:
+
+<Eq
+  words="\cg{\text{pull for one code number}} = \tfrac{1}{2}\big(\ca{\text{centre}}^2 + \cb{\text{spread}}^2 - 1 - \ln \cb{\text{spread}}^2\big)"
+  tex="\cg{D_{\text{KL}}} = \tfrac{1}{2}\big(\ca{\mu}^2 + \cb{\sigma}^2 - 1 - \ln \cb{\sigma}^2\big)"
+>
+
+- $\ca{\mu}^2$ — the cost of a centre away from 0. It grows with the square of the distance, like a spring pulling every face's code towards the middle
+- $\cb{\sigma}^2 - 1 - \ln \cb{\sigma}^2$ — the cost of the wrong spread. It is exactly zero at $\sigma = 1$ and grows in both directions: a pinpoint smudge (tiny $\sigma$, so $-\ln \sigma^2$ is large) is expensive, and so is one wider than the bell
+- $\ln$ — the natural logarithm, from the logarithms lesson
+
+</Eq>
+
+Read the formula against the two rules. The $\sigma$ part forbids pins: a pinpoint code costs a fortune. The $\mu^2$ part keeps everyone in one neighbourhood. And the whole thing is zero only when the smudge *is* the bell, which is posterior collapse: the bottom of the KL is a code that carries no information.
+
+<MathExhibit title="Where the loss really comes from" teaser="The VAE is maximum likelihood in disguise.">
+
+Think of the decoder as a probability model: pick a code from the standard bell, $z \sim \mathcal{N}(0, I)$, then draw a face from $p_\theta(x \mid z)$. Training should make real faces likely: maximise $\log p_\theta(x) = \log \int p_\theta(x \mid z)\, p(z)\, dz$. That integral, over every possible code, can't be computed. The encoder's smudge $q_\phi(z \mid x)$ is a guess at which codes could have produced $x$, and one line of algebra (Jensen's inequality, or equivalently the fact that a KL divergence is never negative) gives
+
+$$\log p_\theta(x) \;\ge\; \mathbb{E}_{z \sim q_\phi(z \mid x)}\big[\log p_\theta(x \mid z)\big] \;-\; D_{\text{KL}}\big(q_\phi(z \mid x) \,\|\, p(z)\big).$$
+
+The right-hand side is called the **evidence lower bound** (ELBO). Its first term is minus the reconstruction loss (with one sampled code standing in for the average), and its second is the KL pull, with $\beta = 1$. Maximising the ELBO pushes up a floor under the log-likelihood of the data. The gap between the two sides is exactly $D_{\text{KL}}\big(q_\phi(z \mid x) \,\|\, p_\theta(z \mid x)\big)$: how far the encoder's guess is from the true distribution of codes behind $x$. "Variational" is the name for this move: replace an impossible calculation with an optimisation over a family of simpler distributions.
+
+</MathExhibit>
+
+<Misconception>
+
+"A VAE is a better autoencoder." It's a *worse* compressor: at β = 1 our VAE rebuilds held-out faces about twice as badly as the plain autoencoder (pixel error 0.027 against 0.014), because it is deliberately forbidden from giving faces precise, far-apart codes. What it buys with that blur is a latent space you can *sample from*. If all you need is compression, a plain autoencoder (or a VAE with a very small β) is the better tool, and the lab's second brief asks you to show it.
+
+</Misconception>
+
+## In code
+
+The whole VAE fits in a screenful of PyTorch. This trains on the same faces (the same drawing recipe, a different random sample of 400 knob settings) with β = 1, then prints three brand-new faces from random standard-bell codes:
+
+```python
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+def face(smile, eyes, side=12):
+    """A 12x12 face from two knobs, drawn as soft strokes (same recipe as the widgets)."""
+    u = np.linspace(-1, 1, 41)
+    mouth = np.stack([6 + 3.2 * u, 8.1 - 1.6 * smile * (u**2 - 0.5)], 1)
+    t = np.linspace(0, 2 * np.pi, 40, endpoint=False)
+    eye = lambda cx: np.stack([cx + np.cos(t), 4.2 + (0.15 + 1.2 * eyes) * np.sin(t)], 1)
+    pts = np.concatenate([mouth, eye(3.5), eye(8.5)])
+    yy, xx = np.mgrid[0:side, 0:side] + 0.5
+    d2 = (xx[..., None] - pts[:, 0]) ** 2 + (yy[..., None] - pts[:, 1]) ** 2
+    return np.exp(-d2 / (2 * 0.45**2)).max(-1).ravel()
+
+rng = np.random.default_rng(0)
+knobs = np.column_stack([rng.uniform(-1, 1, 400), rng.uniform(0, 1, 400)])
+X = torch.tensor(np.array([face(s, e) for s, e in knobs]), dtype=torch.float32)
+
+class VAE(nn.Module):
+    def __init__(self, hidden=32, latent=2):
+        super().__init__()
+        self.enc = nn.Sequential(nn.Linear(144, hidden), nn.Tanh(), nn.Linear(hidden, 2 * latent))
+        self.dec = nn.Sequential(nn.Linear(latent, hidden), nn.Tanh(), nn.Linear(hidden, 144))
+
+    def forward(self, x):
+        mu, logvar = self.enc(x).chunk(2, dim=-1)
+        z = mu + torch.exp(0.5 * logvar) * torch.randn_like(mu)   # the reparameterisation trick
+        return self.dec(z), mu, logvar
+
+torch.manual_seed(0)
+vae, beta = VAE(), 1.0
+opt = torch.optim.Adam(vae.parameters(), lr=3e-3)
+for step in range(3000):
+    x = X[torch.randint(0, len(X), (32,))]
+    logits, mu, logvar = vae(x)
+    recon = F.binary_cross_entropy_with_logits(logits, x, reduction="sum") / len(x)
+    kl = 0.5 * (mu**2 + logvar.exp() - 1 - logvar).sum() / len(x)
+    loss = recon + beta * kl
+    opt.zero_grad(); loss.backward(); opt.step()
+print(f"reconstruction {recon.item():.1f}, KL {kl.item():.2f} per face")
+
+with torch.no_grad():                                   # generate: decode codes from the standard bell
+    new_faces = torch.sigmoid(vae.dec(torch.randn(3, 2))).reshape(3, 12, 12)
+for row in range(2, 11):                                # print three new faces side by side
+    print("   ".join("".join(" .:-=+*#%@"[min(9, int(v * 10))] for v in f[row]) for f in new_faces))
+```
+
+Running it prints (your exact faces may differ with a different PyTorch version):
+
+```text
+reconstruction 21.4, KL 1.92 per face
+
+  +%+  +%+       +#+  +#+       =+=  =+=
+  @%@  @%@       @@@  @@@       %@%  %@%
+   :    :         .    .
+     ..
+   -%@@%-        *+:..:+*       .-+***-.
+  *%-  -%*       :*%%%%*:       *#+==+#*
+  :      :
+```
+
+A frown with wide eyes, a gentle grin, a slight frown: three faces that were never in the training set. The KL of about 1.9 per face matches our in-browser VAE at β = 1. Notice that generation uses only the decoder: the encoder exists to *train* it.
+
+## Lab: The Face Printer
+
+Time to design one. Your primitives are the three choices that matter: how many numbers go in the code, how wide the networks' hidden layers are, and how hard to pull towards the bell (β = 0 means a plain autoencoder). Each **Build** trains your design for real, three times with different random seeds, and the spec has to hold every time. A design that works once and fails twice isn't a design, it's a lucky run.
+
+There are two briefs: a **printer** that will feed your decoder standard-bell random codes, and a **compressor** that only ever stores and rebuilds faces. The optional goal for both is to meet the spec with as few parameters as possible. Every design in the space was trained with all three seeds, so the smallest working design is known.
+
+<FacePrinterLab />
+
+<Deeper title="Debrief: what the two briefs were testing" tag="Spoiler">
+
+**One number is never enough.** No design with a one-number code passes either brief, whatever its width or β: two independent knobs can't share one number without colliding. Count the knobs before you size the bottleneck. (A three-number code can pass too: the spare number ends up carrying little.)
+
+**The printer needs the pull, but not too much.** 6 of the 54 designs pass Brief 1 with all three seeds, and every one is a VAE with β = 0.3 or 1. The plain autoencoders fail because the printer looks where they never put their codes (4.5% to 46.5% of their prints are real). With two-number codes, β = 0.1 is too gentle: its prints are 74.5% to 97% real, depending on the width and the seed. β of 3 or more blurs the faces or collapses them. The smallest design that works every time is **2 code numbers, width 16, β = 0.3** (4,884 parameters), and it's the only one that size. Judged on seed 1 alone, 9 designs would have "passed" and the smallest would have been a 3-number, width-8 VAE at β = 0.1 with roughly half the parameters. It fails with the other two seeds.
+
+**The compressor wants a weaker pull.** 7 designs pass Brief 2, and the smallest is **2 code numbers, width 16, β = 0.1**, the same network as Brief 1's answer with a gentler pull. With no printer to satisfy, the pull is only a cost (blur) and a training aid. A plain autoencoder does pass (3 code numbers, width 32), but smaller plain autoencoders were unreliable in our runs, and here we owe you an honest note: that's partly our setup. Our hidden units use tanh, and nothing stops an autoencoder's codes from growing. In the stalled runs they grew within the first few hundred steps from around 0.5 to around 4 to 6, which pushed the decoder's tanh units into their flat ends (every one of them, in the worst runs), where gradients vanish, and the networks settled for drawing the average face. Even a small β keeps codes near 0, which happens to fix this. Normalising the codes or using a different activation would fix it too, so don't read the lab as "autoencoders can't compress". Read it as: the regulariser you pick changes how training goes, not just where it ends.
+
+</Deeper>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- A **generative model** has to produce new examples. Real data lives on a thin sheet inside the space of all possible inputs: averaging pixels or sampling pixels independently falls off it.
+- An **autoencoder** squeezes data through a small **code** and rebuilds it. The bottleneck forces it to discover the data's real knobs, without being told what they are.
+- A plain autoencoder makes no promise about *where* its codes live or what lies between them, so random codes often decode to junk (69% of the window around our autoencoder's codes decoded to faces, 31% of the square from −3 to 3).
+- A **VAE** encodes each example as a smudge (centre μ, spread σ) and charges each smudge for differing from the standard bell (the **KL** term, ½(μ² + σ² − 1 − ln σ²) per code number). Then new examples come from decoding standard-bell random codes.
+- The **reparameterisation trick**, z = μ + σε, moves the randomness into ε so gradients can flow through the sampling step.
+- **β** trades sharpness against a well-filled latent space. Too little and samples miss; too much and the codes stop carrying information (**posterior collapse**).
+
+</Takeaways>
+
+<InTheWild>
+
+The most widely used VAE today is hiding inside image generators. Stable Diffusion's first stage is a VAE-style autoencoder that compresses a 512 × 512 colour image (786,432 numbers) into a 64 × 64 × 4 latent (16,384 numbers, 48 times fewer), with only a very small KL weight, so it behaves mostly like a compressor. The expensive generative model then works entirely in that latent space, and the decoder turns its output back into pixels: that's what the "latent" in latent diffusion means. Variants of the autoencoder idea are everywhere: VQ-VAEs replace the smudge with a choice from a learned codebook of discrete codes (used to turn images and audio into tokens a transformer can read), and sparse autoencoders are a key tool in interpretability research, pulling a language model's internal activations apart into readable features. The other classic generator, the **GAN** (Goodfellow et al., 2014), skips the encoder entirely: a generator network turns random codes into images while a second network, the critic, learns to tell them from real ones, and each improves by trying to beat the other. GANs make sharper images than VAEs but are notoriously hard to train.
+
+</InTheWild>
+
+VAEs generate in one shot: one random code, one pass through the decoder. That's fast, but it asks a lot of one network, which is why VAE samples tend to be a little blurry. What if, instead, you built a picture gradually, starting from pure noise and removing a little at a time? Next: **diffusion**.

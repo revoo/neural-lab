@@ -169,7 +169,16 @@ export const MODULES: ModuleMeta[] = [
       { id: 'reward-hacking', title: 'Lab: The Reward-Hacking Sandbox', summary: 'Why optimisers farm renewable bonuses, the boat-race loop solved exactly, naive vs potential-based shaping — and a lab where an exact optimiser attacks every reward you write.', minutes: 35, load: () => import('./lessons/reward-hacking/index.mdx') },
     ],
   },
-  { id: 'generative', number: 17, title: 'Generative Models & Diffusion', blurb: 'VAEs, GANs and diffusion: how machines learn to create.', lessons: [], planned: ['Autoencoders and VAEs', 'Diffusion: adding and removing noise', 'Guidance and conditioning'] },
+  {
+    id: 'generative',
+    number: 17,
+    title: 'Generative Models & Diffusion',
+    blurb: 'VAEs, GANs and diffusion: how machines learn to create.',
+    lessons: [
+      { id: 'autoencoders', title: 'Autoencoders and VAEs', summary: 'Why averaging two faces makes a ghost, how a bottleneck discovers the knobs behind the data, why a plain autoencoder can’t generate, the VAE’s smudges and KL pull, posterior collapse — and Lab: The Face Printer.', minutes: 40, load: () => import('./lessons/autoencoders/index.mdx') },
+    ],
+    planned: ['Diffusion: adding and removing noise', 'Guidance and conditioning'],
+  },
   { id: 'systems', number: 18, title: 'AI Systems Engineering', blurb: 'RAG, tools, agents and evaluation: models inside real software.', lessons: [], planned: ['Retrieval-augmented generation', 'Tool calling and agents', 'Evaluation'] },
 ];
 
