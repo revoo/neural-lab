@@ -1,0 +1,136 @@
+{/* authored-by: Gemini Antigravity */}
+import { Eq } from '../../components/Eq';
+import { Predict } from '../../components/Predict';
+import { Callout, Deeper } from '../../components/Callout';
+import { Term } from '../../components/Term';
+import { Quiz } from '../../components/Quiz';
+import { ReceptiveFieldWidget, PoolingWidget, TrainedCnnWidget, CnnArchitectLab } from './Widgets';
+import { questions } from './quiz';
+
+# CNNs and Feature Maps
+
+In the previous lesson, a single `3×3` kernel could spot a vertical edge or a tiny cross. Real images are far richer than edges: a photograph of a bicycle contains spokes, tyres, handlebars, pedals, and a rider — shapes spanning dozens or hundreds of pixels.
+
+How does a **<Term id="cnn">Convolutional Neural Network (CNN)</Term>** go from tiny `3×3` local dot products to recognising a whole bicycle anywhere in a high-resolution photo?
+
+By stacking three simple ingredients over and over:
+
+1. **Multi-channel convolutions** that compose earlier feature maps into richer patterns (edges → corners → textures → parts → objects).
+2. **Nonlinearity (`ReLU`)** between layers so two stacked layers don’t collapse into one linear filter.
+3. **<Term id="pooling">Pooling</Term> (or strided convolutions)** to shrink spatial maps, rapidly grow each neuron’s field of view, and trade exact pixel coordinates for shift invariance.
+
+---
+
+## 1. Receptive fields: how `3×3` sees the whole scene
+
+A single `3×3` kernel looks at a tiny `3×3` patch of pixels. Now stack a second `3×3` kernel on top of the first feature map: each of its `9` inputs *already* summarised a `3×3` patch of the image, so one neuron in Layer 2 sees a **`5×5`** patch of the original image!
+
+Now drop a `2×2` stride-2 pooling layer in between. Because adjacent cells in the pooled map are now **2 input pixels apart**, the **jump** (effective stride $j$) doubles from `1` to `2`. The very next `3×3` conv jumps across 2 input pixels per step, widening its **<Term id="receptive-field">receptive field</Term>** twice as fast!
+
+<Eq
+  words="new receptive field  =  old receptive field  +  (kernel − 1) × current jump"
+  tex="\ca{r_\ell} = \ca{r_{\ell-1}} + (\cb{k_\ell} - 1)\,\cc{j_{\ell-1}}, \qquad \cc{j_\ell} = \cc{j_{\ell-1}} \cdot \cg{s_\ell}"
+>
+  - $\ca{r_\ell}$ — **receptive field** width after layer $\ell$ (starting from $r_0 = 1$)
+  - $\cc{j_\ell}$ — **jump** (effective stride in input pixels between adjacent neurons; starting from $j_0 = 1$)
+  - $\cb{k_\ell}, \cg{s_\ell}$ — kernel size and stride of layer $\ell$
+</Eq>
+
+Build stacks below and watch how quickly pooling expands the receptive field — and why VGGNet replaced `5×5` and `7×7` kernels with stacked `3×3`s (**28.0%** fewer parameters for `5×5`, **44.9%** fewer for `7×7`, plus extra ReLUs!).
+
+<ReceptiveFieldWidget />
+
+---
+
+## 2. Pooling: trading pixel coordinates for shift invariance
+
+Remember from the previous lesson that convolution is translation **equivariant**: nudge an edge 1 pixel to the right, and the feature map nudges 1 pixel to the right.
+
+Add **`2×2` Max Pooling** (stride 2): each `2×2` block simply reports its single strongest activation. If an edge jitters by 1 pixel inside its `2×2` block, the pooled output does not budge by a single decimal place!
+
+<PoolingWidget />
+
+At the very end of a modern CNN (ResNet, ConvNeXt, MobileNet), **<Term id="global-average-pooling">Global Average Pooling (GAP)</Term>** takes that idea all the way: average each of the $C$ channels across the entire remaining spatial grid `(H, W)`, turning `(7, 7, 512)` into a single `512`-number vector before the final linear classifier. That cuts VGG-16’s **106.9 million**-parameter dense head down to just **0.513 million** parameters (**208× smaller!**) while making the classifier completely blind to where in the photo the object appeared.
+
+---
+
+## 3. A real 55-parameter CNN vs a 547-parameter Dense MLP
+
+Let’s put weight sharing and global pooling to the ultimate test — not on a toy diagram, but by actually training both models from scratch with Adam right here in JavaScript!
+
+We generate `8×8` images of three shapes (**Horizontal Bar**, **Vertical Bar**, **Diagonal Slash**). Here is the twist: **every training image places the shape strictly in the top-left corner**. Then we evaluate both trained models on two held-out test sets:
+
+1. **In-distribution (top-left):** fresh noisy shapes in the same corner.
+2. **Shifted (bottom-right):** shapes moved to pixels the network *never saw active during training*.
+
+<Predict
+  question="A 547-parameter Dense MLP (64→8→3) and a 55-parameter Tiny CNN (4 learned 3×3 filters → ReLU → GlobalMaxPool → 3 classes) both hit 100% on the top-left test set. What happens when we test them on the unseen bottom-right corner?"
+  options={[
+    'The Dense MLP wins because it has 10× more parameters.',
+    'Both drop to ~33% random guessing because neither saw bottom-right pixels during training.',
+    'The 547-param Dense MLP collapses near chance, while the 55-param CNN still scores ~100%.',
+  ]}
+  answer={2}
+>
+  Every bottom-right input weight of the Dense MLP received near-zero gradient during training, so it collapses to **28.3%** (worse than random guessing!). Meanwhile, our 55-parameter CNN scans its four learned `3×3` filters across the bottom-right corner and takes a global max, hitting **100.0%** accuracy on positions it has never seen!
+</Predict>
+
+Inspect the real trained weights, feature maps, and predictions below.
+
+<TrainedCnnWidget />
+
+<Callout kind="info" title="Inductive bias beats raw parameter count">
+  Notice what just happened: a model with **10× fewer weights** (55 vs 547) beat a dense network by **+71.7 percentage points** out of distribution! That is what engineers mean by **inductive bias**: encoding a real symmetry of the world (translation equivariance + global pooling) straight into the network’s wiring gives you generalisation that brute-force parameters cannot buy.
+</Callout>
+
+---
+
+## 4. Lab: Architect the CNN
+
+Apply receptive-field arithmetic, shift generalisation, and classification-head sizing across three exhaustive briefs.
+
+<CnnArchitectLab />
+
+<Deeper title="Exhaustive lab takeaways">
+  - **Brief 1 (RF ≥ 15×15 under 10,000 params):** Only **3 of 18** configs pass. Plain `3×3` convs without pooling never reach `15×15` in 4 layers (max `9×9`); `5×5` layers blow the parameter budget. Interleaving two `2×2` MaxPools with three `3×3` convs hits **`18×18`** receptive field in just **6,960 parameters**!
+  - **Brief 2 (Unseen bottom-right shifts):** **0 of 3** Dense MLPs pass (even `1,091` params scores just `33.3%`). A 2-filter CNN lacks capacity (`45.0%`), 3 filters hits `73.3%`, and **`CNN + GlobalMaxPool (4 filters)`** is the smallest passing model at **55 parameters** (**100.0%** unseen-shift accuracy).
+  - **Brief 3 (ImageNet 7×7×512 head ≤ 3M params):** VGG’s `Flatten→4096→1000` burns **106.862M** params; `Flatten→1000` still burns **25.089M**; squeezing `512→128` drops channel capacity. **`Global Avg Pool → 1000`** is the unique winner at **0.513M** params with all 512 channels intact.
+</Deeper>
+
+---
+
+## 5. Seeing receptive-field growth in 15 lines of Python
+
+```python
+def receptive_field(layers):
+    r, j = 1, 1
+    out = []
+    for name, k, s in layers:
+        r = r + (k - 1) * j
+        j = j * s
+        out.append((name, r, j))
+    return out
+
+stack = [
+    ("Conv 3x3 s1", 3, 1),
+    ("Conv 3x3 s1", 3, 1),
+    ("MaxPool 2x2", 2, 2),
+    ("Conv 3x3 s1", 3, 1),
+    ("MaxPool 2x2", 2, 2),
+    ("Conv 3x3 s1", 3, 1),
+]
+for name, r, j in receptive_field(stack):
+    print(f"{name:12s} -> RF = {r:2d}x{r:<2d}  jump = {j}")
+# Conv 3x3 s1  -> RF =  3x3   jump = 1
+# Conv 3x3 s1  -> RF =  5x5   jump = 1
+# MaxPool 2x2  -> RF =  6x6   jump = 2
+# Conv 3x3 s1  -> RF = 10x10  jump = 2
+# MaxPool 2x2  -> RF = 12x12  jump = 4
+# Conv 3x3 s1  -> RF = 20x20  jump = 4
+```
+
+---
+
+## Check your understanding
+
+<Quiz questions={questions} />

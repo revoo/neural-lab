@@ -24,6 +24,8 @@ Start with **`HANDOFF.md`** — the step-by-step onboarding procedure, lesson ch
 - Three themes (light, dark, matrix): colour widgets only via CSS variables and check all three plus phone width.
 - **After every finished lesson: commit, push, and update the "Current state" block in `docs/ROADMAP.md`** — the session may end at any time and another agent must be able to continue (see `HANDOFF.md`).
 
+- **Owner's standing instructions** (branch and no-PR rule, the invisible authorship watermark, environment tips) are in `HANDOFF.md` under "Owner's standing instructions". Read them every session.
+
 ## Commands
 
 ```bash

@@ -20,9 +20,11 @@ Neural Lab is an interactive website that teaches AI from first principles to so
 - **No fake interactivity.** Widgets compute real values; captions say what to try; live notes explain the current state.
 - **Labs and puzzles:** give primitives, a clear objective, observable machinery and multiple valid solutions. Ask for a working solution first, with optional optimisation goals after. Compute optimums exhaustively, or label them "best found by searching <stated space>", produced by a committed script and re-verified by a test. No badges or points.
 - **Compare fairly and report honestly.** Each competing method gets its own best settings, found by search, and random effects are averaged over fixed seeds. If something doesn't behave as the textbook says in our small problems, say so. Re-check a "fix" with other seeds before crediting it.
-- **Verify every number quoted in prose by running it, and pin it with a test.** Run every code snippet you put in a lesson (NumPy is installed; for PyTorch, `pip install torch --index-url https://download.pytorch.org/whl/cpu`).
+- **Verify every number quoted in prose by running it, and pin it with a test.** Run every code snippet you put in a lesson (NumPy is installed; for PyTorch try `pip install torch --index-url https://download.pytorch.org/whl/cpu`, or plain `pip install torch` if that index is blocked).
 - **Three themes: light, dark and matrix.** Colour widgets only through CSS variables (`var(--c-a)`, `var(--accent)`, …), never hard-coded hex. Check every widget in all three themes and at phone width (390px).
 - **After every finished lesson:** commit, push, and update the "Current state" block, the status table and "Next steps" in `docs/ROADMAP.md`. Assume the session can end at any moment and someone else will continue from the repository alone.
+
+- **Owner's standing instructions** (branch and no-PR rule, the invisible authorship watermark, environment tips) are in `HANDOFF.md` under "Owner's standing instructions". Read them every session.
 
 ## Commands
 

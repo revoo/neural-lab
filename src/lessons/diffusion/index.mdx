@@ -1,0 +1,224 @@
+{/* authored-by: Claude Opus 5.5 */}
+import { ForwardNoise, BestGuess, RunBackwards, LearnedDenoiser, StepBudgetLab } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: one shot is too much to ask
+
+The VAE in the last lesson generated a face in one go: one random code, one pass through the decoder, done. That's fast, but it asks a single network to turn pure randomness into a finished picture in a single leap, and its pictures came out a little soft.
+
+Here's a strange observation that leads somewhere better. *Destroying* a picture is trivially easy. Add a little random noise, then a little more, and after enough rounds any picture becomes static. No learning needed. The question **<Term id="diffusion-model">diffusion models</Term>** ask is: what if we learned to undo that destruction, one small step at a time?
+
+Think of a film of a drop of ink spreading through a glass of water. Played forwards, it's boring physics. Played backwards, it looks like a miracle: a grey cloud gathers itself into a crisp drop. But look at any two neighbouring frames of the backwards film and the change between them is tiny and local, a slight sharpening here, a slight concentration there. Nobody could predict the final drop from the grey cloud in one go, but each frame-to-frame step is a modest, learnable correction. (The analogy has a limit: real ink can't be un-mixed, because the water's molecules don't remember where they came from. Our model will never recover the *exact* original either. It learns to produce *some* plausible drop, which is all generation needs.)
+
+To see every part of the machine exactly, our data are points in two dimensions rather than images: small round blobs arranged in a shape. Think of each point as a tiny "image" with two pixels. Everything in this lesson works the same way for a million-pixel photograph; the difference is that with blobs, every distribution and every best guess can be computed exactly, so nothing is hidden behind a training run.
+
+## Forward: dissolving the shape
+
+The forward process takes a data point and, at every step, does two things: shrinks it slightly towards the middle, and adds a little fresh random noise. Watch what that does to a whole shape:
+
+<ForwardNoise />
+
+By step 300 of 1,000, only 3.3% of the ring's shape is left (that much of the probability is still out of place compared with pure noise). By step 500 it's under 0.1%. The remaining half of the steps spends its time turning "almost noise" into "exactly noise". And the end point is the standard bell, the one distribution a computer can sample from in one line, whatever the data looked like.
+
+<Predict
+  question="Why does each step shrink the point towards the middle as well as adding noise? Wouldn't just adding noise destroy the shape too?"
+  options={[
+    'Shrinking is what destroys the shape; the noise is just decoration',
+    'Without shrinking, the points would spread out for ever, and the end point would depend on how spread out the data was. Shrinking keeps the total spread at about 1, so every dataset ends at the same standard bell.',
+    'It makes the computation faster',
+  ]}
+  answer={1}
+>
+
+Noise alone would destroy the shape, but the cloud would keep getting wider, and where it ended up would depend on the data's own scale. Shrinking by just the right amount balances the added noise: the variances add (the statistics lesson's rule), so a point scaled by $\sqrt{\bar\alpha}$ plus noise of spread $\sqrt{1-\bar\alpha}$ keeps a total variance of $\bar\alpha \cdot (\text{data variance}) + (1 - \bar\alpha)$. For data with variance about 1, that stays about 1 the whole way, ending at exactly the standard bell.
+
+</Predict>
+
+Because every step's noise is a bell and bells add up to a bell, you never have to simulate the steps one by one. You can jump straight from a clean point to any step $t$ in one line, which is what the slider does:
+
+<Eq
+  words="\cv{\text{noisy point}} = \sqrt{\cp{\text{signal share}}} \times \ca{\text{clean point}} + \sqrt{1 - \cp{\text{signal share}}} \times \cg{\text{fresh noise}}"
+  tex="\cv{x_t} = \sqrt{\cp{\bar\alpha_t}}\;\ca{x_0} + \sqrt{1 - \cp{\bar\alpha_t}}\;\cg{\varepsilon}, \qquad \cg{\varepsilon} \sim \mathcal{N}(0, I)"
+>
+
+- $\ca{x_0}$ — the **clean** data point (in an image model, a whole image)
+- $\cp{\bar\alpha_t}$ — the **signal share** after $t$ steps ("alpha-bar"): 1 for clean data, falling to almost 0 by the last step. The **<Term id="noise-schedule">noise schedule</Term>** is the recipe that says how fast it falls
+- $\cg{\varepsilon}$ — **fresh noise** from the standard bell, one random number per coordinate (per pixel)
+- $\cv{x_t}$ — the **noisy** point at step $t$
+
+</Eq>
+
+## Backward: the best guess
+
+Now reverse it. You're handed a noisy point and told how noisy it is. Where did it come from?
+
+You can't know for sure. A noisy point near one blob probably came from that blob, but it might have been carried over from a neighbour by an unlucky draw of noise. The best you can do is a **best guess**: the average of all the clean points that could have produced it, each weighted by how likely it is. That's what a **<Term id="denoiser">denoiser</Term>** computes, and for our blobs we can compute it exactly.
+
+<Predict
+  question="At step 1,000 the noisy point is pure noise. It carries no information about where it came from. What is the best guess of the clean point?"
+  options={['A random point on one of the blobs', 'The average of all the data: the middle of the ring', 'There is no best guess']}
+  answer={1}
+>
+
+With no information, every clean point is equally plausible, so the best single guess is their average. For the ring, that's the middle, where there is no data at all. Drag the noise level to 1,000 below and every arrow points to the same spot.
+
+</Predict>
+
+<BestGuess />
+
+This is the key to the whole method, and it explains the blur. At low noise the best guess is sharp: the point obviously came from one blob. At high noise the best guess is an *average over many blobs*, and an average of blobs is not a blob. A denoiser asked to go from pure noise to data in one jump can only return the average of everything, which is exactly the "least wrong single answer" the VAE's decoder learned to draw.
+
+So diffusion never takes that jump. It takes the guess as a *direction*, moves a little way towards it, and then guesses again with the noise now slightly lower. Like walking towards a harbour in thinning fog: at first you head for the middle of the coastline, the average of where the harbour might be, and as the fog lifts you see which harbour is closest and correct course.
+
+## Running it backwards
+
+Each backward step has three moves. Guess the clean point. Work out what noise that guess implies (if the clean point were *there*, the noise must have been *this*). Then rebuild the point at the next, slightly lower noise level, using the guessed clean point and the implied noise:
+
+<Eq
+  words="\cv{\text{next point}} = \sqrt{\cp{\text{next share}}} \times \cc{\text{guess}} + \sqrt{1 - \cp{\text{next share}}} \times \cg{\text{implied noise}}"
+  tex="\cv{x_{t'}} = \sqrt{\cp{\bar\alpha_{t'}}}\;\cc{\hat{x}_0} + \sqrt{1 - \cp{\bar\alpha_{t'}}}\;\cg{\hat\varepsilon}, \qquad \cg{\hat\varepsilon} = \frac{x_t - \sqrt{\bar\alpha_t}\,\cc{\hat{x}_0}}{\sqrt{1 - \bar\alpha_t}}"
+>
+
+- $\cc{\hat{x}_0}$ — the denoiser's **best guess** of the clean point, from the noisy point $x_t$ (the hat means "estimated")
+- $\cg{\hat\varepsilon}$ — the **implied noise**: the forward equation solved for $\varepsilon$, using the guess in place of the unknown clean point
+- $\cp{\bar\alpha_{t'}}$ — the signal share at the **next** stop $t'$, which is less noisy than $t$
+- $\cv{x_{t'}}$ — the point at the next stop. At the very last stop ($\bar\alpha = 1$) it is just the best guess
+
+</Eq>
+
+This is the **<Term id="ddim">DDIM</Term>** update (Song, Meng and Ermon, 2020). It's the forward equation run in reverse with estimates plugged in. The original **DDPM** sampler (Ho, Jain and Abbeel, 2020) does the same, except that it replaces part of the implied noise with fresh random noise at every step. Try both, and try different numbers of steps:
+
+<RunBackwards />
+
+With one step, all 2,000 samples land on exactly the same point, the middle: the blur, in its purest form. With evenly spaced steps through the 1,000-step schedule, 10 steps still leave 31.6% of the probability out of place on the ring, 20 steps 7.0%, and 100 steps 3.8%, close to the 2.7% that even a perfect sampler scores with only 2,000 samples. Show the paths and you can watch the samples commit: they drift together towards the middle while the noise is high, then split off towards individual blobs as it falls.
+
+Which sampler is better? In our runs, neither everywhere. With 10 or 20 steps DDIM did slightly better on all three shapes. With 50 steps DDPM's fresh noise did better on the ring (2.1% against 3.9%) and the smiley, but not on the rare-blob data. Fresh noise can wash out errors made by earlier steps, but it also adds randomness that the remaining steps must clean up, so it pays off only when there are enough of them.
+
+<Misconception>
+
+"More steps, better pictures: the step count is the quality knob." Partly. The evenly spaced 20-step run above leaves 7.0% of the ring out of place. In the lab you'll find plans with only **4** steps that do better, because they don't waste stops on noise levels where nothing is happening. *Where* the steps go matters as much as how many there are, which is why practical samplers use carefully designed step plans, and why image generators that once needed 1,000 steps now use 20 to 50.
+
+</Misconception>
+
+## Learning the denoiser
+
+So far we've cheated: our denoiser knows the true blobs. A real image model has only examples, and must *learn* the denoiser. The training recipe is almost embarrassingly simple. Take a clean example, pick a random step, add noise with the forward equation, and ask a network to predict the noise you added:
+
+<Eq
+  words="\text{loss} = \big\|\, \cg{\text{noise actually added}} - \cb{\text{network's prediction of it}} \,\big\|^2"
+  tex="\mathcal{L} = \big\|\, \cg{\varepsilon} - \cb{\hat\varepsilon_\theta}(x_t, t) \,\big\|^2"
+>
+
+- $\cg{\varepsilon}$ — the noise **actually added** to make $x_t$ (known, because we added it ourselves)
+- $\cb{\hat\varepsilon_\theta}(x_t, t)$ — the network's **prediction** of that noise, from the noisy point and the step number. $\theta$ stands for all its weights
+- $\|\cdot\|^2$ — squared error, added up over coordinates (over pixels, in an image)
+
+</Eq>
+
+Predicting the noise and guessing the clean point are the same job: once you have one, the forward equation gives you the other. And because the squared error is minimised by the *average* answer (the loss-functions lesson), a network trained this way is learning exactly the best guess we've been computing. Watch a small one try:
+
+<LearnedDenoiser />
+
+The network gets the ring but not the blobs. That's an honest result for a 4,738-parameter network trained for a few seconds, and the comparison shows where the difficulty lies. The hard part of generation is the low-noise end, where the denoiser must be precise to make sharp detail. Notice also that the best possible loss isn't zero: even the perfect denoiser can only guess the noise on average.
+
+<Deeper title="Denoising is climbing the probability hill" tag="Score">
+
+There's a second way to read the denoiser. The **score** of a distribution is the direction in which its probability rises fastest (its gradient, $\nabla_x \log p_t(x)$). For bell-shaped noise, a result known as Tweedie's formula says the best noise prediction is that direction, scaled: $\hat\varepsilon = -\sqrt{1 - \bar\alpha_t}\; \nabla_x \log p_t(x_t)$. So "predict the noise" and "point uphill towards likelier data" are the same instruction, and sampling is a series of steps uphill on a landscape that sharpens as the noise falls. That reading came from a parallel line of work on **score-based models** (Song and Ermon, 2019); Song and colleagues later showed the two are one family, with DDIM's deterministic steps solving a differential equation, the *probability-flow ODE*, and DDPM's noisy steps solving its stochastic twin.
+
+</Deeper>
+
+<Deeper title="If the perfect denoiser is so good, why not use it?" tag="Honesty">
+
+Because in real life you never have the true distribution, only a finite training set. The exact best denoiser for a finite set of examples knows only those examples: run it backwards and it reproduces training images, nothing new. Real networks can't represent that perfect, memorising denoiser, and the way they fall short (smoothing between examples in ways that respect the structure of images) is a big part of why they generate *new* images. Kadkhodaie and colleagues (2024) showed the transition directly: the same network memorises when trained on a small dataset and generalises when trained on a large one. Our blobs sidestep the issue by giving the denoiser the true distribution, so you can study sampling on its own.
+
+</Deeper>
+
+## In code
+
+The exact denoiser and the DDIM loop fit in a few lines of NumPy. This samples the ring with 1, 10 and 100 evenly spaced steps:
+
+```python
+import numpy as np
+
+# the data: eight small round blobs on a ring
+angles = 2 * np.pi * np.arange(8) / 8
+centres = 1.4 * np.column_stack([np.cos(angles), np.sin(angles)])
+s = 0.08                                    # each blob's spread
+
+# DDPM's forward schedule: signal share after t steps
+betas = np.linspace(1e-4, 0.02, 1000)
+abar = np.concatenate([[1.0], np.cumprod(1 - betas)])
+
+def best_guess(x, a):
+    """The perfect denoiser for a mixture of equal round blobs: E[clean point | noisy point x]."""
+    v = a * s**2 + 1 - a                                  # each blob's spread after noising
+    d2 = ((x[:, None, :] - np.sqrt(a) * centres) ** 2).sum(-1)
+    resp = np.exp(-(d2 - d2.min(1, keepdims=True)) / (2 * v))
+    resp /= resp.sum(1, keepdims=True)                    # which blob did it come from?
+    within = centres + (np.sqrt(a) * s**2 / v) * (x[:, None, :] - np.sqrt(a) * centres)
+    return (resp[..., None] * within).sum(1)
+
+def ddim(n_steps, n=2000, seed=0):
+    x = np.random.default_rng(seed).standard_normal((n, 2))      # start from pure noise
+    levels = [0.0] + [abar[1000 - i * 1000 // n_steps] for i in range(1, n_steps)] + [1.0]
+    for a, a_next in zip(levels[:-1], levels[1:]):
+        x0 = best_guess(x, a)                                     # guess the clean point
+        eps = (x - np.sqrt(a) * x0) / np.sqrt(1 - a)              # the noise that guess implies
+        x = np.sqrt(a_next) * x0 + np.sqrt(1 - a_next) * eps      # rebuild, a little less noisy
+    return x
+
+for n_steps in [1, 10, 100]:
+    x = ddim(n_steps)
+    dist = np.linalg.norm(x[:, None, :] - centres, axis=-1).min(1)
+    print(f"{n_steps:>3} steps: {np.mean(dist > 3 * s):6.1%} of samples are off every blob")
+```
+
+Running it prints:
+
+```text
+  1 steps: 100.0% of samples are off every blob
+ 10 steps:  32.4% of samples are off every blob
+100 steps:   0.4% of samples are off every blob
+```
+
+(Different random starting noise from the widget, so the numbers differ slightly.) In an image model, `best_guess` is replaced by a large network, usually a U-Net or a transformer, that predicts the noise, and the loop is otherwise the same.
+
+## Lab: Spend the Step Budget
+
+Every call to the denoiser costs time: in an image model, one call is one full pass through a network with billions of parameters. So the practical question is not "how many steps make it perfect?" but "how few can I get away with, and where should they go?"
+
+Here the denoiser is perfect, so the only thing being tested is your **step plan**. The sampler always starts from pure noise and always finishes on clean data; you choose the signal shares where it stops in between, and whether it's DDIM or DDPM. Each brief has a quality limit. The optional goal is to meet it with as few steps as possible, and every plan of every size has been tried, so the fewest possible is known.
+
+<StepBudgetLab />
+
+<Deeper title="Debrief: where the steps should go" tag="Spoiler">
+
+**The ring needs 4 steps.** No 3-step plan works (the best leaves 16% out of place); with 4 steps, 55 of the 728 possible plans do, 20 with DDIM and 35 with DDPM. The winning plans share a pattern: one early stop (anywhere from 0.2 to 0.9), where samples get a first chance to choose a blob, then two stops close to clean data (the second at 0.8 or above, the last at 0.98 or 0.99), where each guess only has to sharpen a blob the sample has already chosen. Evenly spaced steps do the opposite: four evenly spaced steps through DDPM's schedule stop at signal shares of 0, 0.003, 0.08 and 0.52, spending half the budget where the shape has already gone and leaving 95% out of place.
+
+**The smiley needs 5,** one more than the ring. Its working plans start earlier (first stops between 0.05 and 0.5) and still finish at 0.95 or above. With 5 steps, 63 of the 2,002 possible plans work, every one of them DDIM with this starting noise (with other starting noise, a few DDPM plans squeak in too).
+
+**The rare blob needs 4,** and it is the pickiest: only 6 of the 728 four-step plans work. Plans that bunch their stops at one end starve the small blob completely. With all three stops near clean data (0.95, 0.98, 0.99), the first guess from pure noise is the overall average, which sits in the big blob, and every sample commits to the big blob before any can wander far enough to reach the small one: not one of 2,000 lands on it. The working plans spread their stops out (one around 0.2 to 0.4, one at 0.6 or 0.7, one at 0.9 or 0.95), giving samples a chance to choose while the noise is still large.
+
+**Is this luck?** Every number above comes from one fixed set of starting noise. We re-ran the whole search from two other sets: the fewest steps needed came out the same for all three briefs (4, 5 and 4), though the exact counts of working plans moved around. Real samplers follow the same principles: Karras and colleagues (2022) found that spacing steps so they bunch up at low noise beats even spacing, and modern image samplers concentrate their effort the same way.
+
+</Deeper>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- **Destroying data is easy; diffusion learns to undo it in small steps.** The forward process shrinks each point and adds noise until only the standard bell is left, and you can jump to any step in one line: $x_t = \sqrt{\bar\alpha_t}\,x_0 + \sqrt{1-\bar\alpha_t}\,\varepsilon$.
+- The **denoiser** returns the best guess of the clean point: an average over everything that could have produced the noisy one. At high noise that average is a blur (from pure noise, it's the mean of all the data), which is why one-shot denoising fails.
+- Sampling repeats: **guess, work out the implied noise, rebuild at slightly lower noise**. DDIM reuses the implied noise; DDPM swaps part of it for fresh noise. Neither won everywhere in our tests.
+- Training is just **predicting the noise you added**, with squared error. That makes the network learn the best guess, but the loss can never reach 0, and precision at low noise is the hard part.
+- **Where the steps go matters as much as how many.** Well-placed stops (one where samples choose a blob, the rest near clean data) needed 4 steps for the ring, where 20 evenly spaced ones did worse.
+
+</Takeaways>
+
+<InTheWild>
+
+Stable Diffusion, DALL·E 2 and 3 and Imagen are diffusion models, and the same idea generates video (Sora, Veo), audio and even protein structures (AlphaFold 3 builds its predicted structures with a diffusion module). Most image models don't diffuse pixels directly: they run diffusion in the latent space of a VAE-style autoencoder, as you saw at the end of the last lesson, so each denoiser call works on a 64 × 64 × 4 latent rather than a 512 × 512 × 3 image. Samplers have been an active engineering field of their own. DDIM made 50-step generation practical; solvers such as DPM-Solver and the step spacing of Karras et al. (2022) brought good images to around 20 steps; and *distillation* and *consistency models* train a student network to jump in 1 to 4 steps. Newer models such as Stable Diffusion 3 use **flow matching**, a close cousin that trains the network to predict a straight-line direction from noise to data instead of the noise itself.
+
+</InTheWild>
+
+So far, the model makes *some* plausible sample, chosen by the random starting noise. But you usually want a particular thing: "a cat wearing a hat", not just any picture. Next: **guidance and conditioning**, how a diffusion model is steered.

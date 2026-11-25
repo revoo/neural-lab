@@ -1,0 +1,129 @@
+{/* authored-by: Gemini Antigravity */}
+import { Eq } from '../../components/Eq';
+import { Predict } from '../../components/Predict';
+import { Callout, Deeper } from '../../components/Callout';
+import { Term } from '../../components/Term';
+import { Quiz } from '../../components/Quiz';
+import { OrthogonalityWidget, LookupEquivalenceWidget, SynonymTransferWidget, RepresentationLab } from './Widgets';
+import { questions } from './quiz';
+
+# One-Hot vs Dense Vectors
+
+Neural networks only speak one language: floating-point vectors. Images already arrived as pixel numbers. Audio arrives as pressure waves.
+
+What about **discrete symbols** — words like `"kitten"` and `"espresso"`, user IDs, product SKUs, or musical notes? There is no ruler that tells you how many millimetres `"kitten"` is!
+
+Historically, engineers tried two naive shortcuts before discovering **<Term id="embedding">dense embeddings</Term>**:
+
+1. **Scalar integer IDs (`cat = 0, car = 1, dog = 2, bus = 3`):** tiny in memory, catastrophic in geometry — because feeding raw integers into a network tells it that `dog` is literally `2 × car` and halfway between `car` and `bus`!
+2. **<Term id="one-hot-encoding">One-hot vectors</Term>:** give every symbol in a vocabulary of size $V$ its own private coordinate axis (`cat = [1,0,0,…]`, `kitten = [0,1,0,…]`). No fake ordering!
+
+Wait — what geometric price does one-hot pay?
+
+---
+
+## 1. The orthogonality curse
+
+Every distinct pair of one-hot vectors lives on completely separate axes. Their dot product is **always `0`**, their cosine similarity is **always `0.000`**, and their Euclidean distance is **always $\sqrt{2} \approx 1.414$**.
+
+To a one-hot representation, `"cat"` has the **exact same similarity (`0.000`)** to `"kitten"` as it has to `"car"` or `"espresso"`!
+
+Now compress all 8 words down from 8 sparse binary axes into **3 dense real-valued coordinates** — say `[animal-ness, compactness, wheeled-ness]`. Suddenly every word becomes a point in a shared semantic landscape where similar meanings point in the same direction (`cos(cat, kitten) = +0.996`, `cos(cat, dog) = +0.971`, `cos(car, truck) = +0.931`, `cos(cat, car) = −0.923`).
+
+Flip the toggle below and click any pair of words.
+
+<OrthogonalityWidget />
+
+---
+
+## 2. An embedding layer is just `E[token_id]`
+
+Suppose you take a one-hot row vector $\ca{e_i^\top} \in \mathbb{R}^{1 \times V}$ and multiply it by a learnable weight matrix $\cb{E} \in \mathbb{R}^{V \times d}$ (called the **<Term id="embedding-table">embedding table</Term>**):
+
+<Eq
+  words="embedding vector  =  one-hot selector  ×  embedding table  =  row i of the table"
+  tex="\cg{v_i} = \ca{e_i^\top}\,\cb{E} = \cb{E}[i, :]"
+>
+  - $\cg{v_i} \in \mathbb{R}^d$ — the dense $d$-dimensional embedding vector for token ID $i$
+  - $\ca{e_i^\top}$ — sparse 1-hot row vector with a single `1` at position $i$ and $V - 1$ zeros
+  - $\cb{E} \in \mathbb{R}^{V \times d}$ — learnable **embedding matrix** storing one dense row per symbol
+</Eq>
+
+Because $V - 1$ entries of $\ca{e_i^\top}$ are zero, doing an actual matrix multiply wastes $(V - 1)/V$ of its work! On Llama-3 8B (`V = 128,256, d = 4,096`), a naive matmul burns **1.05 billion FLOPs per token**, of which **99.9992%** multiply by zero. So PyTorch’s `nn.Embedding(V, d)` simply indexes row `E[i]` in $O(1)$ time — returning the **exact same vector** (`max error = 0.0`) — and during backpropagation routes the gradient straight back to row `i` alone!
+
+<LookupEquivalenceWidget />
+
+Notice also how huge an embedding table can grow: Llama-3 8B’s token embedding table alone holds **525.3 million parameters** (**1,002 MiB** in FP16 — a full gigabyte before a single Transformer layer even runs!).
+
+---
+
+## 3. Why dense vectors generalise to unseen words
+
+Here is the real payoff of putting similar meanings near each other in $\mathbb{R}^d$.
+
+Train a simple logistic classifier on just **8 known nouns** (`cat, car, dog, bus, bird, train, horse, boat`) to separate **Living** from **Vehicle**. Now test it zero-shot on **6 brand-new nouns** it *never* saw during training (`kitten, truck, puppy, tram, robin, ferry`).
+
+<Predict
+  question="All three encodings train on the exact same 8 nouns. How does each one score on the 6 UNSEEN synonyms?"
+  options={[
+    'One-Hot hits 100% because it has the most dimensions (14D).',
+    'One-Hot memorises the 8 seen nouns (100% train) then guesses blindly (50%) on unseen IDs; Scalar ID fails both (50%); Dense 2D transfers immediately to 100%!',
+    'Scalar ID wins because it only has 2 parameters and cannot overfit.',
+  ]}
+  answer={1}
+>
+  Under One-Hot, the weight columns for `kitten` through `ferry` were multiplied by `0` on every training example, so they stayed frozen at `0` (`P = 0.50` — coin flip!). Under Dense 2D, `kitten` already sits right beside `cat` (`cos = 0.996`), so the boundary learned from `cat` classifies `kitten` with **100.0%** accuracy!
+</Predict>
+
+Test all four encodings live below.
+
+<SynonymTransferWidget />
+
+<Callout kind="info" title="Wait — where do those dense coordinates come from?">
+  In this lesson we handed the classifier clean pretrained coordinates to prove *why* geometry beats sparsity. Nobody types 768 coordinates for 50,000 words by hand! In the very next lesson (**Word Embeddings**), we will train an embedding table completely from scratch from raw unlabelled text so the geometry emerges by itself.
+</Callout>
+
+---
+
+## 4. Lab: Choose & Size the Representation
+
+Solve three real representation-engineering briefs, each exhaustively verified across all settings.
+
+<RepresentationLab />
+
+<Deeper title="Exhaustive lab takeaways">
+  - **Brief 1 (Zero-shot transfer):** One-Hot (`15` params) and Scalar ID (`2` params) both stall at **50.0%** unseen accuracy. **`Dense 2D`** (`3` params) and `Dense 4D` (`5` params) both hit **100.0%** (`2/4` pass; fewest = **3 params**).
+  - **Brief 2 (Edge keyboard RAM ≤ 8.0 MiB, `V = 50,000, d ≥ 64`):** `d = 128` in FP16 takes `12.207 MiB` (FAIL), whereas **`d = 128` in INT8** fits cleanly in **6.104 MiB** — doubling vector capacity over `d = 64` FP16 (`6.104 MiB`) inside the exact same RAM cap (`3/12` pass).
+  - **Brief 3 (`100,000` SKU IDs → `128`-unit MLP):** Direct One-Hot burns **12.800M** parameters. Bottlenecking through **`Embedding(100,000, 16) → Linear(16, 128)`** drops that to **1.602M** — **8.0× smaller** while letting similar SKUs share representations (`2/5` pass).
+</Deeper>
+
+---
+
+## 5. Verifying `e_iᵀ E == E[i]` in 10 lines of NumPy
+
+```python
+import numpy as np
+
+# V = 50_257 (GPT-2 Small), d = 768
+V, d = 50_257, 768
+rng = np.random.default_rng(0)
+E = rng.normal(size=(V, d)).astype(np.float32)
+
+tok = 42
+one_hot = np.zeros(V, dtype=np.float32)
+one_hot[tok] = 1.0
+
+via_matmul = one_hot @ E      # touches all 38,597,376 floats (99.998% zeros!)
+via_lookup = E[tok]           # O(1) slice of 768 floats
+
+print("Max |e_i^T E - E[i]|:", float(np.max(np.abs(via_matmul - via_lookup))))
+print(f"Table params: {E.size:,} | FP16 size: {E.size * 2 / 1024**2:.2f} MiB")
+# Max |e_i^T E - E[i]|: 0.0
+# Table params: 38,597,376 | FP16 size: 73.62 MiB
+```
+
+---
+
+## Check your understanding
+
+<Quiz questions={questions} />

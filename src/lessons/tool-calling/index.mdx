@@ -1,0 +1,226 @@
+{/* authored-by: Gemini Antigravity */}
+import { AgentLoopWidget, SchemaGatekeeper, CompoundingCliff, AgentPipelineLab } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: reading the manual isn't enough
+
+In the last lesson, retrieval gave our Kestrel K2 support bot the right pages from the manual. Ask "What's your refund policy?" and it finds the answer cleanly: 30 days unused, 14 days used minus a €25 cleaning fee, two-year warranty for faults.
+
+Now a real customer writes in:
+
+> *"I tried my Kestrel K2 from order K-1088 for a few days and decided it's not for me. Please refund it."*
+
+No document in the help centre contains the answer. To help this customer, the assistant has to check whether order K-1088 actually exists, whether the box was opened, how many days ago it arrived, and — if everything checks out — actually trigger a refund of €574 in the billing database.
+
+A language model has no database connection, no HTTP client, and no hands. From the inside it is still the exact same machine from Module 13: tokens go in, a probability distribution over the next token comes out. So how does a text predictor act on the real world?
+
+## Tool calling is a contract, not magic
+
+The answer is almost anticlimactically simple: **the model never runs a tool. Your host program runs the tool.**
+
+Think of a doctor in an observation room speaking through an intercom to a technician at the controls. The doctor cannot press a button directly; they read the chart, speak a structured instruction ("draw blood panel B"), wait for the technician to carry it out and read back the numbers, and then decide what to do next.
+
+In **<Term id="tool-calling">tool calling</Term>**, your application is the technician:
+
+1. You include a menu of available tools — names, descriptions, and argument schemas — in the system prompt.
+2. When the model needs information or wants to take an action, it emits a **structured request** (a JSON object naming a tool and its arguments) instead of a reply to the user.
+3. Your host code parses that request, **validates** it, executes the real function against your database or API, and appends the returned JSON to the conversation as a tool observation.
+4. You call the model again with the longer transcript. It reads the result and either emits another tool call or writes a plain-text answer to the customer.
+
+That cycle — *prompt → emit tool call → validate and execute → append observation → repeat* — is the **<Term id="agent-loop">agent loop</Term>**. Step through it on four real Kestrel K2 tickets below:
+
+<AgentLoopWidget />
+
+Try all four tickets, and toggle **Show exact prompt** on Turn 2 or Turn 3. Notice two things:
+
+- **Every turn sends the whole growing transcript back to the model.** Tool outputs aren't stored in some hidden neural memory; they are literally appended to the prompt text (which is why KV caching from Module 15 matters so much for long agent runs).
+- **Try "Unknown order (K-9999)".** The tool doesn't throw an unhandled exception — it returns `{"error": "ORDER_NOT_FOUND"}` as a normal observation. Good tools return structured, informative errors so the loop can recover gracefully instead of crashing.
+
+## Structured outputs — and what they cannot save you from
+
+Because the model only emits text, handing its raw output straight to `issue_refund(**args)` is asking for trouble. Three completely different kinds of mistake can happen, and each needs its own gate:
+
+1. **Broken syntax.** The model wraps its JSON in markdown fences or leaves a trailing comma. `JSON.parse` fails.
+2. **Broken schema.** Valid JSON, wrong shape: `amount_eur` arrives as the string `"599"` instead of a number, a required key is missing, or the model invents an enum value like `"customer_unhappy"`.
+3. **Broken business logic.** Valid JSON, valid schema, *wrong action*: refunding €599 on a used machine (forgetting the €25 cleaning fee), or refunding order K-1015 a second time after a network retry.
+
+Modern inference engines solve Gates 1 and 2 with **<Term id="structured-outputs">structured outputs</Term>** (constrained decoding): before the sampler picks the next token, the engine checks which tokens in the vocabulary can legally continue the JSON grammar and schema, and sets every illegal token's probability to zero. That guarantees syntax and types — **and guarantees nothing whatsoever about Gate 3**. Test all five cases below, or edit the JSON yourself:
+
+<SchemaGatekeeper />
+
+Look at presets 4 and 5 ("Valid schema, wrong amount" and "Valid schema, double refund"). Both sail straight through Gates 1 and 2. Only your backend code — checking the live database and enforcing **idempotency** so a retried call cannot refund the same order twice — stops them.
+
+<Misconception>
+
+"Strict JSON Schema / structured outputs make tool calling safe." They make *parsing* safe. A schema can enforce that `amount_eur` is a positive number under 1,000; it cannot know that order K-1088 is used (capped at €574) or that order K-1015 was already refunded yesterday. Never trust the model to enforce authorisation, monetary caps, or idempotency — put those invariants in the tool implementation itself.
+
+</Misconception>
+
+## The compounding cliff: why multi-step agents fail
+
+A single tool call looks effortless in a demo. Now chain ten steps together — look up customer, check order, read policy, check stock, compute fee, issue refund, update inventory, email receipt, log ticket, close case — and predict what happens before looking:
+
+<Predict
+  question="Suppose an agent gets each individual step right 90% of the time — and has to complete 10 independent steps in a row with no retries. Roughly what fraction of whole tasks succeed?"
+  options={[
+    'About 90% — the average stays near 90%',
+    'About 65% — errors add slowly',
+    'About 35% — errors multiply rapidly',
+    'About 10% — almost nothing finishes',
+  ]}
+  answer={2}
+>
+
+Every step has to go right for the whole task to succeed, so the probabilities **multiply**: $0.9^{10} \approx 0.349$, or **34.9%**. Nearly two-thirds of runs fail somewhere along the chain. Stretch it to 20 steps and $0.9^{20}$ drops to **12.2%**.
+
+</Predict>
+
+That exponential slide is the central maths of agent engineering:
+
+<Eq
+  words="\cc{\text{whole-task success}} = \big(\ca{\text{single-step reliability}}\big)^{\cb{\text{number of steps}}}"
+  tex="\cc{P_{\text{task}}} = \ca{p}^{\cb{n}}"
+>
+
+- $\ca{p}$ — the probability that a **single step** succeeds
+- $\cb{n}$ — the number of **sequential steps** that must all succeed
+- $\cc{P_{\text{task}}}$ — the probability that the **entire task** completes cleanly
+
+</Eq>
+
+Now ask the engineering question: **what if we add a check after each step, and retry when it fails?**
+
+Here's the subtlety most people miss. Not all checks are created equal. A JSON schema validator, a SQL constraint, a compiler, or a unit test catches **100%** of the errors in its scope — its detection rate is $d = 1$. A second LLM checking a subtle policy judgement might catch only $d = 0.5$ or $d = 0.75$ of mistakes; the remaining $1 - d$ slip past **silently**, never trigger a retry, and corrupt the rest of the run.
+
+On any single attempt, three things can happen: it succeeds (probability $p$), it fails and gets **caught** (probability $q_c = (1 - p)d$, triggering a retry if any remain), or it fails **silently** (probability $(1 - p)(1 - d)$). Summing over up to $m = r + 1$ attempts gives the exact step reliability:
+
+<Eq
+  words="\cc{\text{step success}} = \ca{p} \times \frac{1 - (\text{caught-failure chance})^{\cb{m}}}{1 - \text{caught-failure chance}}"
+  tex="\cc{P_{\text{step}}} = \ca{p}\,\frac{1 - \cp{q_c}^{\cb{m}}}{1 - \cp{q_c}}, \qquad \cp{q_c} = (1 - \ca{p})\,\cv{d}"
+>
+
+- $\ca{p}$ — single-attempt **success probability**
+- $\cv{d}$ — **verifier catch rate**: fraction of failures the check actually detects ($0$ to $1$)
+- $\cp{q_c} = (1 - \ca{p})\cv{d}$ — probability an attempt fails *and* gets caught
+- $\cb{m} = r + 1$ — maximum **attempts** allowed ($1$ initial try plus $r$ retries)
+- $\cc{P_{\text{step}}}$ — exact probability the step succeeds within $m$ attempts
+
+</Eq>
+
+Look at the fraction as you let retries grow ($m \to \infty$): $q_c^m \to 0$, so step reliability hits a hard ceiling of $p / (1 - (1 - p)d)$. When $d = 1$ (an exact deterministic check), that ceiling is $p / p = 100\%$, and the formula reduces to $1 - (1 - p)^m$. When $d = 0.5$ and $p = 0.90$, the ceiling is $0.90 / 0.95 = 94.7\%$ — **no number of retries can ever push it higher**, because half of all failures escape on the first try without the agent ever knowing.
+
+Explore both regimes in the plot below:
+
+<CompoundingCliff />
+
+Look at the contrast at $p = 0.90, n = 10$:
+- **No verifier:** whole-task success is **34.9%**.
+- **Exact check ($d = 100\%$) + 1 retry:** each step jumps from 90.0% to **99.0%**, lifting the 10-step task to **90.4%** — for only **1.05×** as many model calls (because retries only run on the 10% of attempts that fail, and a caught failure after exhausting retries aborts cleanly rather than burning later steps). Allow 2 retries and it reaches **99.0%** end-to-end for **1.11×** calls.
+- **Weak check ($d = 50\%$) + 3 retries:** each step stalls at its **94.7%** ceiling and the 10-step task tops out at **58.2%**, leaving **41.8%** silent failures. Retries are only as good as your verifier.
+
+<Deeper title="Why the call multiplier is 1.05× and not 1.10×" tag="Fine print">
+
+At $p = 0.90, d = 1, r = 1$, a single step uses $1 + q_c = 1.10$ attempts on average — *if* you reach it. Because each step fails loudly and aborts with probability $q_c^2 = 0.01$, later steps run slightly less than 100% of the time (the probability of reaching step $k$ is $0.99^{k-1}$). Summing $\sum_{k=0}^{9} 0.99^k \cdot 1.10 = 10.52$ expected calls across 10 steps gives $1.05\times$. At 2 retries, the abort probability drops to $0.001$, so almost every run reaches all 10 steps and the multiplier sits right at $1.11\times$.
+
+</Deeper>
+
+## In code
+
+An entire tool-calling loop with state guards fits in forty lines of plain Python. Here a tiny deterministic `fake_model` stands in for the LLM API call so you can run it locally with zero dependencies:
+
+```python
+import json
+
+ORDERS = {
+    "K-1042": {"price_eur": 599, "days": 9, "used": False, "status": "delivered"},
+    "K-1088": {"price_eur": 599, "days": 10, "used": True, "status": "delivered"},
+}
+
+def lookup_order(order_id):
+    return ORDERS.get(order_id, {"error": "ORDER_NOT_FOUND"})
+
+def issue_refund(order_id, amount_eur):
+    order = ORDERS.get(order_id)
+    if not order or order["status"] == "refunded":
+        return {"error": "ALREADY_REFUNDED_OR_MISSING"}
+    cap = order["price_eur"] - (25 if order["used"] else 0)
+    if amount_eur > cap:
+        return {"error": f"EXCEEDS_CAP_{cap}"}
+    order["status"] = "refunded"
+    return {"refund_id": "RF-002", "order_id": order_id, "amount_eur": amount_eur}
+
+TOOLS = {"lookup_order": lookup_order, "issue_refund": issue_refund}
+
+def fake_model(messages):
+    """Deterministic stand-in for an LLM API call."""
+    tool_msgs = [json.loads(m["content"]) for m in messages if m["role"] == "tool"]
+    if not tool_msgs:
+        return {"tool": "lookup_order", "args": {"order_id": "K-1088"}}
+    if "refund_id" not in tool_msgs[-1]:
+        o = tool_msgs[-1]
+        amt = o["price_eur"] - (25 if o["used"] else 0)
+        return {"tool": "issue_refund", "args": {"order_id": "K-1088", "amount_eur": amt}}
+    return {"answer": f"Refund {tool_msgs[-1]['refund_id']} for EUR {tool_msgs[-1]['amount_eur']} issued."}
+
+messages = [{"role": "user", "content": "Please refund my used K2 from order K-1088."}]
+for turn in range(1, 6):
+    reply = fake_model(messages)
+    if "answer" in reply:
+        print(f"Turn {turn} FINAL -> {reply['answer']}")
+        break
+    fn = TOOLS[reply["tool"]]
+    result = fn(**reply["args"])
+    print(f"Turn {turn} CALL  -> {reply['tool']}({reply['args']}) => {result}")
+    messages.append({"role": "assistant", "content": json.dumps(reply)})
+    messages.append({"role": "tool", "content": json.dumps(result)})
+```
+
+Running it prints:
+
+```text
+Turn 1 CALL  -> lookup_order({'order_id': 'K-1088'}) => {'price_eur': 599, 'days': 10, 'used': True, 'status': 'delivered'}
+Turn 2 CALL  -> issue_refund({'order_id': 'K-1088', 'amount_eur': 574}) => {'refund_id': 'RF-002', 'order_id': 'K-1088', 'amount_eur': 574}
+Turn 3 FINAL -> Refund RF-002 for EUR 574 issued.
+```
+
+In production, `fake_model(messages)` is replaced by an API call to an LLM with tool schemas attached, plus a strict timeout and a hard cap on `turn` (so a confused model can't loop forever burning tokens). Everything else — the dispatch dictionary, the business-rule guards, the message log — is the exact same loop.
+
+## Lab: Harden the Agent Pipeline
+
+You're shipping the 4-stage Kestrel support agent: **Parse & Lookup**, **Policy Judgement**, **Refund Arithmetic**, and **Execute Action**. Each stage has a Fast model (1.0 credit) or Strong model (3.0 credits), an optional verifier with a realistic catch rate, and 0–2 retries when the check catches an error. Notice that Lookup and Math have cheap **deterministic** checks (100% catch, 0.1 cr), Policy only has a **fuzzy** LLM verifier (75% catch, 1.0 cr), and Execute Action has a 95% dry-run guard (0.2 cr).
+
+Hit the reliability targets for all three briefs — and optionally, minimise expected credits per ticket. All 4,096 combinations are checked exhaustively.
+
+<AgentPipelineLab />
+
+<Deeper title="Debrief: what the exhaustive search reveals" tag="Spoiler">
+
+First, try the two unguarded presets: **All Fast** gets only **52.0%** end-to-end (4.00 cr), and **All Strong** gets only **80.5%** for **12.00 credits** — failing all three briefs! Throwing a bigger model at every stage without verification is both expensive and unreliable.
+
+- **Brief 1 (≥ 90% success, ≤ 5% silent):** 314 of 4,096 designs pass, and **zero** all-Fast designs pass. The unique cheapest optimum costs **7.69 credits** (90.6% success, 2.0% silent): keep Lookup (`1r`), Math (`2r`) and Action (`1r`) on the **Fast** model with their cheap checks, and spend the **Strong** model on Policy (`check + 0r` — abort cleanly on a caught mistake instead of paying 4 credits to retry it).
+- **Brief 2 (≥ 85% success, Stage 4 silent ≤ 0.3%):** 572 designs pass. The unique cheapest optimum costs **7.72 credits** (85.4% success, 0.14% Stage 4 silent): keep Stages 1–3 on **Fast + check + 1r**, and put **Strong + dry-run guard (0r)** on Stage 4. Where an action is irreversible, cutting the base mistake rate *before* the guard is what drives silent bad refunds near zero.
+- **Brief 3 (≥ 95% success, ≤ 2% silent):** Only 54 of 4,096 designs pass (0 all-Fast). The unique cheapest optimum costs **9.90 credits** (95.8% success, 1.7% silent): **Strong + check + 1r** on the two fuzzy/high-stakes stages (Policy and Action), while **Fast + deterministic code checks + retries** handle Lookup (`1r`) and Math (`2r`). Notice it beats unguarded All-Strong by over 15 percentage points while still costing 17% less!
+
+The transferable engineering rule: **put cheap models behind deterministic checks and retries wherever exact verification exists, and reserve expensive models for fuzzy judgements and irreversible actions.**
+
+</Deeper>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- **Tool calling is a host-driven protocol**, not an ability built into matrix multiplication: the model emits structured text requesting a call, your code validates and runs it, and pastes the JSON result back into the prompt.
+- **Structured outputs (constrained decoding)** eliminate broken JSON syntax and schema violations — they never guarantee business logic, authorisation or idempotency. Those belong in your backend.
+- **Errors compound exponentially** across sequential steps ($P_{\text{task}} = p^n$): 90% per step is only 34.9% over 10 steps and 12.2% over 20.
+- **Retries only help on errors your verifier catches.** With a deterministic check ($d = 1$), 1–2 retries lift a 90% step to 99.0%–99.9% cheaply. With a weak check ($d < 1$), step reliability hits a hard ceiling $p / (1 - (1 - p)d)$ regardless of retries.
+- **Mix models and verifiers strategically:** pair cheap models with deterministic checks (schemas, code assertions, tests) and save strong models and guards for fuzzy reasoning and irreversible side effects.
+
+</Takeaways>
+
+<InTheWild>
+
+Every coding agent (Claude Code, Codex, Cursor, Devin), customer-support agent and workflow orchestrator runs a version of this exact loop. Coding agents succeed at long 20-step tasks largely because software has *free deterministic verifiers*: compilers, typecheckers, linters and unit tests give $d \approx 1$ on syntax and contracts, turning retries into huge reliability wins. Open-ended web or office agents struggle far more precisely because verifying "did I book the right flight?" has $d < 1$. Production frameworks also add **prompt-injection defences** (treating untrusted tool outputs as data, never instructions), **sandboxing** for code execution, **human-in-the-loop approval** before destructive actions, **idempotency keys** on writes, and hard step/budget caps. Standards like **MCP (Model Context Protocol)** standardise how tool schemas and results are exchanged between hosts and external servers, without changing the underlying loop.
+
+</InTheWild>
+
+Now our system can look up facts and call tools. One question decides whether any change actually made it better: how do we measure it without fooling ourselves? Next: **Evaluation**.

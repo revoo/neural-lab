@@ -63,8 +63,34 @@ Take the first item under **"Next steps"** in `docs/ROADMAP.md` unless the owner
 Assume the session can disconnect at any moment and someone else will continue from the repository alone:
 
 1. Commit and push (`git push -u origin <branch>`).
-2. Update `docs/ROADMAP.md`: the **Current state** block at the top (what's done, what's next), the status table, and **Next steps** (with enough of a plan that the next lesson can be started cold).
+2. Update `docs/ROADMAP.md`: the **Current state** block at the top (what's done, what's next), the status table, **Next steps** (with enough of a plan that the next lesson can be started cold), and **Labs built so far**. Roadmap entries use `- **Done [<MODEL_NAME>]:** …` (see the owner's standing instructions below).
 3. If you changed the procedure or found a new gotcha, update this file.
+
+## Owner's standing instructions (from the session prompts; follow every session)
+
+**Branch and pull requests.** Work on, commit to and push to `claude/cool-feynman-4hci4d`. It is the repository's default branch and there is no `main`: don't open a pull request and don't create other branches. If a push is rejected because the remote moved, `git fetch origin claude/cool-feynman-4hci4d && git merge --no-edit FETCH_HEAD`, then push again (another agent or the owner may have pushed in between).
+
+**Work autonomously** from "Next steps" in `docs/ROADMAP.md`. When a lesson meets the definition of done, move straight on to the next one.
+
+**Invisible authorship watermark** (the owner compares quality across models). It must never be visible on the rendered site or inside `dist/`.
+- Use an exact `<MODEL_NAME>` identifying your model. Names already in use: "Neon High", "Gemini Antigravity", "Claude Opus 5.5". If you are one of those models, reuse its name exactly. Otherwise pick a new, unique name that doesn't appear in any lesson text in `dist/`.
+- Top of every new `.mdx` file: `{/* authored-by: <MODEL_NAME> */}`
+- Top of every new `.ts`/`.tsx` file: `// authored-by: <MODEL_NAME>`
+- Git commit trailer on every commit: `Authored-by: <MODEL_NAME>`
+- Roadmap entries: `- **Done [<MODEL_NAME>]:** …`
+- After `npm run build`, check that `rg "<MODEL_NAME>" dist/` returns 0 matches.
+
+**Non-negotiables, as the owner phrased them** (details in `docs/STYLE_GUIDE.md`):
+- Concept before equation. Key equations use `<Eq words="…" tex="…">` with prose words wrapped in `\text{…}`, colour-matched with `\ca \cb \cc \cg \cp \cv` (never `\cr`), and a plain-English symbol legend passed as MDX children, not a `legend` prop. `<Predict>` also takes its revealed explanation as MDX children, not an `explain` prop.
+- Conversational, warm, precise prose (British spelling); structural analogies; predict before reveal; let the learner feel the problem first; address real misconceptions.
+- Every widget computes real numbers and colours only through CSS variables (never hard-coded hex; use `--c-good`/`--c-bad`, not `--good`/`--bad`). Labs give primitives, a clear objective, automatic checking, `localStorage` persistence and multiple valid solutions. Optimums are computed exhaustively, or labelled "best found by searching <stated space>" and produced by a committed script re-verified by a test.
+- Compare competing methods fairly (each at its own searched best, averaged over fixed seeds) and report honestly when results don't match the textbook story.
+- Verify every quoted number by running it and pin it with a Vitest test. Check every hand-written gradient against central finite differences. Run every code snippet you put in a lesson.
+- Visually inspect every new widget in a real browser in light, dark and matrix themes and at 390px (`scripts/shoot-widgets.cjs`, `scripts/drive-widget.cjs`).
+
+**Environment tips.**
+- The dev server can stop between runs. If `check-pages` fails with `ERR_CONNECTION_REFUSED`, restart `npm run dev`; that isn't a page failure.
+- If Playwright isn't in local `node_modules` and `require('playwright')` fails, run `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install -g playwright` and invoke scripts as `NODE_PATH=$(npm root -g) node scripts/...`.
 
 ## 4. Before you end the session
 
@@ -90,3 +116,11 @@ Assume the session can disconnect at any moment and someone else will continue f
 - **`.field-label` uppercase transform:** `Segmented`'s `label` prop renders with `text-transform: uppercase`, which turns lowercase Greek letters like `α` and `ε` into `Α` and `Ε`. Keep lowercase Greek symbols inside the option labels rather than the group heading. The same applies to `.num-table th` headers (π becomes Π, α/β become A/B): write words there instead.
 - **Twenty seeds can still be luck.** When an outcome is decided by one early random draw (e.g. a policy that "marries" its first action), a 20-seed average mostly measures how those 20 first draws fell. Before quoting such a number, re-run it over a few hundred seeds and say so (see the policy-gradients lab debrief). `policy-gradients/pg.ts` also scrambles seeds with `mixSeed` before `createRng`.
 - **Phone-width grids:** for side-by-side widget panels use `gridTemplateColumns: 'repeat(auto-fit, minmax(min(270px, 100%), 1fr))'` (the `min(…, 100%)` matters at 390px), and wrap wide `num-table`s in `<div style={{ overflowX: 'auto' }}>`.
+- **PyTorch install:** the CPU wheel index (`download.pytorch.org`) may be blocked by the network proxy; plain `pip install torch` from PyPI works (larger download, runs fine on CPU).
+- **Labs that train networks live:** judge a design on several fixed seeds (the autoencoders lab uses 3) so one lucky run can't win the optional goal, and record the exhaustive search with a sharded script (`node … lab.run.ts <shard> <shards>` in parallel) whose output is regenerated into a committed results file.
+- **Lessons that need a language model (Module 18):** no LLM runs in the browser. Make the computable part (retrieval, tool state, schema validation, success probabilities) real and exact, show the exact prompt a model would receive, and say in the caption what is simulated. The RAG lesson's hand-made concept dictionary is the pattern: a transparent stand-in with the same structure as the real component, labelled as a stand-in.
+- **Exhaustive searches that are cheap** (under a second or two) can run live in the browser on demand (guidance, RAG labs); slow ones go in a sharded `*.run.ts` script whose output is committed and re-verified by a test (autoencoders, diffusion labs).
+- **Percentages of a finite sample:** format consistently (e.g. `(100*v).toFixed(1)`) in widgets *and* pin the exact formatted string in tests; `Math.round` of 11.5 and of 88.5 can disagree so two complementary shares add to 101%.
+- **Uppercase labels again:** `Segmented` labels are uppercased, so `(k)` becomes `(K)` and `ᾱ` becomes `Ā`. Keep symbols out of labels.
+- **Heredocs with `${…}` or `rm`-like text can be refused by the command-safety check** even when nothing is deleted: write the script with the file tool instead.
+

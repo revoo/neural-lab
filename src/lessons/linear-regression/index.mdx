@@ -1,0 +1,196 @@
+{/* authored-by: Gemini Antigravity */}
+import { NormalEqWidget, LinearVsLogisticWidget, ThresholdRocWidget, ClassicalLab } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: when you don't need gradient descent — or a neural net
+
+You already know how to train a multi-layer neural network with backpropagation and Adam. So why does almost every seasoned ML engineer still start a new tabular dataset with **linear regression** or **logistic regression**?
+
+Three practical reasons:
+
+1. **Speed and certainty.** Linear regression has an exact one-shot algebraic solution — no learning rate, no random seed, no local minima. Logistic regression has a smooth, bowl-shaped (**convex**) loss with one unique global minimum, solved to machine precision in ~6 Newton steps.
+2. **Interpretability and calibration.** Each weight says directly how much one unit of a feature moves the prediction (or log-odds), and logistic regression outputs genuinely calibrated probabilities rather than uncalibrated scores.
+3. **Hard to beat on small tabular data.** Pair a 3-parameter logistic model with the right domain features and it often beats a 65-parameter MLP on 200 rows — with zero overfitting mystery.
+
+This lesson opens Module 8 (Classical Machine Learning) by showing what linear and logistic regression actually compute under the hood, where each breaks, and how to wield them properly.
+
+## Linear regression in one shot: the normal equations
+
+In Module 4 you watched gradient descent walk downhill on squared error, $\frac{1}{N} \|X\mathbf{w} - \mathbf{y}\|^2$. For a linear model, that loss is a quadratic bowl whose slope is zero at the exact bottom. Setting the gradient $X^\top(X\mathbf{w} - \mathbf{y}) = \mathbf{0}$ and solving for $\mathbf{w}$ skips gradient descent altogether:
+
+<Eq
+  words="\cc{\text{best weights}} = \big(\ca{\text{feature overlap matrix}} + \cp{\lambda}\,I\big)^{-1} \cb{\text{feature–target alignment}}"
+  tex="\cc{\mathbf{w}^*} = \big(\ca{X^\top X} + \cp{\lambda}\,I\big)^{-1} \cb{X^\top \mathbf{y}}"
+>
+
+- $\ca{X^\top X}$ — the $d \times d$ Gram matrix recording how each input feature varies and overlaps with every other feature
+- $\cb{X^\top \mathbf{y}}$ — the dot product of every feature column with the target vector $\mathbf{y}$
+- $\cp{\lambda}\,I$ — optional **Ridge (L2)** penalty ($\lambda = 0$ gives ordinary least squares, OLS)
+- $\cc{\mathbf{w}^*}$ — the **exact global minimum** in one matrix solve, called the **<Term id="normal-equations">normal equations</Term>**
+
+</Eq>
+
+When does that one-shot matrix inverse go wrong? When two input features measure almost the same thing — **collinearity** (say, a house's area in square metres *and* its area in square feet plus tiny rounding noise). Then $X^\top X$ becomes nearly singular, its condition number explodes, and OLS invents wild opposing weights that cancel on training data and blow up on new data. Watch it happen live:
+
+<NormalEqWidget />
+
+Step through the correlation presets:
+- At correlation **0**, the condition number is **1.6**; batch gradient descent finishes in **4 steps** and OLS hits right near truth `(1.50, 1.50)`.
+- At correlation **0.99**, the loss surface stretches into a **303:1** canyon: gradient descent needs **473 steps** even at its theoretically optimal step size, while the normal equations jump to the exact floor in one solve.
+- At correlation **0.999** (condition number **3,090.9**), unregularised OLS splits into `(0.93, 2.17)` and test MSE jumps to **0.347**. Adding Ridge $\lambda = 0.5$ lifts the tiny eigenvalue off zero, pulling the weights straight back to `(1.52, 1.57)` and cutting test MSE back to **0.218**.
+
+## Why linear regression breaks on classification
+
+Suppose your target $y$ is binary: `0` (benign) or `1` (malignant). Why not fit a linear regression line to those `0`s and `1`s and predict class `1` whenever $\hat{y} \ge 0.5$?
+
+Predict what happens when we add the *easiest* positive example imaginable:
+
+<Predict
+  question="A 1D dataset has negatives at x = 1..3.7 and positives at x = 4.5..7. Both OLS and logistic regression classify all 12 points with 0 errors. Now we move the rightmost positive point far out to x = 25 (still y = 1 — an even more obvious positive!). What happens to OLS linear regression's decision boundary?"
+  options={[
+    'Nothing — an easy positive point only confirms the boundary',
+    'It shifts slightly left, classifying even more points as positive',
+    'It tilts flat and shifts right into the middle of the positives, causing multiple mistakes',
+  ]}
+  answer={2}
+>
+
+OLS minimises squared error $(w x + b - 1)^2$. At $x = 25$, a steep line predicts $\hat{y} \approx 4$, which squared error treats as a colossal error of $(4 - 1)^2 = 9$! To reduce that penalty, OLS flattens its slope and drags its `0.5` crossing all the way from **4.14** to **5.64**, misclassifying **3 of the 12 points** (75.0% accuracy)!
+
+</Predict>
+
+Try dragging the rightmost positive point yourself:
+
+<LinearVsLogisticWidget />
+
+That is why **<Term id="logistic-regression">logistic regression</Term>** wraps the linear score in a sigmoid $\sigma(z) = 1 / (1 + e^{-z})$ and scores it with cross-entropy instead of squared error. Equivalently, it models the **log-odds** linearly:
+
+<Eq
+  words="\cc{\log\text{-odds of class } 1} = \log\frac{\cp{p}}{1 - \cp{p}} = \ca{\mathbf{w}} \cdot \cb{\mathbf{x}} + b \quad\Longleftrightarrow\quad \cp{p} = \sigma(\ca{\mathbf{w}} \cdot \cb{\mathbf{x}} + b)"
+  tex="\cc{\log\frac{\cp{p}}{1 - \cp{p}}} = \ca{\mathbf{w}} \cdot \cb{\mathbf{x}} + b \quad\Longleftrightarrow\quad \cp{p} = \frac{1}{1 + e^{-(\ca{\mathbf{w}}\cdot\cb{\mathbf{x}} + b)}}"
+>
+
+- $\ca{\mathbf{w}} \cdot \cb{\mathbf{x}} + b$ — the linear score (**logit**): each weight $w_j$ adds directly to the log-odds
+- $\cp{p} = P(y = 1 \mid \mathbf{x})$ — predicted probability, always cleanly bounded in $(0, 1)$
+- $\cc{\log\frac{p}{1-p}}$ — **log-odds**: 0 at $p = 0.5$, positive above, negative below
+
+</Eq>
+
+Because $\sigma(z)$ saturates smoothly at $1$ as $x \to 25$, its cross-entropy error and gradient $(p - 1)$ both vanish on easy examples. Dragging the point from $x = 7$ to $x = 25$ leaves logistic regression's boundary pinned at **x = 4.11** with **0 errors**.
+
+<Deeper title="How does scikit-learn fit logistic regression so fast?" tag="Under the hood">
+
+Logistic regression's binary cross-entropy loss has no closed-form one-shot inverse like OLS, *but* it is strictly convex (with any L2 penalty $\lambda > 0$), so its curvature matrix (the Hessian $H = \frac{1}{N} X^\top \operatorname{diag}(p_i(1 - p_i)) X + \frac{\lambda}{N} I$) is always positive definite. Instead of taking tiny first-order gradient steps, solvers use **Newton–Raphson** (also called IRLS, Iteratively Reweighted Least Squares) or **L-BFGS**, updating $\mathbf{w} \leftarrow \mathbf{w} - H^{-1}\nabla L$. Because Newton uses exact curvature, it jumps to 9-digit accuracy in **6–10 iterations** instead of thousands. That's the solver running inside every widget on this page.
+
+</Deeper>
+
+## Thresholds, precision, recall and the ROC curve
+
+Logistic regression outputs a probability $p \in (0, 1)$, not a hard `0` or `1`. Turning probabilities into decisions requires picking a **threshold** $t$, and the textbook default $t = 0.50$ is frequently terrible when classes are imbalanced or errors have asymmetric costs.
+
+Consider a fraud detector where only **5%** of transactions are fraudulent (10 frauds out of 200 held-out transactions). A dumb model that *never* flags fraud scores **95.0% accuracy** while catching zero criminals! Instead of relying on raw accuracy, we split performance into **<Term id="precision-recall">precision and recall</Term>**:
+
+<Eq
+  words="\ca{\text{precision}} = \frac{\text{caught fraud}}{\text{all alarms}}, \qquad \cb{\text{recall}} = \frac{\text{caught fraud}}{\text{all real fraud}}"
+  tex="\ca{\text{Precision}} = \frac{\text{TP}}{\text{TP} + \text{FP}}, \qquad \cb{\text{Recall}} = \frac{\text{TP}}{\text{TP} + \text{FN}}"
+>
+
+- $\text{TP}$ — true positives (real fraud caught)
+- $\text{FP}$ — false positives (legitimate customers mistakenly flagged for review)
+- $\text{FN}$ — false negatives (real fraud missed)
+- $\ca{\text{Precision}}$ — when an alarm rings, how often is it real?
+- $\cb{\text{Recall}}$ — of all real frauds, what share did we catch?
+
+</Eq>
+
+Sweeping the threshold $t$ from $1$ down to $0$ traces the **<Term id="roc-auc">ROC curve</Term>** (True Positive Rate vs False Positive Rate), whose area (**AUC**) summarises how well the model *ranks* positives above negatives independently of any single threshold. Move the threshold on our 200-transaction fraud set below:
+
+<ThresholdRocWidget />
+
+Compare `t = 0.50` against `t = 0.10`:
+- At **t = 0.50**, accuracy is an impressive-looking **97.0%** and precision is **83.3%**, yet recall is only **50.0%** (5 missed frauds × €100 + 1 false alarm × €5 = **€505** loss).
+- At **t = 0.10**, accuracy falls to **91.5%** and precision drops to **34.8%**, yet recall jumps to **80.0%** (8 of 10 frauds caught) and business cost drops almost in half to **€275**.
+
+<Misconception>
+
+"Logistic regression can only learn straight-line boundaries." It is linear *in its parameters* $\mathbf{w}$, not necessarily in the raw inputs! Hand it engineered features like $x_1^2, x_2^2$ or $x_1 x_2$, and $w_1 x_1^2 + w_2 x_2^2 + b = 0$ draws an exact circle or hyperbola in the original input space — with a convex loss and a fraction of a neural network's parameters.
+
+</Misconception>
+
+## In code
+
+Both exact Ridge normal equations and a 10-step Newton–Raphson logistic regression solver take twenty lines of NumPy:
+
+```python
+import numpy as np
+
+# 1. Exact Ridge normal equations on two 99.9%-correlated features
+rng = np.random.default_rng(7)
+x1 = rng.normal(size=40)
+x2 = 0.999 * x1 + np.sqrt(1 - 0.999**2) * rng.normal(size=40)
+X = np.column_stack([x1, x2])
+y = 1.5 * x1 + 1.5 * x2 + 0.45 * rng.normal(size=40)
+
+w_ols = np.linalg.solve(X.T @ X, X.T @ y)
+w_ridge = np.linalg.solve(X.T @ X + 0.5 * np.eye(2), X.T @ y)
+print(f"Condition number: {np.linalg.cond(X.T @ X):.1f}")
+print(f"OLS weights:   ({w_ols[0]:+.2f}, {w_ols[1]:+.2f})")
+print(f"Ridge weights: ({w_ridge[0]:+.2f}, {w_ridge[1]:+.2f})")
+
+# 2. Logistic regression via 10 steps of Newton-Raphson (IRLS)
+xs = np.array([1.0, 1.6, 2.2, 2.8, 3.3, 3.7, 4.5, 5.0, 5.6, 6.2, 6.8, 25.0])
+ys = np.array([0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1], dtype=float)
+Xb = np.column_stack([np.ones_like(xs), xs])
+w = np.zeros(2)
+for _ in range(10):
+    p = 1.0 / (1.0 + np.exp(-Xb @ w))
+    grad = Xb.T @ (p - ys) + np.array([0.0, 0.05 * w[1]])
+    H = (Xb.T * (p * (1 - p))) @ Xb + np.diag([1e-6, 0.05])
+    w -= np.linalg.solve(H, grad)
+print(f"Logistic boundary with x=25 outlier: x = {-w[0]/w[1]:.2f}")
+```
+
+Running it prints:
+
+```text
+Condition number: 2006.4
+OLS weights:   (+1.37, +1.72)
+Ridge weights: (+1.53, +1.54)
+Logistic boundary with x=25 outlier: x = 4.11
+```
+
+## Lab: Feature Engineering + Logistic Regression
+
+Raw `(x₁, x₂)` logistic regression fails badly on curved boundaries (54.8% on the ring, 52.8% on continuous XOR) and misses nearly a quarter of rare faults at default threshold `0.50` (76.9% recall). Toggle engineered features, L2 penalty $\lambda$, and (in Brief 3) the decision threshold. Every choice fits exact Newton–Raphson logistic regression live on 220 training points and scores on 250 held-out test points. Meet each brief — and optionally, use as few parameters as possible.
+
+<ClassicalLab />
+
+<Deeper title="Debrief: tiny linear models on curved problems" tag="Spoiler">
+
+- **Brief 1 (Ring, ≥ 94% held-out accuracy):** 29 of 252 combinations pass. The minimum-parameter solution uses just **3 parameters** — `[x₁², x₂²]` plus the intercept, dropping raw `x₁` and `x₂` completely — reaching **94.8%** accuracy at $\lambda = 1$. Notice that `[|x₁|+|x₂|]` (a 2-parameter diamond) peaks at 92.8%, just short of the 94% circle target.
+- **Brief 2 (Continuous XOR, ≥ 85% held-out accuracy):** 80 of 252 pass. The minimum-parameter solution uses just **2 parameters** — `[x₁·x₂]` plus the intercept — reaching **86.4%** accuracy at $\lambda = 0.1$! One engineered interaction feature solves continuous XOR in a convex linear model.
+- **Brief 3 (Rare-Fault Alerting, Recall ≥ 85% & Precision ≥ 72%):** Only 8 of 1,008 combinations pass! Raw `(x₁, x₂)` at $t = 0.50$ gets 76.9% recall. The fewest-parameter winner uses **4 parameters** (`[x₁, x₂, |x₁|+|x₂|]`, $\lambda = 0.001$, $t = 0.35$) to hit **89.7% recall** and **72.9% precision** (93.2% accuracy).
+
+The lesson for tabular ML: before reaching for a deep network, inspect the geometry of your features and check your decision threshold.
+
+</Deeper>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- **Normal equations** $\mathbf{w}^* = (X^\top X + \lambda I)^{-1} X^\top \mathbf{y}$ solve linear and Ridge regression exactly in one matrix solve — no step size or epochs. When features are collinear, $\kappa(X^\top X)$ explodes and Ridge ($\lambda > 0$) prevents wild cancelling weights.
+- **Linear regression breaks on classification** because squared error punishes easy, far-out positive examples for predicting above 1, tilting the boundary into the wrong class.
+- **Logistic regression** models log-odds linearly and squashes them through a sigmoid with cross-entropy loss — convex, immune to easy-point leverage, and fast via Newton–Raphson (IRLS).
+- **Separate ranking from thresholding:** ROC AUC measures ranking quality across all thresholds, while choosing $t$ balances precision, recall and real business error costs (default $t = 0.50$ is rarely optimal on imbalanced data).
+- **Linear in parameters $\neq$ straight line in raw space:** engineered quadratic or interaction features let a tiny convex logistic model solve rings and XOR with 2–3 parameters.
+
+</Takeaways>
+
+<InTheWild>
+
+Linear and logistic regression remain the default production baseline across finance (credit scoring, where regulators demand explainable monotonic log-odds and calibrated probabilities), medicine (risk scores like Framingham and Wells), online advertising (click-through-rate models with millions of sparse hashed features trained via L2-regularised logistic regression), and causal/econometric modelling. In scikit-learn, `Ridge` solves normal equations (or conjugate gradient for large $d$) and `LogisticRegression` defaults to L-BFGS on L2-penalised cross-entropy (`C = 1/λ`). Even when a team eventually ships gradient-boosted trees or a neural network, a regularised logistic baseline tells you within minutes whether the signal is real and whether the extra complexity actually earned its keep.
+
+</InTheWild>
+
+Linear models draw global surfaces using a formula over all training points. What if we throw away training altogether, store the dataset as-is, and ask the closest neighbours to vote? Next: **k-Nearest Neighbours**.

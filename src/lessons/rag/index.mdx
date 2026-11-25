@@ -1,0 +1,167 @@
+{/* authored-by: Claude Opus 5.5 */}
+import { TwoSearches, RetrieverBench, PromptView, RetrieverLab } from './Widgets'
+import { questions } from './quiz'
+
+## The problem: the model has never read your manual
+
+A language model knows what was in its training data, frozen on the day training stopped. Your company's support pages, last week's policy change, the contents of a customer's account: none of it is in there. Ask anyway, and a model will often produce a fluent, plausible answer assembled from what such things *usually* say. That's the hallucination problem from the LLM lessons, and in a support bot it's a liability.
+
+You could fine-tune the model on your documents, but that's slow, expensive, has to be redone whenever a page changes, and still doesn't guarantee it will recall a specific fact. The approach almost everyone uses instead is simpler: **look the answer up first, then hand it to the model**. Search your documents for the passages most relevant to the question, paste them into the prompt, and ask the model to answer from them. That's **<Term id="rag">retrieval-augmented generation</Term>** (RAG).
+
+The analogy is an open-book exam. A student who has to answer from memory may confidently misremember; a student allowed to look things up in the textbook does much better, *if* they can find the right page quickly. Everything in RAG hinges on that "if". Language models are excellent at reading a passage and answering from it. They're helpless if the passage they need isn't there. So this lesson is mostly about the part that decides whether it is: **retrieval**.
+
+Our knowledge base is 16 support pages for the Kestrel K2, a home espresso machine that doesn't exist, so no model has ever seen these facts. There are 34 questions about it, each labelled with the one sentence that answers it, so we can measure retrieval exactly.
+
+## Two ways to search
+
+How do you find the passages relevant to "How soon do I get my money back?" among 67 sentences? Both standard answers turn text into vectors and compare directions, using the **<Term id="cosine-similarity">cosine similarity</Term>** from the dot-product lesson.
+
+**Lexical search** makes one dimension per word. A passage's vector counts its words, but rare words count for more than common ones: "E2" appears in one passage and tells you a lot; "machine" appears everywhere and tells you little. That weighting is called TF-IDF (term frequency × inverse document frequency). It's what classic search engines did for decades.
+
+**Semantic search** maps text to a vector of *meanings*, so "refund", "money back" and "paid" land in the same place even though they share no letters. Real systems use an **<Term id="embedding">embedding</Term>** model, a neural network trained so that passages with similar meanings get nearby vectors. Ours is a tiny stand-in with the same structure: a hand-made dictionary that maps words to 38 concepts. It's crude, but its strengths and blind spots are the real ones, and you can see exactly why it does what it does.
+
+<TwoSearches />
+
+Try the presets. "How soon do I get my money back?" shares no word with the refund policy, which scores zero; lexical search's best match is a safety warning that happens to contain the word "get". Semantic search goes straight to the refund policy. "What does E2 mean?" is the opposite: "E2" isn't in the concept dictionary, so semantic search sees an empty vector and can't score anything, while lexical search finds the one sentence that contains "E2". Learned embedding models have a milder version of the same blind spot: identifiers, product codes and rare names are exactly the tokens they've learned least about.
+
+<Eq
+  words="\cc{\text{similarity}} = \frac{\text{agreement between the two vectors}}{\text{length of one} \times \text{length of the other}}"
+  tex="\cc{\cos(\mathbf{q}, \mathbf{d})} = \frac{\ca{\mathbf{q}} \cdot \cb{\mathbf{d}}}{\lVert \ca{\mathbf{q}} \rVert\, \lVert \cb{\mathbf{d}} \rVert}"
+>
+
+- $\ca{\mathbf{q}}$ — the **question's** vector (counts of words or concepts, weighted)
+- $\cb{\mathbf{d}}$ — a **passage's** vector, computed the same way
+- $\ca{\mathbf{q}} \cdot \cb{\mathbf{d}}$ — the dot product: large when the two have big values in the same dimensions
+- $\cc{\cos}$ — the cosine of the angle between them: 1 for the same direction, 0 for nothing in common. Dividing by the lengths stops long passages winning just by having more words
+
+</Eq>
+
+The obvious move is to use both. A **hybrid** score mixes them: $(1 - \lambda) \times$ lexical $+ \lambda \times$ semantic, with $\lambda$ setting the balance. Then score every setting on all 34 questions:
+
+<RetrieverBench />
+
+With one-sentence chunks and the top 3 passages, lexical search finds 79.4% of the answers (4 questions never score above zero), semantic search 82.4% (2 never), and an even hybrid 97.1%. Their failures are almost perfectly complementary, which is why production systems from search engines to vector databases offer hybrid search.
+
+## Chunks, and the price of context
+
+Before anything can be searched, documents have to be cut into **chunks**, and the size of the cut is a real engineering decision. Bigger chunks make the answer easier to find: it only has to be *somewhere* in a retrieved chunk, and a longer chunk has more words to match. But every retrieved chunk is pasted into the prompt, on every request. Prompt text costs money, takes time to process, and competes for the model's attention with everything else in the context window. Retrieving the top 3 two-sentence chunks finds all 34 answers here, but costs 82 words of context per question; one-sentence chunks cost about 60% of that and miss one answer.
+
+Here's what one of those prompts looks like:
+
+<PromptView />
+
+<Misconception>
+
+"RAG fixes hallucination." It moves the problem rather than removing it. If retrieval finds the right passage, the model is reading rather than remembering, and does very well. If retrieval misses, the model is back to guessing, and now it may guess from an irrelevant passage that *looks* authoritative because it's in the prompt. That's why serious RAG systems measure retrieval separately (as we've been doing), instruct the model to say when the sources don't contain the answer, and show users which source an answer came from.
+
+</Misconception>
+
+## How do we know it's working?
+
+We've been using the main retrieval metric without naming it: **recall at k**, the share of questions whose answer appears anywhere in the top $k$ chunks.
+
+<Eq
+  words="\cc{\text{recall at } k} = \frac{\text{questions whose answer is in the top } \cp{k}}{\text{all questions}}"
+  tex="\cc{\text{recall}@\cp{k}} = \frac{1}{N} \sum_{i=1}^{N} \mathbb{1}\big[\text{rank}_i \le \cp{k}\big]"
+>
+
+- $N$ — the number of labelled questions (34 here)
+- $\text{rank}_i$ — where the first chunk containing question $i$'s answer came in the search results
+- $\cp{k}$ — how many chunks are put into the prompt
+- $\mathbb{1}[\cdot]$ — 1 if the condition holds, 0 if not, so the sum counts the hits
+
+</Eq>
+
+Recall at $k$ is the right metric for RAG because the model reads everything in the prompt: it doesn't matter whether the answer came first or third, only whether it came at all. (A second number, **MRR**, the average of $1/\text{rank}$, rewards putting the answer first, which matters more when $k$ is small or when you rerank.) The labelled questions are the expensive part. Without them you're tuning blind, and every change to chunking or embeddings is a guess.
+
+## In code
+
+Lexical search fits in a screenful of plain Python. This builds TF-IDF vectors for four chunks and ranks them against two questions:
+
+```python
+import math
+import re
+from collections import Counter
+
+chunks = [
+    "Refunds are paid to the original card within five working days.",
+    "E2 means the boiler is overheating; let the machine cool for 30 minutes.",
+    "Descale the K2 every two months, or monthly if your water is hard.",
+    "Express delivery arrives the next working day and costs 9 euros.",
+]
+STOP = {"the", "a", "is", "to", "if", "or", "for", "and", "your", "what", "does", "how", "do", "i", "my", "get", "let"}
+
+def words(text):
+    return [w for w in re.findall(r"[a-z0-9]+", text.lower()) if w not in STOP]
+
+docs = [Counter(words(c)) for c in chunks]
+df = Counter(w for d in docs for w in d)                      # how many chunks contain each word
+idf = {w: math.log((len(docs) + 1) / (n + 1)) + 1 for w, n in df.items()}
+
+def tfidf(counts):
+    return {w: n * idf.get(w, math.log(len(docs) + 1) + 1) for w, n in counts.items()}
+
+def cosine(a, b):
+    dot = sum(a[w] * b.get(w, 0) for w in a)
+    norm = lambda v: math.sqrt(sum(x * x for x in v.values()))
+    return dot / (norm(a) * norm(b)) if a and b else 0.0
+
+vectors = [tfidf(d) for d in docs]
+for question in ["What does E2 mean?", "How soon do I get my money back?"]:
+    q = tfidf(Counter(words(question)))
+    scores = sorted(((cosine(q, v), c) for v, c in zip(vectors, chunks)), reverse=True)
+    print(question)
+    for s, c in scores[:2]:
+        print(f"  {s:.3f}  {c}")
+```
+
+Running it prints:
+
+```text
+What does E2 mean?
+  0.209  E2 means the boiler is overheating; let the machine cool for 30 minutes.
+  0.000  Refunds are paid to the original card within five working days.
+How soon do I get my money back?
+  0.000  Refunds are paid to the original card within five working days.
+  0.000  Express delivery arrives the next working day and costs 9 euros.
+```
+
+The exact code wins outright; the reworded question scores zero against everything, refund policy included. In production, the semantic half is a call to an embedding model and the vectors live in a vector database with an approximate nearest-neighbour index, but the scoring is this same cosine.
+
+## Lab: Tune the Retriever
+
+Three knobs, one trade-off: find the answers, and pay for as little context as possible. Chunk size, hybrid weight and $k$ are evaluated exactly on all 34 questions every time you change one. The optional goal in every brief is the fewest words of retrieved text per question.
+
+<RetrieverLab />
+
+<Deeper title="Debrief: what the lab shows" tag="Spoiler">
+
+**Missing nothing costs 82.3 words.** 27 of the 125 settings find all 34 answers. The cheapest are two-sentence chunks, the top 3, with $\lambda$ = 0.25 or 0.5. Neither pure method finds all 34 at any setting: you need both kinds of search.
+
+**A 90% target costs only 33 words** with one-sentence chunks, the top 2 and $\lambda$ = 0.25 (it actually finds 94%). It's the only setting that cheap. Relaxing the target from 100% to 90% cuts the context by 60%, which is the kind of trade a product team should make deliberately, not discover by accident.
+
+**Vectors alone need 109.8 words for the same 90%** (two-sentence chunks, top 4): more than three times the hybrid's cost. Semantic search can't find two of the error-code questions at any setting (their only meaningful word is the code), so it has to make up for those misses elsewhere with bigger chunks and more of them.
+
+**An honest warning.** We tuned these settings on the same 34 questions we scored them on. With so few questions, the best setting is partly fitted to their quirks, exactly the overfitting from Module 7. In practice you'd tune on one set of questions and report on another that you never looked at while tuning. That's the subject of the evaluation lesson.
+
+</Deeper>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- **RAG** = search your documents for passages relevant to the question, paste them into the prompt, and ask the model to answer from them. It's cheaper and fresher than fine-tuning, and it's only as good as its retrieval.
+- **Lexical search** (TF-IDF) matches words, weighting rare ones heavily: great for codes, names and exact terms, blind to rewording.
+- **Semantic search** (embeddings) matches meanings: great for rewording, weak on identifiers it hasn't learned. **Hybrid** search gets the best of both; here, 97.1% recall at 3 against 79.4% and 82.4% for each alone.
+- **Chunk size and k** trade recall against prompt length. Every retrieved word costs money, latency and attention on every request.
+- Measure retrieval directly with **recall at k** on labelled questions, and keep the questions you tune on separate from the ones you report.
+
+</Takeaways>
+
+<InTheWild>
+
+Almost every production assistant that answers from company documents, help centres or codebases is a RAG system: customer-support bots, "chat with your PDF" tools, enterprise search, coding assistants that pull in relevant files. The stack is usually the same: documents are split into chunks of a few hundred tokens (often with some overlap), embedded with a model such as OpenAI's or Cohere's embedding APIs or an open model, and stored in a vector database (pgvector, Pinecone, Weaviate, Qdrant, Elasticsearch) that also supports keyword search for hybrids. A **reranker**, a model that reads the question and each candidate chunk together and scores how well they match, often re-sorts the top 20 to 100 results before the best few go into the prompt. Long-context models (hundreds of thousands of tokens) haven't made retrieval obsolete: putting less, more relevant text in front of a model is still cheaper and often more accurate than putting everything.
+
+</InTheWild>
+
+Retrieval gives a model the right facts. The next step is to let it *act*: call a search API itself, run code, query a database. Next: **tool calling and agents**.
