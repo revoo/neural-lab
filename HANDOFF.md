@@ -107,6 +107,19 @@ Before every commit: `npm test` → `npm run build` → `rg "<MODEL_NAME>" dist/
 
 The owner asked for two things after v2, in this order: (A) the **tiny-GPT capstone** and (B) **visual labs on how a network comes to recognise an image and to produce a coherent response**. Later ideas are in `docs/Future_Ideas.md`; those are **not** approved, so don't start them. Tick the checklist at the end of this section as you go. Mark the step you're in the middle of as **IN PROGRESS** with a note, so another agent can resume after a disconnect. One commit per step, as usual.
 
+### The feeling to aim for (owner's emphasis: read this first)
+
+The owner wants both the capstone and the B labs to make the learner **feel the network come alive**: a sense of *intelligence being born*, step by step, out of random noise. That feeling is the primary design goal of these widgets, not a garnish. Explaining the mechanism is still essential, but these labs exist so the learner *watches* it happen.
+
+How to get there:
+- **Start from nothing, visibly.** Every run begins on screen with the random network: filters of pure static, samples of gibberish, scattered dots, attention smeared everywhere. The learner must see that the network starts knowing nothing.
+- **One big "training timeline" scrubber** shared by every panel. Drag it, or press play, and filters, feature maps, the class map, samples, attention heads and embeddings all move together. Snapshot often enough at the start (log-spaced checkpoints) that the early transitions are smooth and not missed.
+- **Mark the moments of birth, as measured events.** Detect them from the numbers and pin them in tests, never by hand-picking frames. Examples: "first edge detector" (template correlation crosses a threshold); "first real word"; "first grammatical phrase" (a stated, checkable criterion); "a previous-token head appears", "an induction head appears" (score thresholds); "classes separate" (nearest-centroid accuracy crosses a threshold). Show them as labelled ticks on the timeline that the learner can jump to. Make them a little dramatic: a brief highlight, and a caption like *"Step 1,840: its first English word."*
+- **Before and after, side by side.** "Step 0 versus now" for every panel, so the change is undeniable at a glance. For text: the same prompt, the same seed, at five landmark steps, stacked.
+- **Let the learner talk to it as it grows.** In the capstone, the learner types a prompt and gets a continuation from the *current* checkpoint, then scrubs back and asks the earlier, dumber model the same thing. In B1 they draw or pick an image and see what the network makes of it at each stage.
+- **Motion with meaning:** smooth interpolation between checkpoints, and the loss curve drawn live alongside. Respect `prefers-reduced-motion` (fall back to stepped frames), keep everything readable in all three themes, and let the matrix theme lean into it.
+- **Stay honest while doing it.** Every frame is the real computation (no hand-made frames, no cherry-picked seeds: fixed seeds, chosen before you look). If the model never gets past fluent-sounding nonsense, the prose says so. "Intelligence is born" is the *feeling*; the text should say precisely what has emerged ("it has learned which letters follow which, and about 400 real words") rather than claim understanding. The Epilogue's "what nobody understands yet" is a natural place to link to for the bigger question.
+
 ### What already exists (build on it, don't duplicate it)
 
 - `cnns`: a real trained 55-parameter CNN and a 547-parameter MLP on unseen positions; feature maps light up where the pattern is. `convolution`: hand-built edge-detector kernels; the prose says trained ImageNet first layers look like edge detectors, but nothing shows learned filters forming.
@@ -117,7 +130,7 @@ The owner asked for two things after v2, in this order: (A) the **tiny-GPT capst
 
 ### A. Capstone: build and train a tiny GPT in the browser
 
-**Goal.** One lesson where the learner assembles everything from the course into a working character-level (or small-BPE) GPT, trains it live (on the GPU when available), watches its samples improve, and then opens it up. It should feel like the course's finale.
+**Goal.** One lesson where the learner assembles everything from the course into a working character-level (or small-BPE) GPT, trains it live (on the GPU when available), watches its samples improve, and then opens it up. It should feel like the course's finale: the moment the learner watches something they built from first principles start to speak (see "The feeling to aim for" above).
 
 **Placement.** Recommended: a new module **"Capstone: Build a Tiny GPT"** placed after Module 18 (AI Systems Engineering) and before the Epilogue. That means updating `src/curriculum.ts` (module era: the years of its history card, e.g. 2017 to 2019 for the transformer and GPT-2); `ModuleRef` renumbers automatically, and `src/curriculum.test.ts` checks consecutive numbers. Alternatively it could end Module 13. Ask the owner only if unsure. Prerequisites in `src/dependencies.ts`: `transformer-block`, `tokenization`, `next-token-prediction`, `sampling`, `optimizers`; chip `llm`; add it to `dest:llms`.
 
@@ -145,7 +158,7 @@ Optimums are "best found by searching <stated grid>", recorded with a sharded `*
 
 ### B. Visual labs: how a network comes to see, and comes to speak
 
-**Goal.** Make the *process* visible: what changes inside a network, step by step, as it goes from random to competent. Each item below is a widget, a lab, or both. Put them in existing lessons where they fit, or in one new "Inside training" lesson per side. Same standards as every lab: real numbers, fixed seeds, honest captions.
+**Goal.** Make the *process* visible, and make it feel like the network is **coming alive** (see "The feeling to aim for" above): what changes inside a network, step by step, as it goes from random to competent. Each item below is a widget, a lab, or both. Put them in existing lessons where they fit, or in one new "Inside training" lesson per side. Same standards as every lab: real numbers, fixed seeds, honest captions.
 
 **B1. Learning to see** (fits `cnns`, or a new lesson right after it):
 - **Filters forming.** Train a small CNN (say 8 first-layer 5×5 filters) on a small real image set: an MNIST or Fashion-MNIST subset (check the licence and keep the download small; a few thousand images as a compact binary loaded lazily), or a procedurally generated dataset if licensing or size is a problem. Show the first-layer filters at checkpoints, from noise to edge and blob detectors. Pin "they become oriented edges" with a measurable statistic (e.g. correlation with Gabor or oriented-gradient templates), not by eye.
