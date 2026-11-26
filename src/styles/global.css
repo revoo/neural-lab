@@ -459,6 +459,20 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 0; }
 .progress-bar { height: 6px; border-radius: 3px; background: var(--bg-sunken); overflow: hidden; }
 .progress-bar > div { height: 100%; background: var(--c-good); border-radius: 3px; transition: width 0.3s; }
 .pill { display: inline-block; font-size: 11px; font-weight: 650; padding: 2px 8px; border-radius: 999px; background: var(--bg-sunken); color: var(--text-faint); letter-spacing: 0.03em; }
+/* V2-WP1: guided tracks */
+.optional-pill { margin-left: auto; flex: none; font-size: 10px; padding: 1px 7px; border: 1px dashed var(--border-strong); background: transparent; text-transform: none; cursor: help; }
+.lesson-kicker .optional-pill { margin-left: 6px; vertical-align: 1px; }
+.off-track a { opacity: 0.5; }
+.off-track a:hover, .off-track a.active { opacity: 1; }
+.off-track .dot { border-style: dashed; }
+.curriculum-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 36px; }
+.track-note { font-size: 14px; margin: 8px 0 14px; }
+.optional-note { font-size: 14px; color: var(--text-muted); border-left: 3px dashed var(--border-strong); padding: 4px 0 4px 12px; margin: 12px 0 0; }
+.track-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 2px; background: var(--bg-sunken); gap: 2px; }
+.track-toggle button { border: 0; background: transparent; color: var(--text-muted); font: inherit; font-size: 13px; font-weight: 600; padding: 4px 12px; border-radius: 999px; cursor: pointer; }
+.track-toggle button.on { background: var(--bg-elev); color: var(--accent-text); box-shadow: 0 0 0 1px var(--border-strong); }
+.track-toggle.compact { display: flex; margin: 8px 2px 4px; }
+.track-toggle.compact button { flex: 1; font-size: 12px; padding: 3px 6px; }
 
 /* Glossary page */
 .search { width: 100%; padding: 11px 14px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--bg-elev); color: var(--text); font-size: 16px; }

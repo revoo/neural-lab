@@ -365,7 +365,7 @@ Notes for whoever continues: **WP0–WP9 are complete.** All items in `docs/CURR
 
 Owner-approved next release (implement in order, one work package per commit or series of commits, same quality bar and verification rules):
 
-- [ ] V2-WP1 Optional sections & guided tracks (`Full Course` vs `Core Track`)
+- [x] V2-WP1 Optional sections & guided tracks (`Full Course` vs `Core Track`)
 - [ ] V2-WP2 Interactive Concept Dependency Graph (`#/map`)
 - [ ] V2-WP3 Two-Tier Compute Offloading (Test `Float32Array` + Production WebGPU)
 - [ ] V2-WP4 Mixture of Experts (MoE) & Sparse Routing (`moe` + Lab: Balance the Experts)

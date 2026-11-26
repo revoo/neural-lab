@@ -4,6 +4,10 @@ _Last updated after WP9. **`docs/CURRICULUM_PLAN.md` (WP0–WP9) is complete.** 
 
 ## Current state (read this first if you're picking up mid-session)
 
+**v2 Release Plan (`docs/V2_PLAN.md`) in progress.** Checklist in `HANDOFF.md`, "v2 Release Plan: progress".
+
+- **Done [Claude Opus 5.5]:** V2-WP1, optional sections and guided tracks. `optional` + `optionalNote` on `LessonMeta` (10 lessons: the four interludes, `perceptron`, `svm`, `knn`, `rnns`, `lstms-grus`, `gans`); `Track` type with `inTrack`, `trackLessons`, track-aware `neighbours(id, track)` and `trackProgress` in `src/curriculum.ts`; persisted store `src/track.ts` (`nl-track-v1`, default `full`); `TrackToggle` + `OptionalPill` in `src/components/Track.tsx`, shown on Home (toggle by the curriculum heading, hours left), the Sidebar (compact toggle; optional lessons muted with dashed dots in Core) and the lesson kicker (pill + a note under the summary). Core Track skips optional lessons in Next/Previous (from inside one, the footer leads back onto the track) and counts module/overall progress and minutes against the track. Tests in `src/curriculum.test.ts` ("V2-WP1 guided tracks").
+
 **Curriculum plan complete (WP0–WP9 done)** (owner's request: implement `docs/CURRICULUM_PLAN.md`, WP0 → WP9; all boxes ticked in `HANDOFF.md`, "Curriculum plan: progress").
 
 The curriculum now opens with **Module 0: Prologue** (*Can a Machine Learn?*), moves through the redesigned 9-lesson **Module 1: The Maths Toolkit** (each lesson with a `<MachineMap>`, `<Predict>`, `"Why this, and not something else?"` rival comparison, Zachtronics-style lab, and `<Bridge>`), weaves history and "the struggle" into the main text via sourced opening hooks, four `<EraStrip>` era interludes, era labels linked to the timeline, and "You are standing where they stood" lab notes, adds **The Perceptron**, **SVMs**, and **GANs**, places RL before fine-tuning and `similarity-search` at the start of AI Systems Engineering, and closes with **Module 19: Epilogue** (*What Nobody Understands Yet*).

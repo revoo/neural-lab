@@ -3,6 +3,8 @@ import { neighbours, type LessonMeta, type ModuleMeta } from '../curriculum';
 import { progressStore, useProgress } from '../progress';
 import { lessonHref, timelineHref } from '../router';
 import { HISTORY } from '../history';
+import { useTrack, TRACK_LABEL } from '../track';
+import { OptionalPill } from '../components/Track';
 
 const cache = new Map<string, ComponentType>();
 function lessonComponent(l: LessonMeta): ComponentType {
@@ -20,7 +22,8 @@ function eraHref(m: ModuleMeta): string {
 export function LessonPage({ lesson }: { lesson: LessonMeta & { module: ModuleMeta } }) {
   const progress = useProgress();
   const Content = useMemo(() => lessonComponent(lesson), [lesson]);
-  const { prev, next } = neighbours(lesson.id);
+  const track = useTrack();
+  const { prev, next } = neighbours(lesson.id, track);
   const done = !!progress.completed[lesson.id];
   const idx = lesson.module.lessons.findIndex((l) => l.id === lesson.id) + 1;
   return (
@@ -37,6 +40,12 @@ export function LessonPage({ lesson }: { lesson: LessonMeta & { module: ModuleMe
             </>
           )}
           {' · '}Lesson {idx}
+          {lesson.optional && (
+            <>
+              {' '}
+              <OptionalPill lesson={lesson} />
+            </>
+          )}
         </div>
         <h1>{lesson.title}</h1>
         <p className="summary">{lesson.summary}</p>
@@ -44,6 +53,12 @@ export function LessonPage({ lesson }: { lesson: LessonMeta & { module: ModuleMe
           <span>≈ {lesson.minutes} min</span>
           {done && <span className="c-good">✓ Completed</span>}
         </div>
+        {lesson.optional && (
+          <p className="optional-note">
+            <strong>Optional.</strong> {lesson.optionalNote}
+            {track === 'core' && ` You are on the ${TRACK_LABEL.core}, so Next and Previous lead back onto it.`}
+          </p>
+        )}
       </header>
       <ErrorBoundary>
         <Suspense fallback={<p className="muted">Loading lesson…</p>}>

@@ -1,6 +1,6 @@
 // authored-by: Claude Opus 5.5
 import { describe, expect, it } from 'vitest';
-import { ALL_LESSONS, MODULES } from './curriculum';
+import { ALL_LESSONS, MODULES, neighbours, trackLessons, trackProgress } from './curriculum';
 import { HISTORY } from './history';
 
 type Fs = { readdirSync: (p: string) => string[]; existsSync: (p: string) => boolean; readFileSync: (p: string, enc: string) => string };
@@ -104,5 +104,50 @@ describe('curriculum guard rails', () => {
       for (const h of HISTORY.filter((x) => ids.has(x.lessonId)))
         for (const y of h.years) expect(ss.some(([a, b]) => y >= a && y <= b), `${m.id} (${m.era}) vs ${h.id} ${y}`).toBe(true);
     }
+  });
+});
+
+describe('V2-WP1 guided tracks', () => {
+  const OPTIONAL = ['interlude-first-winter', 'interlude-second-winter', 'interlude-big-bang', 'interlude-chatgpt', 'perceptron', 'svm', 'knn', 'rnns', 'lstms-grus', 'gans'];
+
+  it('exactly the planned lessons are optional, and each has a plain note', () => {
+    expect(ALL_LESSONS.filter((l) => l.optional).map((l) => l.id).sort()).toEqual([...OPTIONAL].sort());
+    for (const l of ALL_LESSONS.filter((x) => x.optional)) {
+      expect(l.optionalNote, l.id).toBeTruthy();
+      expect(l.optionalNote!.split(/\s+/).length, l.id).toBeLessThanOrEqual(30);
+    }
+    for (const l of ALL_LESSONS.filter((x) => !x.optional)) expect(l.optionalNote, l.id).toBeUndefined();
+  });
+
+  it('every module keeps at least one core lesson', () => {
+    for (const m of MODULES) expect(m.lessons.some((l) => !l.optional), m.id).toBe(true);
+  });
+
+  it('neighbours skip optional lessons on the Core Track only', () => {
+    // logic-lab → perceptron → interlude-first-winter → forward-propagation
+    expect(neighbours('logic-lab', 'full').next?.id).toBe('perceptron');
+    expect(neighbours('logic-lab', 'core').next?.id).toBe('forward-propagation');
+    expect(neighbours('forward-propagation', 'core').prev?.id).toBe('logic-lab');
+    // from inside an optional lesson, the Core Track leads back onto core lessons
+    expect(neighbours('perceptron', 'core')).toMatchObject({ prev: { id: 'logic-lab' }, next: { id: 'forward-propagation' } });
+    // the whole core sequence, walked by `next`, is exactly the non-optional lessons in order
+    const walk: string[] = [];
+    for (let l: { id: string } | undefined = trackLessons('core')[0]; l; l = neighbours(l.id, 'core').next) walk.push(l.id);
+    expect(walk).toEqual(ALL_LESSONS.filter((l) => !l.optional).map((l) => l.id));
+    expect(neighbours('prologue', 'full').prev).toBeUndefined();
+    expect(neighbours('nope', 'core')).toEqual({ prev: undefined, next: undefined });
+  });
+
+  it('progress and minutes are counted against the track', () => {
+    const neuron = MODULES.find((m) => m.id === 'neuron')!.lessons;
+    const completed = { neuron: 1, perceptron: 1 };
+    expect(trackProgress(neuron, completed, 'full')).toMatchObject({ done: 2, total: 5 });
+    expect(trackProgress(neuron, completed, 'core')).toMatchObject({ done: 1, total: 3 });
+    const all = trackProgress(ALL_LESSONS, {}, 'full');
+    const core = trackProgress(ALL_LESSONS, {}, 'core');
+    expect(all.total).toBe(ALL_LESSONS.length);
+    expect(core.total).toBe(ALL_LESSONS.length - OPTIONAL.length);
+    expect(all.minutes - core.minutes).toBe(ALL_LESSONS.filter((l) => l.optional).reduce((s, l) => s + l.minutes, 0));
+    expect(core.minutesLeft).toBe(core.minutes);
   });
 });

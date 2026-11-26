@@ -10,6 +10,13 @@ export type LessonMeta = {
   title: string;
   summary: string;
   minutes: number;
+  /**
+   * V2-WP1: an optional lesson (historical bridge or interlude). The Core Track skips it in
+   * navigation and progress, but it stays visible and clickable. Needs an `optionalNote`.
+   */
+  optional?: boolean;
+  /** Short plain-English reason it is optional and what it still teaches (shown as a tooltip). */
+  optionalNote?: string;
   load?: () => Promise<{ default: ComponentType }>;
 };
 
@@ -68,8 +75,8 @@ export const MODULES: ModuleMeta[] = [
       { id: 'neuron', title: 'The Artificial Neuron', summary: 'Weighted sum, bias, activation — and why a single neuron is really a line drawn through space.', minutes: 25, load: () => import('./lessons/neuron/index.mdx') },
       { id: 'activation-functions', title: 'Why Networks Need Activation Functions', summary: 'Stack a hundred linear layers and you still have one. Then add a kink, and everything changes.', minutes: 25, load: () => import('./lessons/activation-functions/index.mdx') },
       { id: 'logic-lab', title: 'Lab: Wiring Logic by Hand', summary: 'A puzzle workbench: build AND, OR and finally XOR out of neurons whose weights you set yourself.', minutes: 30, load: () => import('./lessons/logic-lab/index.mdx') },
-      { id: 'perceptron', title: 'The Perceptron: A Machine That Learns Its Own Weights', summary: 'A machine with motor-driven knobs that learned to tell shapes apart: the simple rule it used, why it always works when a line exists, and where it fails for ever.', minutes: 30, load: () => import('./lessons/perceptron/index.mdx') },
-      { id: 'interlude-first-winter', title: 'Interlude: The First Winter (1969–1980)', summary: 'How the excitement around perceptrons cooled into the first AI winter: Minsky and Papert’s proof, the Lighthill report, hardware limits, and why symbolic AI won the 1970s.', minutes: 8, load: () => import('./lessons/interlude-first-winter/index.mdx') },
+      { id: 'perceptron', optional: true, optionalNote: 'Historical bridge: the first machine that learned its own weights. Modern networks learn by gradient descent instead, so you can skip it.', title: 'The Perceptron: A Machine That Learns Its Own Weights', summary: 'A machine with motor-driven knobs that learned to tell shapes apart: the simple rule it used, why it always works when a line exists, and where it fails for ever.', minutes: 30, load: () => import('./lessons/perceptron/index.mdx') },
+      { id: 'interlude-first-winter', optional: true, optionalNote: 'Historical interlude: how the first AI winter happened. Skip it if you are racing to modern models; nothing later depends on it.', title: 'Interlude: The First Winter (1969–1980)', summary: 'How the excitement around perceptrons cooled into the first AI winter: Minsky and Papert’s proof, the Lighthill report, hardware limits, and why symbolic AI won the 1970s.', minutes: 8, load: () => import('./lessons/interlude-first-winter/index.mdx') },
     ],
   },
   {
@@ -140,11 +147,11 @@ export const MODULES: ModuleMeta[] = [
     title: 'Classical Machine Learning',
     blurb: 'Trees, nearest neighbours, SVMs, clustering — and when they beat neural networks.',
     lessons: [
-      { id: 'interlude-second-winter', title: 'Interlude: When Neural Networks Were Unfashionable (1987–2006)', summary: 'After the 1987 LISP-machine crash, support vector machines and random forests ruled the 1990s while a small group kept neural nets alive. Why those classical methods still matter.', minutes: 8, load: () => import('./lessons/interlude-second-winter/index.mdx') },
+      { id: 'interlude-second-winter', optional: true, optionalNote: 'Historical interlude about the 1990s. Skip it if you are racing to modern models; nothing later depends on it.', title: 'Interlude: When Neural Networks Were Unfashionable (1987–2006)', summary: 'After the 1987 LISP-machine crash, support vector machines and random forests ruled the 1990s while a small group kept neural nets alive. Why those classical methods still matter.', minutes: 8, load: () => import('./lessons/interlude-second-winter/index.mdx') },
       { id: 'high-dimensions', title: 'High-Dimensional Geometry', summary: 'Why almost all of an orange is peel in 768 dimensions, why random arrows are perpendicular, why neighbours look alike — and Lab: Superposition.', minutes: 30, load: () => import('./lessons/high-dimensions/index.mdx') },
       { id: 'linear-regression', title: 'Linear and Logistic Regression', summary: 'The oldest learning machine: fit a line by least squares, see why it fails at yes-or-no questions, fix it with logistic regression — and a feature-engineering lab.', minutes: 35, load: () => import('./lessons/linear-regression/index.mdx') },
-      { id: 'svm', title: 'Support Vector Machines: The Widest Street', summary: 'Many lines separate the data; which one should you trust? The widest street, the few points that decide it, and a trick for drawing curves with straight lines.', minutes: 35, load: () => import('./lessons/svm/index.mdx') },
-      { id: 'knn', title: 'k-Nearest Neighbours', summary: 'Classify by asking the neighbours: no training at all, one dial that trades memorising for smoothing, and the two ways it quietly breaks — and Lab: Rescue the kNN Classifier.', minutes: 30, load: () => import('./lessons/knn/index.mdx') },
+      { id: 'svm', optional: true, optionalNote: 'Classical method that ruled the 1990s. Worth knowing, but nothing in the deep-learning modules builds on it.', title: 'Support Vector Machines: The Widest Street', summary: 'Many lines separate the data; which one should you trust? The widest street, the few points that decide it, and a trick for drawing curves with straight lines.', minutes: 35, load: () => import('./lessons/svm/index.mdx') },
+      { id: 'knn', optional: true, optionalNote: 'Classical method: classify by asking the neighbours. Similarity search covers the idea you need later.', title: 'k-Nearest Neighbours', summary: 'Classify by asking the neighbours: no training at all, one dial that trades memorising for smoothing, and the two ways it quietly breaks — and Lab: Rescue the kNN Classifier.', minutes: 30, load: () => import('./lessons/knn/index.mdx') },
       { id: 'decision-trees', title: 'Decision Trees and Random Forests', summary: 'Twenty questions as a model: how a tree picks its questions, why one tree overfits and a forest of them doesn’t — and Lab: Build the Tabular Ensemble.', minutes: 35, load: () => import('./lessons/decision-trees/index.mdx') },
       { id: 'clustering-pca', title: 'k-Means and PCA', summary: 'Finding structure with no labels at all: grouping points into clusters, squashing many features into the few that matter — and Lab: Compress & Segment.', minutes: 35, load: () => import('./lessons/clustering-pca/index.mdx') },
     ],
@@ -156,7 +163,7 @@ export const MODULES: ModuleMeta[] = [
     title: 'Computer Vision',
     blurb: 'From pixels to convolutions to object detectors.',
     lessons: [
-      { id: 'interlude-big-bang', title: 'Interlude: Data, Graphics Cards and 2012', summary: 'How ImageNet, programmable graphics cards, and one 2012 convolutional network turned ideas from 1989 into the deep-learning boom.', minutes: 8, load: () => import('./lessons/interlude-big-bang/index.mdx') },
+      { id: 'interlude-big-bang', optional: true, optionalNote: 'Historical interlude on ImageNet, GPUs and 2012. Skip it if you are racing to modern models; nothing later depends on it.', title: 'Interlude: Data, Graphics Cards and 2012', summary: 'How ImageNet, programmable graphics cards, and one 2012 convolutional network turned ideas from 1989 into the deep-learning boom.', minutes: 8, load: () => import('./lessons/interlude-big-bang/index.mdx') },
       { id: 'images-as-tensors', title: 'Images as Tensors', summary: 'What a photo looks like to a network: grids of numbers, colour channels, and why shrinking an image the naive way invents patterns — and Lab: Build the Vision Preprocessor.', minutes: 30, load: () => import('./lessons/images-as-tensors/index.mdx') },
       { id: 'convolution', title: 'Convolution and Kernels', summary: 'Slide one small pattern-detector across a whole image: edge finders, blurs, and the arithmetic of output sizes — and Lab: Design the Kernel.', minutes: 35, load: () => import('./lessons/convolution/index.mdx') },
       { id: 'cnns', title: 'CNNs and Feature Maps', summary: 'Stack small detectors into big ones: how each layer sees a wider patch, and why a tiny CNN beats a much bigger plain network — and Lab: Architect the CNN.', minutes: 35, load: () => import('./lessons/cnns/index.mdx') },
@@ -182,8 +189,8 @@ export const MODULES: ModuleMeta[] = [
     title: 'Sequence Models',
     blurb: 'RNNs, LSTMs, and the bottleneck that motivated attention.',
     lessons: [
-      { id: 'rnns', title: 'Recurrent Neural Networks & BPTT', summary: 'A network with memory: reuse the same weights at every step, unroll it to train it, and watch long-range signals fade or explode — and Lab: Tame BPTT.', minutes: 35, load: () => import('./lessons/rnns/index.mdx') },
-      { id: 'lstms-grus', title: 'LSTMs and GRUs', summary: 'Give memory a protected highway and gates that decide what to keep, then race plain, gated and LSTM cells fairly — and Lab: Wire the Gated Cell.', minutes: 35, load: () => import('./lessons/lstms-grus/index.mdx') },
+      { id: 'rnns', optional: true, optionalNote: 'Historical bridge: memory before attention. It explains why transformers won, but you can skip straight to attention.', title: 'Recurrent Neural Networks & BPTT', summary: 'A network with memory: reuse the same weights at every step, unroll it to train it, and watch long-range signals fade or explode — and Lab: Tame BPTT.', minutes: 35, load: () => import('./lessons/rnns/index.mdx') },
+      { id: 'lstms-grus', optional: true, optionalNote: 'Historical bridge: gated memory cells. Transformers replaced them for most work, so you can skip it.', title: 'LSTMs and GRUs', summary: 'Give memory a protected highway and gates that decide what to keep, then race plain, gated and LSTM cells fairly — and Lab: Wire the Gated Cell.', minutes: 35, load: () => import('./lessons/lstms-grus/index.mdx') },
       { id: 'seq2seq-attention', title: 'Encoder–Decoder and Early Attention', summary: 'Squeeze a whole sentence into one vector and translation falls apart; let the decoder look back at every word and it recovers — and Lab: Break the Bottleneck.', minutes: 35, load: () => import('./lessons/seq2seq-attention/index.mdx') },
     ],
   },
@@ -208,7 +215,7 @@ export const MODULES: ModuleMeta[] = [
     title: 'Large Language Models',
     blurb: 'From next-token prediction to assistants: sampling, scaling, and their failure modes.',
     lessons: [
-      { id: 'interlude-chatgpt', title: 'Interlude: The Week Everyone Noticed (2022)', summary: 'From GPT-3 to ChatGPT’s sudden public arrival in November 2022, what was old versus new inside it, and the 2024 Nobel Prizes that marked the moment.', minutes: 8, load: () => import('./lessons/interlude-chatgpt/index.mdx') },
+      { id: 'interlude-chatgpt', optional: true, optionalNote: 'Historical interlude on the ChatGPT moment. Skip it if you are racing to modern models; nothing later depends on it.', title: 'Interlude: The Week Everyone Noticed (2022)', summary: 'From GPT-3 to ChatGPT’s sudden public arrival in November 2022, what was old versus new inside it, and the 2024 Nobel Prizes that marked the moment.', minutes: 8, load: () => import('./lessons/interlude-chatgpt/index.mdx') },
       { id: 'next-token-prediction', title: 'Next-Token Prediction & Perplexity', summary: 'How a transformer writes one token at a time, what perplexity really means, why neural embeddings beat lookup tables — and Shannon’s betting game.', minutes: 30, load: () => import('./lessons/next-token-prediction/index.mdx') },
       { id: 'sampling', title: 'Sampling: Temperature, Top-k and Top-p', summary: 'Why greedy loops, why raw sampling falls into the long tail, how nucleus sampling adapts to confidence, beam search — and a sampler-tuning lab with an impossible level.', minutes: 30, load: () => import('./lessons/sampling/index.mdx') },
       { id: 'scaling-laws', title: 'Scaling Laws & Compute-Optimal Training', summary: 'How much better does a model get with more size, data and compute? The surprisingly regular answer, the famous correction, and a compute-budget lab.', minutes: 30, load: () => import('./lessons/scaling-laws/index.mdx') },
@@ -257,7 +264,7 @@ export const MODULES: ModuleMeta[] = [
     blurb: 'VAEs, GANs and diffusion: how machines learn to create.',
     lessons: [
       { id: 'autoencoders', title: 'Autoencoders and VAEs', summary: 'Why averaging two faces makes a ghost, how a bottleneck finds the hidden knobs behind data, and how a VAE makes new faces — and Lab: The Face Printer.', minutes: 40, load: () => import('./lessons/autoencoders/index.mdx') },
-      { id: 'gans', title: 'GANs: A Forger and a Detective', summary: 'Two networks in a duel: one forges data, one tries to catch it. Why the duel produces sharp samples, why it breaks, and how to keep it balanced.', minutes: 35, load: () => import('./lessons/gans/index.mdx') },
+      { id: 'gans', optional: true, optionalNote: 'Generative method largely overtaken by diffusion. Worth it for the duel idea; the diffusion lessons do not depend on it.', title: 'GANs: A Forger and a Detective', summary: 'Two networks in a duel: one forges data, one tries to catch it. Why the duel produces sharp samples, why it breaks, and how to keep it balanced.', minutes: 35, load: () => import('./lessons/gans/index.mdx') },
       { id: 'diffusion', title: 'Diffusion: Adding and Removing Noise', summary: 'Dissolve data into noise step by step, then learn to run the film backwards: how a denoiser turns static into samples — and Lab: Spend the Step Budget.', minutes: 40, load: () => import('./lessons/diffusion/index.mdx') },
       { id: 'guidance', title: 'Guidance and Conditioning', summary: 'Ask a generator for a particular class, turn the request up, and watch quality rise while variety drains away — and Lab: Tune the Guidance.', minutes: 35, load: () => import('./lessons/guidance/index.mdx') },
     ],
@@ -297,7 +304,36 @@ export const ALL_LESSONS: (LessonMeta & { module: ModuleMeta })[] = MODULES.flat
 
 export const findLesson = (id: string) => ALL_LESSONS.find((l) => l.id === id);
 
-export function neighbours(id: string) {
+/** V2-WP1: the two guided tracks. `full` is every lesson; `core` skips lessons marked `optional`. */
+export type Track = 'full' | 'core';
+
+export const inTrack = (l: LessonMeta, track: Track) => track === 'full' || !l.optional;
+
+/** The lessons a track walks through, in course order. */
+export const trackLessons = (track: Track) => ALL_LESSONS.filter((l) => inTrack(l, track));
+
+/**
+ * Previous and next lesson in the given track. From an optional lesson in the Core Track, the
+ * neighbours are the nearest core lessons on either side, so the footer leads back onto the track.
+ */
+export function neighbours(id: string, track: Track = 'full') {
   const i = ALL_LESSONS.findIndex((l) => l.id === id);
-  return { prev: i > 0 ? ALL_LESSONS[i - 1] : undefined, next: i >= 0 && i < ALL_LESSONS.length - 1 ? ALL_LESSONS[i + 1] : undefined };
+  if (i < 0) return { prev: undefined, next: undefined };
+  const ok = (l: LessonMeta) => inTrack(l, track);
+  let prev: (typeof ALL_LESSONS)[number] | undefined;
+  for (let j = i - 1; j >= 0 && !prev; j--) if (ok(ALL_LESSONS[j])) prev = ALL_LESSONS[j];
+  let next: (typeof ALL_LESSONS)[number] | undefined;
+  for (let j = i + 1; j < ALL_LESSONS.length && !next; j++) if (ok(ALL_LESSONS[j])) next = ALL_LESSONS[j];
+  return { prev, next };
+}
+
+/** Completed / total lessons and minutes for a list of lessons, counted against a track. */
+export function trackProgress(lessons: LessonMeta[], completed: Record<string, unknown>, track: Track) {
+  const ls = lessons.filter((l) => inTrack(l, track));
+  return {
+    done: ls.filter((l) => completed[l.id]).length,
+    total: ls.length,
+    minutes: ls.reduce((s, l) => s + l.minutes, 0),
+    minutesLeft: ls.filter((l) => !completed[l.id]).reduce((s, l) => s + l.minutes, 0),
+  };
 }

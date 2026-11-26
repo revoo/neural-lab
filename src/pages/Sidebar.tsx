@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { MODULES } from '../curriculum';
+import { inTrack, MODULES, trackProgress } from '../curriculum';
 import { useProgress } from '../progress';
 import { lessonHref, type Route } from '../router';
+import { useTrack } from '../track';
+import { OptionalPill, TrackToggle } from '../components/Track';
 
 export function Sidebar({ route, open }: { route: Route; open: boolean }) {
   const progress = useProgress();
+  const track = useTrack();
   const activeLesson = route.page === 'lesson' ? route.id : '';
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(MODULES.map((m) => [m.id, m.lessons.length > 0])),
@@ -20,24 +23,26 @@ export function Sidebar({ route, open }: { route: Route; open: boolean }) {
         <a className={`nav-link${route.page === 'review' ? ' active' : ''}`} href="#/review">↻ Review & practice</a>
         <a className={`nav-link${route.page === 'glossary' ? ' active' : ''}`} href="#/glossary">≡ Glossary</a>
         <a className={`nav-link${route.page === 'timeline' ? ' active' : ''}`} href="#/timeline">◷ Timeline of AI</a>
+        <TrackToggle compact />
       </div>
       {MODULES.map((m) => {
-        const done = m.lessons.filter((l) => progress.completed[l.id]).length;
+        const mp = trackProgress(m.lessons, progress.completed, track);
         const planned = m.lessons.length === 0;
         return (
           <div key={m.id} className={`nav-module${planned ? ' planned' : ''}`}>
             <button className="nav-module-head" onClick={() => setExpanded({ ...expanded, [m.id]: !expanded[m.id] })} aria-expanded={!!expanded[m.id]}>
               <span className="num">{m.number}</span>
               <span className="title">{m.title}</span>
-              <span className="count">{planned ? 'soon' : `${done}/${m.lessons.length}`}</span>
+              <span className="count">{planned ? 'soon' : `${mp.done}/${mp.total}`}</span>
             </button>
             {expanded[m.id] && (
               <ul className="nav-lessons">
                 {m.lessons.map((l) => (
-                  <li key={l.id}>
+                  <li key={l.id} className={inTrack(l, track) ? '' : 'off-track'}>
                     <a href={lessonHref(l.id)} className={activeLesson === l.id ? 'active' : ''}>
                       <span className={`dot${progress.completed[l.id] ? ' done' : ''}`} />
-                      {l.title}
+                      <span>{l.title}</span>
+                      {track === 'full' && <OptionalPill lesson={l} />}
                     </a>
                   </li>
                 ))}
