@@ -136,7 +136,7 @@ export function FoolLab() {
         ) : undefined
       }
       reveal={{
-        label: 'Show the search’s best attack',
+        label: 'the search’s best attack',
         content: (
           <div>
             <p style={{ marginTop: 0 }}>

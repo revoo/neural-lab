@@ -8,8 +8,12 @@ import { CPU_RUN, GPU_RUN } from '../../lib/compute/gptReference';
 import { CPU_REFERENCE } from '../../lib/compute/gptReferenceResults';
 import { nodeFs } from '../../lib/nodeIo';
 import { MERGES } from './bpeMerges';
+import { runTraining } from '../../lib/compute/gptRun';
+import { InlineCpuTrainer } from '../../lib/compute/gptTrainerCore';
+import { designSpec } from './shipLab';
 import { births, continueText, headLocality, landmarks, parameterGroups, topNext } from './tinyGpt';
-import { allDesigns, designParams, designSteps, shipHint, type Recorded } from './shipLab';
+import { allDesigns, designKey, designParams, designSteps, gridSummary, meanVal, shipHint, TARGET, type Recorded } from './shipLab';
+import { SHIP_RESULTS } from './results';
 
 const corpus = prepareCorpus(text);
 
@@ -120,4 +124,40 @@ describe('Ship the tiny GPT: budget and hints', () => {
     for (const banned of ['learning rate', 'width', 'head', 'block', 'context', 'try ', 'should'])
       expect(h.toLowerCase()).not.toContain(banned);
   });
+
+  it('the recorded grid: 79 beat pair counts, 10 reach 1.79 (all context 16), best 1.723, fewest parameters 7,936 (three designs)', () => {
+    const r = SHIP_RESULTS as unknown as Record<string, Recorded>;
+    expect(Object.keys(r).length).toBe(108);
+    expect(TARGET).toBe(1.79);
+    const s = gridSummary(r, TARGET);
+    expect([s.total, s.beatBigram, s.hitTarget]).toEqual([108, 79, 10]);
+    expect(designKey(s.best.x)).toBe('L2-d32-h4-T16-lr0.01');
+    expect(meanVal(s.best.r).toFixed(3)).toBe('1.723');
+    expect(s.best.r.params).toBe(28160);
+    expect(s.leanest!.r.params).toBe(7936);
+    expect(s.leanestCount).toBe(3);
+    const hit = Object.entries(r).filter(([, v]) => meanVal(v) <= TARGET).map(([k]) => k);
+    expect(hit.every((k) => k.includes('-T16-'))).toBe(true);
+    const mean = (pred: (k: string) => boolean) => {
+      const v = Object.entries(r).filter(([k]) => pred(k)).map(([, x]) => meanVal(x));
+      return v.reduce((a, b) => a + b, 0) / v.length;
+    };
+    expect(mean((k) => k.includes('-T16-')).toFixed(3)).toBe('1.921');
+    expect(mean((k) => k.includes('-T64-')).toFixed(3)).toBe('2.220');
+    expect(Math.max(...Object.values(r).map((x) => Math.abs(x.val[0] - x.val[1]))).toFixed(2)).toBe('0.25');
+  });
+});
+
+describe("Ship the tiny GPT: the recorded optimums re-train exactly (seed 1; seed 2 comes from the same deterministic script)", () => {
+  for (const key of ['L2-d32-h4-T16-lr0.01', 'L2-d16-h4-T16-lr0.01'])
+    it(`${key}, seed 1`, async () => {
+      const x = allDesigns().find((d) => designKey(d) === key)!;
+      const rec = (SHIP_RESULTS as unknown as Record<string, Recorded>)[key];
+      for (const [i, seed] of [1].entries()) {
+        let last = NaN;
+        const spec = designSpec(x, seed);
+        await runTraining(spec, corpus, new InlineCpuTrainer(spec.cfg), (c) => void (last = c.valLoss));
+        expect(+last.toFixed(4)).toBe(rec.val[i]);
+      }
+    }, 300_000);
 });

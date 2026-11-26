@@ -18,8 +18,8 @@ export const BATCH = 16;
 /** Training compute allowed, in floating-point operations (6 · N · tokens). */
 export const BUDGET = 9e10;
 export const SEEDS = [1, 2] as const;
-/** Brief 2 and 3's target validation loss (nats per character, mean of both seeds). PROVISIONAL until the grid is complete. */
-export const TARGET = 1.85;
+/** Brief 2 and 3's target validation loss (nats per character, mean of both seeds), set from the full grid: 10 of 108 designs reach it. */
+export const TARGET = 1.79;
 
 export type Design = { layers: number; d: number; heads: number; T: number; lr: number };
 

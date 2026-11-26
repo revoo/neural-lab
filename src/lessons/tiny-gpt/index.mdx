@@ -130,6 +130,19 @@ You have a fixed training budget and a product to ship. A bigger model knows mor
 
 <ShipLab />
 
+<Deeper title="Debrief: what the whole grid shows" tag="Spoiler">
+
+All 108 designs (three depths, three widths, one or four heads, context 16 or 64, three learning rates), each trained on two seeds:
+
+- **79 of the 108 beat pair counts.** The failures are mostly the largest designs, which the budget allows only a few hundred steps, and the smallest learning rate, which barely moves in that time.
+- **10 reach 1.79, and every one of the ten uses a context of 16 characters.** Averaged over the grid, context 16 scores 1.921 and context 64 scores 2.220. A 16-character window costs a quarter as much per step, so at a fixed budget it buys four times as many steps, and at this scale more steps beat more context.
+- **Best in the grid: 2 blocks, width 32, 4 heads, context 16, learning rate 0.01, at 1.723.** That is 28,160 parameters: neither the biggest model (91,248) nor the smallest (4,656).
+- **Fewest parameters reaching 1.79: 7,936** (2 blocks of width 16, context 16). Three designs of that size get there, with different head counts and learning rates: more than one right answer.
+
+Two seeds per design is a small sample. For most designs the two seeds agree to within a few hundredths, but for some unstable settings they differ by up to 0.25, so a design near the target line can pass or fail by luck. "Best in the grid" means best of these 108 on these two seeds, not best possible.
+
+</Deeper>
+
 <ForReal>
 
 Andrej Karpathy's nanoGPT is the real-world version of this lab: a readable PyTorch GPT whose own README suggests training a character-level model on Shakespeare first. <Src href="https://github.com/karpathy/nanoGPT" /> Its GPU recipe (6 layers, 6 heads, width 384, 256 characters of context) reaches a validation loss of 1.4697 in about 3 minutes on one A100, and its CPU recipe (4 layers, 4 heads, width 128, 64 characters) reaches 1.88 in about 3 minutes. <Src href="https://github.com/karpathy/nanoGPT" /> Those are Shakespeare numbers, not fairy tales, so don't compare them digit for digit with ours. The shape of the trade-off is the same one you just met: for a fixed budget, the best model is neither the biggest nor the smallest.

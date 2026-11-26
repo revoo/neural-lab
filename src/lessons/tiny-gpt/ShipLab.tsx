@@ -198,7 +198,7 @@ export function ShipLab() {
       statusTone={shown && result && frame >= nFrames ? (passing ? 'good' : 'bad') : 'neutral'}
       hint={shown && result && frame >= nFrames && !passing ? shipHint(shown.x, result) : undefined}
       reveal={{
-        label: 'Show the whole grid',
+        label: 'the whole grid of 108 designs',
         content: <GridMap tried={tried.current} />,
       }}
       log={{ lines: log.lines, onClear: log.clear, title: 'ship.log', empty: 'Runs you try are listed here.' }}
@@ -298,7 +298,7 @@ function GridMap({ tried }: { tried: Set<string> }) {
             <title>{`${k}: ${fmt(r.params)} params, ${meanVal(r).toFixed(3)}`}</title>
           </circle>
         ))}
-        <text className="plot-tick" x={(w + 40) / 2} y={h - 4} textAnchor="middle">parameters (log scale), {fmt(minP)} to {fmt(maxP)}; lower is better</text>
+        <text className="plot-tick" x={(w + 40) / 2} y={h - 4} textAnchor="middle">parameters (log scale), {fmt(minP)} to {fmt(maxP)}; better designs sit higher</text>
       </svg>
       <div className="plot-tick">
         <span className="c-a">context 16</span> · <span className="c-b">context 64</span> · outlined: designs you tried.

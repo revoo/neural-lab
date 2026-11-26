@@ -62,7 +62,7 @@ export const questions: Question[] = [
     prompt: 'Every design in the lab gets the same compute budget (about 6 × parameters × characters seen). Why does the biggest design not win?',
     options: [
       {
-        text: 'Because it can afford very few training steps: with ten times the parameters it sees a tenth as much text, and stops while still improving.',
+        text: 'Because it can afford very few training steps: with ten times the parameters it sees a tenth as much text, too little to learn the language well.',
         correct: true,
         why: 'Size and training length trade against each other at fixed compute; the best loss comes from a balance, which is what compute-optimal scaling laws describe.',
       },

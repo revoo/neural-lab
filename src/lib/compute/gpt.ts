@@ -778,6 +778,14 @@ export class Decoder {
     this.tmp = new Float64Array(d);
     this.sc = new Float64Array(ctx);
   }
+  /** An independent copy of this decoder's state (the cached keys and values so far). */
+  clone(): Decoder {
+    const c = new Decoder(this.model);
+    c.len = this.len;
+    this.K.forEach((k, l) => c.K[l].set(k));
+    this.Vc.forEach((v, l) => c.Vc[l].set(v));
+    return c;
+  }
   /** Forget the cache and read `tokens`; returns the logits after the last one. */
   prefill(tokens: ArrayLike<number>): Float64Array {
     this.len = 0;
