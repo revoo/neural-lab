@@ -76,6 +76,8 @@ export async function runParity(): Promise<{ adapter: string; checks: Check[] }>
     const wg = await gpuE.readWeights();
     const flat = (ws: Float32Array[]) => ws.flatMap((x) => Array.from(x));
     push(`${c.name}: weights after 35 steps`, Math.max(...wc.map((w, r) => worstRel(flat(wg[r].W), flat(w.W)))), 5e-3);
+    // compare the forward kernels on identical weights (the GPU's), so drift from training doesn't count twice
+    wg.forEach((w, r) => cpu.setWeights(r, w));
     const grid = Float32Array.from({ length: 4100 * din }, () => rng.uniform(-2, 2)); // crosses the 4096-row chunk
     push(`${c.name}: predictions on 4,100 rows`, worstRel(await gpuE.predict(grid, 4100), cpu.predictSync(grid, 4100)), 2e-3);
     gpuE.destroy();

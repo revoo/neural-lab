@@ -2,6 +2,7 @@
 // Usage (dev server running):
 //   node scripts/drive-widget.cjs <lessonId> <widgetIndex> '<actions JSON>' [--width=1300] [--themes=light,dark,matrix] [--title=Lab]
 //   (--webgpu launches Chromium with WebGPU enabled (SwiftShader adapter); without it widgets fall back to the CPU tier)
+//   (--open-details opens every collapsed <details> first, for widgets inside a Deeper)
 //   (--title=<text> selects the first widget whose title contains <text>; widgetIndex is then ignored, pass 0)
 // Actions (array, run in order inside the widget's <figure>):
 //   {"click": "button:has-text('Next')", "times": 3}   click a Playwright selector (scoped to the widget)
@@ -40,6 +41,8 @@ fs.mkdirSync(outDir, { recursive: true });
     page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
     await page.goto(`${base}/#/learn/${lesson}`, { waitUntil: 'networkidle' });
     await page.evaluate((t) => (document.documentElement.dataset.theme = t), theme);
+    // --open-details opens every <Deeper>/<MathExhibit> first, for widgets placed inside one
+    if ('open-details' in flags) await page.evaluate(() => document.querySelectorAll('details').forEach((d) => (d.open = true)));
     await page.waitForTimeout(300);
     // --title=<text> picks the first widget whose title contains <text>, instead of the index.
     const widget = flags.title

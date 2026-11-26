@@ -11,7 +11,14 @@ const base = process.argv[2] || 'http://localhost:5173';
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   await page.goto(`${base}/#/glossary`, { waitUntil: 'networkidle' });
-  const res = await page.evaluate(async () => (await import('/src/lib/compute/parity.ts')).runParity());
+  const res = await page.evaluate(async () => {
+    const r = await (await import('/src/lib/compute/parity.ts')).runParity();
+    // V2-WP3: the GAN lab's whole-duel kernel (src/lessons/gans/ganGpu.ts)
+    const { getGpu } = await import('/src/lib/compute/webgpuBackend.ts');
+    const gpu = await getGpu();
+    if (gpu) r.checks.push(...(await (await import('/src/lessons/gans/ganGpu.ts')).ganGpuParity(gpu.device)));
+    return r;
+  });
   console.log(`adapter: ${res.adapter}`);
   let bad = 0;
   for (const c of res.checks) {

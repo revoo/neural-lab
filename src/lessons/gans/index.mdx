@@ -1,6 +1,7 @@
 {/* authored-by: Gemini Antigravity */}
 import { GanDuelWidget } from './Widgets'
 import { DuelBalanceLab } from './Lab'
+import { GridRerun } from './GridRerun'
 import { questions } from './quiz'
 
 ## The problem: why pixel averages look blurry
@@ -88,6 +89,12 @@ Searching all 30 combinations (5 LR ratios × 3 D-steps × 2 noise dimensions, e
 - **Brief 2 (average ≥ 2.8 modes and $W_1 \le 0.45$):** **6 of 30** settings pass — and **every single passing setting runs the discriminator faster than the generator** ($\text{lr}_G / \text{lr}_D \in \{0.25\times, 0.5\times\}$), matching the real-world Two Time-Scale Update Rule (TTUR) used to stabilise large GANs.
 - **Both extremes fail.** Pushing the generator faster than the discriminator ($\text{lr}_G / \text{lr}_D = 4\times$) collapses or diverges (`0.4`–`2.0` modes, $W_1 > 1.0$). Yet pushing the discriminator *too* hard (`4 D-steps` paired with `0.25×` LR ratio) **also** collapses (`1.4`–`1.6` modes, `0/5` seeds covering all three).
 - **Brief 3 (fewest total updates, best found by searching the 30-config grid):** **`lrRatio = 0.5×, D-steps = 1, noiseDim = 2`** reaches the 3-mode quality bar in **40 total updates** (20 outer steps × 2 updates/step) and finishes at **3.0/3 modes across all 5 seeds** ($W_1 = 0.396$). By comparison, `lrRatio = 0.25×, D-steps = 2, noiseDim = 2` achieves the lowest final error ($W_1 = 0.272$), but paying two discriminator steps per iteration triples the update budget to hit the bar (120 updates).
+
+You don't have to take the table on trust. The widget below repeats the entire search in your browser. If your machine has a GPU that the browser can use, all 150 duels train at once, one per shader thread.
+
+<GridRerun />
+
+On our test run of the GPU path (on a software GPU; real graphics cards round slightly differently, so yours may differ in the details), all six settings that pass Brief 2 passed it again, and the 40-update winner was still the fastest. All twelve settings where the generator learns more slowly than the discriminator came back close to the recorded numbers (mode averages within 0.2, $W_1$ within 0.06), half of them almost exactly. The settings where the generator keeps pace with or outpaces the discriminator came back noticeably different, and one of them (2D noise, 2 D-steps, generator twice as fast) even scraped past Brief 2. Those duels are chaotic: the GPU's 32-bit rounding is a tiny nudge, and an unbalanced duel amplifies it until the run goes somewhere else. Even the CPU path in a browser doesn't reproduce every row: browsers and Node.js (which recorded the search) can round `exp` and `tanh` differently in the last binary digit, and in our Chromium check that was enough to send several unbalanced duels elsewhere too, while the balanced ones held. That isn't a bug in either tier; it's the instability this lab is about, showing up in the arithmetic itself.
 
 </Deeper>
 
