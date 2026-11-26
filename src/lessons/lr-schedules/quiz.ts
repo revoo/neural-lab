@@ -60,7 +60,7 @@ export const questions: Question[] = [
     concepts: ['lr-schedule'],
     prompt: 'What is learning-rate warmup for?',
     options: [
-      { text: 'Protecting the fragile start of training in large models, when gradients are erratic and Adam’s running averages are based on very few steps.', correct: true, why: 'Big steps from random weights with unreliable statistics can knock a large model into a region it never recovers from. In small problems — like the ones in this lesson — warmup makes no measurable difference.' },
+      { text: 'Protecting the fragile start of training in large models, when gradients are erratic and Adam’s running averages are based on very few steps.', correct: true, why: 'Big steps from random weights with unreliable statistics can knock a large model into a region it never recovers from. In this lesson’s deep spiral network it calmed the start (about half the early loss spike) but didn’t change how many runs succeeded.' },
       { text: 'It makes every model train faster.', why: 'In our tests it changed nothing, and on the delivery problem it was very slightly worse. Its benefit is stability at scale.' },
       { text: 'It’s how momentum builds up velocity.', why: 'Momentum builds velocity on its own; warmup is a schedule for the step size.' },
     ],

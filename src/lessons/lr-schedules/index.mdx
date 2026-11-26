@@ -1,4 +1,5 @@
 import { FastOrPrecise, ScheduleRace, ScheduleDesigner } from './Widgets'
+import { WarmupDemo } from './WarmupDemo'
 import { questions } from './quiz'
 
 ## The problem: what the step size should be depends on *when* you ask
@@ -76,11 +77,31 @@ Notice the peak step sizes the search chose: the decaying schedules can afford a
 
 ### What about warmup?
 
-In this race, warmup made things very slightly worse. That's not an accident of tuning. We also tried it where it's often recommended: training a small ReLU network on a spiral dataset with Adam, at peak step sizes from 0.01 up to 0.1, across 8 random starts. With or without 100 steps of warmup, every single run reached 100% accuracy. In small problems like these, warmup has nothing to fix.
+In this race, warmup made things very slightly worse. That's not an accident of tuning: a straight-line fit has no fragile start to protect. So we went looking for a problem where it might matter, the kind of setting where it's usually recommended: a deep stack of ReLU layers, Adam, and a step size near the edge of what the network can take.
 
-It earns its keep in large models, where the beginning of training is fragile. At the start, the weights are random, so gradients can be unusually large and erratic, and Adam's running averages of gradient sizes are based on only a handful of steps, so its per-weight step sizes are unreliable. A full-sized step in that state can knock a large network into a bad region it never recovers from — a sudden loss spike, or many ReLUs dying at once. Warming up gives the averages time to settle and the weights time to leave the most chaotic region before taking big steps. That's why the original transformer paper warmed up for its first 4,000 steps, and why almost every large language model does the same today.
+<Predict
+  question="Six seeds, each trained twice from the same start on the same mini-batches: once at a constant peak step size, once warming up to it over the first 300 steps. At the largest peak, what will warmup change?"
+  options={['Nothing visible: the two runs of each seed look the same', 'The start is calmer, but about as many runs end up stuck', 'The start is calmer and far fewer runs end up stuck']}
+  answer={1}
+>
 
-It's a good example of a habit you should keep: a technique that matters at scale may do nothing in a toy problem, and the honest thing is to say so rather than invent a demo.
+Over 20 seeds at peak 0.03, warmup roughly halves the worst early loss (median 4.13 without, 2.23 with; the single worst run 9.51 against 6.11). But 8 of the 20 runs end near guessing **either way**, and only 2 and 3 runs respectively classify at least 99% of the spiral. Warmup smooths the start; it doesn't rescue the ending.
+
+</Predict>
+
+<WarmupDemo />
+
+At peak 0.01 every run solves the spiral, warmup or not (20 of 20 both ways), so there's nothing to rescue. At peak 0.02 our first 20 seeds told a tempting story: 16 warmed-up runs solved the spiral against 9 without. We didn't believe it, so we ran 40 fresh seeds. There the counts were 24 without warmup and 22 with it. The first result was luck.
+
+<Deeper title="How we tested it">
+
+We ran the network above at peaks 0.01, 0.02 and 0.03 for 1,000 steps, 20 seeds each, with and without 300 warmup steps, and then 40 more seeds at 0.02 to check the one promising result. Each seed's two runs share their starting weights and their mini-batches, so the only difference is the schedule. Earlier we also tried smaller networks (2 → 16 → 16 → 1), wider and deeper ones (12 hidden layers), and SGD with momentum at larger batches: none showed warmup changing how many runs succeed. In every case warmup did what it promises at the start, smaller early loss spikes, and nothing measurable at the end.
+
+</Deeper>
+
+Warmup earns its keep in large models, where the beginning of training is fragile in ways a 29,000-weight network isn't. At the start, the weights are random, so gradients can be unusually large and erratic, and Adam's running averages of gradient sizes are based on only a handful of steps, so its per-weight step sizes are unreliable. A full-sized step in that state can knock a large network into a bad region it never recovers from — a sudden loss spike, or many ReLUs dying at once. Warming up gives the averages time to settle and the weights time to leave the most chaotic region before taking big steps. That's why the original transformer paper warmed up for its first 4,000 steps, and why almost every large language model does the same today. You've now seen the first half of that story, the calmer start, for real; the second half, the run that would otherwise have been lost, needs a model far bigger than a browser tab can train.
+
+It's a good example of two habits worth keeping: a technique that matters at scale may do little in a small problem, and the honest thing is to say so rather than invent a demo; and a difference seen on a handful of seeds needs checking on fresh ones before you believe it.
 
 ## Your turn: design a schedule
 
@@ -144,7 +165,7 @@ for g in optimizer.param_groups:      # set it by hand each step
 - With mini-batches, a constant step size leaves the model **jittering** around the minimum, by an amount roughly proportional to the step size.
 - So use **big steps early, small steps late**: a learning-rate schedule. Step decay and cosine decay are the common shapes.
 - Decaying schedules can afford a **higher peak** than a constant step size, because they don't keep it until the end. On our problem, cosine finished 2.4× closer to the best loss than the best constant step size.
-- **Warmup** protects fragile early training in large models. In small problems it does nothing — we checked.
+- **Warmup** calms the start of training: in our deep ReLU network it roughly halved the early loss spike. It didn't change how many runs succeeded, even over 40 fresh seeds; its rescues happen in much larger models.
 - The **end** of the schedule matters most: a schedule that finishes with a big step size throws away its precision.
 
 </Takeaways>
