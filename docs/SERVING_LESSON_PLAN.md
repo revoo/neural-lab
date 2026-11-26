@@ -325,8 +325,8 @@ One commit per step, pushed to `claude/cool-feynman-4hci4d`. Small related steps
 - [x] **S1 Engine:** `serve.ts` (step cost, trace, simulator) with `serve.test.ts`. Includes the constants-consistency test against 205.2 tok/s, the conservation tests, and the static-batching fairness search script and its pinned result (`staticSearch.run.ts` → `staticBest.ts`).
 - [x] **S2 Speculative engine:** `spec.ts`, `trainDraft.run.ts` → `draftGpt.bin` (5,424-param small GPT drafting for `tinyGpt.cpu.bin`), bigram drafter, rollback check, the exactness tests, `spec.run.ts` → `specResults.ts`, re-verification test in `spec.test.ts`. Chunked-prefill equivalence test on the real tiny GPT.
 - [x] **S3 Lab 1 search:** `lab.ts`, `search.run.ts` → `results.ts` (counts, optimum, Pareto front, 56-config static sweep) + `search.test.ts` + `hints.test.ts`. Thresholds chosen after measuring (Brief 1: 90/300, Brief 2: 32/300, Brief 3: 18/300).
-- [ ] **S4 Widgets A–E (IN PROGRESS — Gemini Antigravity):** + Lab 1 + Lab 2 components, `realCode.ts` + `realCode.test.ts`. Screenshots in three themes and at 390px.
-- [ ] **S5 Prose:** `index.mdx`, `quiz.ts`, glossary, history card, wiring (curriculum, dependencies, areas), the `kv-cache` links and bridge. Every quoted number pinned. Python snippets run, with their real output pasted.
+- [x] **S4 Widgets A–E** + Lab 1 (`ServingDeskLab.tsx`) + Lab 2 (`TuneDraftLab.tsx`), hints and `hints.test.ts`, `realCode.ts` + `realCode.test.ts` (browser screenshots in all 3 themes & 390px run right after S5 wires the route).
+- [ ] **S5 Prose (IN PROGRESS — Gemini Antigravity):** `index.mdx`, `quiz.ts`, glossary, history card, wiring (curriculum, dependencies, areas), the `kv-cache` links and bridge. Every quoted number pinned. Python snippets run, with their real output pasted.
 - [ ] **S6 Wrap-up:** full checks, both `check-pages` runs, watermark check; update `docs/ROADMAP.md` (Current state, status table, Next steps, Labs built so far) and this checklist; push.
 
 ## 9. Risks and decisions left to the implementer (record what you decide in the roadmap)
