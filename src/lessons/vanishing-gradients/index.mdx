@@ -4,14 +4,16 @@ import { questions } from './quiz';
 
 # Vanishing & Exploding Gradients
 
-In [Backpropagation](#/learn/backpropagation), we saw that the chain rule passes blame backward through a network by **multiplying** local derivatives one layer after another. For a two-layer network, multiplying two numbers together is completely harmless.
+In <LessonLink to="backpropagation">Backpropagation, One Step at a Time</LessonLink>, we saw that the chain rule passes blame backward through a network by **multiplying** local derivatives one layer after another. For a two-layer network, multiplying two numbers together is completely harmless.
 
 For a 16-layer or 100-layer network, multiplying 16 or 100 numbers together is a **compound-interest machine** — and compound interest almost never stays politely near 1.
 
 - Multiply by **0.25** sixteen times and your signal shrinks to $0.25^{16} \approx 2.3 \times 10^{-10}$ — **<Term id="vanishing-gradients">vanishing gradients</Term>**: the early layers receive zero learning signal and freeze in place.
 - Multiply by **4.0** sixteen times and your signal balloons to $4^{16} \approx 4.3 \times 10^{9}$ — **exploding gradients**: one update sends weights straight to `NaN`.
 
-For nearly two decades — from the late 1980s until the early 2010s — this single exponential knife-edge kept neural networks shallow. In 1991, a student named Sepp Hochreiter formally identified this failure — the vanishing gradient problem — in his German diploma thesis at the Technical University of Munich. <Src href="https://en.wikipedia.org/wiki/Vanishing_gradient_problem" /> <Src href="https://en.wikipedia.org/wiki/Sepp_Hochreiter" /> Practical fixes that made very deep feedforward networks train reliably took roughly two more decades. Let’s take the compound-interest machine apart and watch the four inventions that finally tamed it: **ReLU**, **variance-preserving initialisation (Xavier & He)**, **LayerNorm**, and **residual skip connections**.
+You already saw the seed of this failure in miniature in <LessonLink to="backpropagation">the backpropagation lesson</LessonLink>. In the 2 → 2 → 2 credit-assignment explorer's *Saturated tanh* preset, just **one** hidden neuron sitting out on the flat shelf at $z_1 = 4.0$ had a local slope of $1 - h_1^2 = 0.0013$ and choked its incoming weight gradients by **682×** compared with its active neighbour. And in the single-step XOR microscope right beneath it, you watched what a starved gradient means geometrically: when a hidden neuron's incoming gradients vanish, its crease line ($h_j = 0$) physically stops rotating, leaving the early layer frozen while the output neuron struggles to compensate on its own.
+
+Now imagine stacking **16 or 32** of those activation valves in series — the real-world depth of modern networks. Every layer multiplies the backward signal by another local slope and another transposed weight matrix. For nearly two decades — from the late 1980s until the early 2010s — this single exponential knife-edge kept neural networks shallow. In 1991, a student named Sepp Hochreiter formally identified this failure — the vanishing gradient problem — in his German diploma thesis at the Technical University of Munich. <Src href="https://en.wikipedia.org/wiki/Vanishing_gradient_problem" /> <Src href="https://en.wikipedia.org/wiki/Sepp_Hochreiter" /> Practical fixes that made very deep feedforward networks train reliably took roughly two more decades. Let’s take the compound-interest machine apart and watch the four inventions that finally tamed it: **ReLU**, **variance-preserving initialisation (Xavier & He)**, **LayerNorm** (which pulls pre-activations back off the flat shelf into the active slope zone), and **residual skip connections** (which wire a `+1` highway straight past every valve).
 
 ---
 
@@ -22,15 +24,16 @@ Imagine sending a random vector of 32 numbers forward through 16 dense layers, t
 At every layer $\ell$, the forward pass multiplies by a matrix $W_\ell$ and applies an activation $\phi$; the backward pass multiplies by the transpose $W_\ell^\top$ and the activation’s slope $\phi'(z_\ell)$:
 
 <Eq
-  words="Layer-0 gradient  =  output gradient  ×  product of (weights × activation slope) at every layer"
+  words="\ca{\text{layer-0 gradient}} = \cg{\text{output gradient}} \times \prod_{\ell} \big(\cb{\text{weights}^\top} \times \cc{\text{activation slope}}\big)"
   tex="\ca{\frac{\partial L}{\partial h_0}} \;=\; \cg{\frac{\partial L}{\partial h_L}} \cdot \prod_{\ell=0}^{L-1} \left( \cb{W_\ell^\top} \cdot \cc{\operatorname{diag}\!\big(\phi'(z_\ell)\big)} \right)"
-  legend={[
-    ['\\partial L / \\partial h_0', 'learning signal reaching the very first layer', 'a'],
-    ['\\partial L / \\partial h_L', 'upstream gradient arriving from the loss at the top layer', 'g'],
-    ['W_\\ell^\\top', 'layer weight matrix (transposed for the backward pass)', 'b'],
-    ['\\phi\'(z_\\ell)', 'slope of the activation function at each neuron’s pre-activation', 'c'],
-  ]}
-/>
+>
+
+- $\ca{\partial L / \partial h_0}$ — the **learning signal** reaching the very first layer
+- $\cg{\partial L / \partial h_L}$ — the **upstream gradient** arriving from the loss at the top layer
+- $\cb{W_\ell^\top}$ — each layer's **weight matrix**, transposed for the backward pass
+- $\cc{\phi'(z_\ell)}$ — the **activation slope** (the local valve) at each neuron’s pre-activation
+
+</Eq>
 
 Before touching the controls below, make a prediction about the classic 1990s combination: **Sigmoid** with sensible **Xavier** weights ($\sigma = 1/\sqrt{d}$).
 
@@ -42,8 +45,11 @@ Before touching the controls below, make a prediction about the classic 1990s co
     'Less than 10⁻⁹× — vanished by roughly ten orders of magnitude.',
   ]}
   answer={2}
-  explain="The sigmoid derivative σ′(z) = σ(z)(1 − σ(z)) peaks at 0.25 (at z = 0) and is even smaller everywhere else. Multiplying by ≤ 0.25 sixteen times crushes the gradient by more than ten orders of magnitude — in our real 16-layer probe below, it lands at 6.1 × 10⁻¹¹!"
-/>
+>
+
+The sigmoid derivative $\sigma'(z) = \sigma(z)(1 - \sigma(z))$ peaks at $0.25$ (at $z = 0$) and is even smaller everywhere else. Multiplying by $\le 0.25$ sixteen times crushes the gradient by more than ten orders of magnitude — in our real 16-layer probe below, it lands at **`6.1 × 10⁻¹¹`**!
+
+</Predict>
 
 Test that prediction live in the widget below. Try four classic regimes:
 1. **Sigmoid + Xavier:** forward RMS sits near `0.54`, yet the backward gradient collapses to **`6.1 × 10⁻¹¹`**.
@@ -66,15 +72,16 @@ $$z \;=\; \sum_{j=1}^{d} w_j x_j.$$
 When inputs $x_j$ have mean 0 and variance 1, and weights $w_j$ are drawn independently with mean 0 and variance $\sigma_w^2$, the variance of the sum **adds up $d$ times**:
 
 <Eq
-  words="Output variance  =  (half, if ReLU)  ×  fan-in width  ×  weight variance  ×  input variance"
+  words="\ca{\text{output variance}} = \cc{\text{survival factor}} \times \cb{\text{fan-in width}} \times \cp{\text{weight variance}} \times \text{input variance}"
   tex="\ca{\operatorname{Var}(y)} \;=\; \cc{g} \cdot \cb{d_{\text{in}}} \cdot \cp{\sigma_w^2} \cdot \operatorname{Var}(x) \quad \Longrightarrow \quad \cp{\sigma_w} \;=\; \sqrt{\frac{1}{\cc{g} \cdot \cb{d_{\text{in}}}}}"
-  legend={[
-    ['\\operatorname{Var}(y)', 'variance (squared RMS) of the layer’s outputs — we want this to stay 1', 'a'],
-    ['d_{\\text{in}}', 'number of inputs feeding into each neuron (fan-in)', 'b'],
-    ['\\sigma_w', 'initial standard deviation of the layer’s weights', 'p'],
-    ['g', 'activation survival factor: 1 for linear (Xavier), 1/2 for ReLU (He)', 'c'],
-  ]}
-/>
+>
+
+- $\ca{\operatorname{Var}(y)}$ — the **variance** (squared RMS) of the layer’s outputs — we want this to stay near $1$
+- $\cb{d_{\text{in}}}$ — the **fan-in width**: number of inputs feeding into each neuron
+- $\cp{\sigma_w}$ — the initial **standard deviation** of the layer’s weights
+- $\cc{g}$ — the **activation survival factor**: $1$ for linear (Xavier), $\tfrac{1}{2}$ for ReLU (He)
+
+</Eq>
 
 Look how cleanly the two famous initialisation formulas fall right out of setting $\operatorname{Var}(y) = 1$:
 
@@ -119,15 +126,16 @@ $$h_{\ell+1} \;=\; h_\ell \;+\; \alpha\, f_\ell(h_\ell).$$
 Differentiate with respect to $h_\ell$ and look at the **`1`** sitting right in front:
 
 <Eq
-  words="Residual local derivative  =  1 (unobstructed highway)  +  scaled branch derivative"
+  words="\text{residual local derivative} = \cg{1 \text{ (unobstructed highway)}} + \cb{\text{scaled branch derivative}}"
   tex="\frac{\partial h_{\ell+1}}{\partial h_\ell} \;=\; \cg{I} \;+\; \cb{\alpha\, \frac{\partial f_\ell}{\partial h_\ell}}"
-  legend={[
-    ['I', 'identity matrix (“1”): lets upstream gradients pass straight through untouched', 'g'],
-    ['\\alpha\\, \\partial f_\\ell / \\partial h_\\ell', 'branch derivative, scaled by α = 1/√L so deep stacks start stable', 'b'],
-  ]}
-/>
+>
 
-Even if the branch $f_\ell$ uses **Sigmoid** — whose derivative is tiny — the identity term $I$ delivers the upstream gradient straight back to layer 0 without ever multiplying by $0.25$! Flip on **LayerNorm + Residual** for 16-layer Sigmoid in our probe and the gradient ratio jumps eleven orders of magnitude, from `6.1 × 10⁻¹¹` straight to **`1.02×`**.
+- $\cg{I}$ — the **identity matrix (“1”)**: lets upstream gradients pass straight through untouched
+- $\cb{\alpha\, \partial f_\ell / \partial h_\ell}$ — the **branch derivative**, scaled by $\alpha = 1/\sqrt{L}$ so deep stacks start stable
+
+</Eq>
+
+Even if the branch $f_\ell$ uses **Sigmoid** — or hits a saturated `tanh` valve like the **682×** choke from <LessonLink to="backpropagation">the backpropagation lesson</LessonLink> — the identity term $I$ delivers the upstream gradient straight around the closed valve and back to layer 0, while **LayerNorm** re-centres each layer's pre-activations off the flat shelf before the activation ever sees them. Flip on **LayerNorm + Residual** for 16-layer Sigmoid in our probe and the gradient ratio jumps eleven orders of magnitude, from `6.1 × 10⁻¹¹` straight to **`1.02×`**.
 
 ---
 
