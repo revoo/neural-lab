@@ -144,11 +144,11 @@ You have creative licence to make these widgets and puzzles genuinely delightful
 
 Make one commit per step and push to `claude/cool-feynman-4hci4d`. Tick each step when pushed and mark the active step `IN PROGRESS`.
 
-- [ ] **B1 Engines & tests (`tinyMlp.ts` + `tinyMlp.test.ts`, `softmax.ts` + `softmax.test.ts`):**
+- [x] **B1 Engines & tests (`tinyMlp.ts` + `tinyMlp.test.ts`, `softmax.ts` + `softmax.test.ts`):**
   - `2 → 2 → 2` scalar credit-assignment network on `Value` + explicit backward, finite-diff checked `< 1e-8`, with pinned presets (*Balanced*, *Cancelling paths*, *Identical twins* staying bit-identical over 10 steps, *Saturated tanh* >500× attenuation).
   - `2 → 2 → 1` geometry microscope network with exact zero-contour line solver, single-point vs full-batch step, and finite-diff check.
   - `network-from-scratch/softmax.ts`: 3-class softmax + cross-entropy analytic vs central finite-diff check (`< 1e-8`), sum-to-zero invariant.
-- [ ] **B2 Lab engine, exhaustive search & hints (`creditLab.ts`, `search.run.ts` → `results.ts`, `creditLab.test.ts`, `hints.test.ts`, `realCode.ts` + `realCode.test.ts`):**
+- [ ] **B2 (IN PROGRESS) Lab engine, exhaustive search & hints (`creditLab.ts`, `search.run.ts` → `results.ts`, `creditLab.test.ts`, `hints.test.ts`, `realCode.ts` + `realCode.test.ts`):**
   - Measure all 3 briefs of *The Credit-Assignment Workbench* before fixing thresholds; ensure multiple valid routes and clear failing routes on Briefs 2 and 3.
   - Pin all exhaustive counts, optimums, failing routes, and evidence-only hint invariants in tests.
   - Verify PyTorch `LiveCode` snippets (run locally if PyTorch is installed, or verify against standard PyTorch `autograd` / `requires_grad` / `register_hook` API and document clearly).
