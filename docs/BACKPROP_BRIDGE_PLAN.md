@@ -148,11 +148,11 @@ Make one commit per step and push to `claude/cool-feynman-4hci4d`. Tick each ste
   - `2 → 2 → 2` scalar credit-assignment network on `Value` + explicit backward, finite-diff checked `< 1e-8`, with pinned presets (*Balanced*, *Cancelling paths*, *Identical twins* staying bit-identical over 10 steps, *Saturated tanh* >500× attenuation).
   - `2 → 2 → 1` geometry microscope network with exact zero-contour line solver, single-point vs full-batch step, and finite-diff check.
   - `network-from-scratch/softmax.ts`: 3-class softmax + cross-entropy analytic vs central finite-diff check (`< 1e-8`), sum-to-zero invariant.
-- [ ] **B2 (IN PROGRESS) Lab engine, exhaustive search & hints (`creditLab.ts`, `search.run.ts` → `results.ts`, `creditLab.test.ts`, `hints.test.ts`, `realCode.ts` + `realCode.test.ts`):**
+- [x] **B2 Lab engine, exhaustive search & hints (`creditLab.ts`, `search.run.ts` → `results.ts`, `creditLab.test.ts`, `hints.test.ts`, `realCode.ts` + `realCode.test.ts`):**
   - Measure all 3 briefs of *The Credit-Assignment Workbench* before fixing thresholds; ensure multiple valid routes and clear failing routes on Briefs 2 and 3.
   - Pin all exhaustive counts, optimums, failing routes, and evidence-only hint invariants in tests.
   - Verify PyTorch `LiveCode` snippets (run locally if PyTorch is installed, or verify against standard PyTorch `autograd` / `requires_grad` / `register_hook` API and document clearly).
-- [ ] **B3 Widgets & Lab UI:**
+- [ ] **B3 (IN PROGRESS) Widgets & Lab UI:**
   - `TinyMlpBackprop.tsx` (clickable `2 → 2 → 2` diagram, dual-path fan-in highlight, side-by-side $W_2^\top$ matrix correspondence, preset switcher, step button).
   - `StepMicroscope.tsx` (2D heatmap + solid/ghost hidden lines + clickable points + 9-weight gradient table + animated replay respecting `prefers-reduced-motion`).
   - `CreditLab.tsx` (`LabShell`, all 3 briefs including hidden-space untangling view in Brief 3, `MachineLog`, `LiveCode`, `AnswerReveal`).
