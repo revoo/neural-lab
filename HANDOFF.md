@@ -66,6 +66,10 @@ Before every commit: `npm test` → `npm run build` → `rg "<MODEL_NAME>" dist/
 
 ### Gotchas found in this run
 
+- **(V2-WP3) WebGPU in headless Chromium** needs `--enable-unsafe-webgpu` *and* a secure context (`http://localhost`, not `about:blank`); the adapter is SwiftShader (a CPU emulation, so slow). `node scripts/check-webgpu.cjs` runs every WGSL kernel against the CPU tier; `drive-widget.cjs --webgpu` screenshots a widget on the GPU tier. Without the flag, widgets fall back to the CPU tier (that's what `check-pages.cjs` exercises).
+- **(V2-WP3) One buffer can't be bound read-only and read-write in the same dispatch** (WebGPU validation silently invalidates the dispatch and you read garbage). Use distinct dummy buffers.
+- **(V2-WP3) Tiny networks are launch-bound on a GPU.** Don't claim the GPU is faster for the training lab's 37-parameter nets; the caption says the CPU often wins there.
+
 - **(WP2–WP5) Vitest only collects `src/**/*.test.ts`.** A probe test in `scratch/` is "not found". To print data from modules the TS runner can't load, put a throwaway `src/zz-probe.test.ts` in place, run it with `--silent=false`, then delete it.
 - **(WP2–WP5) Make bulk-edit scripts idempotent, or run them once.** Re-running an earlier "replace X with Y" script silently undid a later hand edit (the 31-word summaries). After any scripted edit, re-run the relevant test.
 - **(WP2–WP5) Screenshot scripts and themes:** the theme is stored in `localStorage` under `nl-theme` (`light`, `dark`, `matrix`).
@@ -367,7 +371,7 @@ Owner-approved next release (implement in order, one work package per commit or 
 
 - [x] V2-WP1 Optional sections & guided tracks — **revised by the owner**: replaced by Foundational / "where this belongs" chips (`src/areas.ts`, `AreaChip`); no track toggle
 - [x] V2-WP2 Interactive Concept Dependency Graph (`#/map`)
-- [ ] V2-WP3 Two-Tier Compute Offloading (Test `Float32Array` + Production WebGPU)
+- [ ] V2-WP3 Two-Tier Compute Offloading (Test `Float32Array` + Production WebGPU) — **IN PROGRESS**: done: `src/lib/compute/` (CPU tier + WebGPU tier + selector + parity), `BackendChip`, training-lab on WebGPU. To do: GAN lab sweep on WebGPU, live warmup experiment in `lr-schedules`, live grokking in `open-questions`, **required** (owner) CPU vs WebGPU throughput benchmark in `kv-cache`.
 - [ ] V2-WP4 Mixture of Experts (MoE) & Sparse Routing (`moe` + Lab: Balance the Experts)
 - [ ] V2-WP5 Reasoning Models & Test-Time Compute (`reasoning` + Lab: Spend the Test-Time Budget)
 - [ ] V2-WP6 Multimodal Models & Vision Transformers (`multimodal-vit` + Lab: Wire the Multimodal Model)

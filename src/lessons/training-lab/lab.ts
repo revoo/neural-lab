@@ -162,6 +162,31 @@ export class Trainer {
     }
   }
 
+  /**
+   * V2-WP3: the rows `step(k)` would train on, drawn from the same seeded RNG and in the same order,
+   * laid out [step][row]. The WebGPU path trains on exactly these batches, then hands the weights back
+   * with `adopt`, so a run's batches don't depend on which tier computed it.
+   */
+  drawBatches(k: number): Int32Array {
+    const n = this.X.length;
+    const B = Math.min(this.cfg.batch, n);
+    const out = new Int32Array(k * B);
+    for (let i = 0; i < out.length; i++) out[i] = this.rng.int(n);
+    return out;
+  }
+
+  /** The featurised training rows, flat and row-major (for uploading to a compute engine). */
+  trainingData(): { X: Float32Array; Y: Float32Array; n: number } {
+    return { X: Float32Array.from(this.X.flat()), Y: Float32Array.from(this.Y.flat()), n: this.X.length };
+  }
+
+  /** Take weights trained elsewhere (W[l] row-major [out × in]) and count the steps they took. */
+  adopt(W: Float32Array[], b: Float32Array[], steps: number) {
+    W.forEach((Wl, l) => this.net.W[l].forEach((row, j) => row.forEach((_, i) => (row[i] = Wl[j * row.length + i]))));
+    b.forEach((bl, l) => this.net.b[l].forEach((_, j) => (this.net.b[l][j] = bl[j])));
+    this.steps += steps;
+  }
+
   get epochs() {
     return (this.steps * Math.min(this.cfg.batch, this.X.length)) / Math.max(1, this.X.length);
   }

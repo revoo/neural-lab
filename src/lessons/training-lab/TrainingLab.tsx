@@ -26,11 +26,16 @@ import {
 } from './lab';
 import { BEST_FOUND, CHALLENGES, CHALLENGE_DATA, challengeData } from './challenges';
 import { PRESETS } from './presets';
+import { BackendChip, useComputeTier } from '../../components/BackendChip';
+import { createMlpEngine } from '../../lib/compute/selectBackend';
+import type { MlpEngine } from '../../lib/compute/types';
 
 const MAX_LAYERS = 4;
 const MAX_WIDTH = 8;
 const STEPS_PER_FRAME = 8;
 const MAX_STEPS = 30000;
+/** The decision-region heatmap's resolution; on WebGPU the whole grid is evaluated in one dispatch. */
+const GRID_N = 56;
 const LRS = [0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1, 3];
 const BATCHES = [1, 4, 10, 30, 100];
 const L2S = [0, 0.0001, 0.001, 0.003, 0.01, 0.03, 0.1];
@@ -234,11 +239,79 @@ export function TrainingLab() {
     setVersion((v) => v + 1);
   }, [trainer]);
 
+  // V2-WP3: the compute tier. On WebGPU the steps run on the GPU on exactly the batches the CPU
+  // trainer would have drawn, and the weights come back into `trainer` after every frame.
+  const tier = useComputeTier();
+  const engineRef = useRef<MlpEngine | null>(null);
+  const [gpuGrid, setGpuGrid] = useState<Float32Array | null>(null);
+  const [timing, setTiming] = useState('');
+  const gridX = useMemo(() => {
+    const X = new Float32Array(GRID_N * GRID_N * cfg.features.length);
+    let k = 0;
+    for (let j = 0; j < GRID_N; j++)
+      for (let i = 0; i < GRID_N; i++)
+        for (const v of featurize(cfg.features, -DOMAIN + ((i + 0.5) / GRID_N) * 2 * DOMAIN, DOMAIN - ((j + 0.5) / GRID_N) * 2 * DOMAIN)) X[k++] = v;
+    return X;
+  }, [cfg.features]);
+  // switching tier restarts the run from the same seed, so a run is never half CPU, half GPU
+  const firstTier = useRef(tier.kind);
+  useEffect(() => {
+    if (tier.kind === 'checking' || firstTier.current === tier.kind) return;
+    firstTier.current = tier.kind;
+    setCfg((c) => ({ ...c }));
+  }, [tier.kind]);
+  useEffect(() => {
+    engineRef.current?.destroy();
+    engineRef.current = null;
+    setGpuGrid(null);
+    setTiming('');
+    if (!trainer || tier.kind !== 'webgpu') return;
+    let live = true;
+    createMlpEngine({ sizes: sizesOf(cfg), acts: [...cfg.hidden.map(() => cfg.activation), 'sigmoid'], loss: 'bce', opt: { kind: cfg.optimizer }, l2: cfg.l2 }, 'auto').then(async (e) => {
+      if (!live || e.kind !== 'webgpu') return e.destroy();
+      e.setWeights(0, { W: trainer.net.W.map((L) => Float32Array.from(L.flat())), b: trainer.net.b.map((b) => Float32Array.from(b)) });
+      const d = trainer.trainingData();
+      e.setData(d.X, d.Y, d.n);
+      engineRef.current = e;
+      const g = await e.predict(gridX, GRID_N * GRID_N);
+      if (live) setGpuGrid(g);
+    });
+    return () => {
+      live = false;
+    };
+  }, [trainer, tier.kind]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Train k steps on whichever tier is active. */
+  const advance = async (k: number) => {
+    if (!trainer) return;
+    const t0 = performance.now();
+    const e = engineRef.current;
+    if (e) {
+      const idx = trainer.drawBatches(k);
+      const B = idx.length / k;
+      await e.train({ steps: k, batch: B, idx, lr: new Float32Array(k).fill(cfg.lr) });
+      const [w] = await e.readWeights();
+      trainer.adopt(w.W, w.b, k);
+      const t1 = performance.now();
+      setGpuGrid(await e.predict(gridX, GRID_N * GRID_N));
+      setTiming(`${k} steps ${(t1 - t0).toFixed(1)} ms · map ${(performance.now() - t1).toFixed(1)} ms`);
+    } else {
+      trainer.step(k);
+      setTiming(`${k} steps ${(performance.now() - t0).toFixed(1)} ms`);
+    }
+  };
+
   // training loop
   useEffect(() => {
     if (!running || !trainer) return;
-    const tick = () => {
-      trainer.step(STEPS_PER_FRAME);
+    let live = true;
+    const tick = async () => {
+      try {
+        await advance(STEPS_PER_FRAME);
+      } catch {
+        return setRunning(false);
+      }
+      if (!live) return;
       const m = trainer.metrics();
       setHist((h) => {
         const next = [...h, { step: trainer.steps, ...pick(m) }];
@@ -252,8 +325,11 @@ export function TrainingLab() {
       raf.current = requestAnimationFrame(tick);
     };
     raf.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf.current);
-  }, [running, trainer]);
+    return () => {
+      live = false;
+      cancelAnimationFrame(raf.current);
+    };
+  }, [running, trainer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const m = useMemo(() => (trainer ? trainer.metrics() : null), [trainer, version]); // eslint-disable-line react-hooks/exhaustive-deps
   const params = paramCount(cfg);
@@ -274,7 +350,16 @@ export function TrainingLab() {
   }, [achieved, challenge, params]);
 
   // visuals
-  const bg = useMemo(() => (trainer ? (x: number, y: number) => trainer.predictXY(x, y) : () => 0.5), [trainer, version]); // eslint-disable-line react-hooks/exhaustive-deps
+  const bg = useMemo(() => {
+    if (!trainer) return () => 0.5;
+    if (gpuGrid && engineRef.current) {
+      // the Heatmap samples exactly the GRID_N × GRID_N cell centres the GPU evaluated
+      const g = gpuGrid;
+      const cell = (v: number) => Math.max(0, Math.min(GRID_N - 1, Math.floor(((v + DOMAIN) / (2 * DOMAIN)) * GRID_N)));
+      return (x: number, y: number) => g[(GRID_N - 1 - cell(y)) * GRID_N + cell(x)];
+    }
+    return (x: number, y: number) => trainer.predictXY(x, y);
+  }, [trainer, version, gpuGrid]); // eslint-disable-line react-hooks/exhaustive-deps
   const cmap = useMemo(() => (t: number) => diverging(1 - t), []);
   const sizes = sizesOf(cfg);
   const thumbs = useMemo(() => {
@@ -385,11 +470,16 @@ export function TrainingLab() {
     <Widget
       title="The training laboratory"
       wide
+      actions={<BackendChip tier={tier} timing={timing} />}
       caption={
         <>
           Everything is real: a network built from the parts you’ve met, trained live with mini-batch gradient descent and backpropagation. Filled points are the
           training data; hollow ones are <strong>test</strong> data the network never trains on (red rings: currently misclassified). Choose data, inputs, architecture and
-          settings, then press <strong>Train</strong>. Any change of setup starts a fresh network from the same random start, so runs are reproducible.
+          settings, then press <strong>Train</strong>. Any change of setup starts a fresh network from the same random start, so runs are reproducible. The chip in
+          the corner says where the arithmetic runs: on your GPU (WebGPU) when the browser offers one, otherwise on the CPU. Both train on the same mini-batches;
+          the GPU works in 32-bit numbers, so a long run can end a few decimal places away from the CPU’s run (the recorded challenge references come from the CPU). Press <strong>compare on CPU</strong> and watch the timing: for networks this
+          small the CPU often wins, because every GPU step launches about a dozen tiny kernels. The GPU earns its keep on big grids and big matrices
+          (see the <a href="#/learn/kv-cache">CPU vs GPU benchmark</a>).
         </>
       }
     >
@@ -421,7 +511,7 @@ export function TrainingLab() {
         <button className={`btn${running ? '' : ' primary'}`} disabled={!trainer || trainer.diverged} onClick={() => setRunning(!running)}>
           {running ? '❚❚ Pause' : '▶ Train'}
         </button>
-        <button className="btn small" disabled={!trainer || running || trainer.diverged} onClick={() => { trainer!.step(1); setHist((h) => [...h, { step: trainer!.steps, ...pick(trainer!.metrics()) }]); setVersion((v) => v + 1); }}>
+        <button className="btn small" disabled={!trainer || running || trainer.diverged} onClick={() => advance(1).then(() => { setHist((h) => [...h, { step: trainer!.steps, ...pick(trainer!.metrics()) }]); setVersion((v) => v + 1); })}>
           Step
         </button>
         <button className="btn small" disabled={!trainer} onClick={reset}>

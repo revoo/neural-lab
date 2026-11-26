@@ -1,6 +1,7 @@
 // Drive one widget through a sequence of actions and screenshot it along the way, in each colour theme (light, dark, matrix).
 // Usage (dev server running):
 //   node scripts/drive-widget.cjs <lessonId> <widgetIndex> '<actions JSON>' [--width=1300] [--themes=light,dark,matrix] [--title=Lab]
+//   (--webgpu launches Chromium with WebGPU enabled (SwiftShader adapter); without it widgets fall back to the CPU tier)
 //   (--title=<text> selects the first widget whose title contains <text>; widgetIndex is then ignored, pass 0)
 // Actions (array, run in order inside the widget's <figure>):
 //   {"click": "button:has-text('Next')", "times": 3}   click a Playwright selector (scoped to the widget)
@@ -30,7 +31,7 @@ const outDir = path.join(__dirname, '../scratch/shots');
 fs.mkdirSync(outDir, { recursive: true });
 
 (async () => {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch('webgpu' in flags ? { args: ['--enable-unsafe-webgpu'] } : {});
   for (const theme of themes) {
     const page = await browser.newPage({ viewport: { width, height: 1000 } });
     await page.addInitScript((t) => localStorage.setItem('nl-theme', t), theme);

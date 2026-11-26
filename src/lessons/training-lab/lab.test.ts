@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_CONFIG, Trainer, generate, paramCount, split, trainUntil } from './lab';
+import { DEFAULT_CONFIG, Trainer, generate, paramCount, sizesOf, split, trainUntil, type Config } from './lab';
 import { BEST_FOUND, CHALLENGES, challengeData } from './challenges';
 import { searchSpace } from './search';
 
@@ -58,4 +58,32 @@ describe('challenge references', () => {
       expect(searchSpace(c).some((cfg) => JSON.stringify({ ...cfg, seed: best.cfg.seed }) === JSON.stringify(best.cfg))).toBe(true);
     });
   }
+});
+
+describe('V2-WP3: the compute-engine path reproduces Trainer.step', () => {
+  it('same batches, same weights: CpuMlpEngine + adopt matches 200 CPU steps', async () => {
+    const { CpuMlpEngine } = await import('../../lib/compute/cpuBackend');
+    const pts = generate('spiral', 120, 0.05, 3);
+    const { train, test } = split(pts, 0.5, 3);
+    const cfg: Config = { ...DEFAULT_CONFIG, hidden: [6, 6], optimizer: 'adam', lr: 0.03, l2: 0.001, seed: 4 };
+    const ref = new Trainer(cfg, train, test);
+    const viaEngine = new Trainer(cfg, train, test);
+    const eng = new CpuMlpEngine({ sizes: sizesOf(cfg), acts: ['tanh', 'tanh', 'sigmoid'], loss: 'bce', opt: { kind: 'adam' }, l2: cfg.l2 });
+    eng.setWeights(0, { W: viaEngine.net.W.map((L) => Float32Array.from(L.flat())), b: viaEngine.net.b.map((b) => Float32Array.from(b)) });
+    const d = viaEngine.trainingData();
+    eng.setData(d.X, d.Y, d.n);
+    for (let chunk = 0; chunk < 4; chunk++) {
+      ref.step(50);
+      const idx = viaEngine.drawBatches(50);
+      eng.trainSync({ steps: 50, batch: cfg.batch, idx, lr: new Float32Array(50).fill(cfg.lr) });
+      const w = eng.readWeightsSync()[0];
+      viaEngine.adopt(w.W, w.b, 50);
+    }
+    expect(viaEngine.steps).toBe(200);
+    const a = ref.metrics();
+    const b = viaEngine.metrics();
+    expect(b.trainLoss).toBeCloseTo(a.trainLoss, 3);
+    expect(b.testAcc).toBeCloseTo(a.testAcc, 2);
+    expect(viaEngine.net.W[0][0][0]).toBeCloseTo(ref.net.W[0][0][0], 3);
+  });
 });
