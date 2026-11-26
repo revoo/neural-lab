@@ -45,6 +45,8 @@ An experienced software engineer and lifelong learner — *not* a university stu
 
 9. **3Blue1Brown-style maths labs and history in the main text (November 2026).** The maths toolkit at the front should feel like 3Blue1Brown, with Zachtronics-style labs of its own, explicit "Why this, and not something else?" comparisons, and clear bridges to the AI lessons that use each idea. History and "the struggle" (dead ends, winters, disputes, ideas waiting decades for data and hardware) belong in the main text — opening hooks, era interludes, a prologue and epilogue, and "You are standing where they stood" lab notes — not tucked away only in collapsed cards.
 
+10. **Chips instead of tracks (v2, November 2026).** The owner replaced the planned Full Course / Core Track switch with visual chips: **Foundational** on concepts integral to the whole backbone of AI, and a "where this belongs" chip on every module and lesson (e.g. *Computer Vision Foundation*, *LLM & Transformers Backbone*). Chip labels use Title Case on every word. → `src/areas.ts`; Foundational is checked against the concept map (feeds at least three of the four big branches).
+
 ## Lesson methodology
 
 Ideally each major lesson: (1) explain the problem, (2) build an intuitive mental model, (3) interactive visualisation, (4) let the learner manipulate variables, (5) explain the maths, (6) show code, (7) test understanding, (8) a challenging experiment exposing an edge case or limitation, (9) summarise transferable principles, (10) connect to real-world AI.

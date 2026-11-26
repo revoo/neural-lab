@@ -133,7 +133,7 @@ Take the first item under **"Next steps"** in `docs/ROADMAP.md` unless the owner
 ### Checklist: adding a lesson
 
 1. Create `src/lessons/<id>/` with `index.mdx`, widget component(s), and `quiz.ts`.
-2. Register it in `src/curriculum.ts` (and remove it from that module's `planned` list). Keep the `summary` plain: **at most 30 words and no symbols** (enforced by `src/curriculum.test.ts`).
+2. Register it in `src/curriculum.ts` (and remove it from that module's `planned` list), then add it to `PREREQS` and `SHORT` in `src/dependencies.ts` and to `LESSON_AREA` in `src/areas.ts` (its chip must agree with the graph: see `src/areas.test.ts`). Keep the `summary` plain: **at most 30 words and no symbols** (enforced by `src/curriculum.test.ts`).
 3. Add any new terms to `src/glossary.ts`; use `<Term id="…">` on first mention.
 4. Put non-trivial lesson logic in a plain `.ts` module with a `*.test.ts` beside it.
 5. Every historical sentence carries a `<Src href="…" />` verified on the source page itself; use `<ModuleRef>` / `<LessonLink>` instead of typing module numbers or "next lesson".
@@ -365,8 +365,8 @@ Notes for whoever continues: **WP0–WP9 are complete.** All items in `docs/CURR
 
 Owner-approved next release (implement in order, one work package per commit or series of commits, same quality bar and verification rules):
 
-- [x] V2-WP1 Optional sections & guided tracks (`Full Course` vs `Core Track`)
-- [ ] V2-WP2 Interactive Concept Dependency Graph (`#/map`)
+- [x] V2-WP1 Optional sections & guided tracks — **revised by the owner**: replaced by Foundational / "where this belongs" chips (`src/areas.ts`, `AreaChip`); no track toggle
+- [x] V2-WP2 Interactive Concept Dependency Graph (`#/map`)
 - [ ] V2-WP3 Two-Tier Compute Offloading (Test `Float32Array` + Production WebGPU)
 - [ ] V2-WP4 Mixture of Experts (MoE) & Sparse Routing (`moe` + Lab: Balance the Experts)
 - [ ] V2-WP5 Reasoning Models & Test-Time Compute (`reasoning` + Lab: Spend the Test-Time Budget)

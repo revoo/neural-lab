@@ -7,6 +7,8 @@
 
 ## V2-WP1: Optional Sections & Guided Tracks
 
+> **Owner revision (implemented):** no Full Course / Core Track toggle. Instead every module and lesson shows a chip: **Foundational** (integral to the whole backbone of AI, verified against the `#/map` graph) or where it belongs (*Computer Vision Foundation*, *LLM & Transformers Backbone*, …). See `src/areas.ts`. The text below is the original plan, kept for the record.
+
 **Goal:** Let busy software engineers take a focused "Modern AI Fast Path" without removing the rich historical lessons that explain *why* modern architectures exist.
 
 - **Data model (`src/curriculum.ts`):**
@@ -35,7 +37,7 @@
   - **Interactive highlighting:**
     - Click any **technology destination** (or any lesson node) → highlights its full upstream prerequisite tree and dims unrelated nodes, with a readout showing how many prerequisites you have already completed (`nl-progress-v1`) and your next uncompleted prerequisite.
     - Toggle **"What does this unlock?" (downstream)** vs **"What does this need?" (upstream)** when inspecting a node.
-    - Respects the V2-WP1 **Core / Full** track filter and all three themes (CSS variables only) + 390px phone layout (stacked collapsible/filterable view or horizontal pan container with zero page overflow).
+    - (Owner revision: no track filter; a *Where does it belong?* mode lights up each chip's lessons instead.) ~~Respects the V2-WP1 **Core / Full** track filter~~ and all three themes (CSS variables only) + 390px phone layout (stacked collapsible/filterable view or horizontal pan container with zero page overflow).
 
 ---
 

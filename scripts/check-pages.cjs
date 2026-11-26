@@ -11,7 +11,7 @@ const theme = themeFlag ? themeFlag.split('=')[1] : null;
 const base = args[0] || 'http://localhost:5173';
 const curriculum = fs.readFileSync(path.join(__dirname, '../src/curriculum.ts'), 'utf8');
 const lessons = [...curriculum.matchAll(/id: '([^']+)', title:/g)].map((m) => m[1]);
-const routes = ['', 'glossary', 'review', ...lessons.map((l) => `learn/${l}`)];
+const routes = ['', 'glossary', 'review', 'timeline', 'map', 'map/dest%3Avision', ...lessons.map((l) => `learn/${l}`)];
 
 (async () => {
   const browser = await chromium.launch();

@@ -189,7 +189,7 @@ code, kbd, pre { font-family: var(--font-mono); }
 .lesson-kicker a:hover { text-decoration-style: solid; }
 .lesson-header h1 { font-size: clamp(30px, 4vw, 42px); line-height: 1.12; margin: 8px 0 12px; letter-spacing: -0.02em; }
 .lesson-header .summary { font-family: var(--font-prose); font-size: 20px; color: var(--text-muted); line-height: 1.5; margin: 0; }
-.lesson-meta { display: flex; gap: 16px; margin-top: 14px; font-size: 13px; color: var(--text-faint); }
+.lesson-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 14px; font-size: 13px; color: var(--text-faint); }
 
 /* Prose */
 .prose { font-family: var(--font-prose); font-size: 19px; line-height: 1.68; }
@@ -459,20 +459,49 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 0; }
 .progress-bar { height: 6px; border-radius: 3px; background: var(--bg-sunken); overflow: hidden; }
 .progress-bar > div { height: 100%; background: var(--c-good); border-radius: 3px; transition: width 0.3s; }
 .pill { display: inline-block; font-size: 11px; font-weight: 650; padding: 2px 8px; border-radius: 999px; background: var(--bg-sunken); color: var(--text-faint); letter-spacing: 0.03em; }
-/* V2-WP1: guided tracks */
-.optional-pill { margin-left: auto; flex: none; font-size: 10px; padding: 1px 7px; border: 1px dashed var(--border-strong); background: transparent; text-transform: none; cursor: help; }
-.lesson-kicker .optional-pill { margin-left: 6px; vertical-align: 1px; }
-.off-track a { opacity: 0.5; }
-.off-track a:hover, .off-track a.active { opacity: 1; }
-.off-track .dot { border-style: dashed; }
-.curriculum-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 36px; }
-.track-note { font-size: 14px; margin: 8px 0 14px; }
-.optional-note { font-size: 14px; color: var(--text-muted); border-left: 3px dashed var(--border-strong); padding: 4px 0 4px 12px; margin: 12px 0 0; }
+/* V2-WP2: concept map */
+.map-dests { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 14px 0 10px; }
+.map-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.map-readout { border: 1px solid var(--border); border-radius: 12px; background: var(--bg-elev); padding: 12px 16px; margin-bottom: 14px; }
+.map-readout p { margin: 6px 0; font-size: 15px; }
+.map-readout-head { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; flex-wrap: wrap; }
+.map-chips { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 5px; max-height: 140px; overflow-y: auto; }
+.map-chip { font: inherit; font-size: 12px; border: 1px solid var(--border); background: var(--bg-sunken); color: var(--text-muted); border-radius: 999px; padding: 2px 9px; cursor: pointer; }
+.map-chip.done { color: var(--c-good); border-color: var(--c-good); }
+.map-chip.dest { border-style: dashed; color: var(--accent-text); }
+.map-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-sunken); max-width: 100%; }
+.map-svg { display: block; font-family: var(--font-ui, inherit); }
+.map-row-label { font-size: 12px; font-weight: 700; fill: var(--text-faint); }
+.map-edge { stroke: var(--border-strong); stroke-width: 1; opacity: 0.35; transition: opacity 0.2s; }
+.map-edge.on { stroke: var(--accent); stroke-width: 1.8; opacity: 0.9; }
+.map-node { cursor: pointer; }
+.map-node rect { fill: var(--bg-elev); stroke: var(--border-strong); stroke-width: 1; transition: opacity 0.2s; }
+.map-node text { font-size: 11px; fill: var(--text); pointer-events: none; }
+.map-node.dest rect { stroke-dasharray: 4 3; stroke: var(--accent); }
+.map-node.dest text { font-weight: 650; fill: var(--accent-text); }
+.map-node.dim { opacity: 0.28; }
+.map-node.lit rect { stroke: var(--accent); }
+.map-node.sel rect { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2.2; }
+.map-node.done rect { stroke: var(--c-good); }
+.map-node:focus-visible rect { stroke-width: 3; }
+.map-done-dot { fill: var(--c-good); }
+.map-node:hover { opacity: 1; }
+.area-pick { border: 0; background: transparent; padding: 2px; border-radius: 999px; cursor: pointer; opacity: 0.6; }
+.area-pick.on { opacity: 1; box-shadow: 0 0 0 2px var(--accent-soft); }
+.area-pick .area-chip { cursor: pointer; }
+/* V2-WP1 (revised): "where this belongs" chips */
+.area-chip { display: inline-flex; align-items: center; flex: none; font-family: var(--font-ui); font-size: 11px; font-weight: 650; line-height: 1.3; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--chip); color: var(--chip); background: transparent; letter-spacing: 0.01em; text-transform: none; white-space: nowrap; cursor: help; }
+.area-chip.area-foundational { background: var(--accent); border-color: var(--accent); color: var(--bg-elev); }
+.area-chip.area-history, .area-chip.area-frontier, .area-chip.area-craft, .area-chip.area-classical { border-style: dashed; }
+.module-card li a .area-chip, .nav-lessons a .area-chip { margin-left: auto; font-size: 10px; padding: 0 6px; }
+.chip-key { font-size: 14px; line-height: 1.9; margin: 6px 0 14px; }
+.chip-link { text-decoration: none; display: inline-flex; }
+.chip-link:hover { text-decoration: none; filter: brightness(1.1); }
+.nav-lessons .dot.found { box-shadow: 0 0 0 2px var(--accent-soft); border-color: var(--accent); }
+/* V2-WP1: shared segmented toggle (used by the concept map) */
 .track-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 2px; background: var(--bg-sunken); gap: 2px; }
 .track-toggle button { border: 0; background: transparent; color: var(--text-muted); font: inherit; font-size: 13px; font-weight: 600; padding: 4px 12px; border-radius: 999px; cursor: pointer; }
 .track-toggle button.on { background: var(--bg-elev); color: var(--accent-text); box-shadow: 0 0 0 1px var(--border-strong); }
-.track-toggle.compact { display: flex; margin: 8px 2px 4px; }
-.track-toggle.compact button { flex: 1; font-size: 12px; padding: 3px 6px; }
 
 /* Glossary page */
 .search { width: 100%; padding: 11px 14px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--bg-elev); color: var(--text); font-size: 16px; }
@@ -922,3 +951,4 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 0; }
 .era-strip-label {
   overflow-wrap: anywhere;
 }
+:root[data-theme='matrix'] .map-node text { font-size: 9.5px; }

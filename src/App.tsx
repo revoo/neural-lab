@@ -7,6 +7,7 @@ import { LessonPage } from './pages/LessonPage';
 import { GlossaryPage } from './pages/GlossaryPage';
 import { ReviewPage } from './pages/ReviewPage';
 import { TimelinePage } from './pages/TimelinePage';
+import { DependencyGraphPage } from './pages/DependencyGraphPage';
 import { findLesson } from './curriculum';
 import { mdxComponents } from './mdxComponents';
 import { prefersReducedMotion, useRain, useTheme, type Theme } from './theme';
@@ -40,7 +41,9 @@ export function App() {
           ? 'Review'
           : route.page === 'timeline'
             ? 'Timeline'
-            : 'Neural Lab';
+            : route.page === 'map'
+              ? 'Concept map'
+              : 'Neural Lab';
 
   useEffect(() => {
     document.title = lesson ? `${lesson.title} · Neural Lab` : 'Neural Lab';
@@ -77,6 +80,7 @@ export function App() {
           {route.page === 'glossary' && <GlossaryPage term={route.term} />}
           {route.page === 'review' && <ReviewPage />}
           {route.page === 'timeline' && <TimelinePage focus={route.focus} />}
+          {route.page === 'map' && <DependencyGraphPage focus={route.focus} />}
           {route.page === 'notfound' && <NotFound />}
         </div>
       </div>
