@@ -11,6 +11,7 @@ import { DependencyGraphPage } from './pages/DependencyGraphPage';
 import { findLesson } from './curriculum';
 import { mdxComponents } from './mdxComponents';
 import { prefersReducedMotion, useRain, useTheme, type Theme } from './theme';
+import { useMathMode } from './mathMode';
 import { DigitalRain } from './components/DigitalRain';
 import { BootSequence, ThemeSwitch } from './components/ThemeSwitch';
 
@@ -18,6 +19,7 @@ export function App() {
   const route = useRoute();
   const { theme, setTheme } = useTheme();
   const { rain, setRain } = useRain();
+  const { mathMode, toggleMathMode } = useMathMode();
   const [booting, setBooting] = useState(false);
   const endBoot = useCallback(() => setBooting(false), []);
   const changeTheme = (t: Theme) => {
@@ -60,6 +62,21 @@ export function App() {
           <header className="topbar">
             <button className="icon-btn menu-btn" onClick={() => setNavOpen(true)} aria-label="Open navigation">☰</button>
             <div className="crumbs">{crumbs}</div>
+            <button
+              type="button"
+              className={`icon-btn math-mode-btn${mathMode === 'words-first' ? ' on' : ''}`}
+              onClick={toggleMathMode}
+              aria-pressed={mathMode === 'words-first'}
+              aria-label={mathMode === 'words-first' ? 'Equations: Words first (click to show symbols)' : 'Equations: Symbols visible (click for Words first)'}
+              title={
+                mathMode === 'words-first'
+                  ? 'Words-first mode active: symbolic equations are collapsed behind a 1-click peek. Click to show all symbols.'
+                  : 'Switch to Words-first mode: keep plain-English word equations visible and collapse symbolic TeX behind a 1-click peek.'
+              }
+            >
+              <span className="math-mode-glyph" aria-hidden="true">{mathMode === 'words-first' ? 'Aa' : 'Σ'}</span>
+              <span className="math-mode-label">{mathMode === 'words-first' ? 'Words first' : 'Symbols'}</span>
+            </button>
             <a className="icon-btn" href="#/glossary">Glossary</a>
             {theme === 'matrix' && (
               <button

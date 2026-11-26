@@ -25,11 +25,23 @@ export function Home() {
           already played with.
         </p>
         {nextLesson && (
-          <div className="btn-row" style={{ marginTop: 18 }}>
-            <a className="btn primary" href={lessonHref(nextLesson.id)} style={{ textDecoration: 'none' }}>
-              {done === 0 ? 'Start with the prologue' : 'Continue'}: {nextLesson.title} →
-            </a>
-          </div>
+          <>
+            <div className="btn-row" style={{ marginTop: 18 }}>
+              <a className="btn primary" href={lessonHref(nextLesson.id)} style={{ textDecoration: 'none' }}>
+                {done === 0 ? 'Start with the prologue' : 'Continue'}: {nextLesson.title} →
+              </a>
+              {!p.completed['neuron'] && nextLesson.id !== 'neuron' && (
+                <a className="btn" href={lessonHref('neuron')} style={{ textDecoration: 'none' }}>
+                  Jump straight to neurons →
+                </a>
+              )}
+            </div>
+            {!p.completed['neuron'] && (
+              <p className="hero-ramp muted">
+                Prefer to build a neural network first? Start at Module {MODULES.find((m) => m.id === 'neuron')?.number ?? 2} and dip into the Maths Toolkit whenever a symbol looks unfamiliar.
+              </p>
+            )}
+          </>
         )}
       </section>
       <div className="stats">

@@ -556,7 +556,15 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 0; }
 /* Accessible equation block: words above, symbols below, legend underneath */
 .eq { margin: 1.6em auto; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-elev); padding: 6px 18px 10px; }
 .eq-words { font-size: 0.92em; color: var(--text-muted); border-bottom: 1px dashed var(--border); }
+.eq-words-first .eq-words { font-size: 1em; color: var(--text); border-bottom: 0; }
 .eq-words .katex-display { margin: 0.7em 0; }
+.eq-peek-row { display: flex; justify-content: flex-end; margin: 2px 0 8px; }
+.eq-peek-btn {
+  border: 1px solid var(--border); background: var(--bg-sunken); color: var(--text-muted);
+  border-radius: 999px; padding: 3px 10px; font-size: 12.5px; font-family: var(--font-ui);
+  cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.eq-peek-btn:hover { color: var(--text); border-color: var(--border-strong); background: var(--bg-hover); }
 .eq-tex .katex-display { margin: 0.7em 0; }
 .eq-tex .katex { font-size: 1.22em; }
 .eq-legend { font-family: var(--font-ui); font-size: 15px; line-height: 1.55; border-top: 1px dashed var(--border); padding-top: 8px; }
@@ -564,6 +572,11 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 0; }
 .eq-legend li { margin: 0; }
 .eq-legend p { margin: 0; }
 .eq-caption { font-family: var(--font-ui); font-size: 13.5px; color: var(--text-muted); padding-top: 6px; }
+
+.hero-ramp { font-family: var(--font-ui) !important; font-size: 14.5px !important; margin: 10px 0 0 !important; line-height: 1.5; }
+.math-mode-btn { white-space: nowrap; flex-shrink: 0; }
+.math-mode-btn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+.math-mode-glyph { font-family: var(--font-mono); font-size: 12.5px; font-weight: 700; }
 
 /* ---------- Theme switch (top bar) ---------- */
 .theme-switch { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-sunken); padding: 2px; gap: 2px; }
@@ -577,7 +590,8 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 0; }
 @media (max-width: 640px) {
   .theme-switch .theme-label { display: none; }
   .theme-switch button { padding: 4px 7px; }
-  .topbar { gap: 8px; }
+  .math-mode-label { display: none; }
+  .topbar { gap: 6px; padding: 10px 12px; }
   .topbar .icon-btn { padding: 6px 8px; }
 }
 
