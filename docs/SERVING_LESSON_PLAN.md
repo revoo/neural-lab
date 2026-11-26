@@ -327,7 +327,7 @@ One commit per step, pushed to `claude/cool-feynman-4hci4d`. Small related steps
 - [x] **S3 Lab 1 search:** `lab.ts`, `search.run.ts` → `results.ts` (counts, optimum, Pareto front, 56-config static sweep) + `search.test.ts` + `hints.test.ts`. Thresholds chosen after measuring (Brief 1: 90/300, Brief 2: 32/300, Brief 3: 18/300).
 - [x] **S4 Widgets A–E** + Lab 1 (`ServingDeskLab.tsx`) + Lab 2 (`TuneDraftLab.tsx`), hints and `hints.test.ts`, `realCode.ts` + `realCode.test.ts` (browser screenshots in all 3 themes & 390px run right after S5 wires the route).
 - [x] **S5 Prose:** Split cleanly at §3.6 into `llm-serving` (3,181 raw words, Lab: The Serving Desk) and `speculative-decoding` (2,079 raw words, Lab: Tune the Draft), with `index.mdx`, `quiz.ts`, 10 glossary entries, 2 verified history cards, wiring (`curriculum`, `dependencies`, `areas`), and `kv-cache` links/bridge. Every quoted number pinned; Python snippets run with real outputs pasted.
-- [ ] **S6 Wrap-up (IN PROGRESS — Gemini Antigravity):** full checks, both `check-pages` runs, widget screenshots across all 3 themes & 390px, watermark check; update `docs/ROADMAP.md` (Current state, status table, Next steps, Labs built so far), `HANDOFF.md` §0, and this checklist; push.
+- [x] **S6 Wrap-up:** Full test suite, production build, both `check-pages` runs (default + matrix across 1300px & 390px: 0 errors, 0 overflow), widget screenshots inspected across light/dark/matrix/390px + solved interactive states, 0 watermark matches in `dist/`, `docs/ROADMAP.md` and `HANDOFF.md` §0 updated, pushed.
 
 ## 9. Risks and decisions left to the implementer (record what you decide in the roadmap)
 

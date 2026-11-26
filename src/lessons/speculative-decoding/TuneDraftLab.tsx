@@ -173,7 +173,7 @@ export function TuneDraftLab() {
 
   return (
     <LabShell
-      title="Lab 2 · Tune the draft"
+      title="Lab · Tune the Draft"
       caption="Measured across 12 held-out Grimm’s Fairy Tales prompts (real 29.7k target GPT, 5.4k draft GPT, and corpus bigram table). Production speed-up uses the RTX 4090 roofline (Llama-3 8B FP16 target vs 1B-class FP16 draft, c = 0.127, or bigram lookup, c = 0.01)."
       briefs={briefs}
       active={active}
@@ -186,8 +186,8 @@ export function TuneDraftLab() {
       hint={specHint(brief, setting.drafter, setting.k)}
       reveal={{
         label: brief.impossible
-          ? 'Show all 48 CPU wall-clock ratios'
-          : `Show all 16 settings at T = ${brief.temperature}`,
+          ? 'all 48 CPU wall-clock ratios'
+          : `all 16 settings at T = ${brief.temperature}`,
         content: (
           <div>
             <p style={{ margin: '0 0 8px', fontSize: 13 }}>

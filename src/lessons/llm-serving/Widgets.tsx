@@ -352,7 +352,7 @@ export function BatchingRace() {
       />
 
       <div style={{ overflowX: 'auto', marginTop: 10 }}>
-        <table className="num-table">
+        <table className="num-table" style={{ whiteSpace: 'nowrap' }}>
           <thead>
             <tr>
               <th>Scheduler</th>

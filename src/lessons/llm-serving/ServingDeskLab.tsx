@@ -312,7 +312,7 @@ export function ServingDeskLab() {
 
   return (
     <LabShell
-      title="Lab 1 · The Serving Desk"
+      title="Lab · The Serving Desk"
       caption="Roofline model of Llama-3 8B FP16 on an RTX 4090 (24 GiB). Configure the scheduler and KV allocator, press “Run the morning”, then click any Gantt step or request row to diagnose bottlenecks."
       briefs={briefs}
       active={active}
@@ -324,7 +324,7 @@ export function ServingDeskLab() {
       statusTone={isStale ? 'neutral' : passing ? 'good' : 'bad'}
       hint={deskHint(brief, sim)}
       reveal={{
-        label: 'Show all 300 configurations & Pareto frontier',
+        label: 'all 300 configurations & Pareto frontier',
         content: <SolutionMap briefId={brief.id} currentKey={curKey} />,
       }}
       log={{ lines: log.lines, onClear: log.clear, title: 'Serving desk log', empty: 'Press “Run the morning” to trace admissions, retirements and preemptions.' }}
@@ -546,7 +546,7 @@ export function ServingDeskLab() {
           Per-request table ({sim.requests.length} requests — click any row to highlight in Gantt)
         </summary>
         <div style={{ overflowX: 'auto', maxHeight: 220, overflowY: 'auto', marginTop: 6 }}>
-          <table className="num-table">
+          <table className="num-table" style={{ whiteSpace: 'nowrap' }}>
             <thead>
               <tr>
                 <th>Req</th>

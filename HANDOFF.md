@@ -2,11 +2,11 @@
 
 You're picking up **Neural Lab**, an interactive website that teaches AI from first principles: Feynman-style explanation, 3Blue1Brown-style visuals, Zachtronics-style labs. This file is the onboarding procedure. Follow it in order. (Agent rules in brief: `AGENTS.md` / `CLAUDE.md`.)
 
-## 0. Resume here: curriculum plan (WP0–WP9) and v2 plan (V2-WP1–WP6) complete
+## 0. Resume here: curriculum plan (WP0–WP9), v2 plan (V2-WP1–WP6), V1 tasks and Serving lessons complete
 
-**NEXT TASK (owner, 26 November 2026): build the `llm-serving` lesson.** The owner approved a new lesson, *Serving LLMs: Batching, Paging and Speculative Decoding*. It goes in Module 16 (Inference & Hardware), after `kv-cache`, and has two labs (*The Serving Desk* and *Tune the draft*). The full specification, the progress checklist (S1–S6) and the decisions left to you are in **`docs/SERVING_LESSON_PLAN.md`**. Read that file, then `src/lessons/kv-cache/` (the lesson this one builds on), then start at the first unticked step. Tick each step in that file's checklist when its commit is pushed, and mark the step you're in the middle of **IN PROGRESS** so the next agent can resume. Only this lesson is approved from `docs/Future_Ideas.md` §3; distillation and pruning are still not approved.
+**Serving lessons update [Gemini Antigravity]:** `docs/SERVING_LESSON_PLAN.md` (S1–S6) is complete and pushed, split cleanly at §3.6 into two Module 16 lessons — `llm-serving` (*Serving LLMs: Batching, Chunked Prefill & Paged Memory*, Lab: *The Serving Desk*) and `speculative-decoding` (*Speculative Decoding: Fast Generation Without Approximation*, Lab: *Tune the Draft*). The site now has **83 lessons** and **65 sourced history cards**. No further approved tasks are queued; unapproved ideas for later live in `docs/Future_Ideas.md`.
 
-**V1 update [Claude Opus 5.5]:** the owner's V1 tasks (tiny-GPT capstone A1–A4, learning to see B1, learning to speak B2, learning to draw B3) are all done; see "Next tasks (owner, November 2026)" for the ticked checklist and ROADMAP "Current state" for findings. The site has 81 lessons and 63 history cards.
+**V1 update [Claude Opus 5.5]:** the owner's V1 tasks (tiny-GPT capstone A1–A4, learning to see B1, learning to speak B2, learning to draw B3) are all done; see "Next tasks (owner, November 2026)" for the ticked checklist and ROADMAP "Current state" for findings.
 
 **v2 update [Claude Opus 5.5]:** the v2 release plan (`docs/V2_PLAN.md`) is finished: area chips, the `#/map` concept map, the two-tier compute library (CPU Float32 + WebGPU) with its upgrades, and three new lessons with labs (`moe`, `reasoning`, `multimodal-vit`). The site has 78 lessons and 60 history cards. **Next: "Next tasks (owner, November 2026)" below: the tiny-GPT capstone and the visual "learning to see / to speak" labs, both wanted in V1.** Unapproved ideas for later are in `docs/Future_Ideas.md`.
 
