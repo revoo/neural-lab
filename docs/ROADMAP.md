@@ -4,6 +4,8 @@ _Last updated after V2-WP4. **`docs/CURRICULUM_PLAN.md` (WP0–WP9) is complete;
 
 ## Current state (read this first if you're picking up mid-session)
 
+**Next task (owner, 26 November 2026):** the `llm-serving` lesson. Its spec and checklist are in `docs/SERVING_LESSON_PLAN.md`. Nothing is implemented yet.
+
 **v2 Release Plan (`docs/V2_PLAN.md`) complete.** Checklist in `HANDOFF.md`, "v2 Release Plan: progress" (all ticked). **V1 (owner) done:** the tiny-GPT capstone (A1–A4), learning to see (B1), learning to speak (B2) and learning to draw (B3), all ticked in `HANDOFF.md`, "Next tasks (owner, November 2026)". No further approved work is queued; ideas for later (not approved) are in `docs/Future_Ideas.md`. Unapproved ideas for later: `docs/Future_Ideas.md`.
 
 - **Done [Claude Opus 5.5]:** V1 **B3 (optional)**, "Learning to draw" section and `DrawWidget` in `diffusion`. 8 × 8 Fashion-MNIST trousers, sneakers and bags (`fashion8.bin` via `fashion8.run.ts`, 1,500 train + 150 held out); denoiser = the shared `MlpEngine` (80 → 256 → 256 → 64, 102,976 weights; CPU or WebGPU), DDPM loss, 100 levels, x₀-clipped sampling (`draw.ts`). Reference `draw.run.ts` → `drawResults.ts` (16 fixed-seed samples per checkpoint, one denoising journey): first sample within the real-picture distance (2.28 = 95th percentile of held-out real pictures' nearest-training distance) at step 631, half from 3,981, 10 of 16 at 10,000; none a copy (closest 1.25). **Honest caveat in the prose:** the nearest-picture distance is generous to blur, and the widget shows a row of real training pictures so the learner can see the samples are blurrier than real ones. Scratch experiments before settling (not committed): width 128 without clipping stayed far outside the real range after 6,000 steps (median 4.12); clipping helped a little (3.56); width 256 for 10,000 steps got there.
@@ -206,6 +208,8 @@ Session 3 (owner's order): first a **Matrix theme**, then resume "Next steps" wi
 - No automated UI tests; verification is unit tests on maths/curriculum/history plus Playwright page checks and inspected screenshots.
 
 ## Next steps (in order)
+
+**Next (owner, 26 November 2026):** build the lesson **`llm-serving`** (*Serving LLMs: Batching, Paging and Speculative Decoding*, Module 16, after `kv-cache`; Labs: *The Serving Desk*, *Tune the draft*). Full spec and S1–S6 checklist: **`docs/SERVING_LESSON_PLAN.md`**. Not started.
 
 **`docs/CURRICULUM_PLAN.md` (WP0–WP9) is complete.** The owner approved the **v2 release backlog** — full specification in **`docs/V2_PLAN.md`**, progress checklist in `HANDOFF.md`:
 

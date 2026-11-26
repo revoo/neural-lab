@@ -36,6 +36,8 @@ The course stops at one GPU.
 
 ## 3. Faster and cheaper inference
 
+**Approved (26 November 2026):** speculative decoding, continuous batching and paged KV memory are now the `llm-serving` lesson, specified in `docs/SERVING_LESSON_PLAN.md`. Distillation and pruning are still not approved.
+
 - **Speculative decoding:** the acceptance probability is exact and computable, so it makes a good lab ("pick the draft model and draft length").
 - Continuous batching and paged KV memory (follows `kv-cache`).
 - Distillation and pruning.
