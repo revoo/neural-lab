@@ -231,12 +231,13 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'finetuning',
     number: 15,
-    era: '2017 to 2023',
+    era: '2017 to 2025',
     title: 'Training & Fine-Tuning',
     blurb: 'Pretraining, fine-tuning, LoRA, RLHF and the rest of the post-training toolkit.',
     lessons: [
       { id: 'lora', title: 'LoRA & Low-Rank Fine-Tuning', summary: 'Fine-tune a giant model by training a tiny add-on: why the change a model needs is far smaller than the model — and a rank-budget lab.', minutes: 30, load: () => import('./lessons/lora/index.mdx') },
       { id: 'rlhf-dpo', title: 'RLHF & Direct Preference Optimisation (DPO)', summary: 'Teaching a model what people prefer: why optimising a learned score backfires, how a leash keeps it honest, a simpler method without the scorer — and an alignment lab.', minutes: 35, load: () => import('./lessons/rlhf-dpo/index.mdx') },
+      { id: 'reasoning', title: 'Reasoning Models & Test-Time Compute', summary: 'Letting a model think longer before it answers: trading model size for compute at answer time, voting, checkers, judges that backfire, and rewards you can verify.', minutes: 35, load: () => import('./lessons/reasoning/index.mdx') },
     ],
   },
   {

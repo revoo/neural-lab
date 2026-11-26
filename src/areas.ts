@@ -118,6 +118,7 @@ export const LESSON_AREA: Record<string, Area> = {
   'reward-hacking': 'rl',
   lora: 'inference',
   'rlhf-dpo': 'reasoning',
+  reasoning: 'reasoning',
   quantization: 'inference',
   'kv-cache': 'inference',
   autoencoders: 'generative',

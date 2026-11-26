@@ -36,6 +36,25 @@ const WP = (page: string) => `https://en.wikipedia.org/wiki/${page}`;
 
 export const HISTORY: HistoryEntry[] = [
   {
+    id: 'reasoning',
+    lessonId: 'reasoning',
+    lab: 'Spend the Test-Time Budget',
+    idea: 'Chains of thought, voting, and reinforcement learning from checkable answers',
+    years: [2022, 2024, 2025],
+    when: '2022 · 2024 · 2025',
+    who: [
+      { text: 'Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten Bosma, Brian Ichter, Fei Xia, Ed Chi, Quoc Le and Denny Zhou showed in January 2022 that prompting with a few worked chains of thought improves large language models’ reasoning.', source: 'https://arxiv.org/abs/2201.11903' },
+      { text: 'Xuezhi Wang, Jason Wei and colleagues proposed self-consistency in March 2022: sample several reasoning paths and keep the most consistent answer.', source: 'https://arxiv.org/abs/2203.11171' },
+      { text: 'Zhihong Shao and colleagues introduced Group Relative Policy Optimization (GRPO) with DeepSeekMath in February 2024.', source: 'https://arxiv.org/abs/2402.03300' },
+    ],
+    mood: { text: 'In 2024, little research had tried to understand how test-time inference methods scale, and much of what existed reported negative results.', source: 'https://arxiv.org/abs/2408.03314' },
+    story: {
+      before: { text: 'Chain-of-thought prompting worked by showing a model a few demonstrations of intermediate reasoning steps; a 540-billion-parameter model prompted with eight such examples reached state-of-the-art accuracy on the GSM8K maths word problems.', source: 'https://arxiv.org/abs/2201.11903' },
+      this: { text: 'Snell, Lee, Xu and Kumar (2024) found that in a FLOPs-matched comparison, test-time compute let a smaller model outperform a 14 times larger one on problems where the smaller model had somewhat non-trivial success rates.', source: 'https://arxiv.org/abs/2408.03314' },
+      after: { text: 'DeepSeek-R1 (January 2025) showed that reasoning abilities can be incentivised through pure reinforcement learning, without human-labelled reasoning trajectories, with patterns such as self-reflection and verification emerging.', source: 'https://arxiv.org/abs/2501.12948' },
+    },
+  },
+  {
     id: 'moe',
     lessonId: 'moe',
     lab: 'Balance the Experts',

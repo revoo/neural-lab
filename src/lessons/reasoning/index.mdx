@@ -1,0 +1,162 @@
+{/* authored-by: Claude Opus 5.5 */}
+import { SearchCurves, GrpoTrainer, IsoCompute } from './Widgets'
+import { BudgetLab } from './Lab'
+import { questions } from './quiz'
+
+## The problem: the same effort for "2 + 2" and for a proof
+
+A language model writes one token at a time, and each token comes from one pass through the network. That pass always does the same amount of arithmetic. Ask "what is 2 + 2?" and the model spends one forward pass on the answer. Ask it to find the flaw in a ten-step proof and, if it answers straight away, it spends one forward pass on that too.
+
+People don't work like that. We answer easy questions at once and think hard ones through, writing down intermediate results so we don't have to hold everything in our heads. In <LessonLink to="scaling-laws">the scaling-laws lesson</LessonLink> the only way to buy a better model was to train a bigger one for longer. This lesson is about a second way: let the model **spend more compute while it answers**. That's called <Term id="test-time-compute">test-time compute</Term>, and it's what the "reasoning models" of 2024 and 2025 are built around.
+
+There are two ways to spend it. **Sequentially**: let the model think longer, writing intermediate steps before the final answer. And **in parallel**: let it answer many times and pick the best answer. Both need care, and one of them can backfire.
+
+## A stand-in model you can see all the way through
+
+No language model runs in this page, so we'll use a stand-in with the same structure, and say exactly what it assumes. Each problem needs some number of reasoning steps, from 1 to 10. A model gets each step it **writes out** right with a fixed probability, its per-step reliability: 0.80 for our small model, 0.90 for the medium one, 0.96 for the large one. Writing out a step costs 40 thinking tokens. A step it has to do **in its head**, because its thinking budget ran out, is much harder: we treat it as four steps' worth of chances to slip.
+
+So for the medium model, a 7-step problem with 400 thinking tokens (room for every step) is solved with probability $0.9^7 = 0.478$; with no room to think, $0.9^{28} = 0.052$. When an answer is wrong, a share of the wrong answers land on the problem's one tempting **trap**, the way a familiar mistake attracts many students; the rest are all different. The benchmark has 50 problems: every difficulty from 1 to 10 steps, with traps from 0% to 80%.
+
+These numbers are invented to have the right shape, not measured from a real model. What they buy us is that everything below can be computed **exactly**, with no sampling luck, so every curve you see is the true behaviour of the stand-in.
+
+## Thinking longer
+
+Sequential thinking is the simplest lever, and in the stand-in it's powerful: across the benchmark, the small model answering at once solves 6.9% of problems; given 400 thinking tokens, 35.7%. The large model goes from 45.4% to 80.4%. Writing intermediate steps is how Wei and colleagues' 2022 **chain-of-thought** prompting improved large models' maths: show the model a few worked examples with their steps, and it writes steps too. <Src href="https://arxiv.org/abs/2201.11903" />
+
+Why would that help a real network? Because each written token is fed back in. A step written down is a result the model can read instead of recompute, and a long answer spreads a hard problem over many forward passes instead of one. Thinking tokens are, quite literally, more computation.
+
+## Answering many times
+
+The parallel lever: sample $N$ answers (with some randomness, as in <LessonLink to="sampling">the sampling lesson</LessonLink>) and pick one. How you pick decides everything.
+
+- With an **exact checker**, such as unit tests for code or a proof checker, you keep any answer that passes. You win if at least one of the $N$ is right: that's called <Term id="pass-at-k">pass@N</Term>.
+- With **no checker**, you can take a **majority vote**: the answer given most often. Wang and colleagues called this self-consistency. <Src href="https://arxiv.org/abs/2203.11171" />
+- With a **learned judge**, a reward model like the one in <LessonLink to="rlhf-dpo">the RLHF lesson</LessonLink>, you keep the answer it scores highest: <Term id="best-of-n">best-of-N</Term>. Our judge approves right answers and rejects ordinary wrong ones 85% of the time each, but it has a blind spot: 2% of wrong answers are polished enough that it scores them above everything.
+
+<Eq
+  words="\text{chance at least one of } N \text{ tries is right} = 1 - \text{chance all } N \text{ are wrong}"
+  tex="\cc{\text{pass@}N} = 1 - (1 - \ca{p})^{\cb{N}}"
+>
+
+- $\ca{p}$ — the chance that one sampled answer is right
+- $\cb{N}$ — how many answers you sample
+- $\cc{\text{pass@}N}$ — the chance that at least one of them is right: what an exact checker can deliver
+
+</Eq>
+
+<Predict
+  question="A problem the model gets right 30% of the time. You use best-of-N with the 85%-accurate judge (and its small blind spot). What happens to accuracy as N goes from 1 to 128?"
+  options={['It climbs towards 100%, like pass@N', 'It climbs, then levels off at a plateau', 'It climbs, peaks, then falls well below where it started']}
+  answer={2}
+>
+
+It peaks at 62.1% with 8 samples, then falls: 45.4% at 32, 11.7% at 128, far below the 30% you get from a single answer. Every extra sample is another chance to include a wrong answer the judge loves, and best-of-N is designed to find exactly that answer. Optimising hard against an imperfect measure finds the measure's flaws: Goodhart's law, at answer time. Gao, Schulman and Hilton measured how best-of-n sampling against a learned reward model first improves, then hurts, the true quality of answers. <Src href="https://arxiv.org/abs/2210.10760" />
+
+</Predict>
+
+<SearchCurves />
+
+Two lessons hide in those curves. Majority vote needs the right answer to be the **most common** answer, not merely common. Set the trap high on a hard problem and voting entrenches the mistake: on a problem solved 30% of the time where 60% of misses agree on the trap, 31 votes are right only 21.4% of the time. And even voting has a catch at small N: two votes with a coin-flip tie-break are exactly as good as one.
+
+## Learning to think: reinforcement learning from checkable answers
+
+Thinking longer only helps if the model knows **when** to think and how much. Prompting with examples teaches that a little. The approach behind recent reasoning models is to train it with reinforcement learning, rewarding nothing but correct final answers on problems where correctness can be checked automatically: maths with known answers, code with tests. Because the reward comes from a checker rather than a learned judge, there's no reward model to exploit.
+
+DeepSeek trained this way with **<Term id="grpo">GRPO</Term>**, a policy-gradient method from <ModuleRef id="rl" short /> with one simplification. <Src href="https://arxiv.org/abs/2402.03300" /> Instead of training a second network to estimate how good each situation is (the critic of actor-critic methods), GRPO samples a **group** of answers to the same problem and judges each against its own group:
+
+<Eq
+  words="\text{how much better than its siblings} = \frac{\text{this answer's reward} - \text{group's average reward}}{\text{spread of the group's rewards}}"
+  tex="\cg{\hat{A}_i} = \frac{\cc{r_i} - \text{mean}(\cc{r_1}, \dots, \cc{r_G})}{\text{std}(\cc{r_1}, \dots, \cc{r_G})}"
+>
+
+- $\cc{r_i}$ — the reward of answer $i$: 1 if the checker accepts it, 0 if not
+- $G$ — the group size: how many answers are sampled for the same problem
+- $\cg{\hat{A}_i}$ — answer $i$'s **advantage**: positive if it did better than its group, negative if worse. The update makes high-advantage answers more likely and low-advantage ones less likely.
+
+</Eq>
+
+The DeepSeekMath paper says dropping the critic significantly reduces training resources compared with PPO. <Src href="https://arxiv.org/abs/2402.03300" /> Here's GRPO for real, on the stand-in: a policy that chooses how many steps to write before answering, one choice per difficulty, starting out keen to answer at once. Its only reward is a correct final answer. Writing more steps than needed isn't free either: each one is another chance to slip.
+
+<GrpoTrainer />
+
+Nobody told it to think longer. On seed 1, accuracy climbs from 26.3% to 55.6% in 600 steps (the best possible is 58.6%), and the average number of steps written rises from 1.52 to 5.18, with problems of 1 to 7 steps settling on exactly the number they need. Accuracy and thinking length rise **together**, because longer answers were the ones that got rewarded. The DeepSeek-R1 team saw the same co-evolution at full scale: their model's responses grew steadily longer during reinforcement learning, as it learned to spend more thinking on reasoning tasks. <Src href="https://arxiv.org/abs/2501.12948" />
+
+## A bigger model, or more thinking?
+
+So now there are two dials: how much compute goes into the model (its size and training) and how much goes into each answer. Snell and colleagues compared them at equal compute in 2024 and found the answer depends on the problem: where a smaller model already has a reasonable success rate, spending compute at answer time beat a model 14 times larger; on the hardest problems it didn't. <Src href="https://arxiv.org/abs/2408.03314" /> The stand-in reproduces that shape:
+
+<IsoCompute />
+
+With voting, the small model's 64 answers beat the large model's one on problems up to 4 steps, and lose from 5 steps on. On hard problems the small model's right answer is rarer than its favourite mistake, and votes can't fix that. Switch to an exact checker and the stand-in's small model wins everywhere, but that depends on an assumption real hard problems often break: that one try in ten is right. If a model's chance on a problem is practically zero, a thousand tries are practically zero too.
+
+## Lab: Spend the Test-Time Budget
+
+Three deployment problems, three different judges. Every setting is computed exactly on the 50-problem benchmark (or its 20 hardest problems), so the optimums below are true optimums, found by checking every allowed setting.
+
+<LabJob>
+You run the inference budget for a reasoning product. Every answer costs compute (2 operations per model weight per generated token; the reward model also reads every sample). Pick the model, the strategy, the number of samples and the thinking budget that hit each brief's accuracy target, and then find the cheapest way, or the best possible result.
+</LabJob>
+
+<BudgetLab />
+
+<Deeper title="Debrief: what checking every setting found" tag="Spoiler">
+
+- **Brief 1 (no checker):** 4 of the 70 allowed settings match the large model's 56.7% for less than its 16.8 TFLOP. The cheapest is the plainest: the medium model answering **once**, with 400 thinking tokens, for 6.72 TFLOP and 58.6%. Thinking long beats voting here, because voting multiplies every token's cost. The small model can get there too, but only by voting 16 times with full thinking (58.0% for 13.44 TFLOP).
+- **Brief 2 (noisy judge):** only N = 4 and N = 8 at 400 thinking tokens reach 80% (81.4% and 81.9%); 81.9% is the best this setup can do. N = 64 falls to 53.8%. The sweet spot is narrow, and it's the reason real systems watch how hard they optimise against a learned judge.
+- **Brief 3 (hard problems, exact checker, 3,000 tokens):** two settings pass: 4 attempts with full thinking (87.5% for 1,680 tokens, the cheapest) and 8 attempts with 300 thinking tokens (86.9% for 2,560). Many short attempts lose: an attempt that skips steps on a 7- to 10-step problem almost never succeeds, so the checker has nothing to find.
+
+</Deeper>
+
+<ForReal>
+Production reasoning models expose these same dials. API "reasoning effort" or thinking-budget settings control how many thinking tokens a model may spend before answering; evaluation reports quote pass@1 and pass@k, and self-consistency (majority voting over sampled answers) is a standard way to report a model's best maths score. When a team uses a learned reward model to pick among samples, it tunes N on held-out data for exactly the reason Brief 2 showed: past a point, more samples mean worse answers.
+</ForReal>
+
+<HistoryCard id="reasoning" />
+
+## In code
+
+Majority voting and GRPO's group advantage are each a line or two:
+
+```python
+import numpy as np
+from collections import Counter
+
+# Self-consistency: sample several answers, keep the most common one
+answers = ["42", "41", "42", "17", "42", "41", "42", "41"]
+print(Counter(answers).most_common(1))        # [('42', 4)]
+
+# GRPO: one group of 8 attempts at the same problem, scored by a checker
+rewards = np.array([1, 0, 1, 0, 0, 1, 0, 0], dtype=float)
+adv = (rewards - rewards.mean()) / rewards.std()
+print(adv.round(2))
+# each attempt's log-probability gradient is scaled by its advantage:
+# loss = -(adv * logprob_of_attempt).mean()   (plus PPO-style clipping and a KL penalty in practice)
+```
+
+The advantages print as `[ 1.29 -0.77  1.29 -0.77 -0.77  1.29 -0.77 -0.77]`: the three successes are pushed up, the five failures down, and if all eight had failed every advantage would be zero (the code would divide zero by zero, so real implementations add a small constant to the spread).
+
+<Misconception>
+
+"A reasoning model's chain of thought is a faithful record of how it reached its answer." It's text the model generated, rewarded for leading to correct answers, not a window into its weights. It does carry real computation, since later tokens build on earlier ones, but the visible steps can leave things out, or include reasoning the final answer didn't actually depend on. Treat it as useful evidence, not as a transcript.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- **Test-time compute** is a second way to buy accuracy: think longer (sequential) or answer many times and pick (parallel).
+- Thinking tokens are extra forward passes: written steps let a model build on its own intermediate results.
+- How you pick decides everything: an **exact checker** gives pass@N $= 1 - (1-p)^N$; **majority vote** helps only when the right answer is the most common one; **best-of-N with a learned judge** rises, peaks and falls as more samples find the judge's blind spots.
+- **GRPO** trains reasoning with rewards a checker can verify, using each answer's reward relative to its group, with no critic network. Accuracy and thinking length grow together.
+- At equal compute, a small model with test-time search can beat a much larger one, but mainly on problems it can already sometimes solve.
+
+</Takeaways>
+
+<InTheWild>
+
+The idea that answers can be searched for rather than just generated is old in game-playing AI: chess programs and AlphaGo look ahead through possible moves while they play. For language models it took the combination you've just seen: chains of thought to give the model room, sampling and voting to search, checkable problems to make rewards trustworthy, and reinforcement learning to teach the model to use the room. DeepSeek-R1, published in January 2025, reported that pure reinforcement learning, without human-written reasoning examples, produced behaviours such as self-reflection and verification. <Src href="https://arxiv.org/abs/2501.12948" />
+
+</InTheWild>
+
+Reasoning models spend compute on purpose. Next, the hardware side of that bill: what makes each of those generated tokens fast or slow.

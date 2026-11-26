@@ -75,6 +75,7 @@ export const PREREQS: Record<string, string[]> = {
   'reward-hacking': ['policy-gradients'],
   lora: ['transformer-block', 'matrix-multiplication'],
   'rlhf-dpo': ['policy-gradients', 'next-token-prediction'],
+  reasoning: ['rlhf-dpo', 'sampling', 'scaling-laws'],
   quantization: ['transformer-block'],
   'kv-cache': ['transformer-block', 'sampling'],
   autoencoders: ['network-from-scratch', 'clustering-pca', 'optimizers', 'overfitting'],
@@ -93,7 +94,7 @@ export type Destination = { id: string; title: string; blurb: string; needs: str
 /** Where the learner might be heading. `needs` are the lessons that lead straight into it. */
 export const DESTINATIONS: Destination[] = [
   { id: 'dest:llms', title: 'Transformers & LLMs', blurb: 'How a language model reads, predicts and writes text.', needs: ['next-token-prediction', 'sampling', 'scaling-laws'] },
-  { id: 'dest:reasoning', title: 'Reasoning Models', blurb: 'Models that are trained to think longer before they answer.', needs: ['rlhf-dpo', 'sampling', 'scaling-laws'] },
+  { id: 'dest:reasoning', title: 'Reasoning Models', blurb: 'Models that are trained to think longer before they answer.', needs: ['reasoning'] },
   { id: 'dest:generative', title: 'Diffusion & Generative AI', blurb: 'Machines that make new images and data.', needs: ['guidance', 'gans'] },
   { id: 'dest:agents', title: 'RAG & Agents', blurb: 'Models inside real software: search, tools and evaluation.', needs: ['rag', 'tool-calling', 'evaluation'] },
   { id: 'dest:vision', title: 'Computer Vision & Multimodal', blurb: 'Seeing: from pixels to detectors to pictures matched with words.', needs: ['object-detection', 'contrastive-learning'] },
@@ -247,6 +248,7 @@ export const SHORT: Record<string, string> = {
   'reward-hacking': 'Reward hacking',
   lora: 'LoRA',
   'rlhf-dpo': 'RLHF & DPO',
+  reasoning: 'Reasoning & test-time compute',
   quantization: 'Quantisation',
   'kv-cache': 'KV cache',
   autoencoders: 'Autoencoders',
