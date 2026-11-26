@@ -1,5 +1,6 @@
 import { ForwardStepper } from './ForwardStepper'
 import { FeatureGallery } from './FeatureGallery'
+import { SpaceFoldWidget } from './SpaceFoldWidget'
 import { questions } from './quiz'
 
 ## The problem: from three neurons to three thousand
@@ -112,6 +113,32 @@ I set these weights by hand, so every neuron has a job I can name. Trained netwo
 </Callout>
 
 The "break it" experiment shows something else worth remembering. Silencing one coastline detector didn't just smudge the map — it deleted an entire island, two layers downstream, because the island detector needed all three votes. Neurons in a network depend on each other. When you meet a network that fails in a strange way, that chain of dependencies is where you'll go looking.
+
+## Another way to see it: folding the rubber sheet
+
+There is a second, geometric way to read the very same forward pass — and once you see it, deep networks never feel mysterious again.
+
+Instead of picturing neurons drawing curved shapes on a fixed map, picture the map itself printed on a **sheet of rubber**. Each layer's matrix multiplication stretches, rotates, and shears the sheet; its activation function creases and folds it. The final output neuron never learns a curved boundary at all — it only ever brings down a single straight knife cut on whatever folded shape reaches it.
+
+<Predict
+  question="A tiny 15-parameter network (`2 → 2 → 2 → 1`) classifies concentric rings — an inner circle surrounded by an outer ring — using a single straight-line output neuron. How can one straight line separate a circle inside a ring?"
+  options={['The output neuron bends its own line into a circle', 'The two hidden layers fold the 2D sheet so the inner dots land on one side of a straight line and the outer ring lands on the other', 'It memorises each dot by its index in the list', 'It cannot — concentric rings are impossible for a linear output layer']}
+  answer={1}
+>
+
+The output neuron really *is* a plain straight line: $w_{3,1} h_1^{(2)} + w_{3,2} h_2^{(2)} + b_3 = 0$. The secret is that its inputs are not the original coordinates $(x_1, x_2)$ — they are the twice-folded coordinates produced by layers 1 and 2. Because both hidden layers have width 2, every intermediate state lives in exact 2D with no projection, so you can watch the rubber sheet fold in real time below.
+
+</Predict>
+
+<SpaceFoldWidget />
+
+Scrub slowly from **Input ($t = 0$)** to **Layer 2 ($t = 2$)** and watch the magenta boundary line. In input space it is a closed loop around the inner circle (or an S-curve between the two moons). As the grid warps through layer 1 and layer 2, that curved boundary physically unbends until at $t = 2$ it lies dead-flat on the output neuron's straight knife cut. On concentric rings, the best possible straight line climbs from **70.8%** in raw input space to **89.6%** after layer 1, and **100%** after layer 2 (and **87.5% → 91.7% → 100%** on two moons).
+
+<Deeper title="Why GELU can fold a closed ring in width 2 — while tanh gets stuck">
+
+A `2 → 2` layer with a strictly increasing activation such as `tanh` can stretch and bend a sheet without ever crossing itself (a topological homeomorphism). That is enough to uncurl two open crescents like Two Moons, yet by the Jordan Curve Theorem no continuous 2D homeomorphism can turn a closed outer ring inside-out so a straight line separates it from the circle inside. Either widening one hidden layer to 3 (lifting the inner circle up into a third dimension) or using a non-monotonic activation like smooth GELU — which dips gently below zero before climbing — lets a width-2 layer fold the sheet back onto itself and reach 100% even on a 400-point continuous test ring.
+
+</Deeper>
 
 ## A whole batch at once
 

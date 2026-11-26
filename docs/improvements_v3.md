@@ -241,7 +241,7 @@ All target lessons have substantial word-count headroom under the ~3,300-word bu
 Make one commit per step and push directly to `claude/cool-feynman-4hci4d`. Mark the active step `IN PROGRESS` and tick it when pushed.
 
 - [x] **V3-1:** Intuition-first entry ramp on `Home.tsx` + optional `Words first` reading mode (`src/mathMode.ts`, `src/components/Eq.tsx` + `eq.test.ts`, header toggle).
-- [ ] **V3-2:** Rubber-sheet space folding (`forward-propagation/spaceFold.ts`, `spaceFold.test.ts`, `SpaceFoldWidget.tsx`, `<Predict>`, MDX + quiz).
+- [x] **V3-2:** Rubber-sheet space folding (`forward-propagation/spaceFold.ts`, `spaceFold.test.ts`, `SpaceFoldWidget.tsx`, `<Predict>`, MDX + quiz).
 - [ ] **V3-3:** `W·x + b` Architecture Rosetta Stone (`depth-and-width/rosetta.ts`, `rosetta.test.ts`, `RosettaMatrix.tsx`, `<Predict>`, MDX + quiz).
 - [ ] **V3-4:** High-dimensional saddle-point explorer (`gradient-descent/saddle.ts`, `saddle.test.ts`, `SaddleExplorer.tsx`, `<Predict>`, MDX + quiz).
 - [ ] **V3-5:** Tighter Module 5 bridge in `vanishing-gradients/index.mdx` (linking `TinyMlpBackprop`'s `682×` saturated-`tanh` valve & `StepMicroscope` crease motion directly into `SignalTelephone` and `RescueDeepNetLab`).

@@ -94,4 +94,15 @@ export const questions: Question[] = [
     ],
     explain: 'Mix, then bend: the matrix multiplication and bias mix every input into each neuron’s tally; the activation then acts on each tally separately. The result is the next layer’s input.',
   },
+  {
+    id: 'forward.space-fold',
+    kind: 'choice',
+    concepts: ['layer', 'forward-pass'],
+    prompt: 'In the rubber-sheet picture of a `2 → 2 → 2 → 1` classifier on concentric rings, what does the final output neuron actually draw in its own input space?',
+    options: [
+      { text: 'A single straight line — the curved ring boundary only appears when you trace that straight cut back through the folded hidden layers.', correct: true, why: 'Every single neuron only ever draws a flat cut in the coordinates it receives. Depth works by warping and folding the space until a straight cut is enough.' },
+      { text: 'A closed circle, because the activation function turns its weights into a radius.', why: 'The output neuron computes a plain weighted sum w·h + b; its threshold w·h + b = 0 is always a straight line in h-space.' },
+      { text: 'Two separate straight lines, one for each hidden layer.', why: 'One output neuron has one weight vector and one bias, so it defines only one linear boundary in the final hidden plane.' },
+    ],
+  },
 ];
