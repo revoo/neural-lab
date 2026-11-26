@@ -93,7 +93,7 @@ export function SentenceMicroscope() {
   let liveNote: string;
   if (selectedPos === 3) {
     if (useAttention && useResidual && usePositions) {
-      liveNote = `Full block at “on”: Head 1 fetches “cat” (${Math.round(h1Row[1] * 100)}%) into the subject channel, Head 2 fetches “sat” (${Math.round(h2Row[2] * 100)}%) into the verb channel, the residual skip preserves “on” in the prep channel, and position marks the phrase end — so the MLP’s conjunction fires and puts “mat” at ${(tok.probs[4] * 100).toFixed(1)}%.`;
+      liveNote = `Full block at “on”: Head 1 fetches “cat” (${Math.round(h1Row[1] * 100)}%) into the subject channel, Head 2 fetches “sat” (${Math.round(h2Row[2] * 100)}%) into the verb channel, the residual skip preserves “on” in the prep channel, and position marks the phrase end — putting “mat” cleanly on top at ${(tok.probs[4] * 100).toFixed(1)}%.`;
     } else if (!useAttention) {
       liveNote = `Attention OFF at “on”: the token is sealed in a box — it can only see its own word and position, never “cat” or “sat”. Subject and verb channels stay 0, so p(“mat”) plunges to ${(tok.probs[4] * 100).toFixed(1)}% and the top guess flips to “${topWord}”.`;
     } else if (!useResidual) {
@@ -104,6 +104,8 @@ export function SentenceMicroscope() {
   } else {
     liveNote = `Inspecting token ${selectedPos} (“${tok.word}”): because of the causal mask, it can only attend to positions 0..${selectedPos}. Its stream currently gives top prediction “${topWord}” (${(tok.probs[topIdx] * 100).toFixed(1)}%), while the expected next word “${tok.targetWord}” has ${(tok.probs[tok.targetId] * 100).toFixed(1)}%.`;
   }
+
+  const activeRelus = tok.mlpHidden.filter((v) => v > 0).length;
 
   return (
     <Widget
@@ -229,7 +231,7 @@ export function SentenceMicroscope() {
           />
           <StreamRow
             title={useResidual ? '4. + MLP Δ (4→8→4 ReLU)' : '4. MLP replaces x₁!'}
-            badge={`n₀(conj) = ${tok.mlpHidden[0].toFixed(2)}`}
+            badge={`${activeRelus}/8 ReLUs active`}
             values={tok.mlpOut}
           />
           <StreamRow
@@ -249,9 +251,9 @@ export function SentenceMicroscope() {
         {/* Right column: Unembedding logits, softmax probabilities, and exact p - y gradient */}
         <div style={{ flex: '1 1 240px', minWidth: 240, display: 'grid', gap: 10 }}>
           <div style={{ padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-sunken)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
               <span className="mono" style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
-                NEXT-TOKEN PROBS &amp; ∂L/∂z = p − y
+                NEXT-TOKEN PROBS &amp; p − y
               </span>
               <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                 loss {tok.loss.toFixed(2)}

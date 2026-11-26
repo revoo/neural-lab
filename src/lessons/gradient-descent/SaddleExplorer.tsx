@@ -58,13 +58,15 @@ function SaddlePathLayer({
 
       {/* Saddle point marker */}
       <circle cx={sx} cy={sy} r={5} fill="var(--bg-elev)" stroke="var(--c-grad)" strokeWidth={2} />
-      <text x={sx + 8} y={sy - 7} fontSize={10.5} fontFamily="var(--font-mono)" fill="var(--text)" fontWeight={700}>
-        saddle (0, 0)
+      <rect x={sx - 86} y={sy + 6} width={78} height={16} rx={4} fill="var(--bg-elev)" opacity={0.86} />
+      <text x={sx - 47} y={sy + 17.5} textAnchor="middle" fontSize={10} fontFamily="var(--font-mono)" fill="var(--text)" fontWeight={700}>
+        saddle (0,0)
       </text>
 
-      {/* Escape direction labels */}
-      <text x={sx + 6} y={y(1.38)} fontSize={10} fontFamily="var(--font-mono)" fill="var(--bg-elev)" fontWeight={700}>
-        ↓ escape (−y² cliff)
+      {/* Escape direction label in top-right clear region */}
+      <rect x={sx + 10} y={y(1.36) - 11} width={96} height={16} rx={4} fill="var(--bg-elev)" opacity={0.86} />
+      <text x={sx + 58} y={y(1.36) + 0.5} textAnchor="middle" fontSize={9.5} fontFamily="var(--font-mono)" fill="var(--c-b)" fontWeight={700}>
+        ↓ escape (−y²)
       </text>
 
       {/* Trajectory polyline */}
@@ -85,7 +87,8 @@ function SaddlePathLayer({
         ) : null,
       )}
       <circle cx={x(start.x)} cy={y(start.y)} r={4} fill="var(--c-c)" stroke="var(--bg-elev)" strokeWidth={1.4} />
-      <text x={x(cur.x) + 8} y={y(cur.y) + 4} fontSize={10.5} fontFamily="var(--font-mono)" fill="var(--bg-elev)" fontWeight={700}>
+      <rect x={x(cur.x) - 42} y={Math.max(12, y(cur.y) - 7)} width={34} height={15} rx={4} fill="var(--bg-elev)" opacity={0.86} />
+      <text x={x(cur.x) - 25} y={Math.max(22.5, y(cur.y) + 3.5)} textAnchor="middle" fontSize={9.5} fontFamily="var(--font-mono)" fill="var(--c-grad)" fontWeight={700}>
         t={cur.step}
       </text>
     </g>
@@ -188,8 +191,6 @@ export function SaddleExplorer() {
             y={[-1.55, 1.55]}
             width={340}
             height={265}
-            xLabel="x (curves up +)"
-            yLabel="y (curves down −)"
             ariaLabel="2D saddle contour map with gradient descent path"
             style={{ width: '100%', height: 'auto', cursor: 'crosshair' }}
             onPointerDown={(p) => {

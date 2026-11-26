@@ -1,6 +1,6 @@
 # Plan — V3 Intuition-First Upgrades (`docs/improvements_v3.md`)
 
-**Status:** Drafted for owner approval / ready to hand to an implementer agent at **V3-1**.
+**Status:** Complete (`V3-1`–`V3-8` implemented, visually verified, tested, and pushed on `claude/cool-feynman-4hci4d`).
 
 ---
 
@@ -247,4 +247,4 @@ Make one commit per step and push directly to `claude/cool-feynman-4hci4d`. Mark
 - [x] **V3-5:** Tighter Module 5 bridge in `vanishing-gradients/index.mdx` (linking `TinyMlpBackprop`'s `682×` saturated-`tanh` valve & `StepMicroscope` crease motion directly into `SignalTelephone` and `RescueDeepNetLab`).
 - [x] **V3-6:** `Custom (paint)` brush mode in `training-lab` (`customData.ts`, `customData.test.ts`, `TrainingLab.tsx`, MDX note).
 - [x] **V3-7:** 4-token Transformer `SentenceMicroscope` (`transformer-block/sentenceMicro.ts`, `sentenceMicro.test.ts`, `SentenceMicroscope.tsx`, `<Predict>`, MDX + quiz).
-- [ ] **V3-8:** Visual screenshots (light, dark, matrix, 390px, driven states), both `check-pages.cjs` passes, full Vitest suite, `npm run build` + 0-match watermark check, update `docs/ROADMAP.md` & `HANDOFF.md`.
+- [x] **V3-8:** Visual screenshots (light, dark, matrix, 390px, driven states), both `check-pages.cjs` passes, full Vitest suite, `npm run build` + 0-match watermark check, update `docs/ROADMAP.md` & `HANDOFF.md`.

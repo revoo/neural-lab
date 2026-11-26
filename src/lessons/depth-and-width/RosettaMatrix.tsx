@@ -137,7 +137,7 @@ export function RosettaMatrix() {
                     role="gridcell"
                     style={{
                       position: 'relative',
-                      padding: '8px 2px 6px',
+                      padding: '12px 2px 5px',
                       borderRadius: 6,
                       textAlign: 'center',
                       border: isZero ? '1px dashed var(--border)' : '1px solid var(--border-strong)',
