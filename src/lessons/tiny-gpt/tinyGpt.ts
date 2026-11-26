@@ -44,7 +44,7 @@ export type Birth = { id: StageId; label: string; step: number };
  * The moments of birth so far: for each stage, the first checkpoint from which it has held at every
  * checkpoint since. (A stage that later breaks again loses its moment until it settles.)
  */
-export function births(history: { step: number; stats: SampleStats }[], cal: Calibration): Birth[] {
+export function births(history: readonly { step: number; stats: SampleStats }[], cal: Calibration): Birth[] {
   const out: Birth[] = [];
   for (const st of STAGES) {
     let from: number | null = null;
@@ -58,7 +58,7 @@ export function births(history: { step: number; stats: SampleStats }[], cal: Cal
 }
 
 /** Landmark checkpoints for the "same prompt, same seed" stack: step 0, each birth, and the last. */
-export function landmarks(steps: number[], born: Birth[]): number[] {
+export function landmarks(steps: readonly number[], born: readonly Birth[]): number[] {
   const set = new Set<number>([steps[0], ...born.map((b) => b.step), steps.at(-1)!]);
   return [...set].filter((s) => steps.includes(s)).sort((a, b) => a - b);
 }
@@ -88,4 +88,27 @@ export function attentionFor(model: Gpt, prompt: string): { tokens: string[]; at
   const ids = encode(prompt).slice(-model.cfg.ctx);
   model.forward(ids, 1, ids.length);
   return { tokens: [...decode(ids)], att: model.attention() };
+}
+
+/**
+ * Mean attention each head puts on the current character and the one before it, over `rows`
+ * windows of T tokens laid out [rows × (T+1)] (the first T of each row are read): [layer][head] → [self, previous].
+ */
+export function headLocality(model: Gpt, windows: Int32Array, rows: number, T: number): [number, number][][] {
+  const L = model.cfg.layers;
+  const H = model.cfg.heads;
+  const acc = Array.from({ length: L }, () => Array.from({ length: H }, () => [0, 0] as [number, number]));
+  for (let r = 0; r < rows; r++) {
+    model.forward(windows.subarray(r * (T + 1), r * (T + 1) + T), 1, T);
+    model.attention().forEach((layer, l) =>
+      layer.forEach((a, h) => {
+        for (let i = 1; i < T; i++) {
+          acc[l][h][0] += a[i * T + i];
+          acc[l][h][1] += a[i * T + i - 1];
+        }
+      }),
+    );
+  }
+  const n = rows * (T - 1);
+  return acc.map((layer) => layer.map(([s, p]) => [s / n, p / n] as [number, number]));
 }

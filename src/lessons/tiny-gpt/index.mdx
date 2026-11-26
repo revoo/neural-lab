@@ -1,6 +1,234 @@
 {/* authored-by: Claude Opus 5.5 */}
 import { TrainWidget } from './TrainWidget'
+import { AnatomyWidget } from './AnatomyWidget'
+import { TokeniserWidget } from './TokeniserWidget'
+import { InsideWidget } from './InsideWidget'
+import { ShipLab } from './ShipLab'
+import { questions } from './quiz'
+
+On 14 February 2019, OpenAI announced a language model called GPT-2 and, unusually, held most of it back. <Src href="https://en.wikipedia.org/wiki/GPT-2" /> A headline that day read “New AI fake text generator may be too dangerous to release, say creators”. <Src href="https://en.wikipedia.org/wiki/GPT-2" /> Underneath the fuss was a machine you now know part by part: a stack of transformer blocks, trained to do one thing, predict the next token.
+
+This lesson is where the parts become the machine. You will assemble a GPT from pieces you built earlier in the course, train it from random numbers in your own browser on a book of fairy tales, and watch it go from static to something that writes. Then you will open it up and score it honestly. It is tiny: about thirty thousand numbers to GPT-2's 1.5 billion. That is the point. Small enough to watch, real enough to work.
+
+## The plan: a next-character machine
+
+Everything here runs on one idea from <LessonLink to="next-token-prediction">next-token prediction</LessonLink>: show the model some text, ask for a probability for every possible next symbol, and score it by how surprised it was by the real one. Our symbols are single characters. The training text is *Grimms' Fairy Tales* in the Edgar Taylor and Marian Edwardes translation, a public-domain Project Gutenberg book, cleaned to 515,879 characters drawn from an alphabet of 68 (letters, digits, punctuation, space and newline). <Src href="https://gutenberg.pglaf.org/cache/epub/2591/pg2591.txt" /> The last four tales are kept aside, never trained on, so we can measure what the model has learned rather than what it has memorised.
+
+<Analogy title="Think of it as a very keen apprentice reading over a storyteller's shoulder">
+
+The apprentice covers the page with a card, reveals one letter at a time, and before each letter writes down a bet on every one of the 68 possibilities. When the letter appears, they note how much they had bet on it and adjust their habits a little. Nobody tells them what a word is, or that stories start with "There was once". Everything they come to know, they infer from which bets paid off. The analogy's limit: the apprentice is not trying to understand the stories, only to bet well on the next letter. Whatever understanding seems to appear is a side effect of betting well.
+
+</Analogy>
+
+## Assemble the machine
+
+Here is the whole forward pass, written as the two lines you met in <LessonLink to="transformer-block">the transformer block</LessonLink>, repeated once per block:
+
+<Eq
+  words="\text{stream} \leftarrow \text{stream} + \text{attention}(\text{normalised stream}), \qquad \text{stream} \leftarrow \text{stream} + \text{MLP}(\text{normalised stream})"
+  tex="\cp{x} \leftarrow \cp{x} + \ca{\mathrm{Attn}}\big(\mathrm{LN}_1(\cp{x})\big), \qquad \cp{x} \leftarrow \cp{x} + \cb{\mathrm{MLP}}\big(\mathrm{LN}_2(\cp{x})\big)"
+>
+
+- $\cp{x}$: the **residual stream**, one vector of width $d$ per character position. It starts as the character's embedding plus its position's embedding, and each block adds to it rather than replacing it.
+- $\ca{\mathrm{Attn}}$: causal multi-head attention. Each position gathers information from itself and earlier positions only, so the model can never peek at the letter it is betting on.
+- $\cb{\mathrm{MLP}}$: the per-position feed-forward network, $d \to 4d \to d$ with a GELU bend in the middle.
+- $\mathrm{LN}_1, \mathrm{LN}_2$: layer norms that rescale each vector before it enters a sub-layer (the "pre-norm" arrangement GPT-2 uses).
+
+</Eq>
+
+After the last block, one more layer norm, then a score for each of the 68 characters. GPT-2 gets those scores with a trick called <Term id="weight-tying">weight tying</Term>: the score for a character is the dot product of the final vector with that character's own embedding. The table that turns characters into vectors also turns vectors back into characters, so the output layer costs no new parameters at all.
+
+The training signal is the one you met in <LessonLink to="information">cross-entropy</LessonLink>:
+
+<Eq
+  words="\text{loss} = \text{average over positions of } -\ln(\text{probability the model gave the true next character})"
+  tex="\cv{\mathcal{L}} = -\frac{1}{\cc{N}} \sum_{\cc{t}=1}^{\cc{N}} \ln \cg{p_\theta}(\ca{c_{t+1}} \mid \ca{c_1}, \ldots, \ca{c_t})"
+>
+
+- $\cv{\mathcal{L}}$: the loss, in nats per character. Guessing uniformly among 68 characters scores $\ln 68 \approx 4.22$; a perfect predictor scores 0.
+- $\cc{N}$: how many positions are scored (16 windows of 64 characters per training step).
+- $\cg{p_\theta}$: the model's probability, which depends on every parameter in $\theta$.
+- $\ca{c_t}$: the character at position $t$; the model sees $c_1 \ldots c_t$ and bets on $c_{t+1}$.
+
+</Eq>
+
+Gradients come from backpropagation through every one of those operations, and AdamW (from <LessonLink to="optimizers">the optimizers lesson</LessonLink>) turns them into updates. Our engine is plain TypeScript, every backward pass checked against finite differences, with a WebGPU version that runs the same maths on a graphics card.
+
+<AnatomyWidget />
+
+Two things stand out. The blocks hold almost everything (86% here), and inside each block the MLP holds twice as much as attention: $8d^2$ against $4d^2$. And the counts grow with the *square* of the width, which is why the larger model, three times as wide with one more block, has nearly twelve times the parameters (348,384 against 29,696).
+
+### Characters, or pieces of words?
+
+Real GPTs don't read characters. GPT-2 uses <Term id="bpe">byte-pair encoding</Term>, the merge procedure from <LessonLink to="tokenization">the tokenization lesson</LessonLink>, so common words become single tokens. Why not here?
+
+<TokeniserWidget />
+
+The measured trade-off on the held-out tales: 500 merges shrink the text from 47,267 tokens to 16,881, so each token carries 2.8 characters and a 64-token window reaches about 179 characters back instead of 64. That is a real gain. But the vocabulary grows from 68 to 568, and at width 32 the embedding table alone would need 18,176 parameters, well over half of our whole model. For a model this small, characters are the better buy. They have a second advantage for this lesson: you can watch words being *assembled* from letters, which BPE would hand the model ready-made.
 
 ## Train it
 
+<Predict
+  question="Training starts from random weights. The loss falls fastest at the start. After about 77 steps (a few seconds), what will the model's writing look like?"
+  options={[
+    'Still pure static: random letters, capitals and punctuation in equal measure',
+    'Gibberish, but with the right mix of letters: mostly lower case, plenty of e, t and spaces, very few Q or (',
+    'Mostly real words, joined into odd sentences',
+  ]}
+  answer={1}
+>
+
+The first thing a character model learns is the cheapest: **how often each letter appears**. In the recorded run, by step 77 its samples have the same letter mix as a real passage of the tales (measured below), yet only about one word in seven is a real word. Real words take hundreds of steps more. Getting the mix right is worth a lot of loss for very little knowledge: knowing nothing but letter frequencies already brings the loss from 4.22 down to 2.99.
+
+</Predict>
+
+Press Train. On a laptop CPU it takes a few minutes, running in a background worker so the page stays usable (the recorded run took 5 minutes 55 seconds on one core of the machine that made it). With WebGPU you can also try the larger model.
+
 <TrainWidget />
+
+What the recorded run shows, as measured milestones. Each is a statistic computed on four samples of 200 characters (same prompt, seeds 1 to 4), with a threshold set by what a *real* 800-character passage of the tales looks like, and a milestone counts only once it holds at every checkpoint after it:
+
+- **Step 77: the right mix of letters.** The gap between its letter frequencies and the book's falls to within the range of real passages (a KL divergence of at most 0.059 nats).
+- **Step 464: words of the right length.** Spaces now fall where words end: its average word length is within 0.30 letters of the book's 3.90.
+- **Step 1,668: half its words are real.** At least half of what it writes between spaces is a word that occurs somewhere in the training tales. By step 2,000, 51% are.
+- **Never, in 2,000 steps: four real words in five, or six real words in a row.** A real passage never has fewer than 148 real words in a row. This model is not close.
+
+So be precise about what has emerged. It has learned the letters of English, where words end, a few hundred real words (the, said, king, daughter, came…) and how a fairy-tale sentence is punctuated. Its final validation loss is 1.712 nats per character, far better than counting letter pairs (2.286). It has not learned to make sense. Whether anything a much larger model does deserves the word "understanding" is still argued about; <LessonLink to="open-questions">the epilogue</LessonLink> takes that question seriously.
+
+<Misconception>
+
+"The loss curve flattens, so the model has stopped learning." On a log scale of steps, a flattening curve can hide steady progress: from step 1,000 to 2,000 the validation loss only falls from 1.869 to 1.712, yet the share of real words in its samples climbs from 37% to 51%. Small changes in loss can be large changes in behaviour. The opposite also holds: some loss improvements change nothing you would notice in a sample.
+
+</Misconception>
+
+## Open it up
+
+The model at the end of training is just numbers, but you can ask it questions. These panels use the recorded run's final weights (the same numbers your CPU run produces); if you have trained your own, you can switch to it.
+
+<InsideWidget />
+
+Some things to try, and what the model actually does:
+
+- **Words it knows.** After "Hansel and Gret" it puts 39.1% on "e", its top choice. After "and the wol" it is less wise: 79.1% on "d" and only 5.8% on "f". It has seen "would" and "wolf", and the shorter, commoner pattern wins.
+- **Greedy decoding.** Set the temperature to 0 and it always takes its top choice. From "There was once" it writes "to the said the said the was the was the was the had the said…", stuck in a loop of its most likely fragments. That is exactly the failure of greedy decoding you saw in <LessonLink to="sampling">the sampling lesson</LessonLink>, now in a model you trained.
+- **Attention.** Each small square is one head's attention for your text. Averaged over the held-out tales, all four first-block heads put more than half their weight (54% to 58%) on just two characters: the current one and the one before it. The second-block heads spread theirs out, with only about 15% on those two. A model that has to guess the next letter from the last few is exactly what you would expect at this size.
+
+## The honest scorecard
+
+{/* scorecard: added once the larger model's reference run is recorded */}
+
+## Lab: Ship the tiny GPT
+
+You have a fixed training budget and a product to ship. A bigger model knows more per step but can afford fewer steps; a longer context sees more but costs more per step. The budget is counted the way real labs count it: about 6 floating-point operations per parameter per character of training text (2 for the forward pass, 4 for the backward), the rule from <LessonLink to="scaling-laws">the scaling-laws lesson</LessonLink>.
+
+<LabJob>You are the engineer who has to ship a small on-device text model with a fixed training budget. Choose the shape; the budget decides how long it trains.</LabJob>
+
+<ShipLab />
+
+<ForReal>
+
+Andrej Karpathy's nanoGPT is the real-world version of this lab: a readable PyTorch GPT whose own README suggests training a character-level model on Shakespeare first. <Src href="https://github.com/karpathy/nanoGPT" /> Its GPU recipe (6 layers, 6 heads, width 384, 256 characters of context) reaches a validation loss of 1.4697 in about 3 minutes on one A100, and its CPU recipe (4 layers, 4 heads, width 128, 64 characters) reaches 1.88 in about 3 minutes. <Src href="https://github.com/karpathy/nanoGPT" /> Those are Shakespeare numbers, not fairy tales, so don't compare them digit for digit with ours. The shape of the trade-off is the same one you just met: for a fixed budget, the best model is neither the biggest nor the smallest.
+
+</ForReal>
+
+<HistoryCard id="tiny-gpt" />
+
+## In code
+
+The same model in PyTorch, about sixty lines. It has 29,696 parameters, like ours, because it is the same architecture with the same tied output layer. (It skips two details of our engine: GPT-2's smaller starting weights for the residual projections, and evaluation on fixed windows.)
+
+```python
+import math, torch, torch.nn as nn, torch.nn.functional as F
+torch.set_num_threads(1)
+
+text = open("grimm.txt").read()
+chars = sorted(set(text))                    # 68 characters
+stoi = {c: i for i, c in enumerate(chars)}
+data = torch.tensor([stoi[c] for c in text])
+split = text.index("KING GRISLY-BEARD")      # hold out the last four tales
+train, val = data[:split], data[split:]
+
+V, T, d, H, L = len(chars), 64, 32, 4, 2
+
+class Block(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.ln1, self.ln2 = nn.LayerNorm(d), nn.LayerNorm(d)
+        self.qkv, self.proj = nn.Linear(d, 3 * d), nn.Linear(d, d)
+        self.mlp = nn.Sequential(nn.Linear(d, 4 * d), nn.GELU(approximate="tanh"), nn.Linear(4 * d, d))
+    def forward(self, x):
+        B, t, _ = x.shape
+        q, k, v = self.qkv(self.ln1(x)).split(d, dim=2)
+        q, k, v = (z.view(B, t, H, d // H).transpose(1, 2) for z in (q, k, v))
+        y = F.scaled_dot_product_attention(q, k, v, is_causal=True)   # softmax(QKᵀ/√dₕ)V, masked
+        x = x + self.proj(y.transpose(1, 2).reshape(B, t, d))         # residual
+        return x + self.mlp(self.ln2(x))                              # residual
+
+class TinyGPT(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.wte, self.wpe = nn.Embedding(V, d), nn.Embedding(T, d)
+        self.blocks = nn.Sequential(*[Block() for _ in range(L)])
+        self.lnf = nn.LayerNorm(d)
+    def forward(self, idx):
+        x = self.wte(idx) + self.wpe(torch.arange(idx.shape[1]))
+        return self.lnf(self.blocks(x)) @ self.wte.weight.T          # output tied to the embedding
+
+torch.manual_seed(1)
+model = TinyGPT()
+for m in model.modules():                    # GPT-2's initialisation: small random weights, zero biases
+    if isinstance(m, (nn.Linear, nn.Embedding)): nn.init.normal_(m.weight, 0.0, 0.02)
+    if isinstance(m, nn.Linear): nn.init.zeros_(m.bias)
+print(sum(p.numel() for p in model.parameters()), "parameters")
+decay = [p for p in model.parameters() if p.dim() >= 2]
+other = [p for p in model.parameters() if p.dim() < 2]
+opt = torch.optim.AdamW([{"params": decay, "weight_decay": 0.1}, {"params": other, "weight_decay": 0.0}], lr=3e-3, betas=(0.9, 0.99))
+
+def batch(src, B=16):
+    ix = torch.randint(len(src) - T - 1, (B,))
+    x = torch.stack([src[i:i + T] for i in ix])
+    return x, torch.stack([src[i + 1:i + T + 1] for i in ix])
+
+steps, warmup = 2000, 50
+for step in range(steps):
+    lr = 3e-3 * (step + 1) / warmup if step < warmup else 3e-4 + 2.7e-3 * 0.5 * (1 + math.cos(math.pi * (step - warmup) / (steps - warmup)))
+    for g in opt.param_groups: g["lr"] = lr
+    x, y = batch(train)
+    loss = F.cross_entropy(model(x).view(-1, V), y.view(-1))
+    opt.zero_grad(); loss.backward()
+    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+    opt.step()
+    if step % 500 == 0 or step == steps - 1:
+        with torch.no_grad():
+            xv, yv = batch(val, 64)
+            print(step, round(F.cross_entropy(model(xv).view(-1, V), yv.view(-1)).item(), 3))
+
+idx = torch.tensor([[stoi[c] for c in "There was once"]])
+with torch.no_grad():
+    for _ in range(200):
+        p = F.softmax(model(idx[:, -T:])[0, -1], dim=-1)
+        idx = torch.cat([idx, torch.multinomial(p, 1)[None]], dim=1)
+print("".join(chars[i] for i in idx[0]))
+```
+
+When we ran it (PyTorch 2.15, one CPU thread) it printed 29,696 parameters, a starting validation loss of 4.229 and a final one of 1.704: close to our engine's 1.712, though not identical, because PyTorch draws different random weights and batches and scores 64 random windows rather than our fixed ones.
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- A GPT is the transformer block repeated: a residual stream that attention and an MLP keep adding to, a causal mask so it can't see the future, and an output layer that can reuse the embedding table.
+- Its parameters live almost entirely in the blocks and grow with the square of the width; the MLP holds about twice what attention does.
+- Trained only to predict the next character, a 29,696-parameter model learns, in order: the letter mix (step 77), where words end (step 464), and enough real words that half of what it writes is real (step 1,668). It never learns to make sense.
+- Measure progress against baselines on text the model never saw. Our model's 1.712 nats per character beats letter-pair counting (2.286) by a wide margin, and says nothing about meaning.
+- With a fixed compute budget, size and training time trade against each other: the best model is neither the biggest nor the smallest.
+
+</Takeaways>
+
+<InTheWild>
+
+The model you trained differs from the GPTs people use in scale and in what happens after pre-training, not in kind. GPT-2's largest version had 1.5 billion parameters trained on about 40 GB of web text. <Src href="https://en.wikipedia.org/wiki/GPT-2" /> Today's models are larger again, read tokens rather than characters, and are then fine-tuned on instructions and human preferences (<ModuleRef id="finetuning" />). But the inner loop is the one you just watched: predict the next token, measure the surprise, nudge every weight, repeat.
+
+</InTheWild>
+
+You have built the machine and watched it learn to write, a little. What nobody can yet fully explain is why the same recipe, made a million times bigger, starts doing things that look like reasoning. That is where the course ends: <ModuleRef id="epilogue" />.

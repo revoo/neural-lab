@@ -94,7 +94,7 @@ export const STAGES: Stage[] = [
  * For each stage, the first checkpoint step at which it holds and keeps holding at every later
  * checkpoint ("for good"), or null if it never settles.
  */
-export function stageSteps(history: { step: number; stats: SampleStats }[], c: Calibration): Record<StageId, number | null> {
+export function stageSteps(history: readonly { step: number; stats: SampleStats }[], c: Calibration): Record<StageId, number | null> {
   const out = {} as Record<StageId, number | null>;
   for (const st of STAGES) {
     let from: number | null = null;

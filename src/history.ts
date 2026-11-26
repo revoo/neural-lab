@@ -36,6 +36,25 @@ const WP = (page: string) => `https://en.wikipedia.org/wiki/${page}`;
 
 export const HISTORY: HistoryEntry[] = [
   {
+    id: 'tiny-gpt',
+    lessonId: 'tiny-gpt',
+    lab: 'Ship the Tiny GPT',
+    idea: 'A transformer trained only to predict the next token',
+    years: [2017, 2019],
+    when: '2017 · 2019',
+    who: [
+      { text: 'Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser and Illia Polosukhin proposed the Transformer in June 2017, in Attention Is All You Need.', source: 'https://arxiv.org/abs/1706.03762' },
+      { text: 'OpenAI announced GPT-2 on 14 February 2019: a large language model pre-trained on a dataset of 8 million web pages.', source: 'https://en.wikipedia.org/wiki/GPT-2' },
+    ],
+    mood: { text: 'GPT-2 was released in stages because of worries about misuse; a February 2019 headline in The Guardian read “New AI fake text generator may be too dangerous to release, say creators”.', source: 'https://en.wikipedia.org/wiki/GPT-2' },
+    story: {
+      before: { text: 'The best sequence models were complex recurrent or convolutional networks; the Transformer was based solely on attention, “dispensing with recurrence and convolutions entirely”.', source: 'https://arxiv.org/abs/1706.03762' },
+      this: { text: 'GPT-2 was a transformer decoder with no encoder (GPT-1 with modified normalization), trained to predict the next item in a sequence on WebText: pages linked from Reddit posts with at least 3 karma.', source: 'https://en.wikipedia.org/wiki/GPT-2' },
+      after: { text: 'By November 2019 OpenAI said it had seen no strong evidence of misuse so far, and released the full 1.5-billion-parameter model on 5 November 2019.', source: 'https://en.wikipedia.org/wiki/GPT-2' },
+    },
+    dispute: { text: 'Not everyone accepted the caution: Anima Anandkumar said there was no evidence GPT-2 could pose the threats described, and called withholding the model the “opposite of open”.', source: 'https://en.wikipedia.org/wiki/GPT-2' },
+  },
+  {
     id: 'multimodal-vit',
     lessonId: 'multimodal-vit',
     lab: 'Wire the Multimodal Model',
