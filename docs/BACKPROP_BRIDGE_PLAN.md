@@ -152,12 +152,12 @@ Make one commit per step and push to `claude/cool-feynman-4hci4d`. Tick each ste
   - Measure all 3 briefs of *The Credit-Assignment Workbench* before fixing thresholds; ensure multiple valid routes and clear failing routes on Briefs 2 and 3.
   - Pin all exhaustive counts, optimums, failing routes, and evidence-only hint invariants in tests.
   - Verify PyTorch `LiveCode` snippets (run locally if PyTorch is installed, or verify against standard PyTorch `autograd` / `requires_grad` / `register_hook` API and document clearly).
-- [ ] **B3 (IN PROGRESS) Widgets & Lab UI:**
+- [x] **B3 Widgets & Lab UI:**
   - `TinyMlpBackprop.tsx` (clickable `2 → 2 → 2` diagram, dual-path fan-in highlight, side-by-side $W_2^\top$ matrix correspondence, preset switcher, step button).
   - `StepMicroscope.tsx` (2D heatmap + solid/ghost hidden lines + clickable points + 9-weight gradient table + animated replay respecting `prefers-reduced-motion`).
   - `CreditLab.tsx` (`LabShell`, all 3 briefs including hidden-space untangling view in Brief 3, `MachineLog`, `LiveCode`, `AnswerReveal`).
   - `src/lessons/network-from-scratch/SoftmaxBackprop.tsx` (3-class logit sliders, live `p − y` vs finite-diff table, 1-step button).
-- [ ] **B4 Prose, quizzes, history & wiring:**
+- [ ] **B4 (IN PROGRESS) Prose, quizzes, history & wiring:**
   - Integrate widgets, `<Predict>`s, `<Eq>`s, *The Credit-Assignment Workbench* lab + debrief + `<ForReal>` + `<HistoryCard id="credit-assignment-backprop" />` into `backpropagation/index.mdx` (split cleanly into `backprop-in-action` if it runs past ~3,400 words).
   - Add the softmax + cross-entropy bridge section, `<Predict>`, `<Eq>`, `<MathExhibit>`, `<SoftmaxBackprop />`, and executed Python snippet into `network-from-scratch/index.mdx`.
   - Add 1–2 new quiz questions to `backpropagation/quiz.ts` (symmetry breaking / multi-path fan-in / why $W_2^\top$ appears) and 1 to `network-from-scratch/quiz.ts` (`p − y` sum-to-zero / wrong-class push).
