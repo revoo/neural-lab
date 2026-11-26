@@ -2,7 +2,9 @@
 
 You're picking up **Neural Lab**, an interactive website that teaches AI from first principles: Feynman-style explanation, 3Blue1Brown-style visuals, Zachtronics-style labs. This file is the onboarding procedure. Follow it in order. (Agent rules in brief: `AGENTS.md` / `CLAUDE.md`.)
 
-## 0. Resume here: curriculum plan complete (WP0–WP9)
+## 0. Resume here: curriculum plan (WP0–WP9) and v2 plan (V2-WP1–WP6) complete
+
+**v2 update [Claude Opus 5.5]:** the v2 release plan (`docs/V2_PLAN.md`) is finished: area chips, the `#/map` concept map, the two-tier compute library (CPU Float32 + WebGPU) with its upgrades, and three new lessons with labs (`moe`, `reasoning`, `multimodal-vit`). The site has 78 lessons and 60 history cards. Nothing further is queued; candidates are listed under "Next steps" in `docs/ROADMAP.md`.
 
 `docs/CURRICULUM_PLAN.md` (WP0 → WP9) is **complete** and pushed on `claude/cool-feynman-4hci4d`: Claude Opus 5.5 did WP0–WP1.7, Labs 1–2, WP1.10, WP1.9 and WP2–WP5; Codex Meridian 6 did Labs 3–9; Gemini Antigravity completed WP6–WP9. The site now has **20 modules (0–19) and 75 lessons**, 57 sourced history cards, 12 sourced timeline milestones, and 150 passing test files (644 tests).
 
@@ -70,6 +72,9 @@ Before every commit: `npm test` → `npm run build` → `rg "<MODEL_NAME>" dist/
 - **(V2-WP3) One buffer can't be bound read-only and read-write in the same dispatch** (WebGPU validation silently invalidates the dispatch and you read garbage). Use distinct dummy buffers.
 - **(V2-WP3) Chaotic training amplifies last-bit differences.** The GAN duel's unbalanced settings come out differently on the GPU (f32) *and* on the browser's f64 CPU (its `exp`/`tanh` differ from Node's). Compare such runs only with a tolerance on the stable cases, and say so in prose.
 - **(V2-WP3) React strict mode in dev** runs effect cleanups once on mount: an `alive` ref cleared in a cleanup must be set back to `true` in the effect body, or async results are silently dropped (`GridRerun.tsx`).
+- **(V2-WP4–6) TypeScript parameter properties** (`constructor(readonly K: number)`) don't run under `node --experimental-strip-types`; declare fields explicitly.
+- **(V2-WP4–6) ReLU kinks and finite differences:** with zero biases, many pre-activations are exactly 0 and a central difference straddles the kink. Move biases off zero in gradient tests rather than loosening the tolerance.
+- **(V2-WP5) No LLM in the browser:** the reasoning lesson's stand-in model is exact (closed forms + enumeration) and labelled as a stand-in; keep claims about real models sourced and keep the stand-in's assumptions in the prose.
 - **(V2-WP3) Tiny networks are launch-bound on a GPU.** Don't claim the GPU is faster for the training lab's 37-parameter nets; the caption says the CPU often wins there.
 
 - **(WP2–WP5) Vitest only collects `src/**/*.test.ts`.** A probe test in `scratch/` is "not found". To print data from modules the TS runner can't load, put a throwaway `src/zz-probe.test.ts` in place, run it with `--silent=false`, then delete it.
@@ -376,4 +381,4 @@ Owner-approved next release (implement in order, one work package per commit or 
 - [x] V2-WP3 Two-Tier Compute Offloading (Test `Float32Array` + Production WebGPU): `src/lib/compute/`, `BackendChip`, training lab on WebGPU, CPU vs WebGPU benchmark (`kv-cache`), live grokking (`open-questions`), live warmup (`lr-schedules`), GAN grid re-run on the GPU (`gans/ganGpu.ts`, `GridRerun.tsx`). Details in `docs/ROADMAP.md`.
 - [x] V2-WP4 Mixture of Experts (MoE) & Sparse Routing (`moe` + Lab: Balance the Experts) — see ROADMAP "Current state"
 - [x] V2-WP5 Reasoning Models & Test-Time Compute (`reasoning` + Lab: Spend the Test-Time Budget) — see ROADMAP "Current state"
-- [ ] V2-WP6 Multimodal Models & Vision Transformers (`multimodal-vit` + Lab: Wire the Multimodal Model)
+- [x] V2-WP6 Multimodal Models & Vision Transformers (`multimodal-vit` + Lab: Wire the Multimodal Model) — see ROADMAP "Current state". **The v2 plan is complete.**

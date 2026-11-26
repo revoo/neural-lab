@@ -200,6 +200,7 @@ export const MODULES: ModuleMeta[] = [
       { id: 'transformer-block', title: 'The Transformer Block', summary: 'Communicate, then compute, on a shared whiteboard: attention, feed-forward networks, residual connections, layer norm and the causal mask — assembled into a GPT.', minutes: 35, load: () => import('./lessons/transformer-block/index.mdx') },
       { id: 'moe', title: 'Mixture of Experts & Sparse Routing', summary: 'Why wake every neuron for every word? How a router picks a few specialist networks per token, why one expert can hog the work, and how to balance them.', minutes: 35, load: () => import('./lessons/moe/index.mdx') },
       { id: 'tokenization', title: 'Tokenization & Byte-Pair Encoding', summary: 'How raw text becomes integer IDs: why characters are too long, words are too many, how BPE discovers subwords — and why models struggle to count the “r”s in strawberry.', minutes: 30, load: () => import('./lessons/tokenization/index.mdx') },
+      { id: 'multimodal-vit', title: 'Vision Transformers & Multimodal Models', summary: 'Chopping an image into patch tokens so a transformer can read it, why vision transformers need more data than convolutional networks, and aligning pictures with text.', minutes: 35, load: () => import('./lessons/multimodal-vit/index.mdx') },
     ],
   },
   {

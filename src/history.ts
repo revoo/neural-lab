@@ -36,6 +36,24 @@ const WP = (page: string) => `https://en.wikipedia.org/wiki/${page}`;
 
 export const HISTORY: HistoryEntry[] = [
   {
+    id: 'multimodal-vit',
+    lessonId: 'multimodal-vit',
+    lab: 'Wire the Multimodal Model',
+    idea: 'Images as sequences of patch tokens, and pictures aligned with words',
+    years: [2020, 2021],
+    when: '2020 · 2021',
+    who: [
+      { text: 'Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit and Neil Houlsby introduced the Vision Transformer in October 2020.', source: 'https://arxiv.org/abs/2010.11929' },
+      { text: 'Alec Radford, Jong Wook Kim and colleagues introduced CLIP in February 2021, trained on 400 million image–text pairs collected from the internet.', source: 'https://arxiv.org/abs/2103.00020' },
+    ],
+    mood: { text: 'In 2020 the transformer had become the standard architecture for language, but in vision attention was mostly used together with convolutional networks or to replace parts of them.', source: 'https://arxiv.org/abs/2010.11929' },
+    story: {
+      before: { text: 'Computer vision systems were trained to predict a fixed set of predetermined object categories, so every new visual concept needed more labelled data.', source: 'https://arxiv.org/abs/2103.00020' },
+      this: { text: 'The Vision Transformer applied a standard transformer directly to sequences of image patches; trained on mid-sized datasets it fell a few points short of comparable ResNets, but pre-trained on 14 to 300 million images it matched or beat the state of the art: large-scale training trumped inductive bias.', source: 'https://arxiv.org/abs/2010.11929' },
+      after: { text: 'CLIP learned by predicting which caption goes with which image, and then classified images using only sentences, matching the original ResNet-50 on ImageNet without using any of its 1.28 million training examples.', source: 'https://arxiv.org/abs/2103.00020' },
+    },
+  },
+  {
     id: 'reasoning',
     lessonId: 'reasoning',
     lab: 'Spend the Test-Time Budget',

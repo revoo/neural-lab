@@ -108,6 +108,7 @@ export const LESSON_AREA: Record<string, Area> = {
   'transformer-block': 'llm',
   moe: 'inference',
   tokenization: 'llm',
+  'multimodal-vit': 'vision',
   'interlude-chatgpt': 'history',
   'next-token-prediction': 'llm',
   sampling: 'llm',

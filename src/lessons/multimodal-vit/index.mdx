@@ -1,0 +1,157 @@
+{/* authored-by: Claude Opus 5.5 */}
+import { PatchifyWidget, InductiveRace, ClipWorkbench } from './Widgets'
+import { WireLab } from './Lab'
+import { questions } from './quiz'
+
+## The problem: a transformer reads sequences, and a picture isn't one
+
+Everything in this module so far has been about sequences of tokens. A transformer takes a list of vectors, lets them attend to each other, and passes them through feed-forward networks. It doesn't care what the vectors stand for. In <LessonLink to="tokenization">the tokenization lesson</LessonLink>, text became that list by chopping it into pieces and giving each piece a vector.
+
+A picture is a grid of pixels. <ModuleRef id="vision" /> handled grids with convolutional networks, which slide small filters across the image. For years that was simply how vision was done. So two questions: can a transformer read a picture at all? And if it can, should it?
+
+## Patches as tokens
+
+The trick that made it work, in the 2020 paper *An Image is Worth 16x16 Words*, is almost embarrassingly direct: cut the image into small squares, the **patches**, and treat each patch as a word. <Src href="https://arxiv.org/abs/2010.11929" /> Flatten each patch's pixels into a list, multiply by a learned matrix to get a vector (a <Term id="patch-embedding">patch embedding</Term>), add a position embedding so the model knows where the patch came from, and hand the sequence to an ordinary transformer. That's a <Term id="vision-transformer">vision transformer</Term>, or ViT.
+
+<Eq
+  words="\text{number of tokens} = \text{patches across} \times \text{patches down}, \qquad \text{attention pairs} = (\text{number of tokens})^2"
+  tex="\cp{N} = \frac{\ca{H}}{\cb{P}} \cdot \frac{\ca{W}}{\cb{P}}, \qquad \text{attention cost} \propto \cp{N}^2 \, d"
+>
+
+- $\ca{H}$, $\ca{W}$ — the image's height and width in pixels
+- $\cb{P}$ — the patch side: each token covers a $\cb{P} \times \cb{P}$ square
+- $\cp{N}$ — the number of tokens the transformer sees
+- $d$ — the width of each token's vector
+
+</Eq>
+
+The original ViT used 16 × 16 patches on 224 × 224 images: 14 × 14 = 196 tokens. Halve the patch side and you get four times the tokens and sixteen times the attention work, because attention compares every token with every other. Patch size is a trade between detail and cost.
+
+<PatchifyWidget />
+
+Shuffle the patches. The transformer without position embeddings gives *exactly* the same summary, down to rounding error. That's not a bug in the widget; it's a property of attention you met in <LessonLink to="positions">the positions lesson</LessonLink>: attention treats its input as a set. Without position embeddings, a picture is a bag of patches, and a face with its eyes below its mouth looks the same as a face. The original ViT added learned position embeddings, one vector per patch slot, and found no clear gain from fancier 2D-aware ones; the learned embeddings discovered the grid by themselves, with nearby patches ending up with similar embeddings. <Src href="https://arxiv.org/abs/2010.11929" />
+
+## Built-in knowledge versus learned knowledge
+
+A convolutional network starts out knowing two things about images: nearby pixels matter together (each filter is small), and a pattern means the same thing wherever it appears (the same filter slides everywhere). Those are **inductive biases**: assumptions built into the architecture. A ViT has almost none. Every patch can attend to every other from the start, and nothing tells it that a plus in the corner is the same thing as a plus in the middle. It has to learn that from examples.
+
+<Predict
+  question="A small CNN and a small ViT learn to tell a plus from an X, placed anywhere in an 8×8 image, from 16 training images. Every run sees the same number of training examples in total. How do they compare?"
+  options={['About the same: both are good at this', 'The ViT wins: attention sees the whole image at once', 'The CNN wins by a lot']}
+  answer={2}
+>
+
+The CNN averages 81.2% over three seeds; the ViT 55.7%, barely better than guessing. With 1,024 images the CNN reaches 92.7% and the ViT 88.3%: the gap shrinks from 25.5 points to 4.4 as data grows.
+
+</Predict>
+
+<InductiveRace />
+
+That's the ViT paper's central finding in miniature. Trained on a mid-sized dataset such as ImageNet, the authors' ViTs fell a few points short of comparable convolutional networks, which they put down to the missing inductive biases. Pre-trained on 14 to 300 million images, they matched or beat the best convolutional networks. In their words, large-scale training trumps inductive bias. <Src href="https://arxiv.org/abs/2010.11929" />
+
+Our race doesn't reach that crossover (the CNN is still ahead at 1,024 images, and the ViT's seeds vary much more), so we'll only claim what it shows: the transformer pays for its flexibility in data.
+
+## Two worlds in one space: CLIP
+
+A vision transformer turns an image into vectors. A language transformer turns text into vectors. What if both landed in the **same** space, so that a picture of a dog and the sentence "a photo of a dog" ended up close together? That's the idea of <Term id="clip">CLIP</Term> (2021), and the start of most <Term id="multimodal">multimodal</Term> models. <Src href="https://arxiv.org/abs/2103.00020" />
+
+It's <LessonLink to="contrastive-learning">contrastive learning</LessonLink> across two kinds of data. Take a batch of $B$ (image, caption) pairs. Encode the images with one network and the captions with another, scale every vector to length 1, and compute all $B \times B$ similarities. The training signal: each image should pick out **its own** caption among the $B$, and each caption its own image.
+
+<Eq
+  words="\text{loss for image } i = -\log \frac{\text{closeness to its own caption}}{\text{closeness to every caption in the batch}}"
+  tex="\cv{\mathcal{L}_i} = -\log \frac{\exp(\ca{u_i} \cdot \cb{v_i} / \cg{\tau})}{\sum_{j=1}^{B} \exp(\ca{u_i} \cdot \cb{v_j} / \cg{\tau})}"
+>
+
+- $\ca{u_i}$ — image $i$'s vector from the image encoder, scaled to length 1
+- $\cb{v_j}$ — caption $j$'s vector from the text encoder, scaled to length 1
+- $\ca{u_i} \cdot \cb{v_j}$ — their cosine similarity, between −1 and 1
+- $\cg{\tau}$ — the **temperature**: dividing by a small $\cg{\tau}$ sharpens the softmax, so small differences in similarity matter more
+- $\cv{\mathcal{L}_i}$ — the loss for image $i$; CLIP averages it with the same loss for each caption picking out its image
+
+</Eq>
+
+Here's a real one. The images are the plus and the X from before, plus a ring and a bar, on the left or right of the picture. The captions are sentences like "a ring on the right". The image encoder is a tiny convolutional network; the text encoder adds up one learned vector per word.
+
+<ClipWorkbench />
+
+After training, the grid's darkest square in each row sits on the diagonal: images and their captions line up. And notice what that gives you for free. To classify a new image you don't need a classifier: write one caption per class, encode them, and pick the caption the image is closest to. That's **zero-shot** classification, and our encoders get about 94% of new images right that way. CLIP did the same at scale, trained on 400 million (image, text) pairs from the internet, and matched the accuracy of a ResNet-50 trained on ImageNet's 1.28 million labelled images, without using any of them. <Src href="https://arxiv.org/abs/2103.00020" />
+
+## Lab: Wire the Multimodal Model
+
+Three decisions you face when wiring images into a transformer-based system: how to tokenise them, what to do when labelled images are scarce, and how to align them with text. Every setting trains real models in your browser, on three seeds.
+
+<LabJob>
+You're building the vision side of a product that answers questions about pictures. Pick a patch layout the attention budget can afford, make the transformer learn from the few labelled images the team has, then align images with captions well enough to classify new pictures by sentence alone.
+</LabJob>
+
+<WireLab />
+
+<Deeper title="Debrief: what the recorded runs showed" tag="Spoiler">
+
+- **Brief 1 (patch budget):** one-pixel patches make 64 tokens, which costs 16,384 multiply-adds per image even at width 4: over budget. Four-pixel patches are cheap, but each token is a 16-pixel square, so a 3×3 sprite is usually split across tokens and mixed in with background; they stay below 71% at every width. Two-pixel patches pass at width 8 (81.8%, 2,048 multiply-adds, the cheapest) and width 16 (86.1%); width 4 just misses (79.2%).
+- **Brief 2 (32 images):** four settings pass, and every one uses random shifts with two-pixel patches. The surprise is position embeddings: without shifts, the ViT does better *without* them (76.4% at width 8) than with them (67.3%). In this task position carries no information, so position embeddings are extra weights to fit noise with. Random shifts fix both versions (86.8% without, 84.9% with): they show the model each sprite in new places, which is the translation knowledge a CNN has built in. Augmentation is how you hand a model an inductive bias it lacks.
+- **Brief 3 (zero-shot):** 6 of 36 settings reach 90%. A two-number space never gets there (below 80% in every setting): eight classes don't fit comfortably on a circle. Temperature 0.3 works best here; bigger batches mostly help, because each image is pushed away from more wrong captions per step. The smallest passing batch is 8.
+
+</Deeper>
+
+<ForReal>
+Real vision transformers expose the same dials: ViT-B/16 means base width with 16-pixel patches, and models trained at higher resolution interpolate their learned position embeddings to the new grid of patches. Heavy augmentation (random crops, flips, colour jitter) is standard when training ViTs without enormous datasets. And CLIP itself was trained with batches of 32,768 pairs <Src href="https://arxiv.org/abs/2103.00020" />, for the reason Brief 3 showed: more captions in the batch means more wrong answers to push away from.
+</ForReal>
+
+<HistoryCard id="multimodal-vit" />
+
+## In code
+
+Patchifying is a reshape, and CLIP's loss is cross-entropy over a similarity matrix:
+
+```python
+import numpy as np
+
+img = np.zeros((8, 8)); img[3:6, 2:5] = [[0, 1, 0], [1, 1, 1], [0, 1, 0]]   # a plus
+P = 2
+patches = img.reshape(8 // P, P, 8 // P, P).transpose(0, 2, 1, 3).reshape(-1, P * P)
+print(patches.shape)                                  # (16, 4): 16 tokens of 4 pixels
+
+rng = np.random.default_rng(0)
+W_embed = rng.normal(size=(P * P, 6))
+pos = rng.normal(size=(16, 6))
+tokens = patches @ W_embed + pos                      # ready for a transformer
+
+# CLIP's loss for a batch of 4 matching (image, text) embeddings
+img_e = rng.normal(size=(4, 8)); txt_e = img_e + 0.3 * rng.normal(size=(4, 8))
+img_e /= np.linalg.norm(img_e, axis=1, keepdims=True)
+txt_e /= np.linalg.norm(txt_e, axis=1, keepdims=True)
+logits = img_e @ txt_e.T / 0.3
+def xent(l):                                          # cross-entropy with the diagonal as targets
+    l = l - l.max(1, keepdims=True)
+    return -(np.diag(l) - np.log(np.exp(l).sum(1))).mean()
+print(round((xent(logits) + xent(logits.T)) / 2, 3))
+```
+
+It prints `(16, 4)` and a loss of `0.273`: low, because each text vector was made as a noisy copy of its image vector. In PyTorch the patch step is usually a convolution with kernel size and stride both equal to $P$, which does the cut and the embedding in one operation.
+
+<Misconception>
+
+"Vision transformers made convolutional networks obsolete." They changed the default for very large datasets, but the trade you saw is real: with little data, built-in assumptions win, and many practical systems still use convolutions, or hybrids that put a few convolutional layers in front of a transformer. Choosing between them is a question about how much data you have and what you already know about the problem, not about which is newer.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- A **vision transformer** cuts an image into $P \times P$ patches, embeds each as a token, adds **position embeddings**, and runs an ordinary transformer. $N = (H/P)(W/P)$ tokens; attention costs grow with $N^2$.
+- Without position embeddings, attention sees a **bag of patches**: shuffling them changes nothing.
+- CNNs have **inductive biases** (locality, translation) built in; ViTs must learn them, so they need more data. In our race: 81% vs 56% from 16 images, 93% vs 88% from 1,024.
+- **Augmentation** is a way to teach a missing bias: random shifts rescued the small-data ViT.
+- **CLIP** trains an image encoder and a text encoder so matching pairs land close together; afterwards any sentence can be a class, which is **zero-shot** classification.
+
+</Takeaways>
+
+<InTheWild>
+
+Most of today's models that "see" combine both halves of this lesson. A vision encoder, often a ViT trained CLIP-style, turns an image into a sequence of vectors, and a language model reads those vectors alongside the text tokens, as if the patches were words in a foreign language it has learned to understand. Image generators run the other way, using text encoders aligned with images to steer what they draw, as in <LessonLink to="guidance">the guidance lesson</LessonLink>. The patch, the shared space and the contrastive loss you just built are the joints all of these are assembled from.
+
+</InTheWild>
+
+You've now seen transformers read text, and images. Next, how a stack of transformer blocks becomes a model that writes.
