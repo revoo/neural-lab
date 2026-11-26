@@ -323,8 +323,8 @@ Introduce each with `<Term>` on first mention.
 One commit per step, pushed to `claude/cool-feynman-4hci4d`. Small related steps may share a commit.
 
 - [x] **S1 Engine:** `serve.ts` (step cost, trace, simulator) with `serve.test.ts`. Includes the constants-consistency test against 205.2 tok/s, the conservation tests, and the static-batching fairness search script and its pinned result (`staticSearch.run.ts` → `staticBest.ts`).
-- [ ] **S2 Speculative engine (IN PROGRESS — Gemini Antigravity):** `spec.ts`, bigram drafter, rollback check, the exactness tests, `spec.run.ts` → `specResults.ts`, re-verification test. Chunked-prefill equivalence test on the real tiny GPT.
-- [ ] **S3 Lab 1 search:** `search.run.ts` → `results.ts` (counts, optimum, Pareto front) + `search.test.ts`. Write the brief thresholds only after seeing that each brief has at least two different passing configs and a sensible failing route.
+- [x] **S2 Speculative engine:** `spec.ts`, `trainDraft.run.ts` → `draftGpt.bin` (5,424-param small GPT drafting for `tinyGpt.cpu.bin`), bigram drafter, rollback check, the exactness tests, `spec.run.ts` → `specResults.ts`, re-verification test in `spec.test.ts`. Chunked-prefill equivalence test on the real tiny GPT.
+- [ ] **S3 Lab 1 search (IN PROGRESS — Gemini Antigravity):** `search.run.ts` → `results.ts` (counts, optimum, Pareto front) + `search.test.ts`. Write the brief thresholds only after seeing that each brief has at least two different passing configs and a sensible failing route.
 - [ ] **S4 Widgets A–E** + Lab 1 + Lab 2 components, hints and `hints.test.ts`, `realCode.ts` + `realCode.test.ts`. Screenshots in three themes and at 390px.
 - [ ] **S5 Prose:** `index.mdx`, `quiz.ts`, glossary, history card, wiring (curriculum, dependencies, areas), the `kv-cache` links and bridge. Every quoted number pinned. Python snippets run, with their real output pasted.
 - [ ] **S6 Wrap-up:** full checks, both `check-pages` runs, watermark check; update `docs/ROADMAP.md` (Current state, status table, Next steps, Labs built so far) and this checklist; push.
