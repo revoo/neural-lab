@@ -166,3 +166,19 @@ export function pca2(rows: ArrayLike<number>[]): [number, number][] {
   }
   return X.map((x) => axes.map((a) => x.reduce((s, xj, j) => s + xj * a[j], 0)) as [number, number]);
 }
+
+/**
+ * What perfectly even causal attention would score on the probe sequences (length 2L): position i
+ * spreads 1/(i+1) over positions 0 … i. Returns [previous-token share, induction share].
+ */
+export function uniformShares(L: number): [number, number] {
+  const T = 2 * L;
+  let p = 0;
+  for (let i = 1; i < T; i++) p += 1 / (i + 1);
+  let q = 0;
+  for (let i = L; i < T; i++) q += 1 / (i + 1);
+  return [p / (T - 1), q / L];
+}
+/** A head counts as a previous-token or induction head at twice the even-attention share. */
+export const HEAD_BAR_FACTOR = 2;
+export const PROBE_L = 24;

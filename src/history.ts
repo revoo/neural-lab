@@ -36,6 +36,24 @@ const WP = (page: string) => `https://en.wikipedia.org/wiki/${page}`;
 
 export const HISTORY: HistoryEntry[] = [
   {
+    id: 'learning-to-speak',
+    lessonId: 'learning-to-speak',
+    lab: 'Steer the Sentence',
+    idea: 'Watching a character model learn to write, and looking for the heads that copy',
+    years: [2015, 2022],
+    when: '2015 · 2022',
+    who: [
+      { text: 'Andrej Karpathy published “The Unreasonable Effectiveness of Recurrent Neural Networks” on 21 May 2015, training character-level networks on texts such as Tolstoy’s War and Peace and sampling from them every 100 iterations of training.', source: 'https://karpathy.github.io/2015/05/21/rnn-effectiveness/' },
+      { text: 'Catherine Olsson, Nelson Elhage, Neel Nanda, Nicholas Joseph and colleagues described “induction heads” in September 2022: attention heads that complete sequences like [A][B] … [A] → [B].', source: 'https://arxiv.org/abs/2209.11895' },
+    ],
+    story: {
+      before: { text: 'At iteration 100 Karpathy’s War and Peace model sampled random jumbles of letters.', source: 'https://karpathy.github.io/2015/05/21/rnn-effectiveness/' },
+      this: { text: 'By iteration 500 its words were separated by spaces and it could spell short common words such as “we”, “He” and “and”; by about iteration 2,000 it wrote properly spelled words, quotations and names.', source: 'https://karpathy.github.io/2015/05/21/rnn-effectiveness/' },
+      after: { text: 'Olsson and colleagues found that induction heads develop at precisely the same point as a sudden increase in in-context learning, visible as a bump in the training loss.', source: 'https://arxiv.org/abs/2209.11895' },
+    },
+    dispute: { text: 'How much of in-context learning induction heads explain is still open: the authors call their evidence for the general claim preliminary and indirect, strong and causal for small attention-only models but correlational for larger models with MLPs.', source: 'https://arxiv.org/abs/2209.11895' },
+  },
+  {
     id: 'fool-classifier',
     lessonId: 'learning-to-see',
     lab: 'Fool the Classifier',

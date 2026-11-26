@@ -282,10 +282,17 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'capstone',
     number: 19,
-    era: '2017 to 2019',
+    era: '2015 to 2022',
     title: 'Capstone: Build a Tiny GPT',
     blurb: 'Every piece of the course in one machine: assemble a GPT, train it in your browser, and watch it learn to write.',
     lessons: [
+      {
+        id: 'learning-to-speak',
+        title: 'Inside Training: How a Network Learns to Speak',
+        summary: 'Watch a tiny language model go from random letters to real words, see its attention heads and its map of characters form, and steer what it writes.',
+        minutes: 35,
+        load: () => import('./lessons/learning-to-speak/index.mdx'),
+      },
       {
         id: 'tiny-gpt',
         title: 'Build and Train a Tiny GPT',

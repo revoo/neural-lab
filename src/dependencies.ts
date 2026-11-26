@@ -88,7 +88,8 @@ export const PREREQS: Record<string, string[]> = {
   rag: ['similarity-search', 'next-token-prediction'],
   'tool-calling': ['rag', 'sampling'],
   evaluation: ['statistics', 'tool-calling'],
-  'tiny-gpt': ['transformer-block', 'tokenization', 'next-token-prediction', 'sampling', 'optimizers'],
+  'learning-to-speak': ['next-token-prediction', 'sampling', 'multi-head-attention', 'word-embeddings'],
+  'tiny-gpt': ['transformer-block', 'tokenization', 'next-token-prediction', 'sampling', 'optimizers', 'learning-to-speak'],
   'open-questions': ['scaling-laws', 'overfitting', 'high-dimensions'],
 };
 
@@ -264,6 +265,7 @@ export const SHORT: Record<string, string> = {
   rag: 'RAG',
   'tool-calling': 'Tools & agents',
   evaluation: 'Evaluation',
+  'learning-to-speak': 'Learning to speak',
   'tiny-gpt': 'Tiny GPT',
   'open-questions': 'Open questions',
 };

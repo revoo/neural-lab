@@ -1,0 +1,158 @@
+{/* authored-by: Claude Opus 5.5 */}
+import { NoiseToLanguage, HeadsWidget, EmbeddingWidget } from './Widgets'
+import { SteerLab } from './SteerLab'
+import { questions } from './quiz'
+
+In May 2015 Andrej Karpathy trained a small network on Tolstoy's *War and Peace*, one character at a time, and printed what it wrote every hundred steps. <Src href="https://karpathy.github.io/2015/05/21/rnn-effectiveness/" /> At step 100 it produced random jumbles; by step 500 it put spaces between words and spelled "we", "He" and "and"; by about step 2,000 it wrote properly spelled words, quotations and names. <Src href="https://karpathy.github.io/2015/05/21/rnn-effectiveness/" /> Reading those samples in order feels like watching something wake up.
+
+This lesson does the same with the tiny GPT you will build in <LessonLink to="tiny-gpt">the capstone</LessonLink>, but instead of reading samples and trusting an impression, we measure each step of the waking up and check it against real text. Then we look inside: at what its attention heads learn, at how it arranges its 68 characters, and at one thing a famous paper says should happen and, in a model this small, doesn't.
+
+## A life in 28 snapshots
+
+The model is a 2-block GPT with 29,696 parameters, trained for 2,000 steps on *Grimms' Fairy Tales*. Its training run was recorded at 28 checkpoints, spaced so the fast early changes aren't missed: four samples per checkpoint, from the same prompt with the same random seeds, so the only thing that changes between snapshots is the model.
+
+<Predict
+  question="Which of these does the model get right first: the mix of letters (lots of e, t and spaces, hardly any Q), or real words?"
+  options={[
+    'Real words first: "the" and "and" are everywhere, so it should learn them right away',
+    'The letter mix first, by hundreds of steps',
+    'Both at the same time: a word is just letters in the right order',
+  ]}
+  answer={1}
+>
+
+The **letter mix** comes first, at step 77; at that point only about one "word" in seven it writes is real. Getting the frequencies right is the cheapest way to cut its loss, and the gradient always pushes hardest in the cheapest direction. Words come much later: half of what it writes is real only from step 1,668.
+
+</Predict>
+
+<NoiseToLanguage />
+
+Each milestone is a statistic of the four samples crossing a line set by real passages of the tales, and it counts from the checkpoint where it is reached *and stays reached*:
+
+- **Step 77: the right mix of letters.** The gap between its letter frequencies and the book's (a KL divergence) falls to what a real 800-character passage shows.
+- **Step 464: words of the right length.** Its spaces now fall where words end, so its average word length matches the book's 3.90 letters to within what real passages vary by.
+- **Step 1,668: half its words are real.** By step 2,000, 51% are.
+- **Never: four real words in five, or six real words in a row.** Real passages never have fewer than 148 real words in a row.
+
+The button under the charts re-trains the whole run in your browser and compares every checkpoint with the record. On the CPU it matches exactly: these are not illustrations of training, they are training, and you can watch it happen again.
+
+## What the attention heads learn
+
+A transformer's attention heads decide which earlier characters each position reads from. Before training they read from everywhere, almost evenly. Do they learn anything specific?
+
+Two patterns are easy to test for, because we know exactly what they would look like:
+
+- A **previous-character head** puts its attention on the character just before the current one. For a model guessing the next letter, the last letter is the most useful thing there is.
+- An **induction head** completes repeats. If the text earlier contained "…k i n g…" and the model is now at another "k", an induction head looks back to what followed the earlier "k" (an "i") and helps predict it again. Catherine Olsson and colleagues found such heads in transformer language models and reported that they appear at the same point in training as a sudden improvement at using context, visible as a bump in the loss curve. <Src href="https://arxiv.org/abs/2209.11895" />
+
+<Eq
+  words="\text{previous-character score} = \text{average, over positions, of the attention on the position just before}"
+  tex="\ca{s}_{\text{prev}} = \frac{1}{T-1} \sum_{\cc{i}=1}^{T-1} \cp{A}_{\cc{i},\, \cc{i}-1}"
+>
+
+- $\cp{A}_{i,j}$: how much of its attention position $i$ gives to position $j$ (each row adds up to 1).
+- $\cc{i}$: the position doing the looking, over a text of length $T$.
+- $\ca{s}_{\text{prev}}$: 1 for a head that only ever looks one step back; for perfectly even attention on our test text it would be 0.074.
+
+</Eq>
+
+For the induction score the test text is 24 random letters typed twice, and we average, over the second copy, the attention from each letter to the letter that *followed* its earlier occurrence: $\cp{A}_{\cc{i},\,\cc{i}-24+1}$. A head counts as either kind when its score is at least twice what even attention would give.
+
+<HeadsWidget />
+
+What the measurements show:
+
+- **Previous-character heads form, all four in the first block.** None is above the bar until step 599, when two are; from step 774 all four first-block heads are, and by step 2,000 they put between 23% and 27% of their attention on the previous character. The second-block heads stay near even (about 7%).
+- **No induction head forms.** Every head's induction score stays at about 0.03, the same as at step 0 and well under the bar of 0.057. The model's loss on the second copy of the letters (6.09 nats per character at the end) is no better than on the first (6.08): having seen the letters once does not help it predict them again. A repeated passage from the tales themselves gives the same answer. And its validation loss falls smoothly at every checkpoint, with no bump.
+
+So the famous story does not happen here, and we say so. Olsson and colleagues studied models trained on vastly more text than ours: half a megabyte of fairy tales and 29,696 parameters. The larger model in the capstone (348,384 parameters) has no induction head at the end of its 3,000 steps either. Whether they would appear with more data, more steps or more width is a fair question this lesson does not answer.
+
+## The map of characters
+
+Each character starts as 32 random numbers. Training moves those numbers so that characters which behave alike end up alike: if "a" and "e" can follow the same letters and be followed by the same letters, it pays to give them similar vectors.
+
+<EmbeddingWidget />
+
+Measured in all 32 dimensions, not in the flattened picture: hide one character, and guess its kind (vowel, consonant, capital, digit, punctuation, space or newline) from the kind whose average it sits nearest. At step 0 that guess is right for 24% of the characters, no better than shuffled labels. It beats 99% of random shuffles of the labels from **step 36**, before the letter mix in its writing is even right, and by step 2,000 it is right for 82%. The model has sorted its alphabet into kinds without ever being told that kinds exist.
+
+## Lab: Steer the sentence
+
+The trained model, writing greedily (always its single most likely next character), continues "There was once" with " to the said the said the was ". It's stuck in its favourite fragments. Can you make it say something particular, while changing as little as possible?
+
+<LabJob>You are building an autocomplete that has to work in a product name. Force as few characters as you can to make the model write the word you need, and let it do the rest.</LabJob>
+
+<SteerLab />
+
+<Deeper title="Debrief: what the search found" tag="Spoiler">
+
+The search tried every plan with no forced character, then every plan with one, then every plan with two (each forced character a lower-case letter or a space, at any of the 30 positions), stopping at the first that writes the target:
+
+- **" king": one forcing.** Force a "k" after " to " and the model writes "ing" by itself: " to king the said…". It has learned "king" well enough to finish it from its first letter.
+- **" wolf": three, and three is the minimum.** No plan with one or two forcings works (294,870 plans tried). Turning its own " the was" into " the wolf" needs three letters forced.
+- **" daughter": four, the best found.** No plan with one or two forcings works. Forcing "d", "a", "u" at the start and an "e" later gets the rest written by the model, but the search did not try every plan with three, so the true minimum is three or four.
+
+The pattern matches the samples: the more a word is part of what the model has learned, the less you have to force. "King" needs one nudge; "daughter" needs nearly half its letters.
+
+</Deeper>
+
+<ForReal>
+
+Forcing tokens is a real technique, not just a puzzle. Systems that need a model's output in a strict format, such as the JSON a tool call expects (see <LessonLink to="tool-calling">tool calling</LessonLink>), constrain decoding the same way: at each step, the characters or tokens that would break the format are ruled out before one is chosen, and the model writes the rest.
+
+</ForReal>
+
+<HistoryCard id="learning-to-speak" />
+
+## In code
+
+The two head scores, from any attention matrix (rows: the position looking; columns: the position looked at). Here they run on a made-up head that half looks back one step and half copies an induction pattern:
+
+```python
+import numpy as np
+
+def prev_score(A):
+    """Average attention from each position to the one just before it."""
+    T = A.shape[0]
+    return np.mean([A[i, i - 1] for i in range(1, T)])
+
+def induction_score(A, L):
+    """On a text repeated twice (length 2L): attention from the second copy to the
+    position after the earlier occurrence of the same token."""
+    return np.mean([A[i, i - L + 1] for i in range(L, 2 * L)])
+
+L = 24
+T = 2 * L
+even = np.tril(np.ones((T, T))) / np.arange(1, T + 1)[:, None]   # perfectly even causal attention
+print(round(prev_score(even), 3), round(induction_score(even, L), 3))   # 0.074 0.028
+
+made_up = np.zeros((T, T)); made_up[0, 0] = 1
+for i in range(1, T):
+    made_up[i, i - 1] += 0.5
+    made_up[i, i - L + 1 if i >= L else i] += 0.5
+print(round(prev_score(made_up), 3), round(induction_score(made_up, L), 3))  # 0.5 0.5
+```
+
+<Misconception>
+
+"Once it writes real words, it knows what they mean." It knows which letters go together and which words sit near which: the statistics of the surface. Nothing in its training connects "wolf" to an animal, and its sentences show it ("the said the was the had…"). Larger models trained on far more text start to show behaviour that looks more like meaning, and how much of that is real understanding is one of the questions in <LessonLink to="open-questions">the epilogue</LessonLink>.
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- Training a character model from random weights has a measurable order: its characters sort into kinds (step 36), its letter mix becomes right (step 77), words get the right length (step 464), and half its words are real (step 1,668).
+- Each "moment" here is a statistic crossing a line set by real text or by chance (random filters, shuffled labels, even attention), not an impression.
+- Its first-block attention heads become previous-character heads; no induction head forms in this model, and there is no loss bump. Famous findings in large models need checking before they are assumed in small ones.
+- What a model has learned shows in how little you must force it: one character makes it write "king"; "daughter" takes four.
+
+</Takeaways>
+
+<InTheWild>
+
+Researchers study real language models with exactly these tools: probing attention heads for known patterns, tracking checkpoints through training, and testing what changes when a single token is forced. Olsson and colleagues' induction-head work tracked heads through training in this way, and found the loss bump in models far bigger than ours. <Src href="https://arxiv.org/abs/2209.11895" /> Character-level models like the one here were also how many people first saw a network learn to write, from Karpathy's 2015 post onwards. <Src href="https://karpathy.github.io/2015/05/21/rnn-effectiveness/" />
+
+</InTheWild>
+
+Now build it yourself: <LessonLink to="tiny-gpt">the capstone</LessonLink> puts every part of this model together, trains it in your browser, and asks you to ship the best one you can afford.
