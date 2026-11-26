@@ -1,10 +1,9 @@
 // authored-by: Claude Opus 5.5
-import { readFileSync } from 'node:fs';
+import text from './grimm.txt?raw';
 import { describe, expect, it } from 'vitest';
 import { CHARS, charFrequencies, decode, dictionary, encode, evalWindows, ngramLoss, prepareCorpus, sampleBatches, unigramKL, VOCAB, wordsOf } from './grimm';
 import { createRng } from '../rng';
 
-const text = readFileSync(new URL('./grimm.txt', import.meta.url), 'utf8');
 const c = prepareCorpus(text);
 
 describe('the Grimm corpus', () => {
