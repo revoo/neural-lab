@@ -4,7 +4,7 @@ You're picking up **Neural Lab**, an interactive website that teaches AI from fi
 
 ## 0. Resume here: curriculum plan (WP0–WP9) and v2 plan (V2-WP1–WP6) complete
 
-**v2 update [Claude Opus 5.5]:** the v2 release plan (`docs/V2_PLAN.md`) is finished: area chips, the `#/map` concept map, the two-tier compute library (CPU Float32 + WebGPU) with its upgrades, and three new lessons with labs (`moe`, `reasoning`, `multimodal-vit`). The site has 78 lessons and 60 history cards. Nothing further is queued; candidates are listed under "Next steps" in `docs/ROADMAP.md`.
+**v2 update [Claude Opus 5.5]:** the v2 release plan (`docs/V2_PLAN.md`) is finished: area chips, the `#/map` concept map, the two-tier compute library (CPU Float32 + WebGPU) with its upgrades, and three new lessons with labs (`moe`, `reasoning`, `multimodal-vit`). The site has 78 lessons and 60 history cards. **Next: "Next tasks (owner, November 2026)" below: the tiny-GPT capstone and the visual "learning to see / to speak" labs, both wanted in V1.** Unapproved ideas for later are in `docs/Future_Ideas.md`.
 
 `docs/CURRICULUM_PLAN.md` (WP0 → WP9) is **complete** and pushed on `claude/cool-feynman-4hci4d`: Claude Opus 5.5 did WP0–WP1.7, Labs 1–2, WP1.10, WP1.9 and WP2–WP5; Codex Meridian 6 did Labs 3–9; Gemini Antigravity completed WP6–WP9. The site now has **20 modules (0–19) and 75 lessons**, 57 sourced history cards, 12 sourced timeline milestones, and 150 passing test files (644 tests).
 
@@ -102,6 +102,76 @@ Before every commit: `npm test` → `npm run build` → `rg "<MODEL_NAME>" dist/
 - **Fetching Wikipedia raw pages** in cloud containers can require IPv4 and a User-Agent header: `curl -4 -sL -A "NeuralLabEducationalBot/1.0 (https://github.com/revoo/neural-lab)" "https://en.wikipedia.org/w/index.php?title=<Page>&action=raw"`.
 - **Slow 2-core VMs and `bpe.test.ts`:** run the full Vitest suite with `npm test -- --testTimeout=20000 --no-isolate` (and never concurrently with Playwright) so `bpe.test.ts` does not time out at 5s.
 - **Lessons on the other agent's list** (unticked in "Next task" below): make only minimal line edits there; never reformat them.
+
+## Next tasks (owner, November 2026): both are wanted **in V1**
+
+The owner asked for two things after v2, in this order: (A) the **tiny-GPT capstone** and (B) **visual labs on how a network comes to recognise an image and to produce a coherent response**. Later ideas are in `docs/Future_Ideas.md`; those are **not** approved, so don't start them. Tick the checklist at the end of this section as you go. Mark the step you're in the middle of as **IN PROGRESS** with a note, so another agent can resume after a disconnect. One commit per step, as usual.
+
+### What already exists (build on it, don't duplicate it)
+
+- `cnns`: a real trained 55-parameter CNN and a 547-parameter MLP on unseen positions; feature maps light up where the pattern is. `convolution`: hand-built edge-detector kernels; the prose says trained ImageNet first layers look like edge detectors, but nothing shows learned filters forming.
+- `next-token-prediction`: "Watch perplexity fall as the model trains". A 1,611-parameter **word-level** model on 30 sentences, whose generated sentence turns "from word salad into English". `sampling`: temperature, top-k and top-p on fixed logits.
+- `transformer-block` (block anatomy, parameter counting), `attention`, `multi-head-attention`, `positions`, `tokenization` (BPE code), and `multimodal-vit` (a tiny hand-backpropped ViT in `vision.ts`).
+- The compute library `src/lib/compute/` (CPU Float32 tier plus WebGPU tier) **only supports MLPs** (`MlpEngine`). A transformer needs new kernels; the reusable pieces are `cpuBackend.ts`'s `softmaxRows`, `layerNorm` (+ backward) and `gelu`, `webgpuBackend.ts`'s tiled GEMM, the selector and `BackendChip`, and `scripts/check-webgpu.cjs` for CPU-vs-GPU parity.
+- **Not shown anywhere yet:** filters evolving during training; which pixels a decision used (saliency or occlusion); classes separating in a network's internal space over training; character-level text going from noise to letters to words to grammar; attention heads forming during training.
+
+### A. Capstone: build and train a tiny GPT in the browser
+
+**Goal.** One lesson where the learner assembles everything from the course into a working character-level (or small-BPE) GPT, trains it live (on the GPU when available), watches its samples improve, and then opens it up. It should feel like the course's finale.
+
+**Placement.** Recommended: a new module **"Capstone: Build a Tiny GPT"** placed after Module 18 (AI Systems Engineering) and before the Epilogue. That means updating `src/curriculum.ts` (module era: the years of its history card, e.g. 2017 to 2019 for the transformer and GPT-2); `ModuleRef` renumbers automatically, and `src/curriculum.test.ts` checks consecutive numbers. Alternatively it could end Module 13. Ask the owner only if unsure. Prerequisites in `src/dependencies.ts`: `transformer-block`, `tokenization`, `next-token-prediction`, `sampling`, `optimizers`; chip `llm`; add it to `dest:llms`.
+
+**Engine (the bulk of the work), in a new `src/lib/compute/gpt.ts` or the lesson folder:**
+1. **CPU reference first:** token + position embeddings; L blocks of pre-norm LayerNorm, causal multi-head attention, residual, LayerNorm, GELU MLP (4d), residual; final LayerNorm; output layer (tied to the embeddings, like GPT-2); cross-entropy; AdamW. Plain `Float32Array` loops, written like `cpuBackend.ts`. **Every backward pass checked against central finite differences** on a tiny config (e.g. V = 11, d = 8, 2 heads, 2 layers, T = 6). A test that a model overfits a 1-sentence corpus to near-zero loss. Seeded and deterministic.
+2. **WebGPU tier** behind the same interface: batched GEMMs (reuse the tiled kernel), plus attention, softmax, LayerNorm, GELU and AdamW kernels, with weights and optimiser state resident on the GPU and K steps per submission (the `GpuMlpEngine` pattern). Add the GPT to `parity.ts` so `check-webgpu.cjs` compares losses and weights with the CPU tier after a few steps.
+3. **Model and data size: measure, don't guess.** Target something like 0.2–1M parameters, context 64–128, vocabulary of 65–100 characters, a few minutes of training on a real GPU, and a smaller configuration for the CPU tier. **Corpus:** a public-domain text of about 0.5–1 MB (check the licence and record it in the lesson), or a generated corpus if size is a problem; check the bundle stays reasonable (load lazily). Record a reference run with a committed `*.run.ts` script into a results file, and pin the numbers the prose quotes (loss at checkpoints, sample text at fixed seeds on the CPU tier) in tests. Browser and GPU runs differ in the last bits (see the gotchas): compare live runs with a tolerance and say so.
+4. **A CPU Web Worker** is strongly recommended here (`docs/Future_Ideas.md`, platform features): a multi-minute CPU run must not freeze the page.
+
+**Lesson arc.**
+- **Assemble:** a block diagram with real parameter counts for the chosen config, reusing the `transformer-block` counting style.
+- **Tokenise the corpus:** characters versus the BPE from `tokenization`, with real counts.
+- **Train live:** loss curve with train and validation loss, a `BackendChip` with timing, and a sample from a fixed prompt every N steps, stored so the learner can scrub back through training. Add a `<Predict>` on what the first samples look like.
+- **Open it up:** attention heatmaps per head for a chosen prompt; the next-token distribution at each position; temperature and top-p on the model's real logits (links back to `sampling`).
+- **Honest scorecard:** compare validation loss with simple baselines (unigram, bigram counts) on the same split, and say plainly how coherent the result is. Don't promise more than the measured samples show.
+
+**Lab idea, "Ship the tiny GPT":** a fixed compute budget (training steps × parameters). The learner chooses depth, width, heads, context length and learning rate. Briefs:
+1. Beat the bigram baseline's validation loss.
+2. Reach a target validation loss within the budget.
+3. *(optional)* Fewest parameters that still pass.
+
+Optimums are "best found by searching <stated grid>", recorded with a sharded `*.run.ts` script and re-verified in a test. Score on fixed seeds.
+
+**Also needed:** a sourced history card (Vaswani et al. 2017 `1706.03762`; Radford et al. GPT-2 2019, from OpenAI's report or Wikipedia; Karpathy's char-rnn/nanoGPT only if verifiable on the source page), glossary terms if new, a quiz, a verified Python/PyTorch snippet of the same model, `Takeaways`, and a closing bridge to the Epilogue.
+
+### B. Visual labs: how a network comes to see, and comes to speak
+
+**Goal.** Make the *process* visible: what changes inside a network, step by step, as it goes from random to competent. Each item below is a widget, a lab, or both. Put them in existing lessons where they fit, or in one new "Inside training" lesson per side. Same standards as every lab: real numbers, fixed seeds, honest captions.
+
+**B1. Learning to see** (fits `cnns`, or a new lesson right after it):
+- **Filters forming.** Train a small CNN (say 8 first-layer 5×5 filters) on a small real image set: an MNIST or Fashion-MNIST subset (check the licence and keep the download small; a few thousand images as a compact binary loaded lazily), or a procedurally generated dataset if licensing or size is a problem. Show the first-layer filters at checkpoints, from noise to edge and blob detectors. Pin "they become oriented edges" with a measurable statistic (e.g. correlation with Gabor or oriented-gradient templates), not by eye.
+- **Feature maps, layer by layer,** for a chosen image, at a scrubbable training step.
+- **What it looks at:** an occlusion map (slide a grey patch and record the drop in the class score; exact and easy to trust) and/or gradient saliency (∂ class score / ∂ pixel, checked against finite differences).
+- **Classes separating:** a 2D PCA of the penultimate layer over training, with test images coloured by class; clusters pull apart as accuracy rises. Report the measured separation, e.g. a nearest-centroid accuracy per checkpoint.
+- **Lab idea, "Fool the classifier":** change the fewest pixels of a correctly classified image to flip the trained model's prediction (an adversarial example). Score against the best found by a committed search over a stated method (e.g. greedy by saliency, exhaustive over single and double pixel changes on small images). This teaches what the network actually relies on.
+
+**B2. Learning to speak** (share the capstone's engine; fits the capstone lesson or a companion lesson right before it):
+- **From noise to language:** a character-level model's samples from a fixed prompt at checkpoints: random characters, then the right letter frequencies, then spaces in the right places, then real words, then short grammatical phrases. Next to each sample, measured statistics (unigram KL to the corpus, share of generated words that are real dictionary words, validation loss) so the stages are numbers, not impressions. Find and pin the step where each stage appears (on fixed seeds, on the CPU tier).
+- **Attention heads forming:** attention heatmaps for one prompt across checkpoints, plus a measured "previous-token score" and "induction score" per head over training. If an induction head appears, the loss curve often shows a bump at the same time; **check whether that happens here and report what you find**, without assuming it.
+- **Embedding space organising:** a 2D PCA of the character embeddings over training (vowels, digits and punctuation drifting into groups); measure it rather than asserting it.
+- **Lab idea, "Steer the sentence":** given the trained model, reach a target continuation with the fewest sampling interventions (temperature, top-p, or forcing a single token), with the optimum computed by search over a stated space.
+
+**B3 (optional, only if time allows): learning to draw.** Extend `diffusion` with small images (e.g. 8×8 or 14×14 digits): denoising steps shown as images, and samples at training checkpoints going from blobs to digits.
+
+### Checklist (tick when the step's commit is pushed)
+
+- [ ] A1 GPT engine, CPU tier: forward, backward (FD-checked), AdamW, overfit test
+- [ ] A2 GPT engine, WebGPU tier + parity in `check-webgpu.cjs` (+ CPU Web Worker)
+- [ ] A3 Corpus, reference run, recorded results and pinned numbers
+- [ ] A4 Capstone lesson: widgets, lab, history, quiz, curriculum/map/chip registration, docs
+- [ ] B1 Learning to see: filters forming, feature maps, occlusion/saliency, class separation, "Fool the classifier" lab
+- [ ] B2 Learning to speak: noise→language samples with stage statistics, attention heads forming, embedding drift, "Steer the sentence" lab
+- [ ] B3 (optional) Learning to draw
+
 
 ## 1. Get oriented (≈10 minutes)
 
