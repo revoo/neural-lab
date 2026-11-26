@@ -1,5 +1,6 @@
 import { FogWalker } from './FogWalker'
 import { DescentGolf } from './DescentGolf'
+import { SaddleExplorer } from './SaddleExplorer'
 import { questions } from './quiz'
 
 ## The problem: what happens when you press "Train"?
@@ -138,6 +139,41 @@ for x, y in data:
     loss.backward()     # compute ∂loss/∂w for every weight (backpropagation)
     optimizer.step()    # w ← w − lr · ∂loss/∂w
 ```
+
+## Why big networks rarely get trapped in bad dips
+
+Earlier, on the 1D bumpy curve, the fog walker fell straight into a bad local minimum and got stuck forever. That 1D roller-coaster picture haunts almost everyone who starts deep learning: if a 1-parameter curve already has traps, shouldn't a million-parameter network be a minefield of terrible local minima?
+
+In high dimensions, the exact opposite happens.
+
+At a flat spot where every slope is zero ($\nabla L = \mathbf{0}$), you are only truly trapped if the ground curves **upward** in *every single direction* at once. If even one direction out of a thousand curves downward, the flat spot is not a bowl — it is a **saddle point** (like a horse saddle or a mountain pass), with a downhill escape ramp waiting right beside you.
+
+<Predict
+  question="Suppose you land on a flat spot ($\nabla L = \mathbf{0}$) in a 10-parameter network, and each of the 10 directions is independently equally likely to curve up (a bowl) or down (a cliff). Roughly how often is that flat spot a true local-minimum trap?"
+  options={['About half the time (50%)', 'About 1 in 10 (10%)', 'Less than 1 in 1,000 (1 in 1,024)', 'Never — it is mathematically impossible']}
+  answer={2}
+>
+
+To be a true local minimum, **all ten** directions must flip heads at once: $(1/2)^{10} = 1/1{,}024 \approx 0.10\%$. The other **99.8%** of flat spots (every combination except all-up and all-down) are **saddles** with at least one downhill exit. By 20 dimensions the odds drop below **1 in a million** ($1/1{,}048{,}576$).
+
+</Predict>
+
+<Eq
+  words="\text{chance of a true local-minimum trap} = \Big(\tfrac{1}{2}\Big)^{\text{number of parameters}}"
+  tex="P(\ca{\text{local min}}) = \left(\frac{1}{2}\right)^{\cb{d}}, \qquad P(\cc{\text{saddle}}) = 1 - 2\left(\frac{1}{2}\right)^{\cb{d}} \;\;(\cb{d} \ge 2)"
+>
+
+- $\cb{d}$ — the **number of weights** (dimensions of the loss landscape)
+- $\ca{(1/2)^d}$ — the chance that all $\cb{d}$ principal directions curve upward simultaneously (assuming independent 50/50 signs)
+- $\cc{1 - 2(1/2)^d}$ — the chance of a **saddle**: at least one direction curves up and at least one curves down
+
+</Eq>
+
+Saddles do not trap a network forever, *but they do slow it down*. As the walker slides into a saddle from the curving-up direction, the gradient shrinks almost to zero and the loss curve flattens into a deceptive plateau — looking for all the world as though training has stalled — before the curving-down direction finally amplifies and shoots the walker off the cliff.
+
+<SaddleExplorer />
+
+Compare **Near ridge `(1.2, 0.02)`** against **Dead on ridge `(1.2, 0.0)`** above. At `(1.2, 0.02)`, the loss plunges from `+0.72` to near `0.00` by step 12, then barely moves across steps 12–25 before suddenly dropping past `−0.65` by step 42. Dead on the ridge (`y₀ = 0.0`), the escape slope is identically zero, so plain full-batch gradient descent freezes at `(0, 0)` forever — one more reason the tiny random jiggles of mini-batch SGD (coming up soon) are a feature rather than a bug.
 
 <Misconception>
 

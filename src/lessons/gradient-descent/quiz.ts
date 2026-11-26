@@ -63,4 +63,15 @@ export const questions: Question[] = [
       { text: 'It doesn’t struggle — valleys are the easy case.', why: 'Try descent golf with plain gradient descent: the best possible run still takes more than 20 steps, while momentum can do it in a handful.' },
     ],
   },
+  {
+    id: 'gd.saddle',
+    kind: 'choice',
+    concepts: ['gradient-descent', 'gradient'],
+    prompt: 'Why are flat spots (where every slope is zero) far more likely to be saddle points than true local minima in a network with many weights?',
+    options: [
+      { text: 'A true local minimum requires every single direction to curve upward at once — a (1/2)^d coincidence — whereas even one downward-curving direction creates an escape ramp.', correct: true, why: 'At d = 10 independent directions, only 1 in 1,024 flat spots curves up in every direction; 99.8% are saddles. That is why high-dimensional loss plateaus usually end in an escape rather than a permanent trap.' },
+      { text: 'Because neural-network loss functions are always convex bowls with a single minimum.', why: 'Neural-network losses are strongly non-convex and have huge numbers of critical points — it is just that almost all of them are saddles rather than high-loss local minima.' },
+      { text: 'Because the learning rate automatically flips the sign of upward-curving directions.', why: 'The learning rate scales the step; it cannot change whether a direction curves up or down.' },
+    ],
+  },
 ];
