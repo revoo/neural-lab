@@ -68,6 +68,8 @@ Before every commit: `npm test` → `npm run build` → `rg "<MODEL_NAME>" dist/
 
 ### Gotchas found in this run
 
+- **(V1 A2) Node can't import `webgpuBackend.ts`** (it reads `GPUBufferUsage` at module load). Keep anything a Node test or `*.run.ts` script needs out of modules that import it (`gptPinned.ts` exists for that reason).
+- **(V1 A2) Learning rates passed in a `Float32Array` are rounded to float32.** The same run with `lr = 3e-3` as a double gives different bits. Batches and learning rates for recorded runs should go through the same typed arrays the widgets use.
 - **(V2-WP3) WebGPU in headless Chromium** needs `--enable-unsafe-webgpu` *and* a secure context (`http://localhost`, not `about:blank`); the adapter is SwiftShader (a CPU emulation, so slow). `node scripts/check-webgpu.cjs` runs every WGSL kernel against the CPU tier; `drive-widget.cjs --webgpu` screenshots a widget on the GPU tier. Without the flag, widgets fall back to the CPU tier (that's what `check-pages.cjs` exercises).
 - **(V2-WP3) One buffer can't be bound read-only and read-write in the same dispatch** (WebGPU validation silently invalidates the dispatch and you read garbage). Use distinct dummy buffers.
 - **(V2-WP3) Chaotic training amplifies last-bit differences.** The GAN duel's unbalanced settings come out differently on the GPU (f32) *and* on the browser's f64 CPU (its `exp`/`tanh` differ from Node's). Compare such runs only with a tolerance on the stable cases, and say so in prose.
@@ -178,7 +180,7 @@ Optimums are "best found by searching <stated grid>", recorded with a sharded `*
 ### Checklist (tick when the step's commit is pushed)
 
 - [x] A1 GPT engine, CPU tier: forward, backward (FD-checked), AdamW, overfit test. `src/lib/compute/gpt.ts` (`Gpt`, `gptLayout`, `sampleDistribution`, `drawFrom`) + `detmath.ts` (`dexp`, `dtanh`, Irwin–Hall init: only IEEE-exact ops, so a float32 CPU run is bit-identical in Node and any browser). Tests in `gpt.test.ts`: every parameter FD-checked in float64 (worst relative error < 1e-6), causality, AdamW against the PyTorch rule by hand, overfit + greedy recital, determinism. Measured speed (Node, one core): about 0.75 GFLOP/s, i.e. ~0.9 s per step for 108k parameters × 1,024 tokens.
-- [ ] A2 GPT engine, WebGPU tier + parity in `check-webgpu.cjs` (+ CPU Web Worker)
+- [x] A2 GPT engine, WebGPU tier + parity in `check-webgpu.cjs` (+ CPU Web Worker). `gptGpu.ts` (`GptGpu`: reuses the tiled GEMM with its bias/GELU epilogues; own kernels for embedding, LN, causal attention fwd/bwd, CE, embedding grads, grad norm, AdamW; K steps per submission), `gptTrainer.ts` (`createGptTrainer`: WebGPU, else a CPU Web Worker `gptWorker.ts`, else inline), `Decoder` in `gpt.ts` (KV-cache decoding, bit-identical logits to full passes). `gptParity.ts` + `gptPinned.ts`: GPU losses match the CPU tier to ~2e-7 relative on 3 configs; the CPU tier in Chromium *and* in the worker reproduces Node's pinned 30-step hash `463ddb7d` bit for bit.
 - [ ] A3 Corpus, reference run, recorded results and pinned numbers
 - [ ] A4 Capstone lesson: widgets, lab, history, quiz, curriculum/map/chip registration, docs
 - [ ] B1 Learning to see: filters forming, feature maps, occlusion/saliency, class separation, "Fool the classifier" lab

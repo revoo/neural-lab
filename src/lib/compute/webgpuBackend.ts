@@ -76,9 +76,9 @@ fn actg(id: u32, z: f32, a: f32) -> f32 {
 }`;
 
 /** Modes of the GEMM epilogue. */
-const MODE = { plain: 0, forward: 1, weightGrad: 2, inputGrad: 3 } as const;
+export const MODE = { plain: 0, forward: 1, weightGrad: 2, inputGrad: 3 } as const;
 
-const GEMM_WGSL = /* wgsl */ `
+export const GEMM_WGSL = /* wgsl */ `
 struct U {
   M: u32, N: u32, K: u32, transA: u32,
   transB: u32, lda: u32, ldb: u32, ldc: u32,
@@ -297,7 +297,7 @@ fn main(@builtin(global_invocation_id) g: vec3u) {
 // ------------------------------------------------------------------ helpers
 
 const pipelineCache = new WeakMap<GPUDevice, Map<string, GPUComputePipeline>>();
-function pipeline(device: GPUDevice, code: string): GPUComputePipeline {
+export function pipeline(device: GPUDevice, code: string): GPUComputePipeline {
   let m = pipelineCache.get(device);
   if (!m) pipelineCache.set(device, (m = new Map()));
   let p = m.get(code);
@@ -309,24 +309,24 @@ function pipeline(device: GPUDevice, code: string): GPUComputePipeline {
 }
 
 const S = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC;
-function buffer(device: GPUDevice, floats: number, usage = S) {
+export function buffer(device: GPUDevice, floats: number, usage = S) {
   return device.createBuffer({ size: Math.max(16, Math.ceil((floats * 4) / 16) * 16), usage });
 }
-function uniform(device: GPUDevice, data: ArrayBuffer) {
+export function uniform(device: GPUDevice, data: ArrayBuffer) {
   const b = device.createBuffer({ size: Math.ceil(data.byteLength / 16) * 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   device.queue.writeBuffer(b, 0, data);
   return b;
 }
-function bind(device: GPUDevice, p: GPUComputePipeline, buffers: GPUBuffer[]) {
+export function bind(device: GPUDevice, p: GPUComputePipeline, buffers: GPUBuffer[]) {
   return device.createBindGroup({ layout: p.getBindGroupLayout(0), entries: buffers.map((buffer, binding) => ({ binding, resource: { buffer } })) });
 }
 
-type GemmU = {
+export type GemmU = {
   M: number; N: number; K: number; transA?: number; transB?: number; lda: number; ldb: number; ldc: number;
   strideA: number; strideB: number; strideC: number; offA?: number; offB?: number; offC?: number;
   mode: number; act?: number; auxOff?: number; auxStride?: number; l2?: number;
 };
-function gemmUniform(u: GemmU) {
+export function gemmUniform(u: GemmU) {
   const buf = new ArrayBuffer(80);
   const a = new Uint32Array(buf);
   const vals = [u.M, u.N, u.K, u.transA ?? 0, u.transB ?? 0, u.lda, u.ldb, u.ldc, u.strideA, u.strideB, u.strideC, u.offA ?? 0, u.offB ?? 0, u.offC ?? 0, u.mode, u.act ?? 0, u.auxOff ?? 0, u.auxStride ?? 0];
@@ -345,9 +345,9 @@ function miscUniform(u: MiscU) {
   return buf;
 }
 
-type Op = { p: GPUComputePipeline; g: GPUBindGroup; x: number; y: number; z: number };
+export type Op = { p: GPUComputePipeline; g: GPUBindGroup; x: number; y: number; z: number };
 
-async function readBack(device: GPUDevice, src: GPUBuffer, floats: number, encoder?: GPUCommandEncoder): Promise<Float32Array> {
+export async function readBack(device: GPUDevice, src: GPUBuffer, floats: number, encoder?: GPUCommandEncoder): Promise<Float32Array> {
   const staging = device.createBuffer({ size: Math.max(16, Math.ceil((floats * 4) / 16) * 16), usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
   const enc = encoder ?? device.createCommandEncoder();
   enc.copyBufferToBuffer(src, 0, staging, 0, staging.size);

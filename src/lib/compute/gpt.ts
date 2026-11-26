@@ -594,16 +594,30 @@ export class Gpt {
     return ws.layers.map((c) => Array.from({ length: H }, (_, h) => Float64Array.from(c.att.subarray(h * T * T, (h + 1) * T * T))));
   }
 
-  /** Sample n tokens after a prompt. Deterministic for a given seed. */
+  /**
+   * Sample n tokens after a (non-empty) prompt, decoding with a KV cache. Deterministic for a given
+   * seed. When the context window fills up, the oldest half is dropped and the rest is re-read, so
+   * the model always sees at least ctx/2 tokens of history.
+   */
   generate(prompt: ArrayLike<number>, n: number, o: GenerateOpts = {}): number[] {
+    if (!prompt.length) throw new Error('generate needs a prompt of at least one token');
     const rng = createRng(o.seed ?? 1);
-    const ctx = Array.from(prompt);
+    const ctxLen = this.cfg.ctx;
+    const history = Array.from(prompt).slice(-ctxLen);
+    const dec = new Decoder(this);
+    let logits = dec.prefill(history);
     const out: number[] = [];
     for (let i = 0; i < n; i++) {
-      const probs = sampleDistribution(this.nextLogits(ctx), o.temperature ?? 1, o.topP ?? 1);
+      const probs = sampleDistribution(logits, o.temperature ?? 1, o.topP ?? 1);
       const tok = drawFrom(probs, rng.next());
       out.push(tok);
-      ctx.push(tok);
+      history.push(tok);
+      if (dec.len === ctxLen) {
+        const keep = history.slice(-Math.max(1, Math.floor(ctxLen / 2)));
+        history.length = 0;
+        history.push(...keep);
+        logits = dec.prefill(history);
+      } else logits = dec.step(tok);
     }
     return out;
   }
@@ -657,4 +671,125 @@ export function drawFrom(p: ArrayLike<number>, u: number): number {
     if (u < c) return k;
   }
   return last;
+}
+
+/**
+ * Incremental decoding with a KV cache: each new token costs one pass through the weights instead
+ * of a pass over the whole context. Gives the same logits as `Gpt.nextLogits` (checked in tests).
+ */
+export class Decoder {
+  readonly model: Gpt;
+  len = 0;
+  private K: Arr[];
+  private Vc: Arr[];
+  private x: Float64Array;
+  private a: Float64Array;
+  private qkv: Float64Array;
+  private y: Float64Array;
+  private h: Float64Array;
+  private tmp: Float64Array;
+  private sc: Float64Array;
+  constructor(model: Gpt) {
+    this.model = model;
+    const { d, ctx, layers } = model.cfg;
+    const A = () => (model.precision === 'f32' ? new Float32Array(ctx * d) : new Float64Array(ctx * d));
+    this.K = Array.from({ length: layers }, A);
+    this.Vc = Array.from({ length: layers }, A);
+    this.x = new Float64Array(d);
+    this.a = new Float64Array(d);
+    this.qkv = new Float64Array(3 * d);
+    this.y = new Float64Array(d);
+    this.h = new Float64Array(model.F);
+    this.tmp = new Float64Array(d);
+    this.sc = new Float64Array(ctx);
+  }
+  /** Forget the cache and read `tokens`; returns the logits after the last one. */
+  prefill(tokens: ArrayLike<number>): Float64Array {
+    this.len = 0;
+    let out: Float64Array = new Float64Array(0);
+    for (let i = 0; i < tokens.length; i++) out = this.step(tokens[i]);
+    return out;
+  }
+  /** Values are rounded to the model's precision at the same points as in `Gpt.forward`. */
+  private r(v: number) {
+    return this.model.precision === 'f32' ? Math.fround(v) : v;
+  }
+  private ln(x: Float64Array, P: Arr, gOff: number, bOff: number, out: Float64Array) {
+    const d = x.length;
+    let mean = 0;
+    for (let j = 0; j < d; j++) mean += x[j];
+    mean /= d;
+    let v = 0;
+    for (let j = 0; j < d; j++) {
+      const c = x[j] - mean;
+      v += c * c;
+    }
+    v /= d;
+    const rs = 1 / Math.sqrt(v + 1e-5);
+    for (let j = 0; j < d; j++) out[j] = this.r(P[gOff + j] * ((x[j] - mean) * rs) + P[bOff + j]);
+  }
+  private lin(x: Float64Array, din: number, P: Arr, wOff: number, bOff: number, dout: number, out: Float64Array) {
+    for (let o = 0; o < dout; o++) {
+      let s = bOff >= 0 ? P[bOff + o] : 0;
+      const wo = wOff + o * din;
+      for (let i = 0; i < din; i++) s += x[i] * P[wo + i];
+      out[o] = this.r(s);
+    }
+  }
+  /** Feed one token at position `len`; returns the next-token logits. */
+  step(tok: number): Float64Array {
+    const m = this.model;
+    const { d, heads: H, vocab: V, ctx } = m.cfg;
+    if (this.len >= ctx) throw new Error('KV cache full');
+    const { p, layout, F, hd } = m;
+    const t = this.len;
+    const { x, a, qkv, y, h, tmp, sc } = this;
+    for (let j = 0; j < d; j++) x[j] = this.r(p[layout.wte + tok * d + j] + p[layout.wpe + t * d + j]);
+    const scale = 1 / Math.sqrt(hd);
+    for (let l = 0; l < m.cfg.layers; l++) {
+      const bl = layout.blocks[l];
+      this.ln(x, p, bl.ln1g, bl.ln1b, a);
+      this.lin(a, d, p, bl.wqkv, bl.bqkv, 3 * d, qkv);
+      const K = this.K[l];
+      const Vc = this.Vc[l];
+      for (let j = 0; j < d; j++) {
+        K[t * d + j] = qkv[d + j];
+        Vc[t * d + j] = qkv[2 * d + j];
+      }
+      for (let hh = 0; hh < H; hh++) {
+        let mx = -Infinity;
+        for (let j = 0; j <= t; j++) {
+          let s = 0;
+          for (let e = 0; e < hd; e++) s += qkv[hh * hd + e] * K[j * d + hh * hd + e];
+          s *= scale;
+          sc[j] = this.r(s);
+          if (s > mx) mx = s;
+        }
+        let sum = 0;
+        for (let j = 0; j <= t; j++) {
+          const e = dexp(sc[j] - mx);
+          sc[j] = this.r(e);
+          sum += e;
+        }
+        for (let j = 0; j <= t; j++) sc[j] = this.r(sc[j] / sum);
+        for (let e = 0; e < hd; e++) {
+          let acc = 0;
+          for (let j = 0; j <= t; j++) acc = this.r(acc + sc[j] * Vc[j * d + hh * hd + e]);
+          y[hh * hd + e] = acc;
+        }
+      }
+      this.lin(y, d, p, bl.wo, bl.bo, d, tmp);
+      for (let j = 0; j < d; j++) x[j] = this.r(tmp[j] + x[j]);
+      this.ln(x, p, bl.ln2g, bl.ln2b, a);
+      this.lin(a, d, p, bl.w1, bl.b1, F, h);
+      for (let i = 0; i < F; i++) h[i] = this.r(gelu(h[i]));
+      this.lin(h, F, p, bl.w2, bl.b2, d, tmp);
+      for (let j = 0; j < d; j++) x[j] = this.r(tmp[j] + x[j]);
+    }
+    this.ln(x, p, layout.lnfg, layout.lnfb, a);
+    const logits = new Float64Array(V);
+    this.lin(a, d, p, layout.wte, -1, V, logits);
+    this.len++;
+    return logits;
+  }
 }

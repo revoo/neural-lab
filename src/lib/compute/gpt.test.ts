@@ -219,3 +219,37 @@ describe('sampling helpers', () => {
     expect(drawFrom([0.2, 0, 0.8], 0.9999999)).toBe(2);
   });
 });
+
+describe('cross-engine determinism reference', () => {
+  it('the pinned 30-step hash is what Node computes (check-webgpu.cjs requires the same in Chromium)', async () => {
+    const { cpuDeterminismHash, CPU_DETERMINISM_HASH } = await import('./gptPinned');
+    expect(cpuDeterminismHash()).toBe(CPU_DETERMINISM_HASH);
+    expect(CPU_DETERMINISM_HASH).toBe('463ddb7d');
+  });
+});
+
+describe('KV-cache decoding', () => {
+  it('gives bit-identical logits to a full forward pass, in float32 and float64', async () => {
+    const { Decoder } = await import('./gpt');
+    for (const prec of ['f32', 'f64'] as const) {
+      const m = new Gpt({ vocab: 13, ctx: 10, d: 12, heads: 3, layers: 2 }, prec);
+      m.init(6);
+      const r = createRng(2);
+      for (let i = 0; i < m.p.length; i++) m.p[i] += r.uniform(-0.2, 0.2);
+      const toks = Array.from({ length: 10 }, () => r.int(13));
+      const dec = new Decoder(m);
+      for (let t = 0; t < 10; t++) {
+        const a = dec.step(toks[t]);
+        const b = m.nextLogits(toks.slice(0, t + 1));
+        expect(Array.from(a)).toEqual(Array.from(b));
+      }
+    }
+  });
+  it('keeps generating past the context window (dropping the oldest half)', () => {
+    const m = new Gpt({ vocab: 9, ctx: 8, d: 8, heads: 2, layers: 1 });
+    m.init(1);
+    const out = m.generate([1, 2, 3], 30, { seed: 4 });
+    expect(out.length).toBe(30);
+    expect(out).toEqual(m.generate([1, 2, 3], 30, { seed: 4 }));
+  });
+});
