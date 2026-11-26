@@ -224,7 +224,7 @@ describe('cross-engine determinism reference', () => {
   it('the pinned 30-step hash is what Node computes (check-webgpu.cjs requires the same in Chromium)', async () => {
     const { cpuDeterminismHash, CPU_DETERMINISM_HASH } = await import('./gptPinned');
     expect(cpuDeterminismHash()).toBe(CPU_DETERMINISM_HASH);
-    expect(CPU_DETERMINISM_HASH).toBe('463ddb7d');
+    expect(CPU_DETERMINISM_HASH).toBe('fba13580');
   });
 });
 

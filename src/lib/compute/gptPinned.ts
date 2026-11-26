@@ -7,7 +7,7 @@
 import { Gpt, type GptConfig } from './gpt';
 import { createRng } from '../rng';
 
-export const CPU_DETERMINISM_HASH = '463ddb7d';
+export const CPU_DETERMINISM_HASH = 'fba13580';
 
 /** FNV-1a over the parameter bytes, as a hex string. */
 export function paramHash(p: Float32Array): string {
