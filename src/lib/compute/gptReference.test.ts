@@ -6,6 +6,8 @@ import { calibrate, sampleStats, stageSteps } from '../corpora/stages';
 import { gptParamCount } from './gpt';
 import { CPU_RUN, samplesAt } from './gptReference';
 import { CPU_REFERENCE } from './gptReferenceResults';
+import { GPU_REFERENCE } from './gptReferenceGpuResults';
+import { GPU_RUN } from './gptReference';
 import { runTraining } from './gptRun';
 import { InlineCpuTrainer } from './gptTrainerCore';
 import { paramHash } from './gptPinned';
@@ -48,5 +50,20 @@ describe('the recorded CPU reference run', () => {
     const last = CPU_REFERENCE.checkpoints.at(-1)!;
     expect(last.step).toBe(2000);
     expect(samplesAt(CPU_RUN, p)).toEqual(last.samples);
+  });
+});
+
+describe('the recorded larger (GPU-size) run', () => {
+  it('its statistics and stages follow from its samples; final 1.423, 78% real words, six in a row from step 774', () => {
+    const cal = calibrate(trainText, 800, 400, dict);
+    const hist = GPU_REFERENCE.checkpoints.map((c) => ({ step: c.step, stats: sampleStats(c.samples.join(' '), dict, freq) }));
+    hist.forEach((h, k) => expect(h.stats).toEqual(GPU_REFERENCE.checkpoints[k].stats));
+    expect(stageSteps(hist, cal)).toEqual(GPU_REFERENCE.stages);
+    expect(GPU_REFERENCE.stages).toEqual({ letters: 1668, spacing: 2154, 'half-real': 774, 'most-real': null, phrase: 774 });
+    const last = GPU_REFERENCE.checkpoints.at(-1)!;
+    expect(last.step).toBe(3000);
+    expect(last.valLoss.toFixed(3)).toBe('1.423');
+    expect((100 * last.stats.realShare).toFixed(0)).toBe('78');
+    expect(GPU_REFERENCE.params).toBe(gptParamCount(GPU_RUN.cfg));
   });
 });

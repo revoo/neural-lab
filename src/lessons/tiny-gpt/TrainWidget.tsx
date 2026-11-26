@@ -12,6 +12,7 @@ import { usePrefersReducedMotion } from '../../components/motion';
 import { Gpt } from '../../lib/compute/gpt';
 import { CPU_RUN, GPU_RUN, PROMPT, samplesAt } from '../../lib/compute/gptReference';
 import { CPU_REFERENCE } from '../../lib/compute/gptReferenceResults';
+import { GPU_REFERENCE } from '../../lib/compute/gptReferenceGpuResults';
 import { initialParams, runTraining, type RunSpec } from '../../lib/compute/gptRun';
 import { createGptTrainer, type GptTrainer } from '../../lib/compute/gptTrainer';
 import { charFrequencies, dictionary, evalWindows, loadGrimm, type Corpus } from '../../lib/corpora/grimm';
@@ -194,7 +195,7 @@ export function TrainWidget() {
   const hi = 4.4;
   const y = (v: number) => PAD.t + ((H - PAD.t - PAD.b) * (hi - Math.min(hi, Math.max(lo, v)))) / (hi - lo);
   const line = (pts: { step: number; v: number }[]) => pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.step).toFixed(1)},${y(p.v).toFixed(1)}`).join('');
-  const refPath = size === 'small' ? line(REF.checkpoints.map((c) => ({ step: c.step, v: c.valLoss }))) : '';
+  const refPath = line((size === 'small' ? REF : GPU_REFERENCE).checkpoints.map((c) => ({ step: c.step, v: c.valLoss })));
   const livePath = line(cps.map((c) => ({ step: c.step, v: c.valLoss })));
   const base = REF.baselines;
   const stepTicks = [0, 10, 100, 1000].filter((v) => v <= total);
@@ -233,7 +234,7 @@ export function TrainWidget() {
         <>
           A real {spec.cfg.layers}-block GPT (width {spec.cfg.d}, {spec.cfg.heads} heads, {spec.cfg.ctx} characters of context) learning to predict the next character of
           Grimms’ fairy tales. The chart’s <span className="c-p">solid line</span> is your run’s validation loss on four tales it never trains on; dotted lines are
-          the baselines (guessing blindly, letter counts, pair counts){size === 'small' ? ', and the faint dashed line is the recorded reference run' : ''}. The numbered ticks are
+          the baselines (guessing blindly, letter counts, pair counts), and the faint dashed line is the recorded reference run. The numbered ticks are
           measured milestones; click one, or drag the timeline, to see what the model wrote at that step. On the CPU your run reproduces the recorded one exactly; on a GPU
           the last bits of each sum differ, so the samples can drift apart.
         </>
@@ -265,8 +266,8 @@ export function TrainWidget() {
       </div>
       {size === 'large' && tier.kind !== 'webgpu' && (
         <p className="live-note" style={{ marginTop: 0 }}>
-          The larger model has about {Math.round((GPU_RUN.cfg.d / CPU_RUN.cfg.d) ** 2)} times as many weights per layer. Trained on one CPU core it takes about two hours (that is how
-          its reference run was recorded), so here it is offered only when this browser exposes a GPU.
+          The larger model has about {Math.round((GPU_RUN.cfg.d / CPU_RUN.cfg.d) ** 2)} times as many weights per layer. Trained on one CPU core its recorded reference run took about an hour
+          and a quarter, so here it is offered only when this browser exposes a GPU.
         </p>
       )}
       <div style={{ overflowX: 'auto' }}>

@@ -3,6 +3,7 @@ import { TrainWidget } from './TrainWidget'
 import { AnatomyWidget } from './AnatomyWidget'
 import { TokeniserWidget } from './TokeniserWidget'
 import { InsideWidget } from './InsideWidget'
+import { Scorecard } from './Scorecard'
 import { ShipLab } from './ShipLab'
 import { questions } from './quiz'
 
@@ -115,7 +116,11 @@ Some things to try, and what the model actually does:
 
 ## The honest scorecard
 
-{/* scorecard: added once the larger model's reference run is recorded */}
+<Scorecard />
+
+How good is it, honestly? Both models beat every counting baseline by a wide margin on tales they never saw: the tiny one reaches 1.712 nats per character, the larger one (twelve times the parameters, 1.5 times the steps) 1.423. That second number is not far from the 1.47 nanoGPT reports for a much larger model on Shakespeare, but different books are not comparable, so take it as a sign of the right ballpark and nothing more.
+
+In words: the tiny model writes text in which about half the "words" are real; the larger one gets to 78%, and from step 774 on its samples always contain at least six real words in a row. Neither writes a sentence that means anything. They have learned spelling, word boundaries, punctuation habits and which words tend to sit near which, the surface of English, from half a megabyte of fairy tales. No milestone here was hand-picked: each is a threshold set by real passages of the book, and the larger run met its first ones in a different order (its letter mix wobbled above the bar until step 1,668, long after it had started producing runs of real words). Growth is measured, not narrated.
 
 ## Lab: Ship the tiny GPT
 
