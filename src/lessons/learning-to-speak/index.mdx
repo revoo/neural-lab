@@ -65,7 +65,7 @@ What the measurements show:
 - **Previous-character heads form, all four in the first block.** None is above the bar until step 599, when two are; from step 774 all four first-block heads are, and by step 2,000 they put between 23% and 27% of their attention on the previous character. The second-block heads stay near even (about 7%).
 - **No induction head forms.** Every head's induction score stays at about 0.03, the same as at step 0 and well under the bar of 0.057. The model's loss on the second copy of the letters (6.09 nats per character at the end) is no better than on the first (6.08): having seen the letters once does not help it predict them again. A repeated passage from the tales themselves gives the same answer. And its validation loss falls smoothly at every checkpoint, with no bump.
 
-So the famous story does not happen here, and we say so. Olsson and colleagues studied models trained on vastly more text than ours: half a megabyte of fairy tales and 29,696 parameters. The larger model in the capstone (348,384 parameters) has no induction head at the end of its 3,000 steps either. Whether they would appear with more data, more steps or more width is a fair question this lesson does not answer.
+So the famous story does not happen here, and we say so. Olsson and colleagues studied models trained on vastly more text than ours: half a megabyte of fairy tales and 29,696 parameters. The larger model in the capstone (348,384 parameters) grows none in its 3,000 steps either: its best induction score at any checkpoint is 0.032, and the second copy is harder for it, not easier. Whether they would appear with more data, more steps or more width is a fair question this lesson does not answer.
 
 ## The map of characters
 

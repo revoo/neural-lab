@@ -5,6 +5,7 @@ import { evalWindows, prepareCorpus } from '../../lib/corpora/grimm';
 import { Gpt } from '../../lib/compute/gpt';
 import { CPU_RUN } from '../../lib/compute/gptReference';
 import { CPU_REFERENCE } from '../../lib/compute/gptReferenceResults';
+import { GPU_REFERENCE } from '../../lib/compute/gptReferenceGpuResults';
 import { CHAR_GROUP_IDS, embeddings, headScores, looCentroidAccuracy, PROBE_L, repeatBatch, uniformShares } from '../../lib/compute/gptProbes';
 import { nodeFs } from '../../lib/nodeIo';
 import { IND_BAR, PREV_BAR, speakMoments, type SpeakCheckpoint } from './speak';
@@ -71,6 +72,15 @@ describe('learning to speak: the measured timeline', () => {
     // and the recorded probes match a fresh computation on the shipped weights
     const r = headScores(m, repeatBatch(16, PROBE_L));
     expect(r.prev.map((x) => x.map((v) => +v.toFixed(4)))).toEqual(REF.at(-1)!.probe.prev);
+  });
+});
+
+describe('the larger model', () => {
+  it('has no induction head at any checkpoint of its 3,000 steps, and its second copy is not easier', () => {
+    const cps = GPU_REFERENCE.checkpoints as unknown as SpeakCheckpoint[];
+    expect(cps.at(-1)!.step).toBe(3000);
+    for (const c of cps) expect(Math.max(...c.probe.induction.flat())).toBeLessThan(IND_BAR);
+    expect(cps.at(-1)!.probe.lossSecond).toBeGreaterThan(cps.at(-1)!.probe.lossFirst);
   });
 });
 
