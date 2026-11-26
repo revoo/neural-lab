@@ -187,7 +187,7 @@ Optimums are "best found by searching <stated grid>", recorded with a sharded `*
 - [x] A4 Capstone lesson: widgets, lab, history, quiz, curriculum/map/chip registration, docs. Lesson `tiny-gpt` in new Module 19 (Epilogue is 20); all widgets, the Ship-the-Tiny-GPT lab (full grid in `results.ts`, `TARGET` 1.79), history card, quiz, glossary, PyTorch snippet; numbers pinned in `tinyGpt.test.ts`; screenshots in three themes and 390px; both check-pages passes clean.
 - [x] B1 Learning to see: filters forming, feature maps, occlusion/saliency, class separation, "Fool the classifier" lab. Lesson `learning-to-see` (after `cnns`); details and honest findings in ROADMAP "Current state". Pixel values are described as amounts of ink (drawn in the text colour), because "white" would be false in the light theme.
 - [ ] B2 Learning to speak: noise→language samples with stage statistics, attention heads forming, embedding drift, "Steer the sentence" lab — **IN PROGRESS, one pin left**: lesson `learning-to-speak` is complete (widgets, lab, history, quiz, tests, screenshots, both page checks). The prose says the larger model has no induction head at the end of its 3,000 steps (probed on its final weights); `gptReference.run.ts gpu` is re-recording the larger run with probes (log in scratch/gpuref2.log, ~75 min). When `gptReferenceGpuResults.ts` has `probe`, add a test in `speak.test.ts` that its final induction scores are under `IND_BAR`, then tick this box. If the re-run is lost, simply run it again.
-- [ ] B3 (optional) Learning to draw
+- [x] B3 (optional) Learning to draw: section "Learning to draw: the same recipe on pictures" + `DrawWidget` in `diffusion` (details in ROADMAP).
 
 
 ## 1. Get oriented (≈10 minutes)

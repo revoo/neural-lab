@@ -1,5 +1,6 @@
 {/* authored-by: Claude Opus 5.5 */}
 import { ForwardNoise, BestGuess, RunBackwards, LearnedDenoiser, StepBudgetLab } from './Widgets'
+import { DrawWidget } from './DrawWidget'
 import { questions } from './quiz'
 
 ## The problem: one shot is too much to ask
@@ -132,6 +133,16 @@ There's a second way to read the denoiser. The **score** of a distribution is th
 Because in real life you never have the true distribution, only a finite training set. The exact best denoiser for a finite set of examples knows only those examples: run it backwards and it reproduces training images, nothing new. Real networks can't represent that perfect, memorising denoiser, and the way they fall short (smoothing between examples in ways that respect the structure of images) is a big part of why they generate *new* images. Kadkhodaie and colleagues (2024) showed the transition directly: the same network memorises when trained on a small dataset and generalises when trained on a large one. Our blobs sidestep the issue by giving the denoiser the true distribution, so you can study sampling on its own.
 
 </Deeper>
+
+## Learning to draw: the same recipe on pictures
+
+Points in a plane are where the ideas are clearest. But diffusion models are famous for pictures, so here is the identical recipe on tiny ones: 1,500 Fashion-MNIST photos of trousers, sneakers and bags (Zalando Research, MIT licence), shrunk to 8 × 8 pixels. <Src href="https://github.com/zalandoresearch/fashion-mnist" /> The denoiser is now a plain network with 102,976 weights: it reads the 64 noisy pixels plus 16 numbers that say which of the 100 noise levels it is at, and predicts the 64 noise values that were added. Training uses exactly the loss above. Sampling starts from pure noise and runs the 100 levels backwards, keeping each step's guess of the clean picture inside the range of real pixel values (a standard precaution that stops small errors snowballing).
+
+How do you know when it has learned to draw, without squinting? Compare each generated picture with its nearest picture in the training set. A genuinely new real picture (one of 150 held back) is within 2.28 of some training picture 95% of the time, so call a generated picture "within the real-picture distance" when it is within 2.28 too.
+
+<DrawWidget />
+
+In the recorded run, the first picture gets that close at **step 631**, and from **step 3,981** at least half of the 16 do; by step 10,000 ten of the 16 do. None is a copy: the closest is still 1.25 away from any training picture, so the network is producing new pictures in the style of the old ones, not retrieving them. Now look at the widget with a critical eye, because the measure has a weakness. Compare the generated row with the row of real training pictures under it: the real ones are crisper (a trouser is two clear columns of ink, a bag a solid block), and even the generated pictures that pass the distance test are blurrier. A blurry, average-looking picture sits fairly close to many training pictures, so a nearest-picture distance is generous to blur. The honest summary: in ten thousand steps it learns the overall shapes and brightness of these clothes, and its pictures are new, but they are not yet as sharp as real ones. Sharper detail is exactly the low-noise precision the learned denoiser above struggled with, and it is what bigger networks and longer training buy. Image models that draw convincing faces use the same loss with networks millions of times larger, convolutional or transformer denoisers instead of a plain network, and far more pictures.
 
 ## In code
 
