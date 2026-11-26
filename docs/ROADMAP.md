@@ -4,7 +4,9 @@ _Last updated after `llm-serving` & `speculative-decoding`. **`docs/CURRICULUM_P
 
 ## Current state (read this first if you're picking up mid-session)
 
-**All approved work is complete.** `docs/SERVING_LESSON_PLAN.md` (S1–S6), the V1 tasks (A1–A4, B1–B3), the v2 Release Plan (`docs/V2_PLAN.md`, V2-WP1–WP6), and `docs/CURRICULUM_PLAN.md` (WP0–WP9) are all ticked and pushed. Unapproved ideas for later are in `docs/Future_Ideas.md`.
+**Next task (owner, 26 November 2026):** strengthen the multi-layer MLP & backpropagation foundation in Module 5 (`backpropagation` + `network-from-scratch`). Full specification and `B1–B6` checklist: **`docs/BACKPROP_BRIDGE_PLAN.md`**. Not started.
+
+**Previous approved work complete:** `docs/SERVING_LESSON_PLAN.md` (S1–S6), the V1 tasks (A1–A4, B1–B3), the v2 Release Plan (`docs/V2_PLAN.md`, V2-WP1–WP6), and `docs/CURRICULUM_PLAN.md` (WP0–WP9) are all ticked and pushed. Unapproved ideas for later are in `docs/Future_Ideas.md`.
 
 - **Done [Gemini Antigravity]:** Implemented `docs/SERVING_LESSON_PLAN.md` (S1–S6), **split cleanly at §3.6** into two Module 16 lessons (*Inference & Hardware*, era widened to `2019 to 2024`; chips *Efficient Training & Inference*, both linked into `dest:inference`) after the combined draft reached 4,752 raw words (well over the 3,300-word split threshold):
   - **`llm-serving`** (*Serving LLMs: Batching, Chunked Prefill & Paged Memory*, 3,181 raw words, 35 min; prereqs `['kv-cache', 'sampling']`): discrete-event serving simulator `serve.ts` (reproducing `kv-cache`'s 205.2 tok/s H100 ceiling & 128 KiB/tok KV byte count exactly, unified mixed-batch roofline `stepTime()`, three KV allocators `reserve-max` / `reserve-grow` / `paged` with reference-counted prefix sharing & LIFO preemption), 6 fixed-seed traces (`trace.ts`), 36-config static-batching fairness search (`staticSearch.run.ts` → `staticBest.ts`), 4 interactive widgets (`LatencyAnatomy`, `BatchingRace` with replay, `ChunkedPrefill` showing both sides of the RTX 4090 163.9-token ridge point, `KvMemoryMap` with interactive block-table inspector), **Lab: The Serving Desk** (`ServingDeskLab.tsx`, exhaustive 300-config search × 3 briefs in `search.run.ts` → `results.ts` plus 56-config static wait sweep on Brief 1, clickable Gantt, step batch & KV inspector, SLO histograms, clickable request table, verified `vllm serve` `LiveCode`, `MachineLog`, post-solve 300-config Pareto `SolutionMap`, evidence-only `hints.test.ts`), real tiny-GPT bit-identical chunked-prefill test (`maxDiff === 0`), 25-line verified pure-Python scheduler, 5-question quiz, 8 glossary terms, history card `llm-serving-desk` (Orca OSDI 2022, SARATHI Aug 2023, vLLM/PagedAttention SOSP 2023, DistServe OSDI 2024), and updated `kv-cache` links + closing bridge.
@@ -222,7 +224,9 @@ Session 3 (owner's order): first a **Matrix theme**, then resume "Next steps" wi
 
 ## Next steps (in order)
 
-**All approved work is complete** (`docs/CURRICULUM_PLAN.md` WP0–WP9, `docs/V2_PLAN.md` V2-WP1–WP6, V1 tasks A1–A4 & B1–B3, and `docs/SERVING_LESSON_PLAN.md` S1–S6).
+**Next (owner, 26 November 2026):** strengthen the multi-layer MLP & backpropagation foundation in Module 5 (`backpropagation`: `TinyMlpBackprop`, `StepMicroscope`, Lab: *The Credit-Assignment Workbench*; `network-from-scratch`: multi-class `SoftmaxBackprop` bridge). Full spec and `B1–B6` checklist: **`docs/BACKPROP_BRIDGE_PLAN.md`**. Not started.
+
+*Previously completed:* (`docs/CURRICULUM_PLAN.md` WP0–WP9, `docs/V2_PLAN.md` V2-WP1–WP6, V1 tasks A1–A4 & B1–B3, and `docs/SERVING_LESSON_PLAN.md` S1–S6).
 
 1. ~~V2-WP1~~ done (revised by the owner into Foundational / area chips). ~~V2-WP2~~ done (`#/map`).
 2. ~~V2-WP3~~ done (compute tiers, training lab, benchmark, grokking, warmup, GAN grid on the GPU).
