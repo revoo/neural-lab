@@ -59,4 +59,15 @@ export const questions: Question[] = [
       { text: 'Averages the vector with its neighbouring tokens’ vectors.', why: 'That would be a kind of attention. Layer norm never looks at other tokens.' },
     ],
   },
+  {
+    id: 'transformer-block.ablation',
+    kind: 'choice',
+    concepts: ['transformer', 'residual-connection'],
+    prompt: 'In the 4-token sentence microscope on “The cat sat on → mat”, why did switching off the residual skips wreck the prediction even though attention still focused on “cat” and “sat”?',
+    options: [
+      { text: 'Without the residual addition, attention’s output overwrote “on”’s own embedding — erasing the token’s identity so the MLP could no longer combine “cat”, “sat”, and “on” together.', correct: true, why: 'The residual stream is a shared whiteboard: attention writes notes fetched from earlier tokens while the skip connection keeps the current token’s own word and position intact for the MLP to combine.' },
+      { text: 'Because disabling residual skips turns off the causal mask.', why: 'The causal mask lives inside attention’s softmax scores; disabling residual skips changes x + attn(LN(x)) into attn(LN(x)).' },
+      { text: 'Because residual skips are where the unembedding matrix is stored.', why: 'Residual skips have zero parameters — they are plain vector additions.' },
+    ],
+  },
 ];

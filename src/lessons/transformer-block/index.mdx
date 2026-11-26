@@ -1,4 +1,5 @@
 import { BlockStepper, DepthExperiment, GptCounter } from './Widgets'
+import { SentenceMicroscope } from './SentenceMicroscope'
 import { questions } from './quiz'
 
 ## The problem: blending isn't thinking
@@ -73,6 +74,30 @@ A language model is trained to predict the next token: given "the cat sat on the
 But attention lets every token see every other token. Position 1 is supposed to predict the token at position 2 — and it could simply *look at it*. Training would reach a perfect score by copying, exactly like the leaky test set in <LessonLink to="diagnosis-lab">the model clinic</LessonLink>, and the model would be useless at generating text, where the future really is unknown.
 
 The **causal mask** forbids it: before the softmax, every score from a token to a *later* token is set to $-\infty$, so its weight becomes exactly zero. Each token can attend only to itself and to earlier tokens. Toggle it in the block above and watch the upper half of the attention table disappear.
+
+## Putting a whole sentence under the microscope
+
+Stepping through one diagram shows the wiring; watching one real 4-number residual stream travel all the way from word lookup to next-token probabilities shows *why every wire has to be there*.
+
+Below is a complete, 1-block causal transformer ($d = 4$, 2 attention heads of width 2, an 8-neuron ReLU feed-forward layer, LayerNorm, causal mask, and a 6-word vocabulary) reading `"The cat sat on"` to predict `"mat"`. Every matrix multiply, softmax, and `p − y` logit gradient is computed live.
+
+<Predict
+  question="Inside “The cat sat on”, suppose you switch OFF the attention layer while keeping the feed-forward MLP, residual stream, and positional encodings turned ON. What can the last token “on” still know when it tries to predict “mat”?"
+  options={['Everything — the MLP reads “cat” and “sat” directly', 'Only its own word (“on”) and its position (slot 3) — never “cat” or “sat”', 'Nothing at all — its vector becomes all zeros', 'Only the first word “The”']}
+  answer={1}
+>
+
+The MLP acts on each token's 4-number vector **in isolation**. Without attention, `"on"` keeps its own embedding and position via the residual stream, yet has zero access to `"cat"` or `"sat"` — so in the microscope below, its confidence in `"mat"` plunges from **90.0%** down to **13.6%** and its top guess flips away from `"mat"`.
+
+</Predict>
+
+<SentenceMicroscope />
+
+Try all three ablation switches on `"on"` — every single one breaks the prediction for a different mechanical reason:
+
+- **Attention off (`90.0% → 13.6%`):** Head 1 (87% on `"cat"`) and Head 2 (97% on `"sat"`) go dark, so `"on"` never learns who sat or what they did.
+- **Residual skips off (`90.0% → 5.3%`):** Attention's output *overwrites* `"on"`'s own preposition channel instead of annotating the shared whiteboard, erasing the `"on"` cue before the MLP can combine `"cat" + "sat" + "on"`.
+- **Positions off (`90.0% → 41.4%`):** Without positional encodings, the earlier words turn into an unordered bag (shuffling `"The cat sat"` produces the exact same numbers at `"on"`), softening both heads and knocking `"mat"` out of first place.
 
 ## Counting a whole model
 
