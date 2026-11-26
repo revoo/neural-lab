@@ -47,7 +47,7 @@ export function getGpu(): Promise<GpuInfo | null> {
 
 // ------------------------------------------------------------------ shaders
 
-const ACT_ID: Record<ActName, number> = { linear: 0, relu: 1, tanh: 2, sigmoid: 3, gelu: 4 };
+const ACT_ID: Record<ActName, number> = { linear: 0, relu: 1, tanh: 2, sigmoid: 3, gelu: 4, square: 5 };
 
 const ACT_WGSL = /* wgsl */ `
 fn actf(id: u32, z: f32) -> f32 {
@@ -56,6 +56,7 @@ fn actf(id: u32, z: f32) -> f32 {
     case 2u: { return tanh(clamp(z, -30.0, 30.0)); }
     case 3u: { return 1.0 / (1.0 + exp(-clamp(z, -80.0, 80.0))); }
     case 4u: { let zz = clamp(z, -30.0, 30.0); return 0.5 * zz * (1.0 + tanh(0.7978845608 * (zz + 0.044715 * zz * zz * zz))); }
+    case 5u: { return z * z; }
     default: { return z; }
   }
 }
@@ -69,6 +70,7 @@ fn actg(id: u32, z: f32, a: f32) -> f32 {
       let t = tanh(0.7978845608 * (zz + 0.044715 * zz * zz * zz));
       return 0.5 * (1.0 + t) + 0.5 * zz * (1.0 - t * t) * 0.7978845608 * (1.0 + 0.134145 * zz * zz);
     }
+    case 5u: { return 2.0 * z; }
     default: { return 1.0; }
   }
 }`;
@@ -394,10 +396,11 @@ export class GpuMlpEngine implements MlpEngine {
   private destroyed = false;
   private chain: Promise<unknown> = Promise.resolve();
 
-  constructor(
-    readonly spec: MlpSpec,
-    private device: GPUDevice,
-  ) {
+  readonly spec: MlpSpec;
+  private device: GPUDevice;
+  constructor(spec: MlpSpec, device: GPUDevice) {
+    this.spec = spec;
+    this.device = device;
     this.replicas = spec.replicas ?? 1;
     this.layout = paramLayout(spec.sizes);
     this.P = this.layout.total;
@@ -632,42 +635,51 @@ export class GpuMlpEngine implements MlpEngine {
 // ------------------------------------------------------------------ plain GEMM (benchmark)
 
 /**
- * Time `reps` square n×n matrix multiplications on the GPU, all recorded in one command encoder,
- * and return the result of the last one (for checking) plus the wall-clock time in ms, including
- * the final read-back.
+ * Time `reps` multiplications C = A·B (A: M×K, B: K×N) on the GPU and return the last result (for
+ * checking) and the wall-clock time in ms, including read-back.
+ * - `batched` (the design the engine uses): all reps recorded in one command encoder, one read-back.
+ * - otherwise (the naive design): one submission and a full read-back of C per multiplication.
  */
-export async function gpuGemm(device: GPUDevice, A: Float32Array, B: Float32Array, n: number, reps: number) {
-  const a = buffer(device, n * n);
-  const b = buffer(device, n * n);
-  const c = buffer(device, n * n);
+export async function gpuGemm(device: GPUDevice, A: Float32Array, B: Float32Array, dims: { M: number; N: number; K: number }, reps: number, batched = true) {
+  const { M, N, K } = dims;
+  const a = buffer(device, M * K);
+  const b = buffer(device, K * N);
+  const c = buffer(device, M * N);
   device.queue.writeBuffer(a, 0, A);
   device.queue.writeBuffer(b, 0, B);
   const gemm = pipeline(device, GEMM_WGSL);
   // two distinct dummies: one buffer can't be bound read-only and read-write in the same dispatch
   const dummy = buffer(device, 4);
   const dummy2 = buffer(device, 4);
-  const u = uniform(device, gemmUniform({ M: n, N: n, K: n, lda: n, ldb: n, ldc: n, strideA: 0, strideB: 0, strideC: 0, mode: MODE.plain }));
+  const u = uniform(device, gemmUniform({ M, N, K, lda: K, ldb: N, ldc: N, strideA: 0, strideB: 0, strideC: 0, mode: MODE.plain }));
   const g = bind(device, gemm, [u, a, b, c, dummy, dummy2]);
+  const record = (enc: GPUCommandEncoder, k: number) => {
+    const pass = enc.beginComputePass();
+    for (let i = 0; i < k; i++) {
+      pass.setPipeline(gemm);
+      pass.setBindGroup(0, g);
+      pass.dispatchWorkgroups(Math.ceil(N / 16), Math.ceil(M / 16), 1);
+    }
+    pass.end();
+  };
   // warm-up: compile and run once so we time the work, not the shader compiler
   {
     const enc = device.createCommandEncoder();
-    const pass = enc.beginComputePass();
-    pass.setPipeline(gemm);
-    pass.setBindGroup(0, g);
-    pass.dispatchWorkgroups(Math.ceil(n / 16), Math.ceil(n / 16), 1);
-    pass.end();
+    record(enc, 1);
     await readBack(device, c, 1, enc);
   }
   const t0 = performance.now();
-  const enc = device.createCommandEncoder();
-  const pass = enc.beginComputePass();
-  for (let k = 0; k < reps; k++) {
-    pass.setPipeline(gemm);
-    pass.setBindGroup(0, g);
-    pass.dispatchWorkgroups(Math.ceil(n / 16), Math.ceil(n / 16), 1);
-  }
-  pass.end();
-  const out = await readBack(device, c, n * n, enc);
+  let out: Float32Array = new Float32Array(0);
+  if (batched) {
+    const enc = device.createCommandEncoder();
+    record(enc, reps);
+    out = await readBack(device, c, M * N, enc);
+  } else
+    for (let i = 0; i < reps; i++) {
+      const enc = device.createCommandEncoder();
+      record(enc, 1);
+      out = await readBack(device, c, M * N, enc);
+    }
   const ms = performance.now() - t0;
   for (const x of [a, b, c, dummy, dummy2, u]) x.destroy();
   return { out, ms };

@@ -78,6 +78,8 @@ export function act(name: ActName, z: number): number {
       return 1 / (1 + Math.exp(-z));
     case 'gelu':
       return 0.5 * z * (1 + Math.tanh(SQRT_2_PI * (z + 0.044715 * z * z * z)));
+    case 'square':
+      return z * z;
   }
 }
 /** d act / dz, given the pre-activation z and the activation a = act(z). */
@@ -96,6 +98,8 @@ export function actGrad(name: ActName, z: number, a: number): number {
       const t = Math.tanh(u);
       return 0.5 * (1 + t) + 0.5 * z * (1 - t * t) * SQRT_2_PI * (1 + 3 * 0.044715 * z * z);
     }
+    case 'square':
+      return 2 * z;
   }
 }
 
@@ -274,7 +278,9 @@ export class CpuMlpEngine implements MlpEngine {
   private Y: Float32Array = new Float32Array(0);
   /** Rows in the dataset. */
   rows = 0;
-  constructor(readonly spec: MlpSpec) {
+  readonly spec: MlpSpec;
+  constructor(spec: MlpSpec) {
+    this.spec = spec;
     this.replicas = spec.replicas ?? 1;
     const P = paramLayout(spec.sizes).total;
     this.reps = Array.from({ length: this.replicas }, () => ({ p: new Float32Array(P), g: new Float32Array(P), m: new Float32Array(P), v: new Float32Array(P), t: 0 }));

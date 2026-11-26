@@ -76,7 +76,7 @@ describe('V2-WP3 CPU Float32 kernels', () => {
     close(matmulTA(A, G).data, fd(B.data, f), 1e-3);
   });
 
-  it.each(['linear', 'relu', 'tanh', 'sigmoid', 'gelu'] as ActName[])('%s backward matches finite differences', (name) => {
+  it.each(['linear', 'relu', 'tanh', 'sigmoid', 'gelu', 'square'] as ActName[])('%s backward matches finite differences', (name) => {
     const Z = rnd(4, 5, 6);
     for (let i = 0; i < Z.data.length; i++) if (Math.abs(Z.data[i]) < 0.01) Z.data[i] = 0.3; // keep relu away from its kink
     const G = rnd(4, 5, 7);

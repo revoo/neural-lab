@@ -1,5 +1,6 @@
 {/* authored-by: Neon High */}
 import { KvCacheStepper, KvCalculator, RooflineExplorer, VramTetrisLab } from './Widgets';
+import { ThroughputBench } from './Benchmark';
 import { questions } from './quiz';
 
 # KV Caching & Memory-Bound Decoding
@@ -133,6 +134,30 @@ Our roofline calculator reports the **exact hardware upper bound**: $\text{time}
 - **PagedAttention (vLLM)** allocates KV caches in small fixed-size pages like virtual memory, eliminating VRAM fragmentation so much larger batches fit.
 - **Speculative decoding** uses a tiny draft model to propose 4–8 tokens ahead, then verifies them in *one* parallel forward pass of the big model — sneaking extra tokens into that idle 99.6% of Tensor Core capacity for free!
 </Deeper>
+
+### Measure it yourself: your CPU against your GPU
+
+The roofline is a statement about ratios, and you can watch those ratios on the machine in front of you. Your browser can run the same multiplication two ways: on the CPU, one multiply-add after another on the page's main thread, or on the graphics card through **WebGPU**, where thousands of small cores each compute a piece of the answer.
+
+Before you run it, compare two jobs of the same size. A 1024 × 1024 matrix times another 1024 × 1024 matrix is 2 × 1024³ ≈ 2.1 billion FLOPs, and it reads about 12 MB. The same matrix times a single vector is only 2 × 1024² ≈ 2.1 million FLOPs, but it still has to read the whole 4 MB matrix.
+
+<Predict
+  question="On the GPU, which of the two reaches more GFLOP/s (billions of FLOPs per second)?"
+  options={[
+    'About the same: it is the same matrix on the same chip.',
+    'Matrix × matrix, by a wide margin.',
+    'Matrix × vector: there is a thousand times less work, so it finishes sooner.',
+  ]}
+  answer={1}
+>
+Matrix × matrix, by a wide margin. It does about 171 FLOPs for every byte it moves (1024 ÷ 6), so the cores stay busy; matrix × vector uses each weight once, about half a FLOP per byte, so the cores mostly wait for memory. It does finish sooner, but it gets far less arithmetic done per second. That is prefill against decoding, the whole roofline story, on your own machine.
+</Predict>
+
+<ThroughputBench />
+
+Three things to notice. First, the **crossover**: where (and whether) the GPU overtakes the CPU depends on your hardware, because launching work and fetching results has a fixed price that only big jobs hide. On a software GPU (headless browsers use SwiftShader, which runs the "GPU" code on the CPU) the CPU tier can win at every size. Second, the **dashed line**, which reads the answer back after every multiplication, falls well below the batched one at small sizes: that round trip is why this site's training engine keeps the weights and the optimiser's running averages on the GPU and records dozens of steps into one submission. Third, switch to **matrix × vector**: every weight is used once, so the work is about half a FLOP per byte at every size, and both processors spend their time waiting for memory. That is single-user decoding, in miniature.
+
+If your chip says **CPU · main thread**, your browser doesn't expose WebGPU (or you switched it off). The CPU column still runs, and it shows the same intensity story: compare its matrix × matrix and matrix × vector numbers.
 
 ---
 

@@ -1,5 +1,6 @@
 {/* authored-by: Gemini Antigravity */}
 import { RandomFeaturesWidget } from './RandomFeaturesWidget'
+import { GrokkingDemo } from './GrokkingDemo'
 import { questions } from './quiz'
 
 You have spent this course taking modern AI apart piece by piece — from a single vector to a transformer, from backprop to reinforcement learning, from GANs and diffusion to production evals. It is tempting to leave a course like this thinking the story is finished and the scientists have it all wrapped up.
@@ -38,6 +39,24 @@ Even the timing of generalisation has broken the textbook intuition. In <LessonL
 In 2022, Alethea Power and colleagues studied neural networks trained on small algorithmically generated datasets and documented the opposite: a phenomenon they named **grokking**.<Src href="https://arxiv.org/abs/2201.02177" /> Long *after* a network had already overfit the finite training set — sitting at random-chance performance on held-out examples — continued optimisation caused its generalisation performance to jump from chance all the way to perfect generalisation.<Src href="https://arxiv.org/abs/2201.02177" /> They also measured how this delay depended on dataset size and found that smaller datasets required increasing amounts of optimisation before generalisation appeared.<Src href="https://arxiv.org/abs/2201.02177" />
 
 Why does a network spend thousands of extra steps reshaping weights that already have near-zero training loss, until an internal circuit suddenly clicks into place? Researchers have proposed partial mechanisms — weight decay slowly preferring simpler, lower-norm circuits over brittle lookup tables — yet grokking remains a vivid reminder that our picture of over-parameterised training dynamics is still incomplete.<Src href="https://arxiv.org/abs/2201.02177" />
+
+You can watch it happen. Andrey Gromov described a minimal network that groks modular arithmetic: the two numbers go in as one-hot vectors side by side, one hidden layer squares its inputs, and the output is scored with squared error against a one-hot answer.<Src href="https://arxiv.org/abs/2301.02679" /> He reported that regularisation and adaptive optimisers such as AdamW make the grokking arrive after fewer passes through the data.<Src href="https://arxiv.org/abs/2301.02679" /> Below, four copies of that network (four random starts) learn addition modulo 17 from half of the 289 possible sums, with AdamW. The other half is never trained on: it tells us whether the network has learned *addition* or a lookup table.
+
+<Predict
+  question="By step 100 every copy gets every training sum right, and its training loss is already tiny. What happens to accuracy on the unseen sums if you keep training?"
+  options={[
+    'Nothing much: training loss is near zero, so the gradients are too small to change anything.',
+    'It gets worse: further training only deepens the memorisation.',
+    'It climbs, slowly, all the way to 100%.',
+  ]}
+  answer={2}
+>
+With weight decay on, all four seeds start near guessing level at step 100 and reach 99% on the unseen sums at steps 1,400, 3,000, 3,200 and 2,700: 14 to 32 times later than they memorised. In this small network the climb is steady rather than a cliff, on either axis; what is striking is the delay, not the speed. Turn weight decay off and, within 6,000 steps, none of the four does better than guessing.
+</Predict>
+
+<GrokkingDemo />
+
+Notice what weight decay is doing. Every step, it shrinks every weight a little. A memorised lookup table needs lots of large, unrelated weights; a rule for addition can be written with fewer and smaller ones. Once the training sums are all right, the loss has almost nothing left to say, and the steady pull towards small weights is what keeps reshaping the network. That is one partial explanation people give, and this demo is consistent with it; it is not a proof of why grokking happens in general.
 
 ## What’s really inside?
 

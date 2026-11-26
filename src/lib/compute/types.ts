@@ -11,7 +11,8 @@
  * Both implement `MlpEngine`, so a widget doesn't care which one it got.
  */
 
-export type ActName = 'linear' | 'relu' | 'tanh' | 'sigmoid' | 'gelu';
+/** `square` (z²) is the activation of the minimal model that groks modular addition (Gromov 2023). */
+export type ActName = 'linear' | 'relu' | 'tanh' | 'sigmoid' | 'gelu' | 'square';
 export type LossKind = 'bce' | 'softmax-ce' | 'mse';
 export type OptKind = 'sgd' | 'momentum' | 'adam' | 'adamw';
 

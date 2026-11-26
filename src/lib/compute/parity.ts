@@ -32,6 +32,7 @@ const CASES: { name: string; spec: MlpSpec; label: (r: ReturnType<typeof createR
   { name: 'bce · tanh · adam · L2', spec: { sizes: [2, 8, 8, 1], acts: ['tanh', 'tanh', 'sigmoid'], loss: 'bce', opt: { kind: 'adam' }, l2: 0.002 }, label: (_, x) => [x[0] * x[1] > 0 ? 1 : 0] },
   { name: 'softmax-ce · relu · adamw · 3 replicas', spec: { sizes: [6, 20, 5], acts: ['relu', 'linear'], loss: 'softmax-ce', opt: { kind: 'adamw', weightDecay: 0.1 }, replicas: 3 }, label: (r) => { const y = [0, 0, 0, 0, 0]; y[r.int(5)] = 1; return y; } },
   { name: 'mse · gelu · momentum', spec: { sizes: [3, 17, 2], acts: ['gelu', 'linear'], loss: 'mse', opt: { kind: 'momentum' } }, label: (_, x) => [Math.sin(x[0]), x[1] * x[2]] },
+  { name: 'mse · square · adamw (the grokking model)', spec: { sizes: [10, 24, 5], acts: ['square', 'linear'], loss: 'mse', opt: { kind: 'adamw', weightDecay: 0.5 } }, label: (r) => { const y = [0, 0, 0, 0, 0]; y[r.int(5)] = 1; return y; } },
   { name: 'bce · relu · sgd · wide (40×33)', spec: { sizes: [5, 40, 33, 1], acts: ['relu', 'relu', 'sigmoid'], loss: 'bce', opt: { kind: 'sgd' } }, label: (_, x) => [x[0] + x[1] > 0 ? 1 : 0] },
 ];
 
@@ -84,11 +85,23 @@ export async function runParity(): Promise<{ adapter: string; checks: Check[] }>
     const r = createRng(n);
     const A = Float32Array.from({ length: n * n }, () => r.normal());
     const B = Float32Array.from({ length: n * n }, () => r.normal());
-    const { out } = await gpuGemm(gpu.device, A, B, n, 3);
+    const { out } = await gpuGemm(gpu.device, A, B, { M: n, N: n, K: n }, 3);
+    const naive = await gpuGemm(gpu.device, A, B, { M: n, N: n, K: n }, 2, false);
     const ref = matmul(tensor(n, n, A), tensor(n, n, B)).data;
     let worst = 0;
-    for (let i = 0; i < ref.length; i++) worst = Math.max(worst, Math.abs(out[i] - ref[i]));
-    push(`GEMM ${n}×${n} (max abs error)`, worst, 1e-3);
+    for (let i = 0; i < ref.length; i++) worst = Math.max(worst, Math.abs(out[i] - ref[i]), Math.abs(naive.out[i] - ref[i]));
+    push(`GEMM ${n}×${n}, batched and one-per-submit (max abs error)`, worst, 1e-3);
+  }
+  {
+    const n = 300;
+    const r = createRng(5);
+    const A = Float32Array.from({ length: n * n }, () => r.normal());
+    const v = Float32Array.from({ length: n }, () => r.normal());
+    const { out } = await gpuGemm(gpu.device, A, v, { M: n, N: 1, K: n }, 2);
+    const ref = matmul(tensor(n, n, A), tensor(n, 1, v)).data;
+    let worst = 0;
+    for (let i = 0; i < n; i++) worst = Math.max(worst, Math.abs(out[i] - ref[i]));
+    push('matrix × vector 300 (max abs error)', worst, 1e-3);
   }
   return { adapter: gpu.name, checks };
 }

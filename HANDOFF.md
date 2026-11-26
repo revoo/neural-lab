@@ -371,7 +371,7 @@ Owner-approved next release (implement in order, one work package per commit or 
 
 - [x] V2-WP1 Optional sections & guided tracks — **revised by the owner**: replaced by Foundational / "where this belongs" chips (`src/areas.ts`, `AreaChip`); no track toggle
 - [x] V2-WP2 Interactive Concept Dependency Graph (`#/map`)
-- [ ] V2-WP3 Two-Tier Compute Offloading (Test `Float32Array` + Production WebGPU) — **IN PROGRESS**: done: `src/lib/compute/` (CPU tier + WebGPU tier + selector + parity), `BackendChip`, training-lab on WebGPU. To do: GAN lab sweep on WebGPU, live warmup experiment in `lr-schedules`, live grokking in `open-questions`, **required** (owner) CPU vs WebGPU throughput benchmark in `kv-cache`.
+- [ ] V2-WP3 Two-Tier Compute Offloading (Test `Float32Array` + Production WebGPU) — **IN PROGRESS**: done: `src/lib/compute/` (CPU tier + WebGPU tier + selector + parity), `BackendChip`, training-lab on WebGPU. Also done: **required** (owner) CPU vs WebGPU throughput benchmark in `kv-cache` (`Benchmark.tsx`, `bench.ts`), live grokking demo in `open-questions` (`grokking.ts`, `GrokkingDemo.tsx`, `grok.run.ts` → `grokResults.ts`; `square` activation added to both tiers). To do: live warmup experiment in `lr-schedules` (searches in progress: with Adam, warmup halves the early loss spike but 20 seeds show no change in outcome; SGD+momentum being tested), GAN lab sweep on WebGPU.
 - [ ] V2-WP4 Mixture of Experts (MoE) & Sparse Routing (`moe` + Lab: Balance the Experts)
 - [ ] V2-WP5 Reasoning Models & Test-Time Compute (`reasoning` + Lab: Spend the Test-Time Budget)
 - [ ] V2-WP6 Multimodal Models & Vision Transformers (`multimodal-vit` + Lab: Wire the Multimodal Model)
