@@ -13,7 +13,11 @@
 import { createRng } from '../../lib/rng';
 import { dexp, irwinHall } from '../../lib/compute/detmath';
 
-export type CnnConfig = { size: number; c1: number; k1: number; c2: number; k2: number; hidden: number; classes: number };
+export type CnnConfig = {
+  size: number; c1: number; k1: number; c2: number; k2: number; hidden: number; classes: number;
+  /** Standard deviation of the first layer's starting weights (default: He, √(2 / K1²)). */
+  firstStd?: number;
+};
 
 type Arr = Float32Array | Float64Array;
 
@@ -89,7 +93,8 @@ export class Cnn {
       const std = Math.sqrt(2 / fanIn);
       for (let i = 0; i < n; i++) p[o + i] = std * irwinHall(r.next);
     };
-    fill(lay.w1, cfg.c1 * cfg.k1 * cfg.k1, cfg.k1 * cfg.k1);
+    if (cfg.firstStd !== undefined) for (let i = 0; i < cfg.c1 * cfg.k1 * cfg.k1; i++) p[lay.w1 + i] = cfg.firstStd * irwinHall(r.next);
+    else fill(lay.w1, cfg.c1 * cfg.k1 * cfg.k1, cfg.k1 * cfg.k1);
     fill(lay.w2, cfg.c2 * cfg.c1 * cfg.k2 * cfg.k2, cfg.c1 * cfg.k2 * cfg.k2);
     fill(lay.w3, cfg.hidden * this.sh.flat, this.sh.flat);
     fill(lay.w4, cfg.classes * cfg.hidden, cfg.hidden);

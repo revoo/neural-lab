@@ -95,6 +95,7 @@ export const LESSON_AREA: Record<string, Area> = {
   'images-as-tensors': 'vision',
   convolution: 'vision',
   cnns: 'vision',
+  'learning-to-see': 'vision',
   'object-detection': 'vision',
   'one-hot-vs-dense': 'llm',
   'word-embeddings': 'llm',

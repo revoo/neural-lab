@@ -579,6 +579,11 @@ export class Gpt {
       }
   }
 
+  /** After `forward(…, targets)`: the softmax probabilities, laid out [B·T × V]. */
+  lastProbs(): Arr {
+    return this.ws!.logits;
+  }
+
   /** Global L2 norm of the current gradient. */
   gradNorm(): number {
     let s = 0;

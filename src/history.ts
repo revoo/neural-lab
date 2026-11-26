@@ -36,6 +36,24 @@ const WP = (page: string) => `https://en.wikipedia.org/wiki/${page}`;
 
 export const HISTORY: HistoryEntry[] = [
   {
+    id: 'fool-classifier',
+    lessonId: 'learning-to-see',
+    lab: 'Fool the Classifier',
+    idea: 'Adversarial examples: tiny changes that flip a network’s answer',
+    years: [2013, 2014, 2017],
+    when: '2013 · 2014 · 2017',
+    who: [
+      { text: 'Christian Szegedy, Wojciech Zaremba, Ilya Sutskever, Joan Bruna, Dumitru Erhan, Ian Goodfellow and Rob Fergus reported in December 2013 that a network can be made to misclassify an image by an imperceptible perturbation.', source: 'https://arxiv.org/abs/1312.6199' },
+      { text: 'Ian Goodfellow, Jonathon Shlens and Christian Szegedy followed in December 2014 with an explanation and a fast way to generate such examples.', source: 'https://arxiv.org/abs/1412.6572' },
+    ],
+    story: {
+      before: { text: 'Deep networks had recently achieved state-of-the-art performance on speech and visual recognition, but the same expressiveness let them learn uninterpretable solutions with possibly counter-intuitive properties.', source: 'https://arxiv.org/abs/1312.6199' },
+      this: { text: 'Szegedy and colleagues found that networks learn input–output mappings that are discontinuous to a significant extent: a perturbation found by maximising the prediction error changes the answer, and the same perturbation can fool a different network trained on a different subset of the data.', source: 'https://arxiv.org/abs/1312.6199' },
+      after: { text: 'In 2017 Jiawei Su, Danilo Vasconcellos Vargas and Kouichi Sakurai changed a single pixel and fooled the network on 67.97% of the Kaggle CIFAR-10 test images they tried, and 16.04% of ImageNet test images.', source: 'https://arxiv.org/abs/1710.08864' },
+    },
+    dispute: { text: 'Why it happens was argued over: early explanations blamed nonlinearity and overfitting, while Goodfellow, Shlens and Szegedy argued the primary cause is the networks’ linear nature.', source: 'https://arxiv.org/abs/1412.6572' },
+  },
+  {
     id: 'tiny-gpt',
     lessonId: 'tiny-gpt',
     lab: 'Ship the Tiny GPT',

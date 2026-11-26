@@ -30,6 +30,7 @@
   --c-grid: #e6e2d8;
   --c-axis: #9e998d;
 
+  --cls-0: #2f6fe4; --cls-1: #e8682f; --cls-2: #16a06d; --cls-3: #c23cc9; --cls-4: #8a6d1f; --cls-5: #d63a4a; --cls-6: #0f9bb5; --cls-7: #6b54d8; --cls-8: #7a8a00; --cls-9: #b84f86;
   --radius: 10px;
   --radius-sm: 6px;
   --shadow: 0 1px 2px rgba(30, 25, 10, 0.06), 0 4px 16px rgba(30, 25, 10, 0.05);
@@ -40,6 +41,7 @@
 }
 
 :root[data-theme='dark'] {
+  --cls-0: #6b9cff; --cls-1: #ff9a5c; --cls-2: #3fd39a; --cls-3: #e07ae6; --cls-4: #e0c062; --cls-5: #ff6b7a; --cls-6: #45d3ee; --cls-7: #a796ff; --cls-8: #c6d84a; --cls-9: #ff8fc8;
   --bg: #121316;
   --bg-elev: #1a1c20;
   --bg-sunken: #0d0e10;
@@ -69,6 +71,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
+    --cls-0: #6b9cff; --cls-1: #ff9a5c; --cls-2: #3fd39a; --cls-3: #e07ae6; --cls-4: #e0c062; --cls-5: #ff6b7a; --cls-6: #45d3ee; --cls-7: #a796ff; --cls-8: #c6d84a; --cls-9: #ff8fc8;
     --bg: #121316;
     --bg-elev: #1a1c20;
     --bg-sunken: #0d0e10;
@@ -599,6 +602,7 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 0; }
    - Motion is gentle and stops under prefers-reduced-motion.
    ====================================================================== */
 :root[data-theme='matrix'] {
+  --cls-0: #5fd7ff; --cls-1: #ffb000; --cls-2: #39ff14; --cls-3: #ff5fd7; --cls-4: #fff275; --cls-5: #ff5f5f; --cls-6: #00d7af; --cls-7: #af87ff; --cls-8: #d7ff5f; --cls-9: #ff875f;
   --font-ui: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
   --font-prose: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
 

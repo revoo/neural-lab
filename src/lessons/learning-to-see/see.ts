@@ -219,3 +219,68 @@ export function accuracy(net: Cnn, imgs: Float32Array[], ys: ArrayLike<number>):
   });
   return ok / imgs.length;
 }
+
+// ------------------------------------------------------------------ the lesson's run and its milestones
+
+export const SEE_RUN: SeeSpec = { cfg: { ...CONFIG, firstStd: 0.02 }, batch: 32, steps: 1000, lr: 0.002, seed: 1, dataSeed: 2 };
+/** Edge bar: a filter counts as an oriented edge or bar detector when it matches a template better than 99% of random filters. */
+export const EDGE_QUANTILE = 0.99;
+
+export type SeeCheckpoint = { step: number; acc: number; nc: number; edge: number[]; filters: number[][] };
+
+/** Measure one checkpoint: test accuracy, nearest-centroid accuracy in the penultimate layer, edge scores and the filters. */
+export function measureSee(net: Cnn, data: ImageSet, bank = gaborBank(net.cfg.k1)): SeeCheckpoint & { step: number } {
+  const ncTrain = 1000;
+  const f = penultimate(net, data.train.slice(0, ncTrain));
+  const tf = penultimate(net, data.test);
+  return {
+    step: 0,
+    acc: accuracy(net, data.test, data.testY),
+    nc: nearestCentroidAccuracy(f, data.trainY.slice(0, ncTrain), tf, data.testY),
+    edge: Array.from({ length: net.cfg.c1 }, (_, k) => templateMatch(net.filter(k), bank).score),
+    filters: Array.from({ length: net.cfg.c1 }, (_, k) => Array.from(net.filter(k))),
+  };
+}
+
+export type SeeMoment = { id: 'first-edge' | 'half-edges' | 'separate'; label: string; step: number };
+
+/** Milestones that hold "for good" (from that checkpoint to the end of the run so far). */
+export function seeMoments(hist: readonly { step: number; nc: number; edge: readonly number[] }[], edgeBar: number, rawNC: number): SeeMoment[] {
+  const tests: [SeeMoment['id'], string, (h: (typeof hist)[number]) => boolean][] = [
+    ['first-edge', 'its first edge detector', (h) => h.edge.some((e) => e > edgeBar)],
+    ['half-edges', 'half its filters are edge detectors', (h) => h.edge.filter((e) => e > edgeBar).length >= h.edge.length / 2],
+    ['separate', 'its inner space sorts the classes better than raw pixels', (h) => h.nc > rawNC],
+  ];
+  const out: SeeMoment[] = [];
+  for (const [id, label, t] of tests) {
+    let from: number | null = null;
+    for (const h of hist) {
+      if (t(h)) from ??= h.step;
+      else from = null;
+    }
+    if (from !== null) out.push({ id, label, step: from });
+  }
+  return out.sort((a, b) => a.step - b.step);
+}
+
+/** The same run as `trainSee`, yielding to the browser every `slice` steps so the page stays live. */
+export async function trainSeeAsync(spec: SeeSpec, data: ImageSet, onCheckpoint: (step: number, params: Float32Array, net: Cnn) => boolean | void | Promise<boolean | void>, slice = 8) {
+  const net = new Cnn(spec.cfg);
+  net.init(spec.seed);
+  const r = createRng(spec.dataSeed);
+  const tr = net.newTrace();
+  const marks = new Set(seeCheckpoints(spec.steps));
+  if ((await onCheckpoint(0, Float32Array.from(net.p), net)) === false) return net;
+  for (let s = 1; s <= spec.steps; s++) {
+    const idx = Array.from({ length: spec.batch }, () => r.int(data.train.length));
+    net.batchGrad(
+      idx.map((i) => data.train[i]),
+      idx.map((i) => data.trainY[i]),
+      tr,
+    );
+    net.adam(spec.lr);
+    if (marks.has(s) && (await onCheckpoint(s, Float32Array.from(net.p), net)) === false) break;
+    if (s % slice === 0) await new Promise((res) => setTimeout(res, 0));
+  }
+  return net;
+}

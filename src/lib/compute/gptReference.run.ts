@@ -14,6 +14,8 @@ import { charFrequencies, dictionary, ngramLoss, prepareCorpus } from '../corpor
 import { calibrate, sampleStats, stageSteps } from '../corpora/stages';
 import { nodeFs } from '../nodeIo';
 import { paramHash } from './gptPinned';
+import { Gpt } from './gpt';
+import { CHAR_GROUP_IDS, embeddings, headScores, looCentroidAccuracy, pca2, repeatBatch, shuffledBar } from './gptProbes';
 
 const fs = await nodeFs();
 const corpus = prepareCorpus(fs.readFileSync(new URL('../corpora/grimm.txt', import.meta.url), 'utf8'));
@@ -25,13 +27,32 @@ const freq = charFrequencies(corpus.train);
 const cal = calibrate(trainText, SAMPLE_SEEDS.length * SAMPLE_LEN, 400, dict);
 
 let finalParams: Float32Array = new Float32Array(0);
-const rows: { step: number; trainLoss: number; valLoss: number; samples: string[]; stats: ReturnType<typeof sampleStats>; sec: number }[] = [];
+type Probe = { prev: number[][]; induction: number[][]; lossFirst: number; lossSecond: number; emb: number; embBar: number; embPca: [number, number][] };
+const rows: { step: number; trainLoss: number; valLoss: number; samples: string[]; stats: ReturnType<typeof sampleStats>; sec: number; probe: Probe }[] = [];
+const seqs = repeatBatch(16, 24);
+const r4 = (v: number) => +v.toFixed(4);
+function probe(params: Float32Array): Probe {
+  const m = new Gpt(spec.cfg);
+  m.load(params);
+  const h = headScores(m, seqs);
+  const e = embeddings(m);
+  return {
+    prev: h.prev.map((r) => r.map(r4)),
+    induction: h.induction.map((r) => r.map(r4)),
+    lossFirst: r4(h.lossFirst),
+    lossSecond: r4(h.lossSecond),
+    emb: r4(looCentroidAccuracy(e, CHAR_GROUP_IDS)),
+    embBar: r4(shuffledBar(e, CHAR_GROUP_IDS)),
+    embPca: pca2(e).map(([a, b]) => [r4(a), r4(b)] as [number, number]),
+  };
+}
 await runTraining(spec, corpus, new InlineCpuTrainer(spec.cfg), (c: Checkpoint) => {
   finalParams = c.params;
   const samples = samplesAt(spec, c.params);
   const stats = sampleStats(samples.join(' '), dict, freq);
-  rows.push({ step: c.step, trainLoss: c.trainLoss, valLoss: c.valLoss, samples, stats, sec: c.ms / 1000 });
-  console.log(`step ${c.step} val ${c.valLoss.toFixed(4)} real ${(100 * stats.realShare).toFixed(1)}% kl ${stats.kl.toFixed(3)} run ${stats.longestRun} | ${JSON.stringify(samples[0].slice(0, 80))}`);
+  rows.push({ step: c.step, trainLoss: c.trainLoss, valLoss: c.valLoss, samples, stats, sec: c.ms / 1000, probe: probe(c.params) });
+  const pr = rows.at(-1)!.probe;
+  console.log(`step ${c.step} ind ${Math.max(...pr.induction.flat()).toFixed(3)} prev ${Math.max(...pr.prev.flat()).toFixed(3)} rep ${pr.lossFirst.toFixed(2)}/${pr.lossSecond.toFixed(2)} emb ${pr.emb}/${pr.embBar} val ${c.valLoss.toFixed(4)} real ${(100 * stats.realShare).toFixed(1)}% kl ${stats.kl.toFixed(3)} run ${stats.longestRun} | ${JSON.stringify(samples[0].slice(0, 80))}`);
 });
 
 const out = {

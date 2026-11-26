@@ -160,6 +160,7 @@ export const MODULES: ModuleMeta[] = [
       { id: 'images-as-tensors', title: 'Images as Tensors', summary: 'What a photo looks like to a network: grids of numbers, colour channels, and why shrinking an image the naive way invents patterns — and Lab: Build the Vision Preprocessor.', minutes: 30, load: () => import('./lessons/images-as-tensors/index.mdx') },
       { id: 'convolution', title: 'Convolution and Kernels', summary: 'Slide one small pattern-detector across a whole image: edge finders, blurs, and the arithmetic of output sizes — and Lab: Design the Kernel.', minutes: 35, load: () => import('./lessons/convolution/index.mdx') },
       { id: 'cnns', title: 'CNNs and Feature Maps', summary: 'Stack small detectors into big ones: how each layer sees a wider patch, and why a tiny CNN beats a much bigger plain network — and Lab: Architect the CNN.', minutes: 35, load: () => import('./lessons/cnns/index.mdx') },
+      { id: 'learning-to-see', title: 'Inside Training: How a Network Learns to See', summary: 'Train a small image network in your browser and watch its filters, its inner map of classes and its attention form out of random noise.', minutes: 35, load: () => import('./lessons/learning-to-see/index.mdx') },
       { id: 'object-detection', title: 'Object Detection', summary: 'Not just what is in the picture but where: drawing boxes, scoring overlaps, removing duplicates in a crowd — and Lab: Tune the Object Detector.', minutes: 35, load: () => import('./lessons/object-detection/index.mdx') },
     ],
   },

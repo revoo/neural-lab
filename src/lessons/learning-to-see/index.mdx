@@ -1,0 +1,182 @@
+{/* authored-by: Claude Opus 5.5 */}
+import { SeeWidget } from './SeeWidget'
+import { FoolLab } from './FoolLab'
+import { questions } from './quiz'
+
+In <LessonLink to="convolution">the convolution lesson</LessonLink> you designed edge detectors by hand, and the text claimed that trained networks end up with similar filters in their first layer. That is a strong claim to take on trust. In this lesson you don't have to: you will train a small image network in your own browser, starting from random numbers, and watch what it builds. Every picture on this page is the network's real computation at the step you choose.
+
+## The problem: a network that starts knowing nothing
+
+The task is Fashion-MNIST: small grey photos of clothes in ten classes (T-shirt, trouser, pullover, dress, coat, sandal, shirt, sneaker, bag, ankle boot), released by Zalando Research under the MIT licence as a harder stand-in for handwritten digits. <Src href="https://github.com/zalandoresearch/fashion-mnist" /> We use 3,000 of its training photos (300 per class) and keep 500 test photos aside.
+
+The network is the shape you met in <LessonLink to="cnns">CNNs and feature maps</LessonLink>: eight 5 × 5 filters scan the photo, then a 2 × 2 pooling step; sixteen 5 × 5 filters scan those eight maps, then pooling again; then a layer of 32 inner units, and finally ten scores, one per class. That is 11,978 numbers to learn. At step 0 they are random, and the network is guessing.
+
+<Predict
+  question="Training changes all 11,978 numbers at once. What do you expect the eight first-layer filters to look like after a few hundred steps?"
+  options={[
+    'Still random-looking: what matters is spread over the whole network, so no single filter will look like anything',
+    'Several will become oriented edge or bar detectors: light on one side, dark on the other, at various angles',
+    'Each will become a tiny picture of one class: a little shoe, a little shirt',
+  ]}
+  answer={1}
+>
+
+In the run you're about to watch, five of the eight filters end up matching an oriented edge or bar template better than 99% of random filters do; the first one gets there at step 24. They are not tiny pictures of clothes: a 5 × 5 patch is far too small to hold a shoe. What a small patch of a photo can usefully report is **where brightness changes, and which way**, so that is what training builds. Whole objects are assembled later, in the deeper layers.
+
+</Predict>
+
+## Watch it learn
+
+Press Train. It takes about a minute, then drag the timeline back to step 0 and forward again, or press Replay. Pick a photo, or draw one, and every panel follows the network through its training.
+
+<SeeWidget />
+
+What happens in the recorded run, as measured events (your run reproduces it exactly; each counts only from the checkpoint where it starts holding for the rest of the run):
+
+- **Step 24: its first edge detector.** One filter matches an oriented edge or bar template better than 99% of random 5 × 5 filters do (a match score above 0.615).
+- **Step 178: its inner space sorts the classes better than the pixels do.** Classify each test photo by the nearest class average of the 32 inner units, and you get more right than doing the same with the 784 raw pixels (68.6%). By step 1,000 it is 79.6%. The class map is that space squashed to two dimensions, so it can only hint at what the 32-number accuracy measures.
+- **Step 237: half its filters are edge detectors.** By step 1,000 five of the eight are, and the network labels 83% of the test photos correctly.
+
+The order is worth noticing. The first edge filter appears before the classes separate, and by step 100 the network already labels 69% of the test photos correctly, while most of its filters are still changing. Nothing waits for anything else: every layer improves at once, each a little, every step.
+
+<Deeper title="An honest note on where the filters start" tag="Fairness">
+
+The usual way to start a layer like this ("He initialisation") gives each first-layer weight a typical size of about 0.28. We start the first layer much smaller, at 0.02, so the filters begin as faint static and what you see later is mostly what training added. That choice changes the *picture*, not the *result*, and we measured both on three seeds each:
+
+| first-layer start | edge detectors after 1,000 steps (seeds 1, 2, 3) | first edge detector at step | test accuracy |
+| --- | --- | --- | --- |
+| small (0.02) | 5, 3, 3 | 24, 75, 133 | 83.0%, 82.6%, 84.6% |
+| He (0.28) | 1, 0, 0 | 750, never, never | 82.4%, 84.2%, 81.2% |
+
+The accuracies overlap: the start makes no measurable difference to how well the network classifies. But with the larger start, each filter keeps most of its random beginning, and the structure training adds is drawn over static. Real networks trained far longer on far bigger image sets do grow clean edge filters from standard starts; in a one-minute run they don't have time to.
+
+</Deeper>
+
+## Writing it down
+
+Two of the measurements are worth having as equations, because they are what turn "it looks like an edge detector" and "the classes look separated" into claims you can check.
+
+<Eq
+  words="\text{edge score} = \text{best agreement, over all templates, between the filter and an oriented edge or bar}"
+  tex="\cc{s}(\ca{w}) = \max_{\cb{t}} \left| \frac{(\ca{w} - \bar{w}) \cdot \cb{t}}{\lVert \ca{w} - \bar{w} \rVert} \right|"
+>
+
+- $\ca{w}$: one first-layer filter, its 25 weights read as a vector; $\bar{w}$ is their average, removed so overall brightness doesn't count.
+- $\cb{t}$: one of 16 templates (edges and bars at 8 angles), each also centred and scaled to length 1.
+- $\cc{s}$: the cosine of the angle between the filter and its best template, from 0 (nothing alike) to 1 (identical up to scale and sign). We call it an edge detector when $\cc{s}$ beats 99% of random filters.
+
+</Eq>
+
+<Eq
+  words="\text{occlusion drop at a position} = \text{probability of the class} - \text{probability with a grey patch covering that position}"
+  tex="\cv{\Delta}(\ca{x}, \ca{y}) = \cg{p}(\cc{k} \mid \text{image}) - \cg{p}(\cc{k} \mid \text{image with a patch at } (\ca{x}, \ca{y}))"
+>
+
+- $(\ca{x}, \ca{y})$: where the 6 × 6 grey patch is placed (every 2 pixels).
+- $\cc{k}$: the class being explained.
+- $\cg{p}$: the network's probability for that class.
+- $\cv{\Delta}$: how much evidence that patch was carrying. Exact, no approximation: one forward pass per position.
+
+</Eq>
+
+The gradient view is the calculus cousin of occlusion: instead of covering a patch, it asks how the class score would change if each single pixel got a little more ink, using the backward pass from <LessonLink to="backpropagation">backpropagation</LessonLink> carried one step further, to the pixels. It is checked against finite differences in this lesson's tests.
+
+<Misconception>
+
+"A saliency or occlusion map shows what the network *understands* about the object." It shows what this network's output depends on, for this photo. Those can be the same things a person would point to (the sole of a sandal, the gap between trouser legs), or they can be shortcuts: a border, a shadow, the way the training photos were centred. The lab below makes the difference concrete.
+
+</Misconception>
+
+## Lab: Fool the classifier
+
+If the network's decision rests on a handful of features, then changing a handful of pixels should be enough to change its mind, even when a person would still see exactly the same garment. These are called <Term id="adversarial-example">adversarial examples</Term>.
+
+<LabJob>You are testing a shop's automatic product tagger before it goes live. Find out how few pixels a bad actor would need to change to make it mislabel an item.</LabJob>
+
+<FoolLab />
+
+<Deeper title="Debrief: what the search found" tag="Spoiler">
+
+For each photo, a committed search tried every single change (every pixel set to full ink, and to blank), then, if none worked, every pair of single changes, then added changes one at a time, always the one that most reduced the true class's lead:
+
+| photo | network's confidence | best attack found | it then says | how sure we are it's the minimum |
+| --- | --- | --- | --- | --- |
+| shirt | 63.2% | 2 pixels | pullover | exact: none of the 1,322 single changes works, and this pair does |
+| sneaker | 99.7% | 7 pixels | ankle boot | between 3 and 7: no single change and none of the 526,608 pairs works |
+| trouser | 100.0% | 21 pixels | dress | between 3 and 21: no single change and none of the 503,286 pairs works |
+
+Two patterns. The less sure the network was, the less it took: the shirt was only just a shirt (its lead over the next class was 0.72 in raw scores, against 18.70 for the trousers). And every attack moved the answer to a *neighbouring* class, a pullover for a shirt, an ankle boot for a sneaker, a dress for trousers: the decision boundaries the attack crosses are the ones the network already found hardest. If you found an attack with fewer pixels than the sneaker's 7 or the trousers' 21, you beat our search; the true minimum is unknown, and that is honest, not embarrassing: proving it would mean trying every set of 3, 4, … changes.
+
+</Deeper>
+
+<ForReal>
+
+Adversarial examples are a standing concern wherever image classifiers make decisions people rely on: content moderation, document checks, self-driving perception. Attacks in the wild are usually not about one pixel but about small changes spread over many pixels, or stickers and patterns in the physical world, and defending against them (for example by training on adversarial examples, as Goodfellow and colleagues proposed in 2014) remains an open research area. <Src href="https://arxiv.org/abs/1412.6572" />
+
+</ForReal>
+
+<HistoryCard id="fool-classifier" />
+
+## In code
+
+The two measurements, in NumPy, for any classifier `predict(image) -> probabilities`. Here they run on a tiny stand-in classifier so the snippet is self-contained:
+
+```python
+import numpy as np
+
+def occlusion_map(predict, image, cls, patch=6, stride=2, grey=0.5):
+    """How much the class probability drops when each patch is covered."""
+    base = predict(image)[cls]
+    n = (image.shape[0] - patch) // stride + 1
+    drops = np.zeros((n, n))
+    for gy in range(n):
+        for gx in range(n):
+            covered = image.copy()
+            covered[gy*stride:gy*stride+patch, gx*stride:gx*stride+patch] = grey
+            drops[gy, gx] = base - predict(covered)[cls]
+    return drops
+
+def edge_score(filt, templates):
+    """Best |cosine| between a centred filter and centred, unit-length templates."""
+    f = filt.ravel() - filt.mean()
+    f /= np.linalg.norm(f)
+    return max(abs(f @ t.ravel()) for t in templates)
+
+# a stand-in "classifier": class 0 if the left half is brighter than the right
+def predict(img):
+    z = 2 * (img[:, :14].mean() - img[:, 14:].mean())
+    p0 = 1 / (1 + np.exp(-z))
+    return np.array([p0, 1 - p0])
+
+img = np.zeros((28, 28)); img[:, :14] = 1.0          # bright left half
+drops = occlusion_map(predict, img, cls=0)
+print(drops.shape, drops.max().round(3))              # (12, 12) 0.01
+
+vertical_edge = np.tile([-1, -1, 0, 1, 1], (5, 1)).astype(float)
+t = vertical_edge - vertical_edge.mean(); t /= np.linalg.norm(t)
+rng = np.random.default_rng(0)
+print(round(edge_score(vertical_edge, [t]), 3))       # 1.0
+print(round(np.mean([edge_score(rng.normal(size=(5, 5)), [t]) for _ in range(1000)]), 3))  # 0.156
+```
+
+A real network is far more sensitive than that stand-in, which is why its occlusion map has such a clear shape. The last line is the point of the chance bar: against a single template, a random filter already scores about 0.16 on average; against our 16 templates, about 0.35. "Looks like an edge" has to beat that.
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- Trained from random numbers on photos, a CNN's first-layer filters drift towards oriented edge and bar detectors, because that is what a 5 × 5 view of a photo can usefully report. In our run the first appeared at step 24.
+- Separation of classes in the inner layer is measurable: nearest-class-average accuracy there overtook the raw pixels (68.6%) at step 178.
+- Occlusion maps (cover and measure) and gradient maps (one backward pass to the pixels) show what a particular network relies on for a particular photo, which is not always what a person would.
+- Those same dependencies make adversarial examples possible: a few well-chosen pixel changes can flip a confident answer.
+- How a network starts changes what its filters look like after a short run, not how accurate it becomes; measure both before drawing conclusions.
+
+</Takeaways>
+
+<InTheWild>
+
+The same thing happens at full scale. Describing the first layer of the network that won the 2012 ImageNet competition, its authors wrote that it "has learned a variety of frequency- and orientation-selective kernels, as well as various colored blobs". <Src href="https://papers.nips.cc/paper_files/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf" /> And the warning in this lesson's misconception box is not hypothetical: a 2018 study of pneumonia detection on chest X-rays found that the networks could also identify which hospital system and department an X-ray came from, information that can confound their predictions. <Src href="https://journals.plos.org/plosmedicine/article?id=10.1371/journal.pmed.1002683" />
+
+</InTheWild>
+
+Next, the same machinery reaches beyond "what is it?" to "where is it?": <LessonLink to="object-detection">object detection</LessonLink>.
