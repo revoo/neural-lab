@@ -171,12 +171,12 @@ describe('2 → 2 → 1 geometry microscope engine', () => {
     expect(init.meanLoss).toBeCloseTo(0.6674, 4);
     expect(init.accuracy).toBe(0.25);
 
-    // Single-point step on P1 (-1, +1) -> 1 drops P1's loss sharply while tugging P0 and P3 worse
+    // Single-point step on P1 (-1, +1) -> 1 at default lr=0.9 drops P1's loss sharply while tugging P0 and P3 worse
     const p1Before = microscopeStepInfo(MICROSCOPE_INIT, 1);
-    const afterP1 = microscopeStepInfo(applyMicroscopeStep(MICROSCOPE_INIT, p1Before.grads, 0.8), 1);
-    expect(afterP1.points[1].loss - p1Before.points[1].loss).toBeCloseTo(-0.834, 3);
-    expect(afterP1.points[0].loss - p1Before.points[0].loss).toBeCloseTo(0.542, 3);
-    expect(afterP1.points[3].loss - p1Before.points[3].loss).toBeCloseTo(0.500, 3);
+    const afterP1 = microscopeStepInfo(applyMicroscopeStep(MICROSCOPE_INIT, p1Before.grads, 0.9), 1);
+    expect(afterP1.points[1].loss - p1Before.points[1].loss).toBeCloseTo(-0.846, 3);
+    expect(afterP1.points[0].loss - p1Before.points[0].loss).toBeCloseTo(0.627, 3);
+    expect(afterP1.points[3].loss - p1Before.points[3].loss).toBeCloseTo(0.576, 3);
 
     // Coordinated 9-weight step drops batch loss nearly 3x more than moving only the steepest weight
     const cmp = compareCoordinatedVsSingle(MICROSCOPE_INIT, null, 0.9);

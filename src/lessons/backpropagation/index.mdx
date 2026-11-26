@@ -122,7 +122,7 @@ Numbers in a graph tell you *how* credit flows; geometry shows you *what one ste
 
 <StepMicroscope />
 
-Click a single misclassified corner — try `P1` — and preview one step: `P1`'s own loss plunges by `0.834`, yet the same move tugs opposite-class neighbours `P0` (`+0.542`) and `P3` (`+0.500`) the wrong way. Switching back to **Full batch** averages all four pulls into a coordinated move: one 9-weight backprop step drops batch loss by `0.0823`, nearly three times more than nudging only the steepest single weight (`w12`, `0.0284`), and reaches 100% accuracy in 5 steps.
+Click a single misclassified corner — try `P1` — and preview one step: `P1`'s own loss plunges by `0.846`, yet the same move tugs opposite-class neighbours `P0` (`+0.627`) and `P3` (`+0.576`) the wrong way. Switching back to **Full batch** averages all four pulls into a coordinated move: one 9-weight backprop step drops batch loss by `0.0823`, nearly three times more than nudging only the steepest single weight (`w12`, `0.0284`), and reaches 100% accuracy in 5 steps.
 
 ## In code: an autograd engine in 30 lines
 

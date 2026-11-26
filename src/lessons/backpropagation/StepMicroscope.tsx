@@ -462,7 +462,7 @@ export function StepMicroscope() {
                   <th style={{ textAlign: 'left' }}>param</th>
                   <th style={{ textAlign: 'right' }}>now</th>
                   <th style={{ textAlign: 'right', color: 'var(--c-grad)' }}>grad</th>
-                  <th style={{ textAlign: 'right' }}>Δw</th>
+                  <th style={{ textAlign: 'right', textTransform: 'none' }}>Δw</th>
                 </tr>
               </thead>
               <tbody>

@@ -162,10 +162,10 @@ Make one commit per step and push to `claude/cool-feynman-4hci4d`. Tick each ste
   - Add the softmax + cross-entropy bridge section, `<Predict>`, `<Eq>`, `<MathExhibit>`, `<SoftmaxBackprop />`, and executed Python snippet into `network-from-scratch/index.mdx`.
   - Add 1–2 new quiz questions to `backpropagation/quiz.ts` (symmetry breaking / multi-path fan-in / why $W_2^\top$ appears) and 1 to `network-from-scratch/quiz.ts` (`p − y` sum-to-zero / wrong-class push).
   - Add verified history entry `credit-assignment-backprop` in `src/history.ts` (and bump `HISTORY.length` in `src/history.test.ts` from 65 → 66); add any new glossary terms to `src/glossary.ts`; update `backpropagation` summary & minutes in `src/curriculum.ts` (keeping summary ≤ 30 words, zero symbols).
-- [ ] **B5 (IN PROGRESS) Visual & browser verification:**
+- [x] **B5 Visual & browser verification:**
   - Run `node scripts/shoot-widgets.cjs backpropagation` and `node scripts/shoot-widgets.cjs network-from-scratch` in light, dark, matrix, and at 390px; drive interactive states (symmetry-trap step, single-point microscope step, Brief 2/3 lab solves) with `scripts/drive-widget.cjs`.
   - Inspect every PNG visually and fix any overlap, contrast, wrapping, or mobile layout issues.
   - Run both `node scripts/check-pages.cjs` and `node scripts/check-pages.cjs --theme=matrix` (0 console errors, 0 overflow at 1300px and 390px).
-- [ ] **B6 Wrap-up:**
+- [ ] **B6 (IN PROGRESS) Wrap-up:**
   - Full Vitest suite (`npx vitest run --testTimeout=20000 --exclude src/lessons/tiny-gpt/tinyGpt.test.ts`) + `npm run build` + `rg "<MODEL_NAME>" dist/` returning 0.
   - Update `docs/ROADMAP.md` (Current state, status table, Next steps, Labs built so far, and any departures or unexpected measured results), tick B6 here, remove the `"NEXT TASK"` note from `HANDOFF.md` §0, commit and push.

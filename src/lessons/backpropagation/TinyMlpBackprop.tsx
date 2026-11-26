@@ -266,9 +266,9 @@ export function TinyMlpBackprop() {
                 const active = w2EdgeActive(j, k);
                 const w = params.W2[j][k];
                 const pathVal = tr.dhPaths[j][k];
-                const t = j === k ? 0.5 : 0.32;
+                const t = j === k ? 0.5 : 0.36;
                 const lx = x1 + (x2 - x1) * t;
-                const ly = y1 + (y2 - y1) * t + (j === k ? (j === 0 ? -9 : 14) : j === 0 ? -7 : 13);
+                const ly = y1 + (y2 - y1) * t + (j === k ? (j === 0 ? -9 : 14) : j === 0 ? -10 : 16);
                 return (
                   <g
                     key={`w2-${j}-${k}`}
@@ -561,14 +561,14 @@ export function TinyMlpBackprop() {
                   <thead>
                     <tr>
                       <th />
-                      <th>→y₁</th>
-                      <th>→y₂</th>
+                      <th style={{ textTransform: 'none' }}>→y₁</th>
+                      <th style={{ textTransform: 'none' }}>→y₂</th>
                     </tr>
                   </thead>
                   <tbody>
                     {([0, 1] as const).map((j) => (
                       <tr key={j}>
-                        <th className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', paddingRight: 6 }}>
+                        <th className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', paddingRight: 6, textTransform: 'none' }}>
                           h{j + 1}
                         </th>
                         {([0, 1] as const).map((k) => {
@@ -600,14 +600,14 @@ export function TinyMlpBackprop() {
                   <thead>
                     <tr>
                       <th />
-                      <th>→h₁</th>
-                      <th>→h₂</th>
+                      <th style={{ textTransform: 'none' }}>→h₁</th>
+                      <th style={{ textTransform: 'none' }}>→h₂</th>
                     </tr>
                   </thead>
                   <tbody>
                     {([0, 1] as const).map((k) => (
                       <tr key={k}>
-                        <th className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', paddingRight: 6 }}>
+                        <th className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', paddingRight: 6, textTransform: 'none' }}>
                           dy{k + 1}
                         </th>
                         {([0, 1] as const).map((j) => {

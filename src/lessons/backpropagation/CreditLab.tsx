@@ -369,7 +369,7 @@ export function CreditLab() {
                       <tr>
                         <th style={{ textAlign: 'left' }}>Init</th>
                         <th style={{ textAlign: 'left' }}>Act</th>
-                        <th style={{ textAlign: 'right' }}>η</th>
+                        <th style={{ textAlign: 'right', textTransform: 'none' }}>η</th>
                         <th style={{ textAlign: 'right' }}>Seeds</th>
                         <th style={{ textAlign: 'right' }}>Mean step</th>
                         <th style={{ textAlign: 'right' }}>Mean loss</th>
@@ -416,7 +416,7 @@ export function CreditLab() {
                       <tr>
                         <th style={{ textAlign: 'left' }}>Mask (h₁ / h₂ / out)</th>
                         <th style={{ textAlign: 'right' }}>Unfrozen hidden</th>
-                        <th style={{ textAlign: 'right' }}>η</th>
+                        <th style={{ textAlign: 'right', textTransform: 'none' }}>η</th>
                         <th style={{ textAlign: 'right' }}>Solve step</th>
                         <th style={{ textAlign: 'right' }}>Final loss</th>
                       </tr>
@@ -518,10 +518,10 @@ export function CreditLab() {
               <text x={127} y={60} textAnchor="middle" fontSize={10.5} fontWeight={700} fill="var(--c-a)" style={{ fontFamily: 'var(--font-mono)', paintOrder: 'stroke', stroke: 'var(--bg-sunken)', strokeWidth: 4 }}>
                 w₁₁ = +0.5
               </text>
-              <text x={112} y={138} textAnchor="middle" fontSize={10.5} fontWeight={700} fill="var(--c-b)" style={{ fontFamily: 'var(--font-mono)', paintOrder: 'stroke', stroke: 'var(--bg-sunken)', strokeWidth: 4 }}>
+              <text x={102} y={148} textAnchor="middle" fontSize={10.5} fontWeight={700} fill="var(--c-b)" style={{ fontFamily: 'var(--font-mono)', paintOrder: 'stroke', stroke: 'var(--bg-sunken)', strokeWidth: 4 }}>
                 w₂₁ = −0.5
               </text>
-              <text x={144} y={114} textAnchor="middle" fontSize={10.5} fontWeight={700} fill="var(--text-muted)" style={{ fontFamily: 'var(--font-mono)', paintOrder: 'stroke', stroke: 'var(--bg-sunken)', strokeWidth: 4 }}>
+              <text x={106} y={97} textAnchor="middle" fontSize={10.5} fontWeight={700} fill="var(--text-muted)" style={{ fontFamily: 'var(--font-mono)', paintOrder: 'stroke', stroke: 'var(--bg-sunken)', strokeWidth: 4 }}>
                 w₁₂ = −0.6
               </text>
               <text x={127} y={191} textAnchor="middle" fontSize={10} fill="var(--text-muted)" style={{ fontFamily: 'var(--font-mono)' }}>

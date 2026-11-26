@@ -140,7 +140,7 @@ That's why frameworks fuse `CrossEntropyLoss` directly onto raw logits: computin
 
 <SoftmaxBackprop />
 
-Notice one subtle consequence when you click **Take 1 logit step**: every wrong **logit** strictly decreases (`z_1` drops by `0.70`, `z_2` drops by `0.10`), the true logit strictly increases (`+0.80`), and total wrong probability falls sharply — yet on a big step, if one dominant wrong logit drops far enough, the softmax denominator shrinks so much that a tiny bystander class's *probability* can briefly tick up (here class C moves `0.100 → 0.102`) even while its logit went down.
+Notice one subtle consequence when you click **Take 1 logit step**: every wrong **logit** strictly decreases (`z_1` drops by `0.70`, `z_2` drops by `0.10`), the true logit strictly increases (`+0.80`), and total wrong probability falls sharply — yet on a big step, if one dominant wrong logit drops far enough, the softmax denominator shrinks so much that a tiny bystander class's *probability* can briefly tick up (here class C moves `10.0% → 10.2%`) even while its logit went down.
 
 Here is the entire numerical verification in 17 lines of standard Python — zero external libraries required:
 

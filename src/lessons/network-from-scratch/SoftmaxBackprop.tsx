@@ -157,15 +157,15 @@ export function SoftmaxBackprop() {
           <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 8 }}>
             Logit gradients: analytic <span className="mono">p − y</span> vs numerical check
           </div>
-          <table className="num-table" style={{ width: '100%', fontSize: 12 }}>
+          <table className="num-table" style={{ width: '100%', fontSize: 11.5 }}>
             <thead>
               <tr>
-                <th style={{ textAlign: 'left' }}>Class</th>
-                <th style={{ textAlign: 'right' }}>p</th>
-                <th style={{ textAlign: 'right' }}>y</th>
-                <th style={{ textAlign: 'right', color: 'var(--c-grad)' }}>p − y</th>
-                <th style={{ textAlign: 'right' }}>finite diff</th>
-                <th style={{ textAlign: 'center' }}>nudge</th>
+                <th style={{ textAlign: 'left', padding: '5px 4px' }}>Class</th>
+                <th style={{ textAlign: 'right', textTransform: 'none', padding: '5px 4px' }}>p</th>
+                <th style={{ textAlign: 'right', textTransform: 'none', padding: '5px 4px' }}>y</th>
+                <th style={{ textAlign: 'right', color: 'var(--c-grad)', textTransform: 'none', padding: '5px 4px' }}>p − y</th>
+                <th style={{ textAlign: 'right', padding: '5px 4px' }}>FD</th>
+                <th style={{ textAlign: 'center', padding: '5px 4px' }}>step</th>
               </tr>
             </thead>
             <tbody>
@@ -177,20 +177,20 @@ export function SoftmaxBackprop() {
                     key={i}
                     style={i === target ? { background: 'color-mix(in srgb, var(--c-c) 12%, transparent)' } : undefined}
                   >
-                    <td className="mono" style={{ textAlign: 'left', fontWeight: i === target ? 700 : 400, whiteSpace: 'nowrap' }}>
+                    <td className="mono" style={{ textAlign: 'left', fontWeight: i === target ? 700 : 400, whiteSpace: 'nowrap', padding: '5px 4px' }}>
                       {CLASS_NAMES[i]}
                     </td>
-                    <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      {res.probs[i].toFixed(4)}
+                    <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap', padding: '5px 4px' }}>
+                      {res.probs[i].toFixed(3)}
                     </td>
-                    <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap', padding: '5px 4px' }}>
                       {res.oneHot[i]}
                     </td>
-                    <td className="mono" style={{ textAlign: 'right', color: 'var(--c-grad)', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                      {fmtS(g, 4)}
+                    <td className="mono" style={{ textAlign: 'right', color: 'var(--c-grad)', fontWeight: 700, whiteSpace: 'nowrap', padding: '5px 4px' }}>
+                      {fmtS(g, 3)}
                     </td>
-                    <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      {fmtS(n, 4)}
+                    <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap', padding: '5px 4px' }}>
+                      {fmtS(n, 3)}
                     </td>
                     <td
                       className="mono"
@@ -199,9 +199,10 @@ export function SoftmaxBackprop() {
                         fontWeight: 700,
                         color: g < 0 ? 'var(--c-a)' : 'var(--c-b)',
                         whiteSpace: 'nowrap',
+                        padding: '5px 4px',
                       }}
                     >
-                      {g < 0 ? '↑ up' : '↓ down'}
+                      {g < 0 ? '↑' : '↓'}
                     </td>
                   </tr>
                 );
