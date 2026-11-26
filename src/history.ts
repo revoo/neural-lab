@@ -36,6 +36,24 @@ const WP = (page: string) => `https://en.wikipedia.org/wiki/${page}`;
 
 export const HISTORY: HistoryEntry[] = [
   {
+    id: 'moe',
+    lessonId: 'moe',
+    lab: 'Balance the Experts',
+    idea: 'Sparse mixtures of experts: routing each token to a few specialists',
+    years: [2017, 2021],
+    when: '2017 · 2021',
+    who: [
+      { text: 'Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis, Quoc Le, Geoffrey Hinton and Jeff Dean introduced the Sparsely-Gated Mixture-of-Experts layer in January 2017.', source: 'https://arxiv.org/abs/1701.06538' },
+      { text: 'William Fedus, Barret Zoph and Noam Shazeer introduced the Switch Transformer in January 2021.', source: 'https://arxiv.org/abs/2101.03961' },
+    ],
+    mood: { text: 'Conditional computation, where parts of a network are active only for some examples, had been proposed in theory as a way to grow capacity without growing computation, but in practice it faced significant algorithmic and performance challenges.', source: 'https://arxiv.org/abs/1701.06538' },
+    story: {
+      before: { text: 'In 1991, Robert Jacobs, Michael Jordan, Steven Nowlan and Geoffrey Hinton’s adaptive mixtures of local experts used a linear-softmax gating function to weigh the predictions of every expert.', source: WP('Mixture_of_experts') },
+      this: { text: 'Shazeer et al. (2017) let a trainable gating network pick a sparse combination of up to thousands of feed-forward experts, building MoE layers with up to 137 billion parameters between stacked LSTM layers.', source: 'https://arxiv.org/abs/1701.06538' },
+      after: { text: 'The Switch Transformer (2021) sent each token to a single expert, with one auxiliary load-balancing loss weighted by α = 10⁻², and trained models with up to 1.6 trillion parameters.', source: 'https://arxiv.org/abs/2101.03961' },
+    },
+  },
+  {
     id: 'gans',
     lessonId: 'gans',
     lab: 'Keep the Duel Balanced',

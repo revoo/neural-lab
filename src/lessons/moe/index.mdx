@@ -1,0 +1,188 @@
+{/* authored-by: Claude Opus 5.5 */}
+import { RouterExplorer, CollapseDemo, SizeCalculator } from './Widgets'
+import { BalanceLab } from './Lab'
+import { questions } from './quiz'
+
+## The problem: every token pays for every weight
+
+In <LessonLink to="transformer-block">the transformer block</LessonLink> you counted where a model's weights live, and most of them turned out to be in the feed-forward networks: $8d^2$ per block against attention's $4d^2$. Those networks are where much of the model's knowledge seems to be stored.
+
+Now notice what happens when the model reads one token, say "the". Every one of those feed-forward weights does a multiplication. The weights that know about protein folding, French verbs and Python syntax all switch on, contribute their bit, and switch off again, for a word that needed none of them. A dense network has no way to skip work: its cost per token is its size.
+
+That ties two things together that we'd love to pull apart. We want a model that **knows a lot**, which means many weights. We want each token to be **cheap**, which means few multiplications. In a dense model those are the same number.
+
+## The idea: a triage desk and a building full of specialists
+
+<Analogy title="Think of a hospital triage desk">
+
+A patient walks in. The triage nurse doesn't page every doctor in the building. They look at the patient for a moment, pick the two specialists most likely to help, and send the patient to them. The building can employ hundreds of specialists, and each patient still costs only two consultations.
+
+The nurse has to learn who's good at what. And there's a failure the hospital must watch for: if the nurse comes to trust one doctor above all others, that doctor's queue grows without end while colleagues sit idle, learning nothing.
+
+</Analogy>
+
+A **<Term id="moe">mixture of experts</Term>** layer replaces the single feed-forward network in a transformer block with several smaller networks, the **experts**, plus a **router**: a tiny network that looks at each token and gives every expert a score. The token is sent only to the few experts with the highest scores (the **top-k**), and their outputs are blended, weighted by how much the router trusted each one. The other experts don't run for that token at all.
+
+Here is a real one, small enough to see whole. Its tokens are points on a plane from four clusters. Inside each cluster the right answer follows a different rule, so the layer does best when different experts handle different clusters. It has four experts, each a little network with 8 hidden units, and it was trained on this page a moment ago.
+
+<RouterExplorer />
+
+Click around. Deep inside a cluster, the router is confident: one expert gets most of the probability. On the border between two clusters it hesitates, and with top-2 both candidates contribute. Notice too what the table says about cost: whatever the token, two of the four experts (or three, with top-1) never ran.
+
+## Writing it down
+
+For one token $x$, the router's scores become probabilities through a softmax, the top $k$ experts run, and their outputs are added up with those probabilities as weights:
+
+<Eq
+  words="\text{output} = \sum_{\text{chosen experts}} \text{router's trust in expert} \times \text{that expert's answer}"
+  tex="\cp{y} = \sum_{i \,\in\, \text{Top-}k} \ca{p_i(x)} \, \cc{E_i(x)}, \qquad \ca{p(x)} = \text{softmax}(\cb{W_r} x)"
+>
+
+- $\cp{y}$ — the layer's output for this token
+- $\cb{W_r}$ — the **router**: one row of weights per expert, so $\cb{W_r} x$ is one score per expert
+- $\ca{p_i(x)}$ — the router's probability for expert $i$: its scores after a softmax
+- $\text{Top-}k$ — the $k$ experts with the highest scores (usually $k$ is 1 or 2)
+- $\cc{E_i(x)}$ — expert $i$'s output: in a real model, a full feed-forward network
+
+</Eq>
+
+There are two common conventions for the weights. The Switch Transformer uses each chosen expert's probability from the full softmax, as above; that's what our layer does. Mixtral takes a fresh softmax over just the chosen experts' scores, so their weights add up to 1. <Src href="https://arxiv.org/abs/2401.04088" /> Either way, the router learns the same way everything else does: through the gradient of the loss, which tells it whether trusting a chosen expert more would have helped.
+
+That last detail hides the trouble. The router only ever learns about experts it **chose**. An expert it never picks never runs, so it never gets a gradient, never improves, and never gives the router a reason to pick it.
+
+## Rich get richer
+
+<Predict
+  question="We train the four-expert layer with top-1 routing, five times from five different random starts, with nothing encouraging the router to share the work. How many of the five runs end up using all four experts?"
+  options={['All five: the four clusters need four specialists', 'Three or four of them', 'None of them']}
+  answer={2}
+>
+
+None. In every one of the five runs at least one expert ends up with no tokens at all, and on seed 2 two of the four sit idle. The busiest expert takes up to 57% of the test tokens. And it's decided early: on seed 1 the idle expert has already lost every token by step 50 of 600.
+
+</Predict>
+
+<CollapseDemo />
+
+This is called **<Term id="router-collapse">router collapse</Term>**, and here it's partial: the remaining experts cover for the idle one by each taking on more. Accuracy hardly suffers in our small task (95.3% on average across the five seeds, against 96.3% with balancing), because an 8-unit expert can learn two clusters' rules at once. So why care?
+
+Because the idle expert isn't free. Its weights sit in memory doing nothing. And in a real system the experts live on different GPUs, each sized for a fair share of the traffic: if one gets half the tokens, it becomes the bottleneck that every other GPU waits for, and the tokens it can't fit get dropped. We'll measure that in the lab.
+
+## The fix: charge the router for crowding
+
+The fix used by the Switch Transformer is an extra term in the loss that is smallest when the work is shared evenly. <Src href="https://arxiv.org/abs/2101.03961" /> For each expert, measure two things over a batch: the share of tokens actually sent to it, and the average probability the router gave it. Multiply them, add them up:
+
+<Eq
+  words="\text{balance penalty} = \text{weight} \times \text{number of experts} \times \sum_{\text{experts}} \text{share of tokens sent} \times \text{average router probability}"
+  tex="\cv{\mathcal{L}_{\text{aux}}} = \cg{\alpha} \, E \sum_{i=1}^{E} \cb{f_i} \, \ca{P_i}"
+>
+
+- $\cv{\mathcal{L}_{\text{aux}}}$ — the **load-balancing loss**, added to the task loss
+- $\cg{\alpha}$ — how much balance matters compared with the task (the Switch Transformer used 0.01)
+- $E$ — the number of experts
+- $\cb{f_i}$ — the share of the batch's tokens dispatched to expert $i$: a count, so it has no gradient
+- $\ca{P_i}$ — the router's average probability for expert $i$ over the batch: this is what gradient descent can push down
+
+</Eq>
+
+The term is large when the same experts get both the tokens and the probability. If every token goes to one expert with certainty, it's $4 \times 1 \times 1 = 4$ with four experts; if everything is spread perfectly evenly it's $4 \times 4 \times \tfrac14 \times \tfrac14 = 1$, its smallest possible value. Because only $\ca{P_i}$ carries a gradient, the penalty acts exactly where it should: it lowers the router's probability for the experts that are getting more than their share. That's the <Term id="load-balancing-loss">load-balancing loss</Term>.
+
+Switch the balancing loss on in the widget above, with $\cg{\alpha} = 0.1$. On all five seeds every expert ends up with at least a fifth of the tokens.
+
+Notice the value: 0.1, not the paper's 0.01. In our layer, 0.01 and 0.03 weren't enough to stop the collapse; the right weight depends on how large the task loss is, and that's specific to each model. It's a number you tune, not a constant of nature.
+
+## Memory versus compute
+
+The payoff shows up at scale. Mixtral 8x7B, released by Mistral AI with open weights, has the architecture of their 7-billion-parameter dense model, except that every feed-forward block is replaced by 8 experts, of which 2 run for each token. <Src href="https://arxiv.org/abs/2401.04088" /> Here is its shape, with the number of experts in your hands.
+
+<SizeCalculator />
+
+At Mixtral's own setting the model holds 46.7 billion weights, which is 93.4 GB at two bytes each, while each token uses 12.9 billion, about 25.8 billion operations. The paper rounds these to 47B and 13B. <Src href="https://arxiv.org/abs/2401.04088" /> Two things worth trying: double the experts to 16 and watch memory double to 91.8B while the per-token cost barely moves (only the router grows); then drop to one expert per token and the active count falls to 7.2B with no saving in memory.
+
+So a mixture of experts doesn't make a model cheaper across the board. It moves the cost: from arithmetic, which is what limits how fast a model can run, to memory and to the traffic between the GPUs that hold different experts. <ModuleRef id="inference" /> is about exactly those costs.
+
+## Lab: Balance the Experts
+
+The same four-expert layer, now with the knobs real MoE training exposes: how many experts each token uses, the balancing weight $\cg{\alpha}$, the **capacity factor** $C$ (each expert's buffer holds at most $C \cdot k \cdot \text{tokens} / E$ token slots per batch; the overflow is dropped and passes through the layer untouched, as in the Switch Transformer), and the noise added to the router's scores during training, which the 2017 sparse-experts paper added because it helps with load balancing. <Src href="https://arxiv.org/abs/1701.06538" />
+
+<LabJob>
+You're deploying a mixture-of-experts layer across four accelerators, one expert on each. Each accelerator reserves a fixed buffer per batch, and any token that doesn't fit is skipped. Make all four experts pull their weight, keep the buffers tight without dropping tokens, and find the cheapest layout that still does the job.
+</LabJob>
+
+<BalanceLab />
+
+<Deeper title="Debrief: what the exhaustive search found" tag="Spoiler">
+
+We trained all 120 settings (top-1 or top-2, five values of $\cg{\alpha}$, four capacity factors, three noise levels), each on the same five seeds.
+
+- **Brief 1 (no idle experts):** 57 of 120 settings pass. With top-1 routing, the balancing weight does the work: every setting with $\cg{\alpha}$ of 0.1 or 0.3 passes, and only one with $\cg{\alpha} \le 0.03$ does. Router noise alone doesn't rescue a top-1 layer here, though the 2017 paper found it helps balance. The surprise is top-2: with the noisiest router ($\sigma = 1$) it balances even with no balancing loss at all, as long as the buffers aren't at $C = 1$. Two experts per token plus random jitter spread the tokens by themselves.
+- **Brief 2 (tight buffers):** 15 of 120 pass. Nothing gets the drop rate down to 3% at $C = 1$; the best manages 6.4%. Even with balanced routing *on average*, each mini-batch is a random draw, so some batches overflow some buffer. That's why real systems leave headroom: the ST-MoE report found capacity factors from 1.25 to 2 work well. <Src href="https://en.wikipedia.org/wiki/Mixture_of_experts" />
+- **Brief 3 (the cheapest layer):** the lowest cost that meets the bars is 1.25 expert slots per token, reached by six settings, all top-1 at $C = 1.25$ with $\cg{\alpha}$ of 0.1 or 0.3 and any noise level. The cheapest passing top-2 layer needs 2.5: two experts per token doubles every buffer.
+
+Accuracy barely separates the settings (every one of the 120 lands between 94.1% and 96.8%). In this lab, as in real deployments, balance is mostly about cost and throughput, not about whether the model can learn the task.
+
+</Deeper>
+
+<ForReal>
+In real MoE training these same knobs appear as configuration: the number of experts per token, an auxiliary-loss coefficient and a capacity factor. Large systems add more machinery on top: the Switch Transformer places each expert on its own core and moves tokens to their experts with an all-to-all exchange <Src href="https://arxiv.org/abs/2101.03961" />, which is why an overloaded expert holds up the whole step and a too-small buffer drops tokens.
+</ForReal>
+
+<HistoryCard id="moe" />
+
+## In code
+
+The heart of a sparse MoE layer in NumPy: route, run only the chosen experts, and measure the balance.
+
+```python
+import numpy as np
+
+rng = np.random.default_rng(0)
+tokens, d, E, k = 8, 16, 4, 2
+x = rng.normal(size=(tokens, d))                  # 8 token vectors
+W_router = rng.normal(size=(d, E)) * 0.1          # router: one score per expert
+experts = [rng.normal(size=(d, d)) * 0.1 for _ in range(E)]   # each expert: a tiny linear "FFN"
+
+scores = x @ W_router                             # [tokens, E]
+probs = np.exp(scores - scores.max(1, keepdims=True))
+probs /= probs.sum(1, keepdims=True)              # softmax per token
+top = np.argsort(-scores, axis=1)[:, :k]          # the k best experts for each token
+
+y = np.zeros_like(x)
+for t in range(tokens):
+    for e in top[t]:                              # only k of the E experts run
+        y[t] += probs[t, e] * (x[t] @ experts[e])
+
+f = np.bincount(top.ravel(), minlength=E) / (tokens * k)   # share of slots per expert
+P = probs.mean(0)                                 # mean router probability per expert
+aux = E * (f * P).sum()                           # Switch Transformer balance term (times alpha)
+print("slots per expert:", np.bincount(top.ravel(), minlength=E))
+print("aux loss before alpha:", round(aux, 3))
+```
+
+It prints `slots per expert: [6 4 3 3]` and `aux loss before alpha: 1.044`: a slight imbalance, just above the perfect-balance value of 1. Real implementations do the same thing in batches: sort tokens by expert, run each expert once on its whole group, then scatter the results back.
+
+<Misconception>
+
+"An 8x7B mixture-of-experts model is eight 7B models voting." It isn't: the experts replace only the feed-forward networks, and attention, embeddings and every other part are shared. That's why Mixtral 8x7B has 46.7 billion weights rather than 56 billion. Nor is each expert a topic specialist in the human sense, a "maths expert" or a "biology expert": the Mixtral authors measured which experts their router picks on text from different domains and found no obvious pattern by topic; the routing seemed more aligned with syntax than with subject. <Src href="https://arxiv.org/abs/2401.04088" />
+
+</Misconception>
+
+<Quiz questions={questions} />
+
+<Takeaways>
+
+- A **mixture-of-experts** layer replaces one feed-forward network with several experts and a **router** that sends each token to only the top $k$ of them, blending their outputs by the router's probabilities.
+- It separates **what the model holds** (every expert's weights, in memory) from **what each token costs** (only the chosen experts' arithmetic). Mixtral 8x7B: 46.7B weights, 12.9B used per token.
+- The router learns only about experts it chooses, so without help it **collapses**: in our layer, every one of five seeds left at least one of four experts idle.
+- The Switch Transformer's **load-balancing loss** $\alpha E \sum f_i P_i$ is smallest at an even split; in our layer it brought every expert back into use. Its weight must be tuned per model.
+- Real hardware gives each expert a fixed **capacity**; batches fluctuate, so a little headroom ($C \approx 1.25$) is the difference between dropping a quarter of the tokens and almost none.
+
+</Takeaways>
+
+<InTheWild>
+
+Sparse experts are now common in the largest open models. Mixtral 8x7B (Mistral AI, released December 2023 under the Apache 2.0 licence) routes each token to 2 of 8 experts. <Src href="https://en.wikipedia.org/wiki/Mixture_of_experts" /> DeepSeek's models go further: many small experts plus a few "shared" experts that every token uses, and a balancing scheme with no auxiliary loss at all, where each expert gets a bias added to its routing score that rises while it is neglected and falls while it is overloaded. <Src href="https://en.wikipedia.org/wiki/Mixture_of_experts" /> The router, the top-k choice and the fight against idle experts are the same ones you just tuned.
+
+</InTheWild>
+
+Experts change where a model's weights live and what each token costs. Next, the other end of a language model: how raw text becomes the tokens all of this routes.

@@ -374,6 +374,6 @@ Owner-approved next release (implement in order, one work package per commit or 
 - [x] V2-WP1 Optional sections & guided tracks — **revised by the owner**: replaced by Foundational / "where this belongs" chips (`src/areas.ts`, `AreaChip`); no track toggle
 - [x] V2-WP2 Interactive Concept Dependency Graph (`#/map`)
 - [x] V2-WP3 Two-Tier Compute Offloading (Test `Float32Array` + Production WebGPU): `src/lib/compute/`, `BackendChip`, training lab on WebGPU, CPU vs WebGPU benchmark (`kv-cache`), live grokking (`open-questions`), live warmup (`lr-schedules`), GAN grid re-run on the GPU (`gans/ganGpu.ts`, `GridRerun.tsx`). Details in `docs/ROADMAP.md`.
-- [ ] V2-WP4 Mixture of Experts (MoE) & Sparse Routing (`moe` + Lab: Balance the Experts)
+- [x] V2-WP4 Mixture of Experts (MoE) & Sparse Routing (`moe` + Lab: Balance the Experts) — see ROADMAP "Current state"
 - [ ] V2-WP5 Reasoning Models & Test-Time Compute (`reasoning` + Lab: Spend the Test-Time Budget)
 - [ ] V2-WP6 Multimodal Models & Vision Transformers (`multimodal-vit` + Lab: Wire the Multimodal Model)

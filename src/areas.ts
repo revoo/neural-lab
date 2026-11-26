@@ -106,6 +106,7 @@ export const LESSON_AREA: Record<string, Area> = {
   'multi-head-attention': 'llm',
   positions: 'llm',
   'transformer-block': 'llm',
+  moe: 'inference',
   tokenization: 'llm',
   'interlude-chatgpt': 'history',
   'next-token-prediction': 'llm',

@@ -198,6 +198,7 @@ export const MODULES: ModuleMeta[] = [
       { id: 'multi-head-attention', title: 'Multi-Head Attention', summary: 'Why one softmax can only answer one question at a time — and how splitting attention into heads asks several at once, for free.', minutes: 25, load: () => import('./lessons/multi-head-attention/index.mdx') },
       { id: 'positions', title: 'Positions: Teaching Attention About Order', summary: 'Attention can’t tell “dog bites man” from “man bites dog”. Clocks, rotations, and a lab where you build a head that finds the previous word.', minutes: 30, load: () => import('./lessons/positions/index.mdx') },
       { id: 'transformer-block', title: 'The Transformer Block', summary: 'Communicate, then compute, on a shared whiteboard: attention, feed-forward networks, residual connections, layer norm and the causal mask — assembled into a GPT.', minutes: 35, load: () => import('./lessons/transformer-block/index.mdx') },
+      { id: 'moe', title: 'Mixture of Experts & Sparse Routing', summary: 'Why wake every neuron for every word? How a router picks a few specialist networks per token, why one expert can hog the work, and how to balance them.', minutes: 35, load: () => import('./lessons/moe/index.mdx') },
       { id: 'tokenization', title: 'Tokenization & Byte-Pair Encoding', summary: 'How raw text becomes integer IDs: why characters are too long, words are too many, how BPE discovers subwords — and why models struggle to count the “r”s in strawberry.', minutes: 30, load: () => import('./lessons/tokenization/index.mdx') },
     ],
   },

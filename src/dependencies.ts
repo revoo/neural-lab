@@ -63,6 +63,7 @@ export const PREREQS: Record<string, string[]> = {
   'multi-head-attention': ['attention'],
   positions: ['attention'],
   'transformer-block': ['multi-head-attention', 'positions', 'vanishing-gradients'],
+  moe: ['transformer-block', 'optimizers'],
   tokenization: ['one-hot-vs-dense', 'information'],
   'interlude-chatgpt': ['transformer-block'],
   'next-token-prediction': ['transformer-block', 'tokenization'],
@@ -97,7 +98,7 @@ export const DESTINATIONS: Destination[] = [
   { id: 'dest:agents', title: 'RAG & Agents', blurb: 'Models inside real software: search, tools and evaluation.', needs: ['rag', 'tool-calling', 'evaluation'] },
   { id: 'dest:vision', title: 'Computer Vision & Multimodal', blurb: 'Seeing: from pixels to detectors to pictures matched with words.', needs: ['object-detection', 'contrastive-learning'] },
   { id: 'dest:rl', title: 'Reinforcement Learning', blurb: 'Agents that learn from consequences.', needs: ['reward-hacking'] },
-  { id: 'dest:inference', title: 'Efficient Training & Inference', blurb: 'Fitting and running big models on real hardware.', needs: ['lora', 'quantization', 'kv-cache'] },
+  { id: 'dest:inference', title: 'Efficient Training & Inference', blurb: 'Fitting and running big models on real hardware.', needs: ['lora', 'quantization', 'kv-cache', 'moe'] },
 ];
 
 export const isDestination = (id: string) => id.startsWith('dest:');
@@ -234,6 +235,7 @@ export const SHORT: Record<string, string> = {
   'multi-head-attention': 'Multi-head',
   positions: 'Positions',
   'transformer-block': 'Transformer block',
+  moe: 'Mixture of experts',
   tokenization: 'Tokenization',
   'interlude-chatgpt': 'ChatGPT interlude',
   'next-token-prediction': 'Next token',
