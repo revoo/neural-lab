@@ -87,6 +87,7 @@ export const PREREQS: Record<string, string[]> = {
   rag: ['similarity-search', 'next-token-prediction'],
   'tool-calling': ['rag', 'sampling'],
   evaluation: ['statistics', 'tool-calling'],
+  'tiny-gpt': ['transformer-block', 'tokenization', 'next-token-prediction', 'sampling', 'optimizers'],
   'open-questions': ['scaling-laws', 'overfitting', 'high-dimensions'],
 };
 
@@ -94,7 +95,7 @@ export type Destination = { id: string; title: string; blurb: string; needs: str
 
 /** Where the learner might be heading. `needs` are the lessons that lead straight into it. */
 export const DESTINATIONS: Destination[] = [
-  { id: 'dest:llms', title: 'Transformers & LLMs', blurb: 'How a language model reads, predicts and writes text.', needs: ['next-token-prediction', 'sampling', 'scaling-laws'] },
+  { id: 'dest:llms', title: 'Transformers & LLMs', blurb: 'How a language model reads, predicts and writes text.', needs: ['next-token-prediction', 'sampling', 'scaling-laws', 'tiny-gpt'] },
   { id: 'dest:reasoning', title: 'Reasoning Models', blurb: 'Models that are trained to think longer before they answer.', needs: ['reasoning'] },
   { id: 'dest:generative', title: 'Diffusion & Generative AI', blurb: 'Machines that make new images and data.', needs: ['guidance', 'gans'] },
   { id: 'dest:agents', title: 'RAG & Agents', blurb: 'Models inside real software: search, tools and evaluation.', needs: ['rag', 'tool-calling', 'evaluation'] },
@@ -261,6 +262,7 @@ export const SHORT: Record<string, string> = {
   rag: 'RAG',
   'tool-calling': 'Tools & agents',
   evaluation: 'Evaluation',
+  'tiny-gpt': 'Tiny GPT',
   'open-questions': 'Open questions',
 };
 

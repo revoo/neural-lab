@@ -130,6 +130,7 @@ export const LESSON_AREA: Record<string, Area> = {
   rag: 'agents',
   'tool-calling': 'agents',
   evaluation: 'agents',
+  'tiny-gpt': 'llm',
   'open-questions': 'frontier',
 };
 

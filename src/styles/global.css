@@ -578,6 +578,17 @@ input[type='range'] { width: 100%; accent-color: var(--accent); margin: 0; }
   .topbar .icon-btn { padding: 6px 8px; }
 }
 
+/* V1 capstone: the tiny GPT's widgets */
+.c-p { color: var(--accent-text); }
+.gpt-panel { padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-sunken); }
+.gpt-sample { white-space: pre-wrap; word-break: break-word; font-size: 13px; line-height: 1.5; margin-top: 4px; }
+.gpt-sample b { font-weight: 500; color: var(--accent-text); }
+.text-input { font-family: var(--font-mono); font-size: 13px; padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--bg); color: var(--text); min-width: 0; }
+.birth-flash { margin: 6px 0; padding: 8px 12px; border-radius: var(--radius-sm); border-left: 4px solid var(--c-c); background: var(--bg-sunken); font-family: var(--font-mono); font-size: 14px; font-weight: 600; color: var(--c-c); animation: birth-in 0.9s ease-out; }
+@keyframes birth-in { 0% { opacity: 0; transform: translateY(-4px); box-shadow: 0 0 0 0 var(--c-c); } 40% { opacity: 1; box-shadow: 0 0 18px 0 var(--c-c); } 100% { transform: none; box-shadow: 0 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { .birth-flash { animation: none; } }
+:root[data-theme='matrix'] .birth-flash { text-shadow: 0 0 8px var(--c-c); }
+
 /* ======================================================================
    MATRIX THEME
    Green phosphor terminal. Rules of the road:

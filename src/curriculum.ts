@@ -279,8 +279,24 @@ export const MODULES: ModuleMeta[] = [
     ],
   },
   {
-    id: 'epilogue',
+    id: 'capstone',
     number: 19,
+    era: '2017 to 2019',
+    title: 'Capstone: Build a Tiny GPT',
+    blurb: 'Every piece of the course in one machine: assemble a GPT, train it in your browser, and watch it learn to write.',
+    lessons: [
+      {
+        id: 'tiny-gpt',
+        title: 'Build and Train a Tiny GPT',
+        summary: 'Assemble a working GPT from the parts of this course, train it live on fairy tales, open it up, and test honestly how well it writes.',
+        minutes: 45,
+        load: () => import('./lessons/tiny-gpt/index.mdx'),
+      },
+    ],
+  },
+  {
+    id: 'epilogue',
+    number: 20,
     era: '2018 to today',
     title: 'Epilogue',
     blurb: 'Where the textbook stops and active research begins: five puzzles the field still cannot fully explain.',

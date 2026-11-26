@@ -16,15 +16,16 @@ export function useComputeTier() {
   return { kind, pref, gpuName: status.state === 'ready' ? status.name : '', gpuAvailable: status.state === 'ready' };
 }
 
-export function BackendChip({ tier, timing }: { tier: ComputeTier; timing?: string }) {
+/** `cpuWhere` names where the CPU tier runs when it isn't the main thread (the tiny GPT uses a Web Worker). */
+export function BackendChip({ tier, timing, cpuWhere = 'main thread' }: { tier: ComputeTier; timing?: string; cpuWhere?: string }) {
   const { kind, gpuName, gpuAvailable, pref } = tier;
-  const label = kind === 'webgpu' ? `⚡ WebGPU · ${gpuName}` : kind === 'cpu' ? '◼ CPU · main thread' : '… checking for a GPU';
+  const label = kind === 'webgpu' ? `⚡ WebGPU · ${gpuName}` : kind === 'cpu' ? `◼ CPU · ${cpuWhere}` : '… checking for a GPU';
   const title =
     kind === 'webgpu'
       ? 'Training and evaluation run in WGSL compute shaders on your GPU; weights and optimiser state stay in GPU memory.'
       : gpuAvailable
-        ? 'You switched to the CPU: the same maths in 32-bit floats on the browser’s main thread.'
-        : 'This browser does not expose WebGPU, so the same maths runs in 32-bit floats on the CPU, on the page’s main thread.';
+        ? `You switched to the CPU: the same maths in 32-bit floats, on the ${cpuWhere === 'main thread' ? 'browser’s main thread' : cpuWhere}.`
+        : `This browser does not expose WebGPU, so the same maths runs in 32-bit floats on the CPU, ${cpuWhere === 'main thread' ? 'on the page’s main thread' : `in a ${cpuWhere} (the page stays responsive)`}.`;
   return (
     <span className="backend-row">
       <span className={`backend-chip ${kind}`} title={title} data-backend={kind}>
