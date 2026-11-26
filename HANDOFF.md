@@ -43,7 +43,13 @@ You're picking up **Neural Lab**, an interactive website that teaches AI from fi
 
 ### What to do next
 
-- **Curriculum plan complete.** Check "Open questions for the owner" and "Next steps" in `docs/ROADMAP.md` before starting any new work.
+- **Curriculum plan (WP0–WP9) is complete.** Next up is the **v2 Release Plan** (`docs/V2_PLAN.md`, checklist at the bottom of this file):
+  1. **V2-WP1:** Optional sections & guided tracks (`Full Course` vs `Core Track`).
+  2. **V2-WP2:** Interactive Concept Dependency Graph (`#/map`).
+  3. **V2-WP3:** Tiered Compute Offloading (`Float32` Web Worker → WASM SIMD → optional WebGPU).
+  4. **V2-WP4:** Mixture of Experts (MoE) & Sparse Routing (`moe`, Lab: Balance the Experts).
+  5. **V2-WP5:** Reasoning Models & Test-Time Compute (`reasoning`, Lab: Spend the Test-Time Budget).
+  6. **V2-WP6:** Multimodal Models & Vision Transformers (`multimodal-vit`, Lab: Wire the Multimodal Model).
 
 ### How each maths lab was built (copy this)
 
@@ -354,3 +360,14 @@ Notes for whoever continues: **WP0–WP9 are complete.** All items in `docs/CURR
 - Draw 2D lab plots with both axes on the same scale when distance matters (`equalScale` in `src/lessons/vectors/FeatureLab.tsx`): otherwise the picture lies about which points are close.
 - Writing scripts: heredocs containing `${…}` are refused by the command-safety check; write Python/TS helpers into `scratch/` with the file tool. A `<Predict>` placed between list items breaks the MDX parse: put it before or after the list.
 - `scripts/check-pages.cjs` occasionally reports a one-off "horizontal overflow" on `/learn/evaluation` at 390px; a rerun is clean.
+
+## v2 Release Plan: progress (docs/V2_PLAN.md)
+
+Owner-approved next release (implement in order, one work package per commit or series of commits, same quality bar and verification rules):
+
+- [ ] V2-WP1 Optional sections & guided tracks (`Full Course` vs `Core Track`)
+- [ ] V2-WP2 Interactive Concept Dependency Graph (`#/map`)
+- [ ] V2-WP3 Tiered Compute Offloading (`Float32` Web Worker → WASM SIMD → optional WebGPU)
+- [ ] V2-WP4 Mixture of Experts (MoE) & Sparse Routing (`moe` + Lab: Balance the Experts)
+- [ ] V2-WP5 Reasoning Models & Test-Time Compute (`reasoning` + Lab: Spend the Test-Time Budget)
+- [ ] V2-WP6 Multimodal Models & Vision Transformers (`multimodal-vit` + Lab: Wire the Multimodal Model)

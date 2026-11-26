@@ -189,10 +189,16 @@ Session 3 (owner's order): first a **Matrix theme**, then resume "Next steps" wi
 
 ## Next steps (in order)
 
-**`docs/CURRICULUM_PLAN.md` (WP0–WP9) is complete.** Review the four "Open questions for the owner" above before deciding on any follow-up work. Optional future enhancements:
-1. Resolve any of the owner's open questions (watermark naming rule, Lab 4 brief 2 bottleneck rule, era span strictness, two pre-existing `chain-rule` forward-link phrasings).
-2. Optional older-lab polish noted under `docs/LAB_IMPROVEMENTS.md` (schedule designer moving marker, Prune fade animation, migrating remaining pre-LabShell labs onto `LabShell`).
-3. Optional theme-neutral colour wording pass on older widget captions.
+**`docs/CURRICULUM_PLAN.md` (WP0–WP9) is complete.** The owner approved the **v2 release backlog** — full specification in **`docs/V2_PLAN.md`**, progress checklist in `HANDOFF.md`:
+
+1. **V2-WP1 — Optional sections & guided tracks:** `optional` / `optionalNote` on historical/bridge lessons (`interlude-*`, `perceptron`, `svm`, `knn`, `rnns`, `lstms-grus`, `gans`) plus a persisted **Full Course vs Core Track** filter in `Home` and `Sidebar`.
+2. **V2-WP2 — Interactive Concept Dependency Graph (`#/map`):** curated tested DAG (`src/dependencies.ts`) showing how maths/foundations feed into modern AI technologies, with upstream prerequisite and downstream "unlocks" highlighting, progress overlay, and track filtering.
+3. **V2-WP3 — Tiered Compute Offloading (`Float32Array` Web Worker → WASM SIMD → optional WebGPU):** unified `ComputeBackend` (`src/lib/compute/`) with zero-jank 60 fps Worker training/heatmaps, SIMD GEMM acceleration, optional WGSL WebGPU path, and deterministic Node fallback; unlocks live *grokking* in `open-questions`, real *LR warmup* in `lr-schedules`, and smoother `training-lab` / `gans` runs.
+4. **V2-WP4 — Mixture of Experts (MoE) & Sparse Routing (`moe`, Module 12):** router logits, top-$k$ gating, live load-balancing collapse & auxiliary loss, VRAM-vs-active-FLOPs calculator, and **Lab: Balance the Experts** on `LabShell` (multi-seed search).
+5. **V2-WP5 — Reasoning Models & Test-Time Compute (`reasoning`, Module 15):** pass@$k$, majority voting, Best-of-$N$ noisy-verifier Goodharting, GRPO / verifiable-reward RL toy trainer, iso-compute trade-off map, and **Lab: Spend the Test-Time Budget** on `LabShell`.
+6. **V2-WP6 — Multimodal Models & Vision Transformers (`multimodal-vit`, end of Module 12):** interactive image-to-patch tokeniser + positional-encoding scramble test, fair CNN-vs-ViT inductive-bias race, live mini-CLIP dual-encoder contrastive alignment workbench, and **Lab: Wire the Multimodal Model** on `LabShell`.
+
+*Optional polish alongside v2:* resolve the four "Open questions for the owner" above, older-lab polish from `docs/LAB_IMPROVEMENTS.md`, and theme-neutral colour wording on older widget captions.
 
 ## Labs built so far
 
