@@ -1,0 +1,268 @@
+{/* authored-by: Gemini Antigravity */}
+import { LatencyAnatomy, BatchingRace, ChunkedPrefill, KvMemoryMap } from './Widgets';
+import { ServingDeskLab } from './ServingDeskLab';
+import { questions } from './quiz';
+
+# Serving LLMs: Batching, Chunked Prefill & Paged Memory
+
+Your chatbot feels snappy when you test it by yourself. In <LessonLink to="kv-cache">KV Caching &amp; Memory-Bound Decoding</LessonLink>, we worked out the roofline ceiling for Llama-3 8B in FP16 on an NVIDIA H100: at 2k context, a single user gets **205.2 tok/s** — roughly three paragraphs a second.
+
+Then comes launch day. Two hundred people hit send within the same second. What breaks first, and how do real serving engines turn one GPU into a multi-user service?
+
+---
+
+## 1. Launch day: three latencies and one idle chip
+
+Suppose you serve those 200 messages the obvious way: one request at a time, in arrival order, each running at full single-user speed on our H100.
+
+<Predict
+  question="200 people send a typical chat message (averaging 334 prompt tokens and 178 reply tokens) within the same second on an H100, served one at a time. Roughly how long does the 200th person wait for their very first token?"
+  options={[
+    'Under a second — an H100 generates over 200 tokens per second.',
+    'Around ten seconds — a short queue while earlier prompts finish prefill.',
+    'Nearly three minutes — almost every second of it spent waiting in the queue.',
+  ]}
+  answer={2}
+>
+  **169.5 seconds — almost three full minutes** (measured on our fixed 200-user launch-day trace, seed 202600). Even the median (100th) person waits **84.4 seconds** before a single character appears. Once their turn finally arrives, tokens stream briskly at ~205 tok/s — while **99.6%** of the H100’s Tensor Cores sit completely idle!
+</Predict>
+
+That single experiment reveals why serving engineers never talk about “latency” as one number. Users feel **two** distinct latencies, and the operator pays for a **third**:
+
+- **<Term id="ttft">Time to first token (TTFT)</Term>:** how long you stare at a blinking cursor before the first token arrives — queue wait plus prefill.
+- **<Term id="tpot">Time per output token (TPOT)</Term>:** the steady rhythm between each subsequent token while the reply streams (the inverse of per-user tokens/s).
+- **Throughput &amp; <Term id="goodput">goodput</Term>:** total output tokens per second across all users is *throughput*, but raw throughput can look huge even when every user waited ten seconds for their first word. **Goodput** counts only requests per second that meet *both* the TTFT and TPOT targets (the service-level objective, or SLO).
+
+Play with the request timeline below: drag **Users ahead of you** from 0 up to 20 and watch queueing swallow TTFT while the GPU’s arithmetic gauge stays stuck near zero during decode.
+
+<LatencyAnatomy />
+
+Because the first token arrives right when prefill finishes and the remaining output tokens follow one decode step apart, every request’s total time obeys one exact bookkeeping identity:
+
+<Eq
+  words="\text{total latency} \;=\; \text{time to first token} \;+\; (\text{output tokens} - 1) \times \text{time per output token}"
+  tex="\cc{T_{\text{total}}} \;=\; \ca{\text{TTFT}} \;+\; (\cp{O} - 1) \cdot \cb{\text{TPOT}}"
+>
+- $\cc{T_{\text{total}}}$ — **total request latency**: wall time from arrival until the final token is emitted.
+- $\ca{\text{TTFT}}$ — **time to first token**: queueing wait plus prefill time (producing output token 1).
+- $\cp{O}$ — **output length**: number of generated tokens in the reply.
+- $\cb{\text{TPOT}}$ — **mean time per output token**: average gap between consecutive generated tokens.
+</Eq>
+
+---
+
+## 2. The bus that waits for its last passenger
+
+We already saw in <LessonLink to="kv-cache">the KV cache lesson</LessonLink> that serving several users together reads the model weights *once* for the whole batch. So why not just group incoming requests into batches of 16?
+
+Think of two ways to run a bus route:
+
+- **Static batching** is a minibus that waits at the depot until 16 passengers board (or a timeout expires), locks the doors, and refuses to pick up anyone else until the passenger travelling furthest gets off. Every time someone gets off early, their seat stays empty for the rest of the trip.
+- **<Term id="continuous-batching">Continuous (iteration-level) batching</Term>** is a city bus that lets people off and on at *every stop*.
+
+The mapping is exact: a **seat** is a batch slot, a **stop** is one forward pass (one token generated per active user), and a **journey length** is the reply length. Reply lengths in real chat are heavy-tailed — one user gets a 15-token “Yes, use `git rebase`” while another gets a 300-token essay. In static batching, 15 short replies sit finished while everyone outside waits for the 300-token essay to wrap up.
+
+<Predict
+  question="Continuous batching runs the exact same transformer layers on the exact same tokens — zero arithmetic is skipped. Where does its speedup come from?"
+  options={[
+    'It packs more matrix multiplications onto fewer Tensor Cores.',
+    'It eliminates empty slots held by finished requests and cuts queue wait, so every weight read serves a fuller batch.',
+    'It skips attention for sequences that have already generated half their reply.',
+  ]}
+  answer={1}
+>
+  **Idle slots and queue wait.** Every token still costs the exact same FLOPs, but continuous batching fills freed seats on the very next iteration instead of reading 16 GB of weights to decode one straggler.
+</Predict>
+
+Race both schedulers on the exact same 24-request wave below (RTX 4090, Llama-3 8B FP16). To keep the comparison fair, static batching runs at its **best settings found by searching all 36 (batch size × wait timeout) combinations** (`batch 16, wait 400 ms`).
+
+<BatchingRace />
+
+Even at its searched optimum, static batching leaves **64.7%** of slot-steps hatched empty and pushes TTFT p95 to **3,969 ms**. Continuous batching drops idle slots to **0%**, slashes TTFT p95 by **76×** (down to **52 ms**), and lifts throughput **51%** from **200.6** to **303.3 tok/s**.
+
+Every analogy has a limit, and ours shows up right in the table above. Unlike a real bus passenger, a new user cannot step straight into decode: they must first **prefill** their prompt. Look at continuous batching’s TPOT p95 in the race: it crept up from **16.6 ms** to **76.9 ms** because newly arriving prompts interrupted active decodes. What happens when someone pastes a whole book?
+
+---
+
+## 3. One trolley holds up the whole queue
+
+Picture the only open checkout at a supermarket. Six shoppers with three-item baskets are breezing through, and then someone rolls up with a heaped trolley — a **16,384-token document**.
+
+In naive continuous batching, the GPU prefills all 16,384 tokens in one giant pass. On our RTX 4090 (165.2 TFLOP/s), that single prefill takes **2,019 ms — over two full seconds**. Every chatting user who was streaming smoothly freezes mid-sentence for two seconds until the document finishes prefilling.
+
+The fix is **<Term id="chunked-prefill">chunked prefill</Term>**: put a cap — a per-step **token budget** — on how many tokens enter a single GPU step. On every iteration, active decode tokens go first (one token per decoding user), and whatever remains of the token budget goes to a *chunk* of a pending prompt. Because of the causal mask from <LessonLink to="kv-cache">the KV cache lesson</LessonLink>, chunk 2 simply attends to the KV cache written by chunk 1: **the numerical output is bit-identical to prefilling all at once** (verified directly on our real tiny GPT in our test suite: max difference `0.00`).
+
+Now we can write the mixed-batch roofline equation that drives every step of a modern serving engine (extending the single-phase roofline from <LessonLink to="kv-cache">KV Caching &amp; Memory-Bound Decoding</LessonLink>):
+
+<Eq
+  words="\text{step time} \;=\; \max\!\Big(\frac{\text{linear} + \text{attention FLOPs}}{\text{peak compute}},\;\; \frac{\text{weights} + \text{active KV bytes}}{\text{memory bandwidth}}\Big)"
+  tex="\cc{t_{\text{step}}} \;=\; \max\!\left(\frac{\ca{2N \sum_i m_i + 4 L n_q d_{\text{head}} \sum_i \left(m_i p_i + \tfrac{m_i(m_i+1)}{2}\right)}}{\ca{P_{\text{peak}}}},\;\; \frac{\cb{N b_w + b_{\text{kv}} \sum_i (p_i + m_i)}}{\cb{B_{\text{mem}}}}\right)"
+>
+- $\cc{t_{\text{step}}}$ — **iteration duration**: hardware roofline lower bound for one mixed prefill + decode step.
+- $\ca{m_i}$ — **new tokens processed** for sequence $i$ this step ($m_i = 1$ for decode; chunk length for prefill).
+- $\ca{p_i}$ — **already-cached tokens** for sequence $i$ before this step (earlier chunks, shared prefix, or prior context).
+- $\cb{N b_w}$ — **weight bytes** streamed once per step for the whole batch; $\cb{b_{\text{kv}}}$ is KV bytes per token (128 KiB for Llama-3 8B FP16).
+- $\ca{P_{\text{peak}}},\;\cb{B_{\text{mem}}}$ — **GPU peak compute** and **memory bandwidth** (165.2 TFLOP/s and 1.008 TB/s on RTX 4090, ridge point **163.9 FLOPs/byte**).
+</Eq>
+
+Try different token budgets on a real 16,384-token arrival below — and watch carefully for **both** cliffs around the RTX 4090’s 164-token ridge point.
+
+<ChunkedPrefill />
+
+Look closely at what the roofline numbers just did — it is much subtler than “smaller chunks always slow the long document”:
+
+- **Above the ridge point (`256`–`4,096` tokens):** each chunk is already **compute-bound**. Streaming the 16.06 GB weights is hidden behind Tensor Core arithmetic, so splitting the 16k prompt into 256-token chunks drops worst chatter TPOT **53×** (from **2,019 ms** to **37.9 ms**) while adding only **37 ms** to the document’s TTFT (**2,035 ms → 2,072 ms**) — and actually *raising* total throughput (**177.9 → 215.4 tok/s**) because chat decodes piggyback inside the compute-bound chunks for free!
+- **Below the ridge point (`64` tokens):** chunks fall back into the **memory-bound** regime. Now re-reading all 16 GB of weights 256 times *does* hurt, and the document’s TTFT more than doubles to **4,552 ms**.
+
+---
+
+## 4. `malloc` for the KV cache: paging and prefix sharing
+
+Batching and chunking solve scheduling — until you hit the memory wall.
+
+Take our **RTX 4090 (24 GiB)** running Llama-3 8B in FP16. Weights take **14.96 GiB** and CUDA scratchpad takes **1.5 GiB**, leaving **7.54 GiB** for the KV cache: exactly **61,791 tokens** at 128 KiB/token.
+
+If your server supports 8,192-token contexts and naively allocates a contiguous worst-case slab (`malloc(8192 × 128 KiB) = 1.0 GiB`) for every user up front, only **7 users** fit on the entire GPU — even if every user has typed barely 1,400 tokens. Over **80%** of your KV VRAM sits empty, capping the batch size and starving the GPU’s Tensor Cores. Try growing contiguous slabs on demand instead, and finished requests leave **external fragmentation holes** between live slabs.
+
+Operating systems solved this exact problem sixty years ago with **virtual memory**. **<Term id="paged-attention">PagedAttention</Term>** slices KV VRAM into fixed-size physical **blocks** (typically 16 tokens each) and gives every sequence a **block table** mapping logical token positions to scattered physical blocks. Blocks are allocated only as a sequence grows, so wasted memory shrinks from thousands of tokens per request to strictly less than one block:
+
+<Eq
+  words="\text{contiguous waste} \;=\; (\text{max length} - \text{actual length}) \times b_{\text{kv}} \qquad\text{vs}\qquad \text{paged waste} \;<\; \text{block size} \times b_{\text{kv}}"
+  tex="\cv{W_{\text{contig}}} \;=\; (\cp{L_{\max}} - \ca{n_i}) \cdot \cb{b_{\text{kv}}} \qquad\text{vs}\qquad \cc{W_{\text{paged}}} \;<\; \cp{B_{\text{blk}}} \cdot \cb{b_{\text{kv}}}"
+>
+- $\cv{W_{\text{contig}}}$ — **reserved-but-unused waste** per sequence under max-length contiguous allocation.
+- $\cc{W_{\text{paged}}}$ — **internal tail waste** per sequence under paging (only the unfilled end of its final block).
+- $\cp{L_{\max}},\;\ca{n_i},\;\cp{B_{\text{blk}}}$ — maximum allowed context, sequence $i$’s current length, and physical block size (e.g. 16 tokens).
+</Eq>
+
+The virtual-memory analogy has one neat twist: here a “page fault” is planned. The scheduler hands out a fresh physical block whenever a sequence crosses a block boundary. If the free pool runs dry, it must **<Term id="preemption">preempt</Term>** a running sequence (typically the most recently admitted one), freeing its blocks and re-queueing it to recompute later.
+
+And once blocks are addressed through a page table, a second superpower falls right out: **<Term id="prefix-caching">prefix caching</Term>**. If 64 users share the same 1,024-token system prompt, all 64 block tables point at the **exact same 64 physical blocks** (tracked by a reference count, with copy-on-write on any partially filled boundary block). You save 63 copies of the memory *and* skip prefilling those 1,024 tokens 63 times.
+
+<Predict
+  question="Once paging removes memory waste, what limits decode throughput now?"
+  options={[
+    'Memory capacity is completely gone — batch size can grow to infinity.',
+    'Actual live tokens resident in VRAM, until the batch grows large enough to cross the GPU’s roofline ridge point into compute-bound decode.',
+    'Paging eliminates the need to read the KV cache during attention.',
+  ]}
+  answer={1}
+>
+  **Actual tokens resident, then the roofline ridge point.** Paging doesn’t shrink the bytes a real token needs — it stops you paying for *phantom* tokens. As the live batch rises, throughput climbs steadily until arithmetic intensity meets the ridge point.
+</Predict>
+
+Flip through all four allocators on 64 conversations sharing a 1,024-token system prompt below, and click any conversation in paged mode to inspect its real block table.
+
+<KvMemoryMap />
+
+On our RTX 4090, switching from contiguous max-length slabs to paged blocks lifts concurrent users from **7** to **42** (cutting waste from **82.1%** to **0.5%**) and quadruples decode throughput from **405** to **1,756 tok/s**. Turning on prefix sharing fits all **64** users and lifts decode throughput to **2,267 tok/s**.
+
+*An honest caveat:* in our roofline model, 8-token blocks always beat 16- and 32-token blocks on waste (**0.2%** vs **0.5%** vs **1.0%**). Real engines choose ~16 tokens because of GPU kernel efficiency (coalesced memory reads and smaller page tables), which a pure roofline model does not capture.
+
+<Deeper title="Where FlashAttention fits in">
+Every technique above decides *which* tokens run together and *where* their KV blocks live. **FlashAttention** optimises the attention kernel *inside* a single step: instead of materialising the $n \times n$ attention matrix in slow HBM, it tiles $Q$, $K$, and $V$ through fast on-chip SRAM. Production engines combine FlashAttention with PagedAttention so attention reads scattered blocks directly into SRAM without extra HBM round trips.
+</Deeper>
+
+---
+
+## 5. Lab: The Serving Desk
+
+<LabJob>You are on call for launch day. One RTX 4090 (24 GiB), Llama-3 8B FP16, and three recorded mornings of traffic. Configure batching, chunking, KV paging and prefix caching so users meet both TTFT and TPOT SLOs — then push goodput to the ceiling.</LabJob>
+
+<ServingDeskLab />
+
+<Deeper title="Debrief: what the exhaustive 300-config search found" tag="Spoiler">
+We ran all **300** configurations across each brief (and a separate **56-config** sweep over batch size × wait timeout for static batching on Brief 1):
+
+- **Brief 1 (Launch chat):** **90 of 300** configs pass, with **0** passing under static batching (even across all 56 wait-timeout settings, static peaks at **25.0%** SLO attainment). Optimal goodput is **4.17 req/s** (18 tied optimums, all using continuous batching with budget 256).
+- **Brief 2 (Long docs):** **32 of 300** pass. **Zero** pass without chunked prefill, **zero** pass with static batching, and **zero** pass with `reserve-max` (at 16,896 max context, contiguous slabs hold only 3 users on a 24 GiB card!). Optimal goodput: **3.72 req/s**.
+- **Brief 3 (Shared crowd):** **18 of 300** pass — every passing route combines continuous batching, paged KV, and prefix caching (`reserve-max` and `paged` without prefix sharing both score **0**). Notice an honest twist: **3** passing configs leave chunked prefill *off*, because once prefix caching skips the shared 1,024-token system prompt only ~260 user tokens remain to prefill. Still, adding budget 256 with `maxRunning = 64` hits the optimum of **5.72 req/s** with **0 preemptions** (try `paged` without prefix sharing at `maxRunning = 64` to watch 32 real preemptions fire in the log!).
+</Deeper>
+
+<ForReal>
+Every knob on this desk maps onto a real `vllm serve` flag (`--max-num-seqs`, `--enable-chunked-prefill`, `--max-num-batched-tokens`, `--block-size`, `--enable-prefix-caching`), which is why the live command updates as you tune. Real clusters run the same goodput-versus-SLO Pareto frontier across hundreds of GPUs.
+</ForReal>
+
+<HistoryCard id="llm-serving-desk" />
+
+---
+
+## 6. In code
+
+A **continuous-batching scheduler with chunked prefill** takes just 25 lines of plain Python — a waiting queue, a running set, a per-step token budget, decode-first priority, and immediate retirement:
+
+```python
+waiting = [
+    {"id": 1, "prompt": 512, "reply": 3},
+    {"id": 2, "prompt": 128, "reply": 2},
+    {"id": 3, "prompt": 640, "reply": 2},
+]
+running, max_running, token_budget, step = [], 2, 512, 0
+
+while waiting or running:
+    while waiting and len(running) < max_running:
+        running.append({**waiting.pop(0), "prefilled": 0, "emitted": 0})
+    step += 1
+    budget = token_budget
+    decodes = [r for r in running if r["prefilled"] == r["prompt"]]
+    prefills = [r for r in running if r["prefilled"] < r["prompt"]]
+    for r in decodes:
+        r["emitted"] += 1
+        budget -= 1
+    prefill_toks = 0
+    for r in prefills:
+        take = min(r["prompt"] - r["prefilled"], max(0, budget))
+        r["prefilled"] += take
+        budget -= take
+        prefill_toks += take
+        if r["prefilled"] == r["prompt"]:
+            r["emitted"] += 1            # prefill finishes -> emits token #1
+    retired = [r["id"] for r in running if r["emitted"] >= r["reply"]]
+    running = [r for r in running if r["emitted"] < r["reply"]]
+    print(f"step {step}: decode={len(decodes)} prefill={prefill_toks:3d} retired={retired}")
+```
+
+Running it prints:
+
+```text
+step 1: decode=0 prefill=512 retired=[]
+step 2: decode=1 prefill=128 retired=[]
+step 3: decode=2 prefill=  0 retired=[1, 2]
+step 4: decode=0 prefill=512 retired=[]
+step 5: decode=0 prefill=128 retired=[]
+step 6: decode=1 prefill=  0 retired=[3]
+```
+
+Watch step 2: request 2 prefills alongside request 1’s decode inside the same 512-token budget, and in steps 4–5 request 3’s 640-token prompt splits cleanly into 512 + 128.
+
+---
+
+## 7. Common misconceptions
+
+<Misconception title="“A bigger batch is always better.”">
+Batching amortises reading the weights, so total throughput climbs — until two ceilings hit. First, TPOT rises as more KV caches are streamed each step, and once batch size crosses the roofline ridge point every extra user directly slows everyone else down. Second, in most real deployments KV VRAM runs out long before compute does, triggering preemptions if concurrency is pushed too high.
+</Misconception>
+
+<Misconception title="“PagedAttention makes the attention maths faster.”">
+Following a block table actually adds a small amount of indirection to the attention kernel. The huge throughput gain comes from **memory density**: removing reserved-but-unused slabs lets 5–10× more sequences sit in VRAM simultaneously, raising the batch size in the memory-bound decode regime.
+</Misconception>
+
+---
+
+## Check your understanding
+
+<Quiz questions={questions} />
+
+<Takeaways>
+- Users experience **TTFT** (queueing + prefill) and **TPOT** (decode rhythm) separately; operators pay for **throughput**, and **goodput** (SLO-meeting requests/s) captures the real trade-off.
+- **Static batching** wastes GPU slots waiting for the longest reply in a batch; **continuous (iteration-level) batching** refills freed slots on every step.
+- **Chunked prefill** caps tokens per step so long prompts cannot freeze active decodes; above the GPU’s roofline ridge point, chunking costs almost no extra document TTFT, while below it re-reading weights hurts.
+- **Paged KV memory (PagedAttention)** replaces contiguous max-length slabs with fixed-size blocks and per-sequence block tables, cutting waste below one block per sequence and enabling reference-counted **prefix caching**.
+- Every gain above comes from lifting utilisation in the **memory-bound** decode regime — once you are serving a single user at 2 a.m., batching cannot help you at all.
+</Takeaways>
+
+<InTheWild>
+Production serving engines — **vLLM** <Src href="https://arxiv.org/abs/2309.06180" />, **SGLang** (which extends prefix sharing into a radix tree called RadixAttention <Src href="https://arxiv.org/abs/2312.07104" />), and **TensorRT-LLM** — combine continuous batching, paged KV caches, chunked prefill, and prefix caching by default. At cluster scale, **prefill/decode disaggregation** (such as DistServe <Src href="https://arxiv.org/abs/2401.09670" />) goes one step further, placing compute-bound prefills and memory-bound decodes on separate GPU pools so long prompts never touch decode TPOT.
+</InTheWild>
+
+Batching rescues a busy GPU, but what if only *one* user is asking a question at 2 a.m. and 99% of the Tensor Cores are still idle? Putting that idle arithmetic to work for a single stream is the subject of <LessonLink to="speculative-decoding">Speculative Decoding</LessonLink>.

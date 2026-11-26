@@ -131,8 +131,8 @@ And watch one more twist in the roofline widget below: set **Llama-3 8B + INT4 w
 Our roofline calculator reports the **exact hardware upper bound**: $\text{time} = \max(\text{FLOPs}/P_{\text{peak}},\; \text{Bytes}/B_{\text{mem}})$. Real serving engines like **vLLM**, **SGLang** and **TensorRT-LLM** typically achieve **70–85%** of HBM bandwidth during decode (so an H100 running Llama-3 8B FP16 hits ~150 tok/s against our 205.2 tok/s ceiling) and **50–70%** of peak Tensor Core FLOPs during prefill. Three production techniques close the remaining gaps:
 
 - **FlashAttention** fuses attention into on-chip SRAM so the $n \times n$ attention matrix is never written to slow HBM.
-- **PagedAttention (vLLM)** allocates KV caches in small fixed-size pages like virtual memory, eliminating VRAM fragmentation so much larger batches fit.
-- **Speculative decoding** uses a tiny draft model to propose 4–8 tokens ahead, then verifies them in *one* parallel forward pass of the big model — sneaking extra tokens into that idle 99.6% of Tensor Core capacity for free!
+- **PagedAttention (vLLM)** allocates KV caches in small fixed-size pages like virtual memory, eliminating VRAM fragmentation so much larger batches fit — covered hands-on in <LessonLink to="llm-serving">Serving LLMs</LessonLink>.
+- **Speculative decoding** uses a tiny draft model to propose 4–8 tokens ahead, then verifies them in *one* parallel forward pass of the big model — sneaking extra tokens into that idle 99.6% of Tensor Core capacity for free! We build and measure it on real models in <LessonLink to="speculative-decoding">Speculative Decoding</LessonLink>.
 </Deeper>
 
 ### Measure it yourself: your CPU against your GPU
@@ -218,3 +218,5 @@ H100 B=1 @ 2k: FP16 = 205.2 tok/s, INT4 = 700.1 tok/s
 ## Check your understanding
 
 <Quiz questions={questions} />
+
+Once one GPU fits the model and its KV cache, launch day arrives with hundreds of simultaneous requests: we turn next to continuous batching, chunked prefill and paged KV memory in <LessonLink to="llm-serving">Serving LLMs</LessonLink>.

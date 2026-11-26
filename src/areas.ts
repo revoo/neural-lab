@@ -123,6 +123,8 @@ export const LESSON_AREA: Record<string, Area> = {
   reasoning: 'reasoning',
   quantization: 'inference',
   'kv-cache': 'inference',
+  'llm-serving': 'inference',
+  'speculative-decoding': 'inference',
   autoencoders: 'generative',
   gans: 'generative',
   diffusion: 'generative',

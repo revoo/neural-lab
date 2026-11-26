@@ -219,4 +219,29 @@ describe('llm-serving engine (S1): constants, roofline, conservation & fairness 
     expect(dPrefix.prefixRefCount).toBe(64);
     expect(dPrefix.decodeThroughputTokPerSec).toBeCloseTo(2267, 0);
   });
+
+  it('proves chunked-prefill equivalence bit-for-bit on the real committed tiny GPT', async () => {
+    const { Decoder, Gpt } = await import('../../lib/compute/gpt');
+    const { encode, VOCAB } = await import('../../lib/corpora/grimm');
+    const { nodeFs } = await import('../../lib/nodeIo');
+    const fs = await nodeFs();
+    const raw = fs.readFileSync(new URL('../../lib/compute/tinyGpt.cpu.bin', import.meta.url));
+    const model = new Gpt({ vocab: VOCAB, ctx: 64, d: 32, heads: 4, layers: 2 });
+    model.load(new Float32Array(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength)));
+
+    const prompt = encode('A great king of a land far away had a daughter, ');
+    const fullLogits = model.nextLogits(prompt);
+
+    for (const chunkSize of [8, 13, 16]) {
+      const dec = new Decoder(model);
+      let logits: Float64Array = new Float64Array(0);
+      for (let off = 0; off < prompt.length; off += chunkSize) {
+        const end = Math.min(prompt.length, off + chunkSize);
+        for (let i = off; i < end; i++) logits = dec.step(prompt[i]);
+      }
+      let maxDiff = 0;
+      for (let i = 0; i < VOCAB; i++) maxDiff = Math.max(maxDiff, Math.abs(logits[i] - fullLogits[i]));
+      expect(maxDiff).toBe(0);
+    }
+  });
 });

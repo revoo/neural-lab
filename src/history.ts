@@ -36,6 +36,42 @@ const WP = (page: string) => `https://en.wikipedia.org/wiki/${page}`;
 
 export const HISTORY: HistoryEntry[] = [
   {
+    id: 'llm-serving-desk',
+    lessonId: 'llm-serving',
+    lab: 'The Serving Desk',
+    idea: 'Iteration-level batching, chunked prefill and virtual memory for the KV cache',
+    years: [2022, 2023],
+    when: '2022 · 2023',
+    who: [
+      { text: 'Gyeong-In Yu, Joo Seong Jeong, Geon-Woo Kim, Soojeong Kim and Byung-Gon Chun presented Orca at OSDI 2022 (July 2022), introducing iteration-level scheduling and lifting GPT-3 175B throughput up to 36.9× over FasterTransformer.', source: 'https://www.usenix.org/conference/osdi22/presentation/yu' },
+      { text: 'Amey Agrawal, Ashish Panwar, Jayashree Mohan, Nipun Kwatra, Bhargav S. Gulavani and Ramachandran Ramjee proposed chunked prefills and decode-maximal batching in SARATHI in August 2023.', source: 'https://arxiv.org/abs/2308.16369' },
+      { text: 'Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Hao Yu, Joseph E. Gonzalez, Hao Zhang and Ion Stoica introduced PagedAttention and vLLM in September 2023 (SOSP 2023).', source: 'https://arxiv.org/abs/2309.06180' },
+    ],
+    story: {
+      before: { text: 'Early LLM serving engines scheduled whole requests in static batches and pre-allocated contiguous maximum-length KV buffers, wasting 60%–80% of KV memory to fragmentation and over-reservation.', source: 'https://arxiv.org/abs/2309.06180' },
+      this: { text: 'PagedAttention borrowed virtual memory from operating systems — splitting KV caches into fixed-size blocks with block tables — cutting KV waste to under 4% and improving throughput 2–4× over FasterTransformer and Orca.', source: 'https://arxiv.org/abs/2309.06180' },
+      after: { text: 'In January 2024 DistServe (OSDI 2024) went a step further, disaggregating prefill and decode onto separate GPU pools so long prompts never interfere with decode latency.', source: 'https://arxiv.org/abs/2401.09670' },
+    },
+    dispute: { text: 'Whether to mix chunked prefills and decodes on one GPU pool (SARATHI) or split them onto separate pools (DistServe) remains a live systems trade-off depending on cluster size and prompt-to-reply ratios.', source: 'https://arxiv.org/abs/2401.09670' },
+  },
+  {
+    id: 'speculative-decoding',
+    lessonId: 'speculative-decoding',
+    lab: 'Tune the Draft',
+    idea: 'Drafting ahead with a small model and verifying losslessly in parallel',
+    years: [2022, 2023],
+    when: '2022 · 2023',
+    who: [
+      { text: 'Yaniv Leviathan, Matan Kalman and Yossi Matias (Google Research) posted “Fast Inference from Transformers via Speculative Decoding” on 30 November 2022 — the same day ChatGPT launched — later presented as an ICML 2023 Oral.', source: 'https://arxiv.org/abs/2211.17192' },
+      { text: 'Charlie Chen, Sebastian Borgeaud, Geoffrey Irving, Jean-Baptiste Lespiau, Laurent Sifre and John Jumper (DeepMind) independently published “Accelerating Large Language Model Decoding with Speculative Sampling” on 2 February 2023, demonstrating 2–2.5× speed-ups on 70B Chinchilla.', source: 'https://arxiv.org/abs/2302.01318' },
+    ],
+    story: {
+      before: { text: 'Autoregressive decoding was widely treated as strictly one forward pass per output token unless you compressed the model or approximated its output distribution.', source: 'https://arxiv.org/abs/2211.17192' },
+      this: { text: 'Leviathan, Kalman and Matias paired a fast draft model with a rejection-sampling rule that preserves the target model’s distribution identically, achieving 2×–3× speed-ups on T5-XXL without retraining or changing outputs.', source: 'https://arxiv.org/abs/2211.17192' },
+      after: { text: 'Later systems such as Medusa (January 2024) replaced the separate draft model with lightweight prediction heads attached directly to the target model’s own hidden states.', source: 'https://arxiv.org/abs/2401.10774' },
+    },
+  },
+  {
     id: 'learning-to-speak',
     lessonId: 'learning-to-speak',
     lab: 'Steer the Sentence',

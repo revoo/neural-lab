@@ -245,12 +245,14 @@ export const MODULES: ModuleMeta[] = [
   {
     id: 'inference',
     number: 16,
-    era: '2019 to 2023',
+    era: '2019 to 2024',
     title: 'Inference & Hardware',
     blurb: 'What actually happens on the GPU, and why memory bandwidth rules everything.',
     lessons: [
       { id: 'quantization', title: 'Floating-Point Formats & Quantisation', summary: 'How many bits can a number lose before the model notices? Flip bits in real number formats, watch one outlier ruin compression — and a mixed-precision lab.', minutes: 30, load: () => import('./lessons/quantization/index.mdx') },
       { id: 'kv-cache', title: 'KV Caching & Memory-Bound Decoding', summary: 'Why generating text one token at a time leaves a GPU mostly idle, and how caching past work fixes the waste — and Lab: VRAM Tetris.', minutes: 35, load: () => import('./lessons/kv-cache/index.mdx') },
+      { id: 'llm-serving', title: 'Serving LLMs: Batching, Chunked Prefill & Paged Memory', summary: 'Why one fast user becomes a three-minute queue on launch day, and how continuous batching, chunked prefill and paged KV memory fix it — and Lab: The Serving Desk.', minutes: 35, load: () => import('./lessons/llm-serving/index.mdx') },
+      { id: 'speculative-decoding', title: 'Speculative Decoding: Fast Generation Without Approximation', summary: 'How a tiny draft model lets a large model generate several tokens per weight read without changing its output distribution — and Lab: Tune the Draft.', minutes: 25, load: () => import('./lessons/speculative-decoding/index.mdx') },
     ],
   },
   {

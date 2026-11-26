@@ -15,7 +15,71 @@ import { createRng } from '../../lib/rng';
 import { Decoder, drawFrom, Gpt, gptParamCount, sampleDistribution, type GptConfig } from '../../lib/compute/gpt';
 import { CPU_RUN } from '../../lib/compute/gptReference';
 import { CHARS, decode, encode, taleStarts, VOCAB } from '../../lib/corpora/grimm';
-import { LLAMA3_8B, RTX_4090, stepTime, type GpuSpec, type ModelSpec } from './serve';
+
+export interface ModelSpec {
+  id: string;
+  name: string;
+  shortName: string;
+  paramsB: number;
+  layers: number;
+  qHeads: number;
+  kvHeads: number;
+  dHead: number;
+}
+
+export interface GpuSpec {
+  id: string;
+  name: string;
+  shortName: string;
+  vramGiB: number;
+  bwTBps: number;
+  peakTflops: number;
+  overheadGiB: number;
+}
+
+/** Duplicated from kv-cache / llm-serving so lessons stay independent. */
+export const LLAMA3_8B: ModelSpec = {
+  id: 'llama3-8b',
+  name: 'Llama-3 8B (GQA 4:1)',
+  shortName: 'Llama-3 8B',
+  paramsB: 8.03,
+  layers: 32,
+  qHeads: 32,
+  kvHeads: 8,
+  dHead: 128,
+};
+
+export const RTX_4090: GpuSpec = {
+  id: 'rtx-4090',
+  name: 'NVIDIA RTX 4090 (24 GiB)',
+  shortName: 'RTX 4090 24G',
+  vramGiB: 24,
+  bwTBps: 1.008,
+  peakTflops: 165.2,
+  overheadGiB: 1.5,
+};
+
+function stepTime(
+  items: { kind: 'decode' | 'prefill'; cachedTokens: number; newTokens: number }[],
+  gpu: GpuSpec,
+  model: ModelSpec,
+) {
+  const N = model.paramsB * 1e9;
+  const kvTokBytes = 2 * model.layers * model.kvHeads * model.dHead * 2;
+  const attnPerPair = 4 * model.layers * model.qHeads * model.dHead;
+  let newToks = 0;
+  let pairs = 0;
+  let kvToks = 0;
+  for (const it of items) {
+    newToks += it.newTokens;
+    pairs += it.newTokens * it.cachedTokens + (it.newTokens * (it.newTokens + 1)) / 2;
+    kvToks += it.cachedTokens + it.newTokens;
+  }
+  const flops = 2 * N * newToks + attnPerPair * pairs;
+  const bytes = N * 2 + kvToks * kvTokBytes;
+  const stepTimeMs = Math.max(bytes / (gpu.bwTBps * 1e12), flops / (gpu.peakTflops * 1e12)) * 1000;
+  return { stepTimeMs };
+}
 
 export const TARGET_CFG: GptConfig = CPU_RUN.cfg;
 export const DRAFT_CFG: GptConfig = { vocab: VOCAB, ctx: 64, d: 16, heads: 2, layers: 1 };

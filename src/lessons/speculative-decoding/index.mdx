@@ -1,0 +1,188 @@
+{/* authored-by: Gemini Antigravity */}
+import { SpeculativeStepper } from './SpecWidget';
+import { TuneDraftLab } from './TuneDraftLab';
+import { questions } from './quiz';
+
+# Speculative Decoding: Fast Generation Without Approximation
+
+In <LessonLink to="llm-serving">Serving LLMs</LessonLink>, continuous batching, chunked prefill and paged KV memory rescued a busy GPU serving dozens of users at once. Yet a single user at 2 a.m. is still stuck in the memory-bound valley from <LessonLink to="kv-cache">KV Caching &amp; Memory-Bound Decoding</LessonLink>: streaming 16 GB of weights across VRAM just to emit **one** token while **99.6%** of the GPU’s Tensor Cores sit idle.
+
+Can you generate **several** tokens per weight read — without changing the big model’s output distribution by even a single bit?
+
+---
+
+## 1. The junior drafts, the senior signs off
+
+Picture a senior editor whose desk is at the far end of a long corridor. Almost all their time goes on walking to the filing room (streaming weights out of VRAM), not reading. Checking five words once they arrive takes almost no longer than checking one.
+
+So you hire a fast junior assistant. The junior drafts **5 words** ahead. The senior walks to the filing room **once**, reads all 5 drafted words in parallel, accepts the longest prefix they agree with, and replaces the first word they dislike.
+
+That is **<Term id="speculative-decoding">speculative decoding</Term>**:
+
+1. A small, cheap **draft model** $q$ autoregressively proposes $k$ candidate tokens $x_1, \dots, x_k$.
+2. The large **target model** $p$ verifies all $k$ tokens in **one parallel forward pass** — a mini-prefill of length $k + 1$. While $k + 1$ stays well below the GPU’s roofline ridge point (163.9 tokens on an RTX 4090, 295.2 on an H100), checking 5 or 8 tokens moves almost the exact same bytes as generating 1 token.
+3. Walking left to right, each drafted token $x_i$ is accepted with probability $\min(1, p(x_i)/q(x_i))$.
+4. At the **first rejection**, we discard the remaining draft tokens — in our real `Decoder`, rolling back three rejected KV entries is literally **one integer assignment** (`decoder.len = keepLen`), because later slots are simply overwritten — and draw one replacement token from the **residual distribution** $\text{norm}(\max(0, p - q))$.
+5. If all $k$ drafted tokens pass, the target’s parallel pass has *already* produced logits for position $k + 1$, giving us a **free bonus token** from $p$ — up to $k + 1$ tokens in a single target pass!
+
+<Predict
+  question="Suppose the draft proposes a token x and the target rejects it. If you simply resampled the replacement directly from the target distribution p instead of from norm(max(0, p − q)), what would go wrong?"
+  options={[
+    'Nothing — resampling from p always gives the exact distribution p.',
+    'Tokens that the draft already over-proposed (where q > p) would be emitted too often, biasing the output away from p.',
+    'The KV cache would become corrupted and have to be recomputed from the start.',
+  ]}
+  answer={1}
+>
+  **Tokens where q exceeded p would be double-counted.** Those tokens were already accepted at full probability $p(x)$ whenever the draft proposed them. Subtracting $q$ from $p$ removes that already-served mass so the final output matches $p$ identically.
+</Predict>
+
+Here is the exact accept/reject and correction rule:
+
+<Eq
+  words="\text{accept } x \text{ with prob } \min\!\big(1, \frac{\text{target}}{\text{draft}}\big);\quad \text{on reject, draw from } \text{normalised }\max(0,\; \text{target} - \text{draft})"
+  tex="\cc{P(\text{accept } x)} \;=\; \min\!\left(1,\; \frac{\ca{p(x)}}{\cb{q(x)}}\right), \qquad \cp{p_{\text{res}}(y)} \;=\; \frac{\max\!\big(0,\; \ca{p(y)} - \cb{q(y)}\big)}{\sum_v \max\!\big(0,\; \ca{p(v)} - \cb{q(v)}\big)}"
+>
+- $\ca{p(x)}$ — **target probability** assigned to token $x$ by the big model.
+- $\cb{q(x)}$ — **draft probability** assigned to token $x$ by the small draft model.
+- $\cc{P(\text{accept } x)}$ — chance of keeping the drafted token; whenever $\ca{p(x)} \ge \cb{q(x)}$, acceptance is **100%**.
+- $\cp{p_{\text{res}}(y)}$ — **residual correction distribution**: tokens already over-represented by $q$ get zero residual mass.
+</Eq>
+
+<MathExhibit title="Four-line proof that speculative sampling is strictly lossless">
+Pick any token $y$ in the vocabulary. One speculative step emits $y$ either because $q$ proposed $y$ and it was accepted, or because *some* proposal was rejected and the residual drew $y$:
+
+$$P(\text{emit } y) \;=\; q(y)\min\!\left(1, \frac{p(y)}{q(y)}\right) + P(\text{reject}) \cdot \frac{\max(0, p(y) - q(y))}{\sum_v \max(0, p(v) - q(v))}$$
+
+Because $P(\text{reject}) = 1 - \sum_v \min(p(v), q(v)) = \sum_v (p(v) - \min(p(v), q(v))) = \sum_v \max(0, p(v) - q(v))$, the rejection factor cancels the normalising denominator identically:
+
+$$P(\text{emit } y) \;=\; \min(p(y), q(y)) + \max(0, p(y) - q(y)) \;=\; p(y).$$
+
+Not an approximation — **exact equality** for every distribution $p$ and $q$ (verified to `< 1e-12` in our test suite).
+</MathExhibit>
+
+---
+
+## 2. Watch it run on real trained models
+
+No toy stand-in here: below are **two real character-level GPTs** trained on Grimm’s Fairy Tales — the same storyteller you will build yourself in <LessonLink to="tiny-gpt">Build and Train a Tiny GPT</LessonLink> — plus a zero-cost statistical rival:
+
+- **Target model:** `tinyGpt.cpu.bin` (29,696 parameters, 2 layers, validation loss 1.712).
+- **Neural draft:** `draftGpt.bin` (5,424 parameters, 1 layer — 5.5× smaller, validation loss 2.013).
+- **Zero-cost rival:** a character **bigram table** counted on the training tales (validation loss 2.286).
+
+Step through live rounds below on held-out fairy-tale openings. At temperature 0 (greedy), check the live exactness banner — every character matches plain target decoding. Then look closely at the **Real CPU clock** card on the right.
+
+<SpeculativeStepper />
+
+---
+
+## 3. Expected speed-up — and two honest twists
+
+If every drafted token were accepted independently with probability $\alpha$ (the **<Term id="acceptance-rate">acceptance rate</Term>**) and each draft step cost a fraction $c$ of one target pass, then one round emits a geometric series of accepted tokens plus one guaranteed correction or bonus token:
+
+<Eq
+  words="\text{expected tokens / pass} \;=\; \frac{1 - \text{accept}^{k+1}}{1 - \text{accept}}, \qquad \text{speed-up} \;=\; \frac{\text{expected tokens / pass}}{k \times \text{draft cost ratio} + 1}"
+  tex="\cc{E} \;=\; \frac{1 - \ca{\alpha}^{\cp{k}+1}}{1 - \ca{\alpha}}, \qquad \cc{S} \;=\; \frac{\cc{E}}{\cp{k}\cdot\cb{c} + 1}"
+>
+- $\ca{\alpha}$ — **acceptance rate**: fraction of drafted tokens accepted by the target model.
+- $\cp{k}$ — **lookahead**: number of draft tokens proposed before each parallel verification pass.
+- $\cb{c}$ — **draft-to-target cost ratio**: one draft step divided by one target step (on our RTX 4090 roofline at 2k context: `c = 0.127` for a 1B-class FP16 draft paired with Llama-3 8B FP16; `c = 0.01` for a table lookup).
+- $\cc{E},\;\cc{S}$ — **expected tokens per target pass** and **modelled production speed-up** (assuming a production-sized pair accepted drafts as often as ours do).
+</Eq>
+
+Running all 48 `(drafter × k × temperature)` settings over 12 distinct held-out Grimm prompts turned up **two honest surprises** that textbook summaries usually gloss over:
+
+1. **The i.i.d. formula over-predicts real tokens per pass — and position behaviour flips with temperature.** At greedy (`T = 0`, small GPT, `k = 5`), mid-word characters accept **79.6%** of the time while word starts after a space accept only **61.1%**, breaking streaks early (`E = 3.02` measured vs `3.31` predicted; at `k = 7`, `3.82` vs `4.23`). At `T = 1.0` sampling, the pattern **reverses**: word-start acceptance (**84–91%**) beats mid-word (**68–75%**) because both models spread mass across the same common starting letters, creating high distribution overlap $\sum \min(p, q)$.
+2. **On your own CPU, speculation makes wall-clock time *worse*.** Across all 48 settings in Node, real CPU wall-clock speed-up runs from **0.34× to 0.83×** — not a single setting beats 1.0×! Our 116 KiB target fits inside CPU cache and is **compute-bound**, so verifying $k$ tokens costs roughly $k$ times one token plus draft work. Our tiny pair teaches the *mechanism*, not production acceptance rates — and proves firsthand that speculative decoding pays **only in the memory-bound regime**.
+
+---
+
+## 4. Lab: Tune the draft
+
+<LabJob>You serve one user at a time on a memory-bound GPU and want faster replies without changing a single output token’s distribution. Choose between a smarter neural draft and a nearly free bigram table, pick lookahead k — and check what your own CPU stopwatch reports.</LabJob>
+
+<TuneDraftLab />
+
+<Deeper title="Debrief: why the dumb table beat the neural draft" tag="Spoiler">
+Exhaustive results across all 48 cells on our 12 held-out Grimm prompts:
+
+- **Brief 1 (Greedy, `T = 0`, target ≥ 1.95×):** **6 of 16** settings pass (`small-gpt` at `k = 3, 7`; `bigram` at `k = 5..8`). The surprise winner is **`bigram` at `k = 5` (2.30×)**, beating **`small-gpt` at `k = 7` (2.03×)** even though the neural draft accepts far more tokens (`E = 3.82` vs `2.41`). Charging the neural draft a real 1B-scale step cost (`c = 0.127`) adds `7 × 0.127 = 89%` overhead to the denominator, whereas the bigram lookup adds only `5%`.
+- **Brief 2 (Sampling, `T = 1.0`, target ≥ 2.00×):** **8 of 16** settings pass. Best is **`bigram` at `k = 4` (2.28×)**, ahead of `small-gpt`’s best (`2.02×` at `k = 3` and `k = 6`). Watch `small-gpt` fall from `2.02×` at `k = 6` down to `1.64×` at `k = 8` as draft cost `k·c` overwhelms diminishing acceptance gains.
+- **Brief 3 (Real CPU clock):** **0 of 48** settings beat `1.00×` (peak `0.83×`). Impossible on this tiny compute-bound CPU model — the exact flip side of the GPU roofline.
+</Deeper>
+
+<ForReal>
+Production engines like vLLM expose this directly through `--speculative-config` (separate draft models, EAGLE heads, or model-free n-gram prompt lookup). Because draft cost $c$ competes head-to-head with acceptance rate $\alpha$, modern production speculators often attach tiny prediction heads directly onto the target model’s own hidden states so $c$ stays tiny while $\alpha$ stays high.
+</ForReal>
+
+<HistoryCard id="speculative-decoding" />
+
+---
+
+## 5. In code
+
+Fifteen lines of plain Python implement the exact accept/reject step and verify by Monte Carlo that 50,000 draws recover $p$ with error `0.0011`:
+
+```python
+import random
+
+rng = random.Random(42)
+p = [0.45, 0.30, 0.15, 0.10]   # target distribution
+q = [0.25, 0.50, 0.20, 0.05]   # draft distribution
+
+def speculative_sample_one(p, q, rng):
+    x = rng.choices(range(len(q)), weights=q, k=1)[0]
+    if rng.random() < min(1.0, p[x] / q[x]):
+        return x
+    residual = [max(0.0, pi - qi) for pi, qi in zip(p, q)]
+    return rng.choices(range(len(p)), weights=residual, k=1)[0]
+
+counts = [0] * len(p)
+for _ in range(50_000):
+    counts[speculative_sample_one(p, q, rng)] += 1
+hist = [c / 50_000 for c in counts]
+print("Target p:  ", [round(v, 4) for v in p])
+print("Empirical: ", [round(v, 4) for v in hist])
+print("Max |err|: ", f"{max(abs(a - b) for a, b in zip(hist, p)):.4f}")
+```
+
+Running it prints:
+
+```text
+Target p:   [0.45, 0.3, 0.15, 0.1]
+Empirical:  [0.4511, 0.2994, 0.1493, 0.1002]
+Max |err|:  0.0011
+```
+
+---
+
+## 6. Common misconceptions
+
+<Misconception title="“Speculative decoding is an approximation that trades quality for speed.”">
+It feels like letting a tiny model guess words must lower output quality. With the accept/reject rule and residual correction $\text{norm}(\max(0, p - q))$, the distribution of every emitted token equals the target model’s $p$ **identically** — greedy outputs match character for character, and stochastic outputs match $p$ to machine precision.
+</Misconception>
+
+<Misconception title="“A smarter draft model always gives a bigger speed-up.”">
+Net speed-up is $E / (k \cdot c + 1)$. Raising acceptance $\alpha$ only pays if it outruns the extra draft cost $k \cdot c$. In the lab above, a nearly free bigram table (`c = 0.01`) beat a much smarter 5,424-parameter neural draft (`c = 0.127`) at every temperature.
+</Misconception>
+
+---
+
+## Check your understanding
+
+<Quiz questions={questions} />
+
+<Takeaways>
+- Single-user GPU decoding is memory-bandwidth bound; **speculative decoding** puts that idle arithmetic to work by verifying $k$ drafted tokens in one parallel target pass.
+- Accepting with probability $\min(1, p(x)/q(x))$ and correcting rejections from $\text{norm}(\max(0, p - q))$ preserves the target distribution **exactly**.
+- Rolling back rejected draft tokens in a KV cache is cheap — one integer assignment (`decoder.len = keepLen`).
+- Net speed-up $E / (k \cdot c + 1)$ trades acceptance against draft cost $c$; a dumber, cheaper drafter can beat a smarter, slower one.
+- Speculative decoding wins **only when verification is memory-bound** — on our compute-bound CPU models (or at huge GPU batch sizes past the ridge point), it slows decoding down.
+</Takeaways>
+
+<InTheWild>
+vLLM <Src href="https://arxiv.org/abs/2309.06180" />, SGLang <Src href="https://arxiv.org/abs/2312.07104" />, and TensorRT-LLM all ship speculative decoding alongside continuous batching and paged KV caches. To avoid managing a separate draft model and shrink draft cost $c$ further, multi-token prediction heads such as **Medusa** <Src href="https://arxiv.org/abs/2401.10774" /> predict several future tokens directly from the target model’s own hidden states and verify candidate trees in parallel.
+</InTheWild>
+
+With inference and serving machinery in hand, we turn next from models that predict text to models that learn to compress and generate images and data — starting with <LessonLink to="autoencoders">Autoencoders and VAEs</LessonLink>.

@@ -80,6 +80,8 @@ export const PREREQS: Record<string, string[]> = {
   reasoning: ['rlhf-dpo', 'sampling', 'scaling-laws'],
   quantization: ['transformer-block'],
   'kv-cache': ['transformer-block', 'sampling'],
+  'llm-serving': ['kv-cache', 'sampling'],
+  'speculative-decoding': ['llm-serving'],
   autoencoders: ['network-from-scratch', 'clustering-pca', 'optimizers', 'overfitting'],
   gans: ['autoencoders'],
   diffusion: ['autoencoders', 'statistics'],
@@ -103,7 +105,7 @@ export const DESTINATIONS: Destination[] = [
   { id: 'dest:agents', title: 'RAG & Agents', blurb: 'Models inside real software: search, tools and evaluation.', needs: ['rag', 'tool-calling', 'evaluation'] },
   { id: 'dest:vision', title: 'Computer Vision & Multimodal', blurb: 'Seeing: from pixels to detectors to pictures matched with words.', needs: ['object-detection', 'multimodal-vit', 'learning-to-see'] },
   { id: 'dest:rl', title: 'Reinforcement Learning', blurb: 'Agents that learn from consequences.', needs: ['reward-hacking'] },
-  { id: 'dest:inference', title: 'Efficient Training & Inference', blurb: 'Fitting and running big models on real hardware.', needs: ['lora', 'quantization', 'kv-cache', 'moe'] },
+  { id: 'dest:inference', title: 'Efficient Training & Inference', blurb: 'Fitting and running big models on real hardware.', needs: ['lora', 'quantization', 'kv-cache', 'llm-serving', 'speculative-decoding', 'moe'] },
 ];
 
 export const isDestination = (id: string) => id.startsWith('dest:');
@@ -257,6 +259,8 @@ export const SHORT: Record<string, string> = {
   reasoning: 'Reasoning & test-time compute',
   quantization: 'Quantisation',
   'kv-cache': 'KV cache',
+  'llm-serving': 'Serving LLMs',
+  'speculative-decoding': 'Speculative decoding',
   autoencoders: 'Autoencoders',
   gans: 'GANs',
   diffusion: 'Diffusion',
