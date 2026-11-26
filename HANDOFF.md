@@ -46,7 +46,7 @@ You're picking up **Neural Lab**, an interactive website that teaches AI from fi
 - **Curriculum plan (WP0–WP9) is complete.** Next up is the **v2 Release Plan** (`docs/V2_PLAN.md`, checklist at the bottom of this file):
   1. **V2-WP1:** Optional sections & guided tracks (`Full Course` vs `Core Track`).
   2. **V2-WP2:** Interactive Concept Dependency Graph (`#/map`).
-  3. **V2-WP3:** Tiered Compute Offloading (`Float32` Web Worker → WASM SIMD → optional WebGPU).
+  3. **V2-WP3:** Two-Tier Compute Offloading (Test `Float32Array` + Production WebGPU).
   4. **V2-WP4:** Mixture of Experts (MoE) & Sparse Routing (`moe`, Lab: Balance the Experts).
   5. **V2-WP5:** Reasoning Models & Test-Time Compute (`reasoning`, Lab: Spend the Test-Time Budget).
   6. **V2-WP6:** Multimodal Models & Vision Transformers (`multimodal-vit`, Lab: Wire the Multimodal Model).
@@ -367,7 +367,7 @@ Owner-approved next release (implement in order, one work package per commit or 
 
 - [ ] V2-WP1 Optional sections & guided tracks (`Full Course` vs `Core Track`)
 - [ ] V2-WP2 Interactive Concept Dependency Graph (`#/map`)
-- [ ] V2-WP3 Tiered Compute Offloading (`Float32` Web Worker → WASM SIMD → optional WebGPU)
+- [ ] V2-WP3 Two-Tier Compute Offloading (Test `Float32Array` + Production WebGPU)
 - [ ] V2-WP4 Mixture of Experts (MoE) & Sparse Routing (`moe` + Lab: Balance the Experts)
 - [ ] V2-WP5 Reasoning Models & Test-Time Compute (`reasoning` + Lab: Spend the Test-Time Budget)
 - [ ] V2-WP6 Multimodal Models & Vision Transformers (`multimodal-vit` + Lab: Wire the Multimodal Model)

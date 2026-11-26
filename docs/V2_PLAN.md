@@ -39,34 +39,34 @@
 
 ---
 
-## V2-WP3: Tiered Compute Offloading (Float32 Worker → WASM SIMD → Optional WebGPU)
+## V2-WP3: Two-Tier Compute Offloading (Test `Float32Array` + Production WebGPU)
 
-**Goal:** Remove the browser main-thread bottleneck (~5k params / ~500 steps) while preserving Neural Lab's transparency, static deployment (`base: './'`), and 100% deterministic Node/Vitest tests.
+**Goal:** Offload heavy training loops, multi-seed sweeps, and decision-boundary heatmaps directly onto the owner's GPU via **WebGPU**, while keeping a clean, zero-toolchain `Float32Array` CPU reference tier for deterministic Node/Vitest tests and headless Playwright checks.
 
-### Why a 3-tier backend instead of WebGPU-only
+### Clean 2-tier architecture (no WASM toolchain required)
 
-WebGPU is fast, but unavailable in headless CI, older Safari/Firefox setups, and many mobile devices; meanwhile, moving plain JS `number[][]` loops off the main thread onto contiguous `Float32Array` buffers in a Web Worker already removes UI jank and delivers a 5–15× speedup everywhere. A unified `ComputeBackend` interface gives every learner smooth 60 fps interactivity and unlocks heavier experiments cleanly:
+| Tier | Backend | Where it runs | Role |
+| --- | --- | --- | --- |
+| **Test / Fallback tier** | Pure TS `Float32Array` kernels (runs sync in Node/Vitest; runs in a tiny Web Worker if a browser lacks `navigator.gpu`) | Vitest, headless Playwright CI, non-WebGPU browsers | Exact reference implementation for deterministic tests & finite-difference checks, ~5–10× faster than JS `number[][]` |
+| **Production tier** | **WebGPU (`navigator.gpu`)** with WGSL compute shaders + GPU-resident weight/optimiser buffers | Owner's browser (modern Chrome/Edge/Safari with GPU) | Runs batched training loops ($K$ steps per command submission), parallel multi-seed sweeps, and 10,000-pixel heatmap grids directly on the GPU at 60 fps |
 
-| Tier | Technology | Browser coverage | Speedup vs JS `number[][]` | Role |
-| --- | --- | --- | --- | --- |
-| **Tier 0** | Synchronous `Float32Array` TS kernels | 100% + Node/Vitest | ~5–10× | Reference implementation & deterministic Vitest testing |
-| **Tier 1** | Dedicated **Web Worker** (`type: 'module'`) + `Transferable` `ArrayBuffer` | 100% of browsers | ~5–15× + **0 ms UI freeze** | Default interactive training, live heatmaps (`ImageData`), multi-seed sweeps, instant slider cancellation |
-| **Tier 2** | **WASM SIMD (`wasm32-simd128`)** GEMM / activation kernel | ~95%+ (Chrome, Firefox, Safari, mobile) | ~20–60× | Heavier in-browser training (live grokking, mini character Transformer, MoE, ViT) on any CPU |
-| **Tier 3** | **WebGPU (`navigator.gpu`)** WGSL tiled matmul + grid shader | Modern desktop GPU browsers | ~50–200× | Optional turbo path + live CPU-vs-GPU roofline benchmark inside Module 16 (`kv-cache`) |
+### Key design detail: keep state GPU-resident
 
-### Architecture & deliverables
+Naive per-step `mapAsync` GPU→CPU readbacks incur ~0.1–0.3 ms round-trip latency and lose to CPU on small matrices. To make WebGPU genuinely fast on Neural Lab's models:
+- Store weights, gradients, and Adam moments (`m`, `v`) in persistent `GPUBuffer`s.
+- Record **batches of $K$ steps** (e.g. 20–50 steps) or **all $S$ seeds in parallel** inside a single `GPUCommandEncoder` submission, reading back only the tiny summary metrics (loss, accuracy) or final heatmap RGBA buffer per animation frame.
+
+### Deliverables
 
 1. **`src/lib/compute/` module:**
-   - `tensor.ts`: minimal `Tensor2D` (`Float32Array` + `rows`/`cols`) with `matmul`, `addBias`, `relu`/`tanh`/`gelu`, `softmax`, `layerNorm`, and exact backward passes — tested against central finite differences and `src/lib/linalg.ts` in `compute.test.ts`.
-   - `workerBridge.ts` + `compute.worker.ts`: typed message protocol (`start`, `step`, `cancel`, `frame`) using Vite's native `?worker` / `new URL(..., import.meta.url)` bundling so `npm run build` stays 100% static. Stale jobs abort cleanly when the user drags a slider.
-   - `wasmGemm.ts` (+ small checked-in/built SIMD `.wasm` kernel): drop-in `matmul` accelerator with automatic feature detection (`WebAssembly.validate` for `v128`) and silent fallback to Tier 1.
-   - `webgpuBackend.ts`: optional WGSL compute shader for large matmuls and 2D heatmap grid evaluation, auto-detected via `navigator.gpu?.requestAdapter()` with silent fallback to Tier 2/1.
-   - All tiers pass the exact same equivalence test suite (within `Float32` tolerance `1e-4`), and heavy widgets display a small subtle backend pill (e.g. `Worker · Float32` / `WASM SIMD` / `WebGPU`).
+   - `cpuBackend.ts`: minimal `Tensor2D` (`Float32Array` + `rows`/`cols`) with `matmul`, `addBias`, `relu`/`tanh`/`gelu`, `softmax`, `layerNorm`, and exact backward passes — finite-difference checked in `compute.test.ts`.
+   - `webgpuBackend.ts`: WGSL compute shaders (tiled GEMM, elementwise activations/backward, Adam update, batched 2D heatmap grid evaluation) behind the exact same `ComputeBackend` interface, auto-selected when `navigator.gpu?.requestAdapter()` succeeds.
+   - `selectBackend.ts`: picks `webgpu` in the browser when available, falling back seamlessly to `cpu` (in Node/Vitest or headless CI). Heavy widgets display a subtle status pill (`WebGPU` or `CPU Float32`) and an optional toggle to compare CPU vs WebGPU live.
 2. **Immediate upgrades unlocked across existing lessons:**
-   - Offload `training-lab` heatmaps + training loop and `gans` 5-seed lab evaluation onto the Web Worker (zero UI stutter!).
+   - Offload `training-lab` heatmaps + training loop and `gans` 5-seed lab evaluation onto WebGPU (instant 60 fps interaction).
    - Upgrade `lr-schedules` with a **real live warmup experiment** on a deeper/wider network where warmup demonstrably prevents early divergence (removing the current limitation in `docs/ROADMAP.md`).
-   - Upgrade `open-questions` (`epilogue`) with a **live Grokking demo** (modular addition network memorising in ~200 steps and visibly grokking to 100% validation accuracy around step ~3,000–5,000 in ~2 seconds inside the worker!).
-   - Optional live CPU-vs-WebGPU throughput mini-benchmark inside Module 16 (`inference`).
+   - Upgrade `open-questions` (`epilogue`) with a **live Grokking demo** (modular addition network memorising in ~200 steps and visibly grokking to 100% validation accuracy around step ~3,000–5,000 in seconds on GPU).
+   - Optional live **CPU vs WebGPU throughput benchmark** inside Module 16 (`kv-cache` / `inference`).
 
 ---
 
@@ -129,5 +129,5 @@ WebGPU is fast, but unavailable in headless CI, older Safari/Firefox setups, and
 
 1. **V2-WP1** (Optional sections & tracks) — small, immediate UX win, informs V2-WP2's graph filters.
 2. **V2-WP2** (Concept Dependency Graph `#/map`) — ties the entire 75-lesson course together visually and automatically incorporates the new v2 lessons as they land.
-3. **V2-WP3** (Tiered Compute Offloading: Float32 Worker → WASM SIMD → optional WebGPU) — builds the fast engine *before* the three heavy frontier lessons so MoE, Reasoning/GRPO, and ViT/CLIP can run rich live training loops at 60 fps.
+3. **V2-WP3** (Two-Tier Compute Offloading: Test `Float32Array` + Production WebGPU) — builds the GPU engine *before* the three heavy frontier lessons so MoE, Reasoning/GRPO, and ViT/CLIP can run rich live training loops at 60 fps.
 4. **V2-WP4** (`moe`), **V2-WP5** (`reasoning`), **V2-WP6** (`multimodal-vit`) — one full lesson + lab + sourced history + tests + screenshots per work package.
