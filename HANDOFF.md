@@ -177,7 +177,7 @@ Optimums are "best found by searching <stated grid>", recorded with a sharded `*
 
 ### Checklist (tick when the step's commit is pushed)
 
-- [ ] A1 GPT engine, CPU tier: forward, backward (FD-checked), AdamW, overfit test
+- [x] A1 GPT engine, CPU tier: forward, backward (FD-checked), AdamW, overfit test. `src/lib/compute/gpt.ts` (`Gpt`, `gptLayout`, `sampleDistribution`, `drawFrom`) + `detmath.ts` (`dexp`, `dtanh`, Irwin–Hall init: only IEEE-exact ops, so a float32 CPU run is bit-identical in Node and any browser). Tests in `gpt.test.ts`: every parameter FD-checked in float64 (worst relative error < 1e-6), causality, AdamW against the PyTorch rule by hand, overfit + greedy recital, determinism. Measured speed (Node, one core): about 0.75 GFLOP/s, i.e. ~0.9 s per step for 108k parameters × 1,024 tokens.
 - [ ] A2 GPT engine, WebGPU tier + parity in `check-webgpu.cjs` (+ CPU Web Worker)
 - [ ] A3 Corpus, reference run, recorded results and pinned numbers
 - [ ] A4 Capstone lesson: widgets, lab, history, quiz, curriculum/map/chip registration, docs
