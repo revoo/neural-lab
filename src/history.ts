@@ -36,6 +36,25 @@ const WP = (page: string) => `https://en.wikipedia.org/wiki/${page}`;
 
 export const HISTORY: HistoryEntry[] = [
   {
+    id: 'credit-assignment-backprop',
+    lessonId: 'backpropagation',
+    lab: 'The Credit-Assignment Workbench',
+    idea: 'Reverse-mode automatic differentiation and hidden-layer credit assignment',
+    years: [1970, 1974, 1986],
+    when: '1970 · 1974 · 1986',
+    who: [
+      { text: 'Seppo Linnainmaa introduced the reverse mode of automatic differentiation for discrete graphs of differentiable functions in his 1970 University of Helsinki MSc thesis (published in BIT Numerical Mathematics in 1976), without referring to neural networks.', source: WP('Seppo_Linnainmaa') },
+      { text: 'Paul Werbos first described training artificial neural networks by backpropagation of errors in his 1974 Harvard PhD dissertation and applied it to multilayer perceptrons in standard form in 1982.', source: WP('Paul_Werbos') },
+      { text: 'David Rumelhart, Geoffrey Hinton and Ronald Williams published their 1986 Nature paper showing experimentally how backpropagating errors trains hidden layers to learn internal representations.', source: WP('Backpropagation') },
+    ],
+    story: {
+      before: { text: 'Single-layer learning rules could only train weights connected directly to the output, leaving hidden layers fixed or hand-designed.', source: WP('AI_winter') },
+      this: { text: 'Running the chain rule backwards over a computational graph gave every hidden weight its exact sensitivity in one sweep, letting hidden units reshape their own features.', source: WP('Backpropagation') },
+      after: { text: 'Every modern deep-learning framework — PyTorch, JAX and TensorFlow — compiles neural architectures into reverse-mode differentiation graphs built on this rule.', source: WP('Backpropagation') },
+    },
+    dispute: { text: 'Priority for backpropagation spans multiple independent discoveries: Linnainmaa (1970) published reverse-mode differentiation on general graphs, Werbos (1974, 1982) applied it to neural networks, and Rumelhart (around 1982, published 1985–1986) rediscovered and popularised it independently.', source: WP('Backpropagation') },
+  },
+  {
     id: 'llm-serving-desk',
     lessonId: 'llm-serving',
     lab: 'The Serving Desk',

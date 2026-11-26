@@ -157,12 +157,12 @@ Make one commit per step and push to `claude/cool-feynman-4hci4d`. Tick each ste
   - `StepMicroscope.tsx` (2D heatmap + solid/ghost hidden lines + clickable points + 9-weight gradient table + animated replay respecting `prefers-reduced-motion`).
   - `CreditLab.tsx` (`LabShell`, all 3 briefs including hidden-space untangling view in Brief 3, `MachineLog`, `LiveCode`, `AnswerReveal`).
   - `src/lessons/network-from-scratch/SoftmaxBackprop.tsx` (3-class logit sliders, live `p − y` vs finite-diff table, 1-step button).
-- [ ] **B4 (IN PROGRESS) Prose, quizzes, history & wiring:**
+- [x] **B4 Prose, quizzes, history & wiring:**
   - Integrate widgets, `<Predict>`s, `<Eq>`s, *The Credit-Assignment Workbench* lab + debrief + `<ForReal>` + `<HistoryCard id="credit-assignment-backprop" />` into `backpropagation/index.mdx` (split cleanly into `backprop-in-action` if it runs past ~3,400 words).
   - Add the softmax + cross-entropy bridge section, `<Predict>`, `<Eq>`, `<MathExhibit>`, `<SoftmaxBackprop />`, and executed Python snippet into `network-from-scratch/index.mdx`.
   - Add 1–2 new quiz questions to `backpropagation/quiz.ts` (symmetry breaking / multi-path fan-in / why $W_2^\top$ appears) and 1 to `network-from-scratch/quiz.ts` (`p − y` sum-to-zero / wrong-class push).
   - Add verified history entry `credit-assignment-backprop` in `src/history.ts` (and bump `HISTORY.length` in `src/history.test.ts` from 65 → 66); add any new glossary terms to `src/glossary.ts`; update `backpropagation` summary & minutes in `src/curriculum.ts` (keeping summary ≤ 30 words, zero symbols).
-- [ ] **B5 Visual & browser verification:**
+- [ ] **B5 (IN PROGRESS) Visual & browser verification:**
   - Run `node scripts/shoot-widgets.cjs backpropagation` and `node scripts/shoot-widgets.cjs network-from-scratch` in light, dark, matrix, and at 390px; drive interactive states (symmetry-trap step, single-point microscope step, Brief 2/3 lab solves) with `scripts/drive-widget.cjs`.
   - Inspect every PNG visually and fix any overlap, contrast, wrapping, or mobile layout issues.
   - Run both `node scripts/check-pages.cjs` and `node scripts/check-pages.cjs --theme=matrix` (0 console errors, 0 overflow at 1300px and 390px).

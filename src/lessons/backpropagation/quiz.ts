@@ -64,4 +64,26 @@ export const questions: Question[] = [
       { text: 'Backpropagation is an approximation of the gradient.', why: 'It computes the exact gradient (up to floating-point rounding). Numerical nudging is the approximate method.' },
     ],
   },
+  {
+    id: 'backprop.twins',
+    kind: 'choice',
+    concepts: ['backpropagation', 'symmetry-breaking'],
+    prompt: 'Two hidden neurons in the same layer start with identical weights and biases, and we train with plain gradient descent. What happens over 100 steps?',
+    options: [
+      { text: 'They stay identical forever — they compute the same activation, receive the same gradient, and take identical updates at every step.', correct: true, why: 'Nothing in deterministic gradient descent can distinguish two identical units. That is why random initialisation is mandatory for symmetry breaking.' },
+      { text: 'They gradually drift apart and specialise on different features.', why: 'Only if something breaks the symmetry first (like distinct starting weights). Starting identical keeps their weight gap at zero bit-for-bit.' },
+      { text: 'Their gradients cancel out to zero immediately.', why: 'Their weights still move and the loss can drop — both neurons just move in lockstep like a single neuron duplicated.' },
+    ],
+  },
+  {
+    id: 'backprop.transpose',
+    kind: 'choice',
+    concepts: ['backpropagation'],
+    prompt: 'In a two-layer network where forward computes $y = h\\,W_2 + b_2$, why does the transpose $W_2^{\\mathsf T}$ appear when passing blame back to the hidden layer?',
+    options: [
+      { text: 'Forward gathers incoming weights into each output $y_k$ (down a column of $W_2$); backward gathers outgoing weights leaving each hidden neuron $h_j$ (across a row of $W_2$, which is a column of $W_2^{\\mathsf T}$).', correct: true, why: 'Each hidden neuron $h_j$ sums $\\sum_k (\\partial L/\\partial y_k) W_2[j, k]$ over every output it feeds. Flipping from “grouped by destination” to “grouped by source” is literally transposing $W_2$.' },
+      { text: 'Because matrix multiplication cannot run in reverse without inverting the weight matrix.', why: 'Backpropagation never inverts $W_2$ — it multiplies by the transpose $W_2^{\\mathsf T}$, which simply routes each output’s blame back along the exact edges that carried the signal forward.' },
+      { text: 'To force the hidden gradients to stay smaller than the output gradients.', why: 'Transposing a matrix doesn’t shrink its entries; hidden gradients can even be larger than output gradients when weights or inputs are greater than 1.' },
+    ],
+  },
 ];

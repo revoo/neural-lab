@@ -61,4 +61,15 @@ export const questions: Question[] = [
       };
     },
   },
+  {
+    id: 'network-from-scratch.softmax-grad',
+    kind: 'choice',
+    concepts: ['softmax-cross-entropy', 'backpropagation'],
+    prompt: 'A 3-class classifier with softmax + cross-entropy outputs probabilities `p = [0.15, 0.65, 0.20]` when the true class is class 0 (`y = [1, 0, 0]`). What is the logit gradient `∂L/∂z`, and what do its three entries sum to?',
+    options: [
+      { text: '`[-0.85, +0.65, +0.20]`, summing to `0` — pushing the true logit up and both wrong logits down in proportion to their probabilities.', correct: true, why: 'For softmax + cross-entropy, $\\partial L / \\partial z = p - y$. Because $\\sum p_k = 1$ and $\\sum y_k = 1$, the entries always sum to $1 - 1 = 0$.' },
+      { text: '`[+0.85, -0.65, -0.20]`, summing to `0`.', why: 'That has the opposite sign: gradient descent *subtracts* $\\eta\\,\\partial L/\\partial z$, so the true class needs a negative gradient to move its logit up.' },
+      { text: '`[-6.67, 0, 0]`, because cross-entropy only depends on $p_0$.', why: 'Cross-entropy is $-\\ln p_0$, but $p_0$ depends on all three logits through the softmax denominator $\\sum_j e^{z_j}$. Pushing wrong logits down raises $p_0$.' },
+    ],
+  },
 ];

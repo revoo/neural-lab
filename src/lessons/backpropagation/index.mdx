@@ -1,5 +1,8 @@
 import { BackpropStepper } from './BackpropStepper'
 import { BackpropCost, FadingSignal } from './Companions'
+import { TinyMlpBackprop } from './TinyMlpBackprop'
+import { StepMicroscope } from './StepMicroscope'
+import { CreditLab } from './CreditLab'
 import { questions } from './quiz'
 
 ## The problem: billions of slopes, every step
@@ -73,9 +76,57 @@ Going backwards answers the question for *one output at a time* — and training
 
 </Deeper>
 
+## Through a hidden layer: where $W_2^{\mathsf T}$ comes from
+
+A single neuron feeds straight into the loss. In a real multi-layer network, a hidden neuron feeds **several** downstream outputs at once, and each of those outputs sends a different complaint back. How does a hidden neuron combine them?
+
+By the exact same rule: **multiply along each outgoing weight, then add across every path.** If hidden neuron $h_1$ feeds both $y_1$ and $y_2$, then nudging $h_1$ changes $y_1$ by $W_2[1, 1]$ and changes $y_2$ by $W_2[1, 2]$. So the total sensitivity arriving at $h_1$ is the sum of both pulls:
+
+<Eq
+  words="\text{blame on hidden unit } j = \text{add up, over every output } k, \big(\text{blame on output } k \times \text{weight from } j \text{ to } k\big)"
+  tex="\cg{\frac{\partial L}{\partial \ca{h_j}}} = \sum_{k} \cg{\frac{\partial L}{\partial \cp{y_k}}} \cdot \cc{W_2[j, k]}"
+>
+
+- $\ca{h_j}$ — the output of **hidden neuron $j$**
+- $\cp{y_k}$ — each **downstream output** that reads $h_j$
+- $\cg{\partial L / \partial y_k}$ — the **blame on output $k$** (for squared error, simply $y_k - t_k$)
+- $\cc{W_2[j, k]}$ — the **weight connecting $h_j$ to $y_k$**: row $j$ of $W_2$, which is **column $j$ of $W_2^{\mathsf T}$**
+
+</Eq>
+
+Notice why the transpose $W_2^{\mathsf T}$ appears when you write networks with matrices in <LessonLink to="network-from-scratch">building a neural network from scratch</LessonLink>: the forward pass gathers weights *into* each output down a column of $W_2$, while the backward pass gathers weights *out of* each hidden neuron across a row of $W_2$ — and swapping rows for columns is literally $W_2^{\mathsf T}$.
+
+Before you explore the two-layer network below, make a prediction about starting weights.
+
+<Predict
+  question="Both hidden neurons start with the exact same weights and biases, and we train with plain gradient descent. What happens over 10 steps?"
+  options={['They drift apart and specialise on different outputs', 'They stay bit-for-bit identical forever', 'Their gradients immediately drop to zero']}
+  answer={1}
+>
+
+They stay identical forever. Both hidden neurons compute the exact same activation, receive the exact same summed blame, and take the exact same weight step — leaving their weight gap at `0.000000` even after 10 steps. Try the **Identical twins** preset below and step it yourself to watch this happen.
+
+</Predict>
+
+<TinyMlpBackprop />
+
+Three real behaviours fall straight out of those two layers:
+
+- **Opposing paths can cancel.** In *Tug-of-war*, $y_1$ pulls $h_1$ up (`−0.805`) while $y_2$ pulls it down (`+0.788`), cancelling more than 97% of the signal down to `−0.017`. Meanwhile both paths into $h_2$ agree and reinforce to `+1.032`.
+- **<Term id="symmetry-breaking">Symmetry breaking</Term> is mandatory.** In *Identical twins*, stepping ten times reduces the loss, yet the gap between $h_1$ and $h_2$ stays `0.000000` — two identical neurons act like a single neuron duplicated.
+- **Activation slope is a valve.** In *Saturated tanh*, both hidden units receive identical upstream blame (`+0.178`), yet $h_1$ sits at $z_1 = 4.0$ where $1 - h_1^2 = 0.0013$. Its incoming weight gradients are starved by **682×** compared with active $h_2$ — flip to ReLU and $h_1$ wakes straight back up.
+
+## One training step under a microscope
+
+Numbers in a graph tell you *how* credit flows; geometry shows you *what one step actually does*. In a `2 → 2 → 1` network on 2D inputs, each hidden neuron draws a straight crease line ($h_j = 0$) across the plane. Every step of backpropagation nudges all 9 weights at once, physically shifting and rotating both crease lines.
+
+<StepMicroscope />
+
+Click a single misclassified corner — try `P1` — and preview one step: `P1`'s own loss plunges by `0.834`, yet the same move tugs opposite-class neighbours `P0` (`+0.542`) and `P3` (`+0.500`) the wrong way. Switching back to **Full batch** averages all four pulls into a coordinated move: one 9-weight backprop step drops batch loss by `0.0823`, nearly three times more than nudging only the steepest single weight (`w12`, `0.0284`), and reaches 100% accuracy in 5 steps.
+
 ## In code: an autograd engine in 30 lines
 
-Here's a complete, working automatic-differentiation engine in Python. The engine running the widget above is the same design, written in TypeScript. Each `Value` remembers which values it was computed from and the local ratio to each; `backward()` sorts the graph and applies the rule above in reverse.
+Here's a complete, working automatic-differentiation engine in Python. The engine running the single-neuron stepper above is the same design, written in TypeScript. Each `Value` remembers which values it was computed from and the local ratio to each; `backward()` sorts the graph and applies the rule above in reverse.
 
 ```python
 import math
@@ -120,6 +171,34 @@ Look at the `+=` near the end. It's the "add across paths" rule, and it's why Py
 
 PyTorch's autograd, JAX and TensorFlow are this same idea, scaled up: the "boxes" are whole matrix operations rather than single numbers, the local ratios are matrices, and it all runs on GPUs. But the walk backwards is exactly the one you just stepped through.
 
+## Lab: The Credit-Assignment Workbench
+
+Time to put multi-layer <Term id="credit-assignment">credit assignment</Term> under your own hands. Three briefs test whether you can predict sign flips by eye, diagnose why a hidden layer refuses to learn, and see directly in hidden space `(h₁, h₂)` why freezing hidden backprop makes XOR impossible.
+
+<LabJob>Trace gradient signs through a two-layer ReLU network, rescue a broken hidden layer across five fixed seeds, and untangle XOR in 2D hidden space with the fewest unfrozen hidden neurons.</LabJob>
+
+<CreditLab />
+
+<Deeper title="Debrief: what the workbench proved" tag="Spoiler">
+
+- **Brief 1 (sign tracing):** The exact gradients are `v₁ = −3.00` (update `+`), `w₁₁ = +3.20` (update `−`, flipped by negative `v₁ = −0.8`), `w₂₁ = −1.60` (update `+`, flipped twice by `v₁ < 0` and `x₂ < 0`), and `w₁₂ = 0.00` (unchanged: even though `h₂` receives upstream blame `−1.40`, its negative tally `z₂ = −1.8` makes it a <Term id="dead-neuron">dead neuron</Term> whose ReLU slope is `0`). The surprise: hidden weight `w₁₁` moves *more* than output weight `v₁` (`3.20` vs `3.00`) because `x₁ = +2.0` amplifies the hidden signal.
+- **Brief 2 (unsticking the hidden layer):** Across all **48** combinations (4 initialisations × 3 activations × 4 learning rates, 5 fixed seeds each), **11 pass**. Broken identical twins (`0/12`) and all-zero weights (`0/12`) never solve XOR at any activation or step size. An honest surprise emerged from measuring the full grid: large asymmetric weights (`σ = 6`) fail `0/8` on `tanh` and `sigmoid` because saturation stalls at least one seed, yet pass `3/4` on ReLU (which has slope `1` for every positive input) and achieve the fastest solve at **11.6** mean steps (`η = 1.0`), ahead of Xavier-scale ReLU (`14.4` steps at `η = 2.0`) and Xavier-scale `tanh` (`19.6` steps).
+- **Brief 3 (hidden-layer backprop):** Across all **32** freeze-mask × step-size settings, **7 pass**. Output-only training (`h₁` and `h₂` frozen) passes **0/4** — even after 2,000 steps accuracy stays at 50%, because the four XOR points form a crossing X in `(h₁, h₂)` that no straight line can separate. Freezing the output layer passes **0/16**. Yet unfreezing just **1** hidden neuron suffices in **3** routes (fastest: `h₂` alone plus output at `η = 2.5`, step **68**): sliding a single coordinate uncrosses the X so the output boundary slices straight through. Unfreezing both solves in **19** steps.
+
+</Deeper>
+
+<ForReal>
+
+Freezing and unfreezing layers with `param.requires_grad = False` is everyday engineering in PyTorch. When you fine-tune a pretrained vision or language model, "linear probing" freezes the backbone and trains only the final head — identical to Brief 3's output-only start. If the frozen representation doesn't already separate your task linearly, you unfreeze deeper blocks so backpropagation can reshape the internal features. And `tensor.register_hook(...)` lets you inspect or mask individual neuron gradients mid-backward pass without changing the forward graph.
+
+</ForReal>
+
+<Insight title="You are standing where they stood">
+For more than a decade after single-layer perceptrons hit the XOR wall, researchers knew hidden layers could represent the answer — the missing piece was how to send credit back into them. You just traced that signal by hand and watched it untangle hidden space live.
+</Insight>
+
+<HistoryCard id="credit-assignment-backprop" />
+
 ## The fading signal
 
 There's a catch hiding in that multiply-as-you-go rule. In a deep network, the gradient reaching the first layer is a product of local ratios from *every* layer above it. Multiply many numbers smaller than 1 and you get something vanishingly small; multiply many numbers larger than 1 and it explodes.
@@ -150,8 +229,8 @@ This is the **vanishing gradient** problem (and its twin, **exploding gradients*
 
 - Gradient descent needs the slope of the loss for every weight. Nudging each weight separately is hopelessly slow; **backpropagation** gets them all for about the cost of three forward passes.
 - **Forward pass:** compute every value and remember it. **Backward pass:** start with 1 at the loss and walk backwards.
-- The rule for every box: **gradient = sum over the boxes it feeds of (their gradient × local ratio)**. Multiply along paths, add across them.
-- It only needs **local** knowledge, so it works for any architecture you can draw as a graph.
+- **Multiply along paths, add across them.** For a hidden layer, collecting blame along every outgoing edge from $h_j$ is multiplying by the transposed weight matrix $W_2^{\mathsf T}$.
+- **Symmetry breaking and active slopes matter:** identical hidden neurons stay fused forever, dead ReLUs and saturated `tanh` shelves choke credit before it reaches early weights, and hidden-layer backprop is what physically untangles representations into linear separability.
 - Products of many local ratios can **vanish or explode** in deep networks — the problem behind ReLU, normalisation and residual connections.
 
 </Takeaways>
@@ -162,4 +241,4 @@ When you write `loss.backward()` in PyTorch, the library walks back through a gr
 
 </InTheWild>
 
-You now understand the complete learning loop: a forward pass to make a prediction, a loss to measure the mistake, backpropagation to find every weight's slope, and gradient descent to take a step. Everything else in deep learning — every architecture, every training trick — is built on top of this loop.
+You've now watched backpropagation work scalar by scalar, hidden layer by hidden layer, and one geometric step at a time. In <LessonLink to="network-from-scratch">A Neural Network from Scratch</LessonLink>, we pack all of these scalar sums into fifteen lines of batched matrix code — and hand you the keyboard to write the backward pass yourself.

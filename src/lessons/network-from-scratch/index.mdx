@@ -1,4 +1,5 @@
 import { CodeStepper, BackwardLab } from './Widgets'
+import { SoftmaxBackprop } from './SoftmaxBackprop'
 import { questions } from './quiz'
 
 ## The problem: you know every part; can you build the machine?
@@ -89,6 +90,86 @@ You just wrote a backward pass and checked it by measurement. People found that 
 </Insight>
 
 <HistoryCard id="backward-pass" />
+
+## From yes-or-no to many classes: why softmax + cross-entropy still gives `p − y`
+
+The XOR network above answers a yes-or-no question, so its final layer uses sigmoid + binary cross-entropy and starts the backward pass with `dz2 = (p - y) / n`. Almost every model you meet later — image classifiers with 10 classes, language models predicting the next token out of 50,000 — picks **one class out of many**, using softmax and cross-entropy loss (`L = -ln p_true`).
+
+Softmax couples every score to every other score through the denominator $\sum_j e^{z_j}$, so you might expect its backward pass to be a tangle of partial derivatives. Before we reveal it, test your intuition on one 3-class example.
+
+<Predict
+  question="A 3-class classifier outputs softmax probabilities `p = [0.20, 0.70, 0.10]` when the true class is class 0 (`y = [1, 0, 0]`). Which logit gets pushed up, which get pushed down, and what do the three logit gradients add up to?"
+  options={[
+    'Class 0 pushed up (−0.80), classes 1 & 2 pushed down (+0.70, +0.10); sum = 0',
+    'Only class 0 gets a gradient (−5.0); classes 1 & 2 stay at 0',
+    'Class 0 pushed up (−0.80), classes 1 & 2 equally down (+0.40, +0.40); sum = 0',
+  ]}
+  answer={0}
+>
+
+The messy softmax derivatives cancel `-1 / p_true` cleanly, leaving the exact same rule as binary cross-entropy: `p − y` = `[-0.80, +0.70, +0.10]`. Class 0's logit rises, every wrong class's logit falls in exact proportion to the probability it stole, and because both `p` and `y` sum to 1, the gradients always sum to `0`.
+
+</Predict>
+
+That cancellation is the <Term id="softmax-cross-entropy">softmax cross-entropy gradient</Term>:
+
+<Eq
+  words="\text{blame on logit } k = \text{predicted probability of class } k - \text{true one-hot indicator for class } k"
+  tex="\cg{\frac{\partial L}{\partial \cp{z_k}}} = \ca{p_k} - \cc{y_k} \qquad \text{(averaged over a batch of } n \text{: } \frac{\ca{p} - \cc{y}}{n}\text{)}"
+>
+
+- $\cp{z_k}$ — the raw **logit** (pre-softmax score) for class $k$
+- $\ca{p_k}$ — the **softmax probability** $e^{z_k} / \sum_j e^{z_j}$ assigned to class $k$
+- $\cc{y_k}$ — the **one-hot target**: `1` for the true class, `0` for every other class
+- $\cg{\partial L / \partial z_k}$ — the **logit gradient**: negative for the true class (pushes its logit up), positive for every wrong class (pushes its logit down), and always summing to `0`
+
+</Eq>
+
+<MathExhibit title="Four-line proof: why the softmax Jacobian cancels −1/p_c">
+
+Let $c$ be the true class, $L = -\ln p_c$, and $p_c = e^{z_c} / S$ with $S = \sum_j e^{z_j}$.
+
+1. Rewrite the loss directly in terms of logits: $L = -z_c + \ln S$.
+2. Differentiate $\ln S$ with respect to any logit $z_k$: $\frac{\partial \ln S}{\partial z_k} = \frac{1}{S}\frac{\partial S}{\partial z_k} = \frac{e^{z_k}}{S} = p_k$.
+3. Differentiate $-z_c$: it equals $-1$ if $k = c$, and $0$ otherwise — which is $-y_k$.
+4. Add the two terms: $\frac{\partial L}{\partial z_k} = p_k - y_k$.
+
+That's why frameworks fuse `CrossEntropyLoss` directly onto raw logits: computing `p - y` avoids both the full Jacobian and dividing by tiny probabilities near zero.
+
+</MathExhibit>
+
+<SoftmaxBackprop />
+
+Notice one subtle consequence when you click **Take 1 logit step**: every wrong **logit** strictly decreases (`z_1` drops by `0.70`, `z_2` drops by `0.10`), the true logit strictly increases (`+0.80`), and total wrong probability falls sharply — yet on a big step, if one dominant wrong logit drops far enough, the softmax denominator shrinks so much that a tiny bystander class's *probability* can briefly tick up (here class C moves `0.100 → 0.102`) even while its logit went down.
+
+Here is the entire numerical verification in 17 lines of standard Python — zero external libraries required:
+
+```python
+import math
+
+def softmax(z):
+    m = max(z)
+    exps = [math.exp(v - m) for v in z]
+    s = sum(exps)
+    return [e / s for e in exps]
+
+def ce_loss(z, c):
+    return -math.log(softmax(z)[c])
+
+z, c, eps = [2.0, 1.0, -0.5], 1, 1e-6
+p = softmax(z)
+analytic = [p[i] - (1.0 if i == c else 0.0) for i in range(len(z))]
+numeric = [(ce_loss(z[:i] + [z[i] + eps] + z[i+1:], c)
+          - ce_loss(z[:i] + [z[i] - eps] + z[i+1:], c)) / (2 * eps)
+           for i in range(len(z))]
+
+print("p:       ", [round(v, 4) for v in p])        # [0.6897, 0.2537, 0.0566]
+print("analytic:", [round(v, 4) for v in analytic])  # [0.6897, -0.7463, 0.0566]
+print("numeric: ", [round(v, 4) for v in numeric])   # [0.6897, -0.7463, 0.0566]
+print("max diff:", f"{max(abs(a - b) for a, b in zip(analytic, numeric)):.2e}")  # 9.37e-11
+```
+
+Everything downstream in the backward pass — `dW2 = h.T @ dz2`, `dh = dz2 @ W2.T`, `dW1 = X.T @ dz1` — stays **completely unchanged** when you scale from 2 classes to 50,000. Only the shape of `dz2` grows from `(n, 1)` to `(n, C)`.
 
 ## In code
 
