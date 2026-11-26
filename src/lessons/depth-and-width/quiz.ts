@@ -83,4 +83,15 @@ export const questions: Question[] = [
       { text: 'It makes the network faster without changing what it can compute.', why: 'It is cheaper, but it also limits what the network can represent.' },
     ],
   },
+  {
+    id: 'depth.rosetta',
+    kind: 'choice',
+    concepts: ['layer', 'parameter'],
+    prompt: 'When you write a 1D convolution, an unrolled linear RNN, LoRA, and self-attention as effective `N × N` mixing matrices `W`, what sets self-attention apart from the other three?',
+    options: [
+      { text: 'Its effective mixing matrix W(x) is recomputed dynamically from the input x on every forward pass, rather than staying fixed after training.', correct: true, why: 'Convolution shares weights across space, RNNs share weights across time, and LoRA constrains the weight update to low rank — all three still use fixed weights at inference. Self-attention builds its mixing weights live from query–key dot products of the input.' },
+      { text: 'It uses fewer than 36 entries by zeroing out every off-diagonal cell.', why: 'Every token can attend to every other token (or every earlier token with a causal mask), so the attention matrix is generally dense, with rows summing to 1.' },
+      { text: 'It does not multiply the inputs by weights at all.', why: 'Attention still takes a weighted sum of values — it is still a matrix multiplication W(x)·V, just with input-dependent weights.' },
+    ],
+  },
 ];

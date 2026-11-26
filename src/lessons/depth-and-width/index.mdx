@@ -1,4 +1,5 @@
 import { ParamCalculator, FoldingDemo, RandomDeepWide } from './Widgets'
+import { RosettaMatrix } from './RosettaMatrix'
 import { questions } from './quiz'
 
 ## The problem: you have a budget
@@ -156,6 +157,31 @@ count(wide), count(deep)         # (222010, 223210): same budget, very different
 "More parameters means a more capable model." Parameter count is a budget, not a measure of ability. The folding network makes over a thousand pieces with 61 parameters, while a wide layer needs more than three thousand parameters to do the same — and a badly shaped network can waste most of its parameters entirely (remember the dead neurons and redundant layers in the playground). How the parameters are *arranged* matters as much as how many there are. That's why architecture research exists at all.
 
 </Misconception>
+
+## Zooming out: almost every architecture is still $W\mathbf{x} + \mathbf{b}$
+
+As you travel further through this course you will meet convolutional networks, recurrent networks, transformers, and low-rank adapters. It is easy to feel as though every few years someone invents a brand-new kind of maths.
+
+They almost never do. Nearly every major architecture in deep learning is still a **linear mixing matrix $W$** applied to an input vector $\mathbf{x}$ (plus a bias and a bend) — with a clever **structural constraint** placed on which entries of $W$ are forced to be zero, forced to copy each other, or allowed to depend on the input itself:
+
+- **1D Convolution** (<LessonLink to="convolution">Convolution</LessonLink>) zeros out distant entries and repeats the same tiny kernel along the diagonals — weight sharing across *space* (3 weights instead of 36 on a 6-element input: **12× fewer**).
+- **Recurrent networks** (<LessonLink to="rnns">Recurrent Networks</LessonLink>) zero out the upper triangle (causality) and repeat the same input and memory blocks across *time* (8 weights instead of 36).
+- **LoRA** (<LessonLink to="lora">LoRA</LessonLink>) keeps a pretrained matrix $W_0$ frozen and adds a rank-1 outer product $\mathbf{a}\mathbf{b}^\top$ (**12** trainable numbers instead of 36: **3× fewer**).
+- **Self-Attention** (<LessonLink to="attention">Attention</LessonLink>) makes the boldest leap of all.
+
+<Predict
+  question="All five architectures below act as a 6 × 6 matrix multiplying the same 6-number input vector x. Which one changes the numbers inside its effective weight matrix every time you feed it a new input?"
+  options={['1D Convolution, because the kernel slides across the input', 'An unrolled RNN, because its hidden state updates at every time step', 'Self-Attention, because its mixing weights are computed live from query–key dot products of x', 'LoRA, because the adapter modifies W₀']}
+  answer={2}
+>
+
+In a dense layer, a convolution, a linear unrolled RNN, and LoRA, the effective matrix $W$ is **fixed** once training stops: feed in a new $\mathbf{x}$ and the exact same numbers multiply it. Self-attention computes its row-stochastic mixing matrix $W(\mathbf{x}) = \text{softmax}(QK^\top / \sqrt{d})$ **on the fly from the input itself** — every token dynamically chooses which other tokens to read from. Test it below by switching to **Self-Attention** and dragging any `x` slider.
+
+</Predict>
+
+<RosettaMatrix />
+
+Keep this Rosetta Stone in your pocket for the rest of the course. Whenever you meet a new layer name, ask two questions: *what constraint did it put on the mixing matrix $W$, and are those entries fixed after training or computed live from the input?* Nine times out of ten, that single picture explains the whole architecture.
 
 <Quiz questions={questions} />
 
