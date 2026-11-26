@@ -245,6 +245,6 @@ Make one commit per step and push directly to `claude/cool-feynman-4hci4d`. Mark
 - [x] **V3-3:** `W·x + b` Architecture Rosetta Stone (`depth-and-width/rosetta.ts`, `rosetta.test.ts`, `RosettaMatrix.tsx`, `<Predict>`, MDX + quiz).
 - [x] **V3-4:** High-dimensional saddle-point explorer (`gradient-descent/saddle.ts`, `saddle.test.ts`, `SaddleExplorer.tsx`, `<Predict>`, MDX + quiz).
 - [x] **V3-5:** Tighter Module 5 bridge in `vanishing-gradients/index.mdx` (linking `TinyMlpBackprop`'s `682×` saturated-`tanh` valve & `StepMicroscope` crease motion directly into `SignalTelephone` and `RescueDeepNetLab`).
-- [ ] **V3-6:** `Custom (paint)` brush mode in `training-lab` (`customData.ts`, `customData.test.ts`, `TrainingLab.tsx`, MDX note).
+- [x] **V3-6:** `Custom (paint)` brush mode in `training-lab` (`customData.ts`, `customData.test.ts`, `TrainingLab.tsx`, MDX note).
 - [ ] **V3-7:** 4-token Transformer `SentenceMicroscope` (`transformer-block/sentenceMicro.ts`, `sentenceMicro.test.ts`, `SentenceMicroscope.tsx`, `<Predict>`, MDX + quiz).
 - [ ] **V3-8:** Visual screenshots (light, dark, matrix, 390px, driven states), both `check-pages.cjs` passes, full Vitest suite, `npm run build` + 0-match watermark check, update `docs/ROADMAP.md` & `HANDOFF.md`.

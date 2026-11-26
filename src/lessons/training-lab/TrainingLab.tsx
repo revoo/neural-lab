@@ -26,6 +26,13 @@ import {
 } from './lab';
 import { BEST_FOUND, CHALLENGES, CHALLENGE_DATA, challengeData } from './challenges';
 import { PRESETS } from './presets';
+import {
+  addPaintedPoint,
+  DEFAULT_MAX_POINTS,
+  hasBothClasses,
+  makeStarterCloud,
+  splitCustomTrainVal,
+} from './customData';
 import { BackendChip, useComputeTier } from '../../components/BackendChip';
 import { createMlpEngine } from '../../lib/compute/selectBackend';
 import type { MlpEngine } from '../../lib/compute/types';
@@ -71,6 +78,52 @@ function Points({ train, test, showTest, trainer }: { train: Pt[]; test: Pt[]; s
           return <circle key={`t${i}`} cx={x(p.x)} cy={y(p.y)} r={3.8} fill="var(--bg-elev)" stroke={wrong ? 'var(--c-bad)' : p.label ? 'var(--c-b)' : 'var(--c-a)'} strokeWidth={wrong ? 2.4 : 1.6} />;
         })}
     </g>
+  );
+}
+
+/** Transparent pointer-capture overlay inside <Plot> enabling click + drag painting. */
+function PaintOverlay({ onPaint }: { onPaint: (x: number, y: number) => void }) {
+  const { x, y, svg } = usePlot();
+  const painting = useRef(false);
+  const emit = (clientX: number, clientY: number) => {
+    const el = svg.current;
+    if (!el) return;
+    const ctm = el.getScreenCTM();
+    if (!ctm) return;
+    const pt = el.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const p = pt.matrixTransform(ctm.inverse());
+    onPaint(x.inv(p.x), y.inv(p.y));
+  };
+  const x0 = x(-DOMAIN);
+  const x1 = x(DOMAIN);
+  const y0 = y(DOMAIN);
+  const y1 = y(-DOMAIN);
+  return (
+    <rect
+      x={Math.min(x0, x1)}
+      y={Math.min(y0, y1)}
+      width={Math.abs(x1 - x0)}
+      height={Math.abs(y1 - y0)}
+      fill="transparent"
+      style={{ cursor: 'crosshair', touchAction: 'none' }}
+      onPointerDown={(e) => {
+        painting.current = true;
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+        emit(e.clientX, e.clientY);
+      }}
+      onPointerMove={(e) => {
+        if (!painting.current) return;
+        emit(e.clientX, e.clientY);
+      }}
+      onPointerUp={() => {
+        painting.current = false;
+      }}
+      onPointerCancel={() => {
+        painting.current = false;
+      }}
+    />
   );
 }
 
@@ -228,11 +281,15 @@ export function TrainingLab() {
 
   const data = useMemo(() => {
     if (challenge) return challengeData(challenge);
-    if (dataset === 'draw') return split(drawn, drawn.length > 3 ? trainFrac : 1, dataSeed);
+    if (dataset === 'draw') return splitCustomTrainVal(drawn, trainFrac);
     return split(generate(dataset, nPoints, noise, dataSeed), trainFrac, dataSeed);
   }, [challenge, dataset, drawn, nPoints, noise, dataSeed, trainFrac]);
 
-  const trainer = useMemo(() => (data.train.length >= 2 ? new Trainer(cfg, data.train, data.test.length ? data.test : data.train) : null), [cfg, data]);
+  const paintReady = challenge !== null || dataset !== 'draw' || hasBothClasses(drawn);
+  const trainer = useMemo(
+    () => (paintReady && data.train.length >= 2 ? new Trainer(cfg, data.train, data.test.length ? data.test : data.train) : null),
+    [cfg, data, paintReady],
+  );
   useEffect(() => {
     setRunning(false);
     setHist(trainer ? [{ step: 0, ...pick(trainer.metrics()) }] : []);
@@ -424,18 +481,31 @@ export function TrainingLab() {
     setSnaps([...snaps.slice(-2), { name, color: SNAP_COLORS[k], hist, m, summary }]);
   };
 
-  const onPlotDown = (p: { x: number; y: number }) => {
+  const onPaintPoint = (px: number, py: number) => {
     if (challenge || dataset !== 'draw') return;
-    if (Math.abs(p.x) > DOMAIN || Math.abs(p.y) > DOMAIN) return;
-    setDrawn((d) => [...d, { x: p.x, y: p.y, label: brush }]);
+    setDrawn((d) => addPaintedPoint(d, px, py, brush));
   };
 
   // live note
   let note: React.ReactNode;
-  if (!trainer) note = <>Click on the plot to add points (switch colour with the buttons). You need at least a few of each colour.</>;
-  else if (trainer.diverged) note = <><strong>Diverged.</strong> The weights blew up to infinity. The step size is too big for this setup — lower it and reset.</>;
-  else if (!m || trainer.steps === 0) note = <>Untrained network: its predictions (the background) are a meaningless smear. Press <strong>Train</strong>.</>;
-  else if (challenge) {
+  if (!trainer) {
+    note = (
+      <>
+        Click or drag on the plot to paint Class A or Class B points — add at least 2 of each class (or click <strong>Seed starter</strong>) to train.
+      </>
+    );
+  } else if (trainer.diverged) {
+    note = <><strong>Diverged.</strong> The weights blew up to infinity. The step size is too big for this setup — lower it and reset.</>;
+  } else if (!m || trainer.steps === 0) {
+    note =
+      dataset === 'draw' && !challenge ? (
+        <>
+          Click or drag on the plot to paint Class A or Class B points — try drawing two islands, or drop one wrong-coloured dot inside a cluster to watch overfitting, then press <strong>Train</strong>.
+        </>
+      ) : (
+        <>Untrained network: its predictions (the background) are a meaningless smear. Press <strong>Train</strong>.</>
+      );
+  } else if (challenge) {
     note = ruleBreak ? (
       <>Breaks the challenge rules: {ruleBreak}</>
     ) : achieved ? (
@@ -548,16 +618,12 @@ export function TrainingLab() {
                 </select>
               </div>
               {dataset === 'draw' ? (
-                <div className="btn-row">
-                  <button className={`btn small${brush === 0 ? ' primary' : ''}`} onClick={() => setBrush(0)}>
-                    ● blue
-                  </button>
-                  <button className={`btn small${brush === 1 ? ' primary' : ''}`} onClick={() => setBrush(1)}>
-                    ● orange
-                  </button>
-                  <button className="btn small" onClick={() => setDrawn([])}>
-                    Clear
-                  </button>
+                <div className="muted" style={{ fontSize: 12.5, lineHeight: 1.45 }}>
+                  Painted: <strong className="mono">{drawn.length} / {DEFAULT_MAX_POINTS}</strong> points
+                  <div className="mono" style={{ fontSize: 11.5, marginTop: 2 }}>
+                    <span className="c-a">A: {drawn.filter((p) => p.label === 0).length}</span> ·{' '}
+                    <span className="c-b">B: {drawn.filter((p) => p.label === 1).length}</span>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -629,6 +695,51 @@ export function TrainingLab() {
 
         {/* output */}
         <div className="widget-col" style={{ flex: '0 1 310px' }}>
+          {!challenge && dataset === 'draw' && (
+            <div className="btn-row" style={{ marginBottom: 6, gap: 5 }} role="toolbar" aria-label="Custom dataset paint brush">
+              <button
+                type="button"
+                className={`btn small${brush === 0 ? ' primary' : ''}`}
+                onClick={() => setBrush(0)}
+                aria-pressed={brush === 0}
+              >
+                <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--c-a)', marginRight: 4, verticalAlign: 'middle' }} />
+                Paint Class A
+              </button>
+              <button
+                type="button"
+                className={`btn small${brush === 1 ? ' primary' : ''}`}
+                onClick={() => setBrush(1)}
+                aria-pressed={brush === 1}
+              >
+                <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--c-b)', marginRight: 4, verticalAlign: 'middle' }} />
+                Paint Class B
+              </button>
+              <button
+                type="button"
+                className="btn small"
+                disabled={drawn.length === 0}
+                onClick={() => setDrawn((d) => d.slice(0, -1))}
+              >
+                Undo
+              </button>
+              <button
+                type="button"
+                className="btn small"
+                disabled={drawn.length === 0}
+                onClick={() => setDrawn([])}
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                className="btn small"
+                onClick={() => setDrawn(makeStarterCloud())}
+              >
+                Seed starter
+              </button>
+            </div>
+          )}
           <Plot
             x={[-DOMAIN, DOMAIN]}
             y={[-DOMAIN, DOMAIN]}
@@ -637,11 +748,11 @@ export function TrainingLab() {
             grid={false}
             tickLabels={false}
             ariaLabel="Data and the network's decision regions"
-            onPointerDown={onPlotDown}
             style={{ cursor: dataset === 'draw' && !challenge ? 'crosshair' : undefined }}
           >
             <Heatmap f={bg} range={[0, 1]} colormap={cmap} resolution={56} opacity={0.7} />
             <Points train={data.train} test={data.test} showTest={showTest} trainer={trainer} />
+            {!challenge && dataset === 'draw' && <PaintOverlay onPaint={onPaintPoint} />}
           </Plot>
           <Toggle label="Show test data" checked={showTest} onChange={setShowTest} />
           {m && (

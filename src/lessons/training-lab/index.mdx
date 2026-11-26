@@ -25,11 +25,13 @@ The only way to build a feel for those interactions is to play with them. So her
 
 A quick orientation:
 
-- **Data** (left): pick a dataset, its noise and size. Points are split at random into **training** points (filled), which the network learns from, and **<Term id="test-set">test</Term>** points (hollow), which it never sees during training. "Draw your own" lets you click points onto the plot.
+- **Data** (left): pick a dataset, its noise and size. Points are split into **training** points (filled), which the network learns from, and **<Term id="test-set">test</Term>** points (hollow), which it never sees during training. Choose **Custom (paint)** to click or drag your own Class A and Class B dots onto the canvas (with **Undo**, **Clear**, and a 12-point **Seed starter** cloud, stratified automatically into train and test).
 - **Inputs:** which numbers the network receives about each point. Normally just its coordinates, x and y, but you can also hand it ready-made combinations like x² or x·y. Each input's little map shows what it looks like across the plane.
 - **Network** (middle): add layers and neurons. Each neuron shows a live map of its own output, so you can watch the hidden layers build their features as training runs.
 - **Output** (right): the background is the network's current prediction everywhere; the numbers are its loss and accuracy on the training and test points.
 - **Settings** (below): activation, optimizer, step size, batch size, weight decay (L2) and the random start.
+
+*(Quick warm-up: pick **Custom (paint)**, click **Seed starter**, and press **Train** — then drop a single wrong-coloured outlier dot right inside the opposite cluster and re-train to watch how hard a big network bends its boundary to chase one bad label.)*
 
 ## Experiment 1: what one neuron can't see
 

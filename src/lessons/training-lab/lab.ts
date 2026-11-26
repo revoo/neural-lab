@@ -17,7 +17,7 @@ export const DATASET_LABELS: Record<DatasetName, string> = {
   clusters: 'Clusters',
   spiral: 'Spiral',
   moons: 'Moons',
-  draw: 'Draw your own',
+  draw: 'Custom (paint)',
 };
 
 export type Pt = { x: number; y: number; label: 0 | 1 };
