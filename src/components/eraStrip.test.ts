@@ -11,6 +11,7 @@ describe('EraStrip', () => {
       { kind: 'era', year: 1956, id: null, label: 'The founding years', href: '#/timeline' },
       { kind: 'milestone', year: 1969, id: null, label: 'Minsky and Papert’s book Perceptrons', href: '#/timeline' },
       { kind: 'history', year: 1969, id: 'pipeline', label: 'Faster matrix multiplication', href: '#/timeline/pipeline' },
+      { kind: 'history', year: 1970, id: 'credit-assignment-backprop', label: 'Reverse-mode automatic differentiation and hidden-layer credit assignment', href: '#/timeline/credit-assignment-backprop' },
       { kind: 'history', year: 1970, id: 'slipping-gear', label: 'Local slopes and the backward walk', href: '#/timeline/slipping-gear' },
       { kind: 'milestone', year: 1973, id: null, label: 'The Lighthill report on AI research', href: '#/timeline' },
       { kind: 'era', year: 1974, id: null, label: 'First AI winter', href: '#/timeline' },

@@ -1,6 +1,6 @@
 # Plan — Deepening the Backpropagation & Multi-Layer Foundation (`docs/BACKPROP_BRIDGE_PLAN.md`)
 
-**Status:** Approved by owner (26 November 2026). Ready to start at **B1**.
+**Status:** Complete (B1–B6 ticked and pushed, 26 November 2026).
 
 ---
 
@@ -166,6 +166,6 @@ Make one commit per step and push to `claude/cool-feynman-4hci4d`. Tick each ste
   - Run `node scripts/shoot-widgets.cjs backpropagation` and `node scripts/shoot-widgets.cjs network-from-scratch` in light, dark, matrix, and at 390px; drive interactive states (symmetry-trap step, single-point microscope step, Brief 2/3 lab solves) with `scripts/drive-widget.cjs`.
   - Inspect every PNG visually and fix any overlap, contrast, wrapping, or mobile layout issues.
   - Run both `node scripts/check-pages.cjs` and `node scripts/check-pages.cjs --theme=matrix` (0 console errors, 0 overflow at 1300px and 390px).
-- [ ] **B6 (IN PROGRESS) Wrap-up:**
+- [x] **B6 Wrap-up:**
   - Full Vitest suite (`npx vitest run --testTimeout=20000 --exclude src/lessons/tiny-gpt/tinyGpt.test.ts`) + `npm run build` + `rg "<MODEL_NAME>" dist/` returning 0.
   - Update `docs/ROADMAP.md` (Current state, status table, Next steps, Labs built so far, and any departures or unexpected measured results), tick B6 here, remove the `"NEXT TASK"` note from `HANDOFF.md` §0, commit and push.
