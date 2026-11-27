@@ -21,17 +21,18 @@ When you fine-tune a $d \times d$ weight matrix $W_0$, the final weights are sim
 But what if the task shift $\Delta W$ really only pushes inputs along $r = 16$ directions instead of all $4,096$? Then instead of storing the whole $d \times d$ update $\Delta W$, we freeze $W_0$ completely and factor $\Delta W$ into two skinny rectangles — a **down-projection** $A \in \mathbb{R}^{r \times d_{\text{in}}}$ and an **up-projection** $B \in \mathbb{R}^{d_{\text{out}} \times r}$:
 
 <Eq
-  words="Adapted output  =  frozen pretrained layer  +  (scale α / r) × up-matrix B × down-matrix A × input"
+  words="\ca{\text{adapted output}} = \cb{\text{frozen pretrained layer}} + \frac{\cg{\text{scale }\alpha}}{\cp{\text{rank }r}} \times \cc{\text{up-matrix }B} \times \cv{\text{down-matrix }A} \times \text{input}"
   tex="\ca{h} \;=\; \cb{W_0}\, x \;+\; \frac{\cg{\alpha}}{\cp{r}}\, \cc{B}\, \cv{A}\, x"
-  legend={[
-    ['h', 'output vector of the adapted linear layer', 'a'],
-    ['W_0', 'frozen pretrained weight matrix (d_out × d_in, zero gradients or Adam states)', 'b'],
-    ['A', 'trainable down-projection (r × d_in), initialised with small Gaussian noise', 'v'],
-    ['B', 'trainable up-projection (d_out × r), initialised to exact zeros', 'c'],
-    ['r', 'bottleneck rank (e.g. 8, 16, or 32 — far smaller than d = 4,096)', 'p'],
-    ['\\alpha', 'constant scaling factor so tuning r stays roughly scale-invariant', 'g'],
-  ]}
-/>
+>
+
+- $\ca{h}$ — the **output vector** of the adapted linear layer
+- $\cb{W_0}$ — the **frozen pretrained weight matrix** ($d_{\text{out}} \times d_{\text{in}}$, zero gradients or Adam states)
+- $\cv{A}$ — the **trainable down-projection** ($r \times d_{\text{in}}$), initialised with small Gaussian noise
+- $\cc{B}$ — the **trainable up-projection** ($d_{\text{out}} \times r$), initialised to exact zeros
+- $\cp{r}$ — the **bottleneck rank** (e.g. $8$, $16$, or $32$ — far smaller than $d = 4{,}096$)
+- $\cg{\alpha}$ — the **constant scaling factor** so tuning $r$ stays roughly scale-invariant
+
+</Eq>
 
 Count the trainable parameters on a $4,096 \times 4,096$ matrix at $r = 16$:
 - **Full matrix $\Delta W$:** $4,096 \times 4,096 = 16,777,216$ parameters.
@@ -80,8 +81,11 @@ Here is a subtle detail that trips up almost everyone implementing LoRA from scr
     'It causes exploding gradients because dividing by zero blows up.',
   ]}
   answer={1}
-  explain="By the chain rule, ∂L/∂B ∝ e·(Ax)ᵀ and ∂L/∂A ∝ Bᵀ·(exᵀ). If BOTH A = 0 and B = 0, then Ax = 0 makes ∂L/∂B = 0 AND Bᵀ = 0 makes ∂L/∂A = 0! Neither matrix can ever leave zero. Setting B = 0 while drawing A from a Gaussian keeps BA = 0 at step 0 yet gives B an immediate non-zero gradient on step 1."
-/>
+>
+
+By the chain rule, $\partial L / \partial B \propto e\,(Ax)^\top$ and $\partial L / \partial A \propto B^\top (ex^\top)$. If **both** $A = 0$ and $B = 0$, then $Ax = 0$ makes $\partial L / \partial B = 0$ **and** $B^\top = 0$ makes $\partial L / \partial A = 0$! Neither matrix can ever leave zero. Setting $B = 0$ while drawing $A$ from a Gaussian keeps $BA = 0$ at step 0 yet gives $B$ an immediate non-zero gradient on step 1.
+
+</Predict>
 
 Watch all three initialisation rules run live on a real frozen 8×8 layer adapted to a rank-3 shift below. Compare the step-0 loss and step-0 gradient norms `‖∇A‖` and `‖∇B‖` across all three rules!
 

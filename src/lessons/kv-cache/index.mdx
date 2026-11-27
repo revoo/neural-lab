@@ -44,17 +44,18 @@ Nothing in computing is free, though. We just traded redundant **compute** for p
 Every single token you keep in the conversation needs a Key vector and a Value vector saved at **every layer** and **every KV head**, for **every concurrent user** in the batch. Put those factors together and the exact memory formula writes itself:
 
 <Eq
-  words="KV cache bytes  =  2 (K and V)  ×  layers  ×  KV heads  ×  head size  ×  context  ×  batch  ×  bytes per number"
+  words="\text{KV cache bytes} = 2 \times \ca{\text{layers}} \times \cb{\text{KV heads}} \times \cc{\text{head size}} \times \cp{\text{context}} \times \cv{\text{batch}} \times \cg{\text{bytes/number}}"
   tex="\text{KV bytes} \;=\; 2 \cdot \ca{L} \cdot \cb{n_{\text{kv}}} \cdot \cc{d_{\text{head}}} \cdot \cp{n_{\text{ctx}}} \cdot \cv{B} \cdot \cg{b_{\text{kv}}}"
-  legend={[
-    ['L', 'number of transformer layers (32 in Llama-3 8B, 80 in 70B)', 'a'],
-    ['n_{\\text{kv}}', 'key–value heads per layer (equals query heads in MHA; smaller in GQA)', 'b'],
-    ['d_{\\text{head}}', 'dimension per attention head (typically 128)', 'c'],
-    ['n_{\\text{ctx}}', 'sequence length in tokens (prompt + generated)', 'p'],
-    ['B', 'batch size — how many users are served simultaneously', 'v'],
-    ['b_{\\text{kv}}', 'bytes per cached number (2 for FP16/BF16, 1 for FP8, 0.5625 for INT4 w/ scales)', 'g'],
-  ]}
-/>
+>
+
+- $\ca{L}$ — the **number of transformer layers** (32 in Llama-3 8B, 80 in 70B)
+- $\cb{n_{\text{kv}}}$ — the **key–value heads per layer** (equals query heads in MHA; smaller in GQA)
+- $\cc{d_{\text{head}}}$ — the **dimension per attention head** (typically 128)
+- $\cp{n_{\text{ctx}}}$ — the **sequence length** in tokens (prompt + generated)
+- $\cv{B}$ — the **batch size**: how many users are served simultaneously
+- $\cg{b_{\text{kv}}}$ — the **bytes per cached number** (2 for FP16/BF16, 1 for FP8, 0.5625 for INT4 with scales)
+
+</Eq>
 
 Plug in **Llama-3 8B** if it had used classic Multi-Head Attention (32 layers, 32 KV heads, head size 128, FP16):
 
@@ -86,14 +87,15 @@ A modern GPU like an **NVIDIA H100 SXM** has two headline numbers:
 Divide peak compute by memory bandwidth and you get the GPU’s **ridge point**:
 
 <Eq
-  words="Ridge point  =  peak compute speed  ÷  memory bandwidth"
+  words="\cb{\text{ridge point}} = \frac{\ca{\text{peak compute speed}}}{\cc{\text{memory bandwidth}}}"
   tex="\cb{I_{\text{ridge}}} \;=\; \frac{\ca{P_{\text{peak}}}}{\cc{B_{\text{mem}}}} \;=\; \frac{989\text{ TFLOP/s}}{3.35\text{ TB/s}} \;\approx\; 295\text{ FLOPs/byte}"
-  legend={[
-    ['I_{\\text{ridge}}', 'minimum FLOPs per byte needed to keep Tensor Cores 100% busy', 'b'],
-    ['P_{\\text{peak}}', 'GPU peak arithmetic throughput (FLOP/s)', 'a'],
-    ['B_{\\text{mem}}', 'GPU VRAM memory bandwidth (bytes/s)', 'c'],
-  ]}
-/>
+>
+
+- $\cb{I_{\text{ridge}}}$ — the **ridge point**: minimum FLOPs per byte needed to keep Tensor Cores 100% busy
+- $\ca{P_{\text{peak}}}$ — the GPU's **peak arithmetic throughput** (FLOP/s)
+- $\cc{B_{\text{mem}}}$ — the GPU's **VRAM memory bandwidth** (bytes/s)
+
+</Eq>
 
 Think of the Tensor Cores as a kitchen of 100 Michelin-starred chefs, and HBM3 bandwidth as a single dumbwaiter bringing ingredients up from the cellar. To keep all 100 chefs busy on an H100, **every single byte** delivered by the dumbwaiter must trigger **295 floating-point operations**.
 
@@ -107,8 +109,11 @@ Now ask yourself: how many FLOPs per byte does **single-user decoding** actually
     'Less than 1% — almost the entire GPU sits idle waiting for bytes from VRAM.',
   ]}
   answer={2}
-  explain="To generate 1 token, the GPU must stream ALL 16.06 GB of FP16 weights from HBM just to perform 2N ≈ 16.06 GFLOPs of multiply-adds — an arithmetic intensity of barely 1.05 FLOPs/byte! Against the H100’s 295 FLOP/byte ridge point, only 0.36% of the Tensor Cores are busy; 99.6% sit idle waiting on memory."
-/>
+>
+
+To generate 1 token, the GPU must stream **all 16.06 GB** of FP16 weights from HBM just to perform $2N \approx 16.06$ GFLOPs of multiply-adds — an arithmetic intensity of barely **1.05 FLOPs/byte**! Against the H100’s 295 FLOP/byte ridge point, only **0.36%** of the Tensor Cores are busy; **99.6%** sit idle waiting on memory.
+
+</Predict>
 
 Look at the simple arithmetic behind that shock:
 - In a forward pass of $T$ tokens through a model with $N$ parameters, linear layers do $\approx 2NT$ FLOPs (the exact same $2ND$ forward factor we met in [Scaling Laws](#/learn/scaling-laws)).

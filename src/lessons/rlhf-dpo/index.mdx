@@ -25,14 +25,15 @@ The classic **RLHF** pipeline turns those pairwise votes into an assistant in tw
 2. **Optimise the language model $\pi_\theta$ to score high on $\hat{r}_\phi$ — while keeping it on a leash** so it cannot wander arbitrarily far from the SFT reference policy $\pi_{\text{ref}}$:
 
 <Eq
-  words="RLHF objective  =  expected proxy reward  −  leash strength β  ×  KL distance from SFT reference"
+  words="\text{RLHF objective} = \cb{\text{expected proxy reward}} - \cp{\text{leash strength }\beta} \times \ca{\text{KL distance from SFT reference}}"
   tex="\max_{\pi} \;\; \mathbb{E}_{y \sim \pi}\!\big[\cb{\hat{r}(x, y)}\big] \;-\; \cp{\beta}\, \ca{D_{\text{KL}}\!\big(\pi \,\|\, \pi_{\text{ref}}\big)}"
-  legend={[
-    ['\\hat{r}(x, y)', 'score predicted by the learned proxy reward model', 'b'],
-    ['\\beta', 'KL penalty strength — larger β = tighter leash to the SFT reference', 'p'],
-    ['D_{\\text{KL}}(\\pi \\|\\, \\pi_{\\text{ref}})', 'how far the aligned policy has drifted from the starting SFT model (in nats)', 'a'],
-  ]}
-/>
+>
+
+- $\cb{\hat{r}(x, y)}$ — the **proxy reward**: score predicted by the learned reward model
+- $\cp{\beta}$ — the **KL penalty strength**: larger $\beta$ means a tighter leash to the SFT reference
+- $\ca{D_{\text{KL}}(\pi \,\|\, \pi_{\text{ref}})}$ — the **KL drift**: how far the aligned policy has drifted from the starting SFT model (in nats)
+
+</Eq>
 
 Why do we need that <Term id="kl-divergence">KL</Term> leash $\beta$? Because of **Goodhart’s Law**: *when a learned proxy score becomes the target of intense optimisation, the optimiser finds glitches that score huge on the proxy while being awful to real humans* — **<Term id="reward-hacking">reward hacking</Term>**.
 
@@ -44,8 +45,11 @@ Why do we need that <Term id="kl-divergence">KL</Term> leash $\beta$? Because of
     'The KL penalty keeps the policy safe for any β > 0.',
   ]}
   answer={1}
-  explain="The exact optimum of KL-regularised RLHF weights each reply by π_ref(y)·exp(r̂(y)/β). When β = 0.1, exp(5.0 / 0.1) = exp(50) ≈ 5 × 10²¹, which obliterates a tiny 0.002 reference probability and hands 100% of the model’s output to the glitch string!"
-/>
+>
+
+The exact optimum of KL-regularised RLHF weights each reply by $\pi_{\text{ref}}(y)\,\exp(\hat{r}(y)/\beta)$. When $\beta = 0.1$, $\exp(5.0 / 0.1) = \exp(50) \approx 5 \times 10^{21}$, which obliterates a tiny $0.002$ reference probability and hands 100% of the model’s output to the glitch string!
+
+</Predict>
 
 See that exact mathematical crash happen live below. Our 8-reply model solves the RLHF objective **in closed form** ($\pi^*(y) \propto \pi_{\text{ref}}(y)\exp(\hat{r}(y)/\beta)$) — drag $\beta$ down from **4.0** past the **sweet spot at $\beta = 1.1$ (+2.36 true helpfulness)** all the way to **0.10 (−2.80)**.
 
@@ -72,14 +76,15 @@ Now substitute that expression into the Bradley–Terry preference probability $
 What remains is **Direct Preference Optimisation (DPO)** — a single supervised loss directly on the language model $\pi_\theta$, with **no reward model and no RL loop**:
 
 <Eq
-  words="DPO loss  =  −log σ( implicit reward of winner  −  implicit reward of loser )"
+  words="\text{DPO loss} = -\log \sigma\big(\cp{\beta}\,\ca{\text{winner log-ratio}} - \cp{\beta}\,\cb{\text{loser log-ratio}}\big)"
   tex="\mathcal{L}_{\text{DPO}}(\theta) \;=\; -\log \sigma\!\left( \cp{\beta}\ca{\log\frac{\pi_\theta(y_w \mid x)}{\pi_{\text{ref}}(y_w \mid x)}} \;-\; \cp{\beta}\cb{\log\frac{\pi_\theta(y_l \mid x)}{\pi_{\text{ref}}(y_l \mid x)}} \right)"
-  legend={[
-    ['\\beta', 'same KL leash parameter as RLHF — controls how far π_θ may drift from π_ref', 'p'],
-    ['\\log(\\pi_\\theta(y_w)/\\pi_{\\text{ref}}(y_w))', 'how much more (or less) likely the policy makes the chosen reply than SFT did', 'a'],
-    ['\\log(\\pi_\\theta(y_l)/\\pi_{\\text{ref}}(y_l))', 'how much more (or less) likely the policy makes the rejected reply than SFT did', 'b'],
-  ]}
-/>
+>
+
+- $\cp{\beta}$ — the **same KL leash parameter** as RLHF: controls how far $\pi_\theta$ may drift from $\pi_{\text{ref}}$
+- $\ca{\log(\pi_\theta(y_w)/\pi_{\text{ref}}(y_w))}$ — the **winner log-ratio**: how much more (or less) likely the policy makes the chosen reply than SFT did
+- $\cb{\log(\pi_\theta(y_l)/\pi_{\text{ref}}(y_l))}$ — the **loser log-ratio**: how much more (or less) likely the policy makes the rejected reply than SFT did
+
+</Eq>
 
 Take its derivative and you uncover why DPO feels so natural: the gradient pushes $\log \pi_\theta(y_w)$ **up** and $\log \pi_\theta(y_l)$ **down**, multiplied by a self-weighting factor **$\sigma(-\Delta)$**! When the model ranks a pair **backwards** ($\Delta < 0$), $\sigma(-\Delta)$ approaches 1 (push hard!); once the model already clearly prefers $y_w$ ($\Delta \gg 0$), $\sigma(-\Delta)$ fades toward 0 (leave it alone!).
 
